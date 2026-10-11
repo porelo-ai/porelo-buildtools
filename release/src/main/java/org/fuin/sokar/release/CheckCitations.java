@@ -18,6 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Refuses the four ways a page or a file can cite an issue and go stale.
@@ -84,6 +85,11 @@ final class CheckCitations {
 
     private final PrintStream err;
 
+    private final Web web;
+
+    @Nullable
+    private final Path checkouts;
+
     /**
      * Constructor.
      *
@@ -91,8 +97,22 @@ final class CheckCitations {
      * @param err where a refusal goes
      */
     CheckCitations(PrintStream out, PrintStream err) {
+        this(out, err, Web.overHttp(), null);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param out where the result goes
+     * @param err where a refusal goes
+     * @param web where another repository's index is read
+     * @param checkouts a directory holding the repositories beside each other, read instead of the web; or null
+     */
+    CheckCitations(PrintStream out, PrintStream err, Web web, @Nullable Path checkouts) {
         this.out = out;
         this.err = err;
+        this.web = web;
+        this.checkouts = checkouts;
     }
 
     /**
@@ -130,10 +150,15 @@ final class CheckCitations {
         final List<String> pointers = new ArrayList<>();
         final List<String> numbers = new ArrayList<>();
         final List<String> gone = new ArrayList<>();
+        final IssueLinks issueLinks = new IssueLinks(web, checkouts);
         int read = 0;
         int binary = 0;
         int generatedFiles = 0;
         try {
+            issueLinks.read(root, pages.stream().filter(page -> isIssue(root, page)).toList(), prefixes);
+            final Set<String> named = new java.util.HashSet<>(issues);
+            // A finished issue keeps its row when its file goes, so a row is as good as a file.
+            named.addAll(issueLinks.rows);
             for (final Path page : pages) {
                 final Optional<String> text = text(page);
                 if (text.isPresent()) {
@@ -146,7 +171,7 @@ final class CheckCitations {
                 if (isIssue(root, file)) {
                     final Optional<String> text = text(file);
                     if (text.isPresent()) {
-                        gone.addAll(ownNumbersThatAreGone(root, file, text.get(), prefixes, issues));
+                        gone.addAll(ownNumbersThatAreGone(root, file, text.get(), prefixes, named));
                     }
                     continue;
                 }
@@ -169,7 +194,13 @@ final class CheckCitations {
             err.println("could not read under " + root + ": " + ex.getMessage());
             return Stop.UNANSWERED;
         }
-        if (stale.isEmpty() && links.isEmpty() && pointers.isEmpty() && numbers.isEmpty() && gone.isEmpty()) {
+        issueLinks.notes().forEach(note -> out.println("NOTE  " + note));
+        final List<String> unanchored = issueLinks.unanchored;
+        final List<String> unlinked = issueLinks.unlinked;
+        final List<String> broken = issueLinks.broken;
+        final List<String> rowless = issueLinks.rowless;
+        if (stale.isEmpty() && links.isEmpty() && pointers.isEmpty() && numbers.isEmpty() && gone.isEmpty()
+                && unanchored.isEmpty() && unlinked.isEmpty() && broken.isEmpty() && rowless.isEmpty()) {
             out.println("OK    citations in " + root + ": " + pages.size() + " page(s), " + read + " text file(s), "
                     + binary + " binary and " + generatedFiles + " generated file(s) skipped, " + exempt.size()
                     + " exempt, " + issues.size()
@@ -185,8 +216,14 @@ final class CheckCitations {
                 + " mention its deletion missed");
         report(numbers, "an issue number outside the issues: name the constraint, not the issue that recorded it;"
                 + " a line holding the shape on purpose says not-a-citation, a whole such file is named in " + EXEMPT);
-        err.println((stale.size() + links.size() + pointers.size() + numbers.size() + gone.size()) + " fault(s) in "
-                + root);
+        report(unanchored, "an index row that does not open with the anchor of its number, <a id=\"<number in lower"
+                + " case>\"></a>: a link to the row needs it");
+        report(unlinked, "an issue number under issues/ that is not a link to its row: write [<NUMBER>](<index>#<number>),"
+                + " never a link to its file, since the row outlives the file");
+        report(broken, "a link to an index row that is not there, or that names another number");
+        report(rowless, "a number no index has a row for: rewrite the text, it cannot be linked");
+        err.println((stale.size() + links.size() + pointers.size() + numbers.size() + gone.size() + unanchored.size()
+                + unlinked.size() + broken.size() + rowless.size()) + " fault(s) in " + root);
         return Stop.REFUSED;
     }
 

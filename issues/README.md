@@ -11,6 +11,12 @@ left out.
 |---|---|---|---|
 | <a id="bt02"></a>[BT02](BT02-Check-Actions-Reads-Permissions.md) | S | - | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
 
+## Implementing
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
+
 ## Analyzed
 
 | # | Size | Blocked by | What it covers | Open questions |

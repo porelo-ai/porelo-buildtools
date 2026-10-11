@@ -26,6 +26,27 @@ public final class Main {
             "check-citations", "check-doc-site", "check-releases", "check-readmes", "check-deploy", "check-linkage",
             "check-package-version");
 
+    private static final String CITATIONS_USAGE =
+            "check-citations [--checkouts DIRECTORY OF REPOSITORIES] [REPOSITORY ROOT, default .]";
+
+    private static int checkCitations(List<String> rest, PrintStream out, PrintStream err) {
+        final List<String> roots = new java.util.ArrayList<>(rest);
+        Path checkouts = null;
+        final int option = roots.indexOf("--checkouts");
+        if (option >= 0) {
+            if (option + 1 >= roots.size()) {
+                return usage(err, CITATIONS_USAGE);
+            }
+            checkouts = Path.of(roots.get(option + 1));
+            roots.subList(option, option + 2).clear();
+        }
+        if (roots.size() > 1) {
+            return usage(err, CITATIONS_USAGE);
+        }
+        return new CheckCitations(out, err, Web.overHttp(), checkouts)
+                .check(Path.of(roots.isEmpty() ? "." : roots.getFirst()));
+    }
+
     private Main() {
         throw new UnsupportedOperationException("Utility class");
     }
@@ -104,9 +125,7 @@ public final class Main {
                     : new CheckActions(out, err).check(Path.of(rest.isEmpty() ? ".github" : rest.getFirst()));
             case "check-shared" -> new CheckShared(out, err).check(
                     (rest.isEmpty() ? List.of("AGENTS.md") : rest).stream().map(Path::of).toList());
-            case "check-citations" -> rest.size() > 1
-                    ? usage(err, "check-citations [REPOSITORY ROOT, default .]")
-                    : new CheckCitations(out, err).check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
+            case "check-citations" -> checkCitations(rest, out, err);
             case "check-doc-site" -> rest.size() > 2
                     ? usage(err, "check-doc-site [DOC DIRECTORY, default doc] [MKDOCS FILE, default mkdocs.yml]")
                     : new CheckDocSite(out, err).check(Path.of(rest.isEmpty() ? "doc" : rest.getFirst()),

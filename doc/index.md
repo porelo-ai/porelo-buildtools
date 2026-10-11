@@ -31,7 +31,16 @@ writes: an SVG image's path data, a lock file's hashes. Build output is not read
 
 - **Outside `issues/`**, no file names an issue number, and no link goes to an issue's file or a design document.
 - **Among the issues**, a number of the repository's own prefixes - the prefixes its issue files carry - names an
-  issue file that exists, and a number beside an `[index](…)` link into the repository names one too.
+  issue file or an index row that exists, and a number beside an `[index](…)` link into the repository names one too.
+- **Every index row** under `issues/` opens with the anchor of its number, `<a id="<number in lower case>"></a>`.
+- **Every issue number under `issues/`** is a link to its row, `[<NUMBER>](<index>#<number>)`, never to its file:
+  the row outlives the file. Headings, code spans, fenced code and a row's own first cell are not read. A link reaches
+  an anchor that is there - in this repository's index read from the tree, in another's read from
+  `raw.githubusercontent.com` on `main`, or with `--checkouts <dir>` from `<dir>/<repository>/`. A number that no
+  index read has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
+  Which prefixes are issue numbers is read from the indexes, so `SHA256` or a guideline's `LLM03` is none.
+- **An index that cannot be read** - a repository not published yet, or no network - is named in a `NOTE` line with
+  the count of links into it that went unchecked, and does not fail the check.
 - **A line that holds an issue number's shape on purpose**, as test data for something that reads such text, says
   `not-a-citation` in its own text. A linter's codes after `noqa:` are not read.
 - **A whole file of such text** is named in `citations-exempt.txt` at the repository's root, one path per line,

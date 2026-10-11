@@ -1,0 +1,2 @@
+title: check-citations holds every issue number under issues/ to a link to its index row, every row to its anchor, and every such link to an anchor that is there, here or in another repository's index
+type: added

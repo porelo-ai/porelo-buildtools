@@ -17,6 +17,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 class CheckCitationsTest {
 
+    private static final String FRONTEND = "https://github.com/sokar-ai/sokar-frontend/blob/main/issues/README.md";
+
+    private static final String FRONTEND_RAW =
+            "https://raw.githubusercontent.com/sokar-ai/sokar-frontend/main/issues/README.md";
+
+    private static final String INTELLIJ = "https://github.com/sokar-ai/sokar-intellij/blob/main/issues/README.md";
+
     @TempDir
     Path root;
 
@@ -27,23 +34,24 @@ class CheckCitationsTest {
     @BeforeEach
     void aRepositoryWithTwoIssues() throws IOException {
         write("README.md", "# A repository\n");
-        write("issues/README.md", "| [B10](B10-A-Thing.md) | [B11](B11-Another.md) |\n");
+        write("issues/README.md", "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n");
         write("issues/B10-A-Thing.md", "# B10 - A Thing\n");
         write("issues/B11-Another.md", "# B11 - Another\n");
     }
 
     @Test
-    void acceptsIssuesCitingEachOtherByNumberAndIndex() throws IOException {
-        write("issues/B11-Another.md", "Needs **B10** ([index](README.md)).\n");
+    void acceptsIssuesCitingEachOtherByALinkToTheRow() throws IOException {
+        write("issues/B11-Another.md", "Needs **[B10](README.md#b10)**.\n");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
         assertThat(stdout()).contains("citations in").contains("2 issue(s)");
     }
 
     @Test
-    void acceptsTheIndexAndIssuesNamingIssueFiles() throws IOException {
-        // The index names files by being one; an issue is deleted together with every mention of its number.
-        write("issues/B10-A-Thing.md", "Needs [B11](B11-Another.md) and [its design](../issues/B11_design.md).\n");
+    void acceptsTheIndexNamingIssueFilesAndAnIssueItsDesign() throws IOException {
+        // The index names files by being one; a design is deleted together with its issue.
+        write("issues/B10-A-Thing.md", "Needs [B11](README.md#b11) and [its design](../issues/B11_design.md).\n");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
     }
@@ -90,10 +98,106 @@ class CheckCitationsTest {
     @Test
     void refusesANumberOfThisRepositorysOwnAmongTheIssuesThatNamesNoIssue() throws IOException {
         // The index row or the "blocked by" its deletion missed; another repository's number is not ours to check.
-        write("issues/README.md", "| [B10](B10-A-Thing.md) | B12 | waits on sokar-frontend F31 |\n");
+        write("issues/README.md", "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on sokar-frontend F31 |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("issues/README.md:1 -> B12").doesNotContain("F31");
+    }
+
+    @Test
+    void refusesAnIndexRowWithoutItsAnchor() throws IOException {
+        write("issues/README.md", "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                + "| [B11](B11-Another.md) | another |\n| <a id=\"b10\"></a>B12 | finished, named wrong |\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("an index row that does not open with the anchor of its number")
+                .contains("issues/README.md:2 -> B11").contains("issues/README.md:3 -> B12");
+    }
+
+    @Test
+    void refusesANumberAmongTheIssuesThatIsNotALinkToItsRow() throws IOException {
+        write("issues/B11-Another.md", "Follows B10.\nAnd [B10](B10-A-Thing.md#why), and [B10](README.md).\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("an issue number under issues/ that is not a link to its row")
+                .contains("issues/B11-Another.md:1 -> B10").contains("issues/B11-Another.md:2 -> B10-A-Thing.md#why")
+                .contains("issues/B11-Another.md:2 -> README.md");
+    }
+
+    @Test
+    void refusesALinkToARowThatIsNotThere() throws IOException {
+        write("issues/B11-Another.md", "See [B10](README.md#b11) and [the other](README.md#b12).\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("a link to an index row that is not there")
+                .contains("issues/B11-Another.md:1 -> B10 linked to README.md#b11")
+                .contains("issues/B11-Another.md:1 -> README.md#b12");
+    }
+
+    @Test
+    void leavesHeadingsCodeAndAMarkedLineAlone() throws IOException {
+        write("issues/B11-Another.md", "# B11 - Another\n\nThe form is `[B10](README.md#b10)`.\n\n```\nB10\n```\n"
+                + "B10 as the parser reads it - not-a-citation\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void acceptsALinkToARowOnTheSamePage() throws IOException {
+        write("issues/README.md", "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                + "| <a id=\"b11\"></a>[B11](B11-Another.md) | after [B10](#b10), not [B12](#b12) |\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/README.md:2 -> #b12").doesNotContain("-> #b10");
+    }
+
+    @Test
+    void acceptsAFinishedRowWhoseFileIsGone() throws IOException {
+        write("issues/README.md", "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
+                + "| <a id=\"b09\"></a>B09 | Built: the first thing. |\n");
+        write("issues/B11-Another.md", "After [B09](README.md#b09).\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void readsAnotherRepositorysIndexOnMain() throws IOException {
+        final FakeWeb web = new FakeWeb().serve(FRONTEND_RAW, "| <a id=\"f31\"></a>[F31](F31-A-Consent.md) | x |\n");
+        write("issues/B11-Another.md", "Its interface is [F31](" + FRONTEND + "#f31).\nNot [F32](" + FRONTEND
+                + "#f32), not F31 alone, and F20 is finished.\n");
+
+        assertThat(check(web, null)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:2 -> " + FRONTEND + "#f32")
+                .contains("issues/B11-Another.md:2 -> F31")
+                .contains("a number no index has a row for: rewrite the text, it cannot be linked")
+                .contains("issues/B11-Another.md:2 -> F20").doesNotContain(":1 ->");
+        assertThat(web.asked).hasSize(1);
+    }
+
+    @Test
+    void namesAnIndexThatCannotBeReadAndDoesNotFailOnIt() throws IOException {
+        final FakeWeb web = new FakeWeb().fail(FRONTEND_RAW, "no network");
+        write("issues/B11-Another.md", "Its plugin is [IJ04](" + INTELLIJ + "#ij04), its interface [F31]("
+                + FRONTEND + "#f31).\n");
+
+        assertThat(check(web, null)).as(stderr()).isEqualTo(0);
+        assertThat(stdout()).contains("not read: sokar-intellij issues/README.md (not published)")
+                .contains("not read: sokar-frontend issues/README.md (" + FRONTEND_RAW + ": no network)")
+                .contains("2 link(s) into them not checked");
+    }
+
+    @Test
+    void readsAnotherRepositorysIndexFromACheckoutBeside() throws IOException {
+        final Path checkouts = root.resolve("../checkouts").normalize();
+        Files.createDirectories(checkouts.resolve("sokar-frontend/issues"));
+        Files.writeString(checkouts.resolve("sokar-frontend/issues/README.md"), "| <a id=\"f31\"></a>F31 | x |\n");
+        write("issues/B11-Another.md", "Its interface is [F31](" + FRONTEND + "#f31), not [F33](" + FRONTEND
+                + "#f33).\n");
+
+        assertThat(check(FakeWeb.untouchable(), checkouts)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> " + FRONTEND + "#f33")
+                .doesNotContain(FRONTEND + "#f31");
     }
 
     @Test
@@ -143,7 +247,7 @@ class CheckCitationsTest {
     @Test
     void refusesAnIssueNumberInAPublishedPageButNotInAnIssue() throws IOException {
         write("doc/guide.md", "This came from B10.\n");
-        write("issues/B11-Another.md", "Follows B10.\n");
+        write("issues/B11-Another.md", "Follows [B10](README.md#b10).\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("doc/guide.md:1 -> B10").doesNotContain("issues/B11-Another.md");
@@ -232,9 +336,13 @@ class CheckCitationsTest {
     }
 
     private int check() {
+        return check(FakeWeb.untouchable(), null);
+    }
+
+    private int check(Web web, Path checkouts) {
         out.reset();
         err.reset();
-        return new CheckCitations(stream(out), stream(err)).check(root);
+        return new CheckCitations(stream(out), stream(err), web, checkouts).check(root);
     }
 
     private void git(String... args) throws Exception {
