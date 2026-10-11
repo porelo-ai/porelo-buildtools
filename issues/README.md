@@ -1,22 +1,18 @@
 # Issues
 
-The open tasks of `sokar-buildtools`, by when; the rules for an issue are in [AGENTS.md](../AGENTS.md). Its prefix
-is `BT`.
+The open tasks of `sokar-buildtools`, grouped by state; the order within a group is the priority. The rules for an
+issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). Its prefix is `BT`. A group with nothing in it is
+left out.
 
-## Now
+## Review
 
-| # | status | blocked by | what it covers | to be checked |
+| # | Size | Blocked by | What it covers | Open questions |
 |---|---|---|---|---|
+| <a id="bt02"></a>[BT02](BT02-Check-Actions-Reads-Permissions.md) | S | - | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. | - |
 
-## Soon
+## Analyzed
 
-| # | status | blocked by | what it covers | to be checked |
+| # | Size | Blocked by | What it covers | Open questions |
 |---|---|---|---|---|
-| [BT01](BT01-A-Release-Leg-Installs-The-Release.md) | open | - | A release leg installs Sokar from the channel the run publishes to, and `acceptance --candidate` needs no package name. | 1 |
-| [BT02](BT02-Check-Actions-Reads-Permissions.md) | built | - | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. | - |
-| [BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | open | - | a new CI snapshot, once available, deletes the older `sokar=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said | 1 |
-
-## Later
-
-| # | status | blocked by | what it covers | to be checked |
-|---|---|---|---|---|
+| <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Sokar from the channel the run publishes to, and `acceptance --candidate` needs no package name. | 1 |
+| <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `sokar=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. | 1 |

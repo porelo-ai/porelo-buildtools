@@ -1,6 +1,8 @@
 # BT02 — Check Actions Reads Permissions
 
-**Status:** built; in force once every repository has moved its writes into their jobs.
+**Status:** Review.
+**Size:** S - built: `CheckActions` in `release`, its tests and `doc/index.md`; on `main` and published in
+`0.4.5-SNAPSHOT`, every repository's Shared rules check reads it.
 
 **What must be true.** `check-actions` reads a workflow's `permissions:` as well as its `uses:`: at the top a workflow
 grants read or nothing, and a `write` permission is allowed only in a job that the check's own list names for it.

@@ -1,6 +1,8 @@
 # BT01 — A Release Leg Installs The Release
 
-**Status:** soon.
+**Status:** Analyzed.
+**Size:** S - one module (`hetzner`): the channel into `AgentLeg.install`, the name check moved behind `--candidate`, two
+unit tests; no contract another repository reads beyond one new option.
 
 **What must be true.** A leg on a rented machine for a release tests that release: `sokar-machines acceptance` and
 `lease` install Sokar from the channel the run publishes to, and `acceptance --candidate` needs no package name.
@@ -12,6 +14,17 @@ repository line with the channel fixed to `snapshots`, so a tag leg installed So
 emptied, and stopped at "Unable to locate package sokar". And `AgentLeg.run` checked the package name before it
 looked at `--candidate`, so `--candidate` alone, which `acceptance` documents as needing no name, was refused with
 "--package '' is not a package name".
+
+## Plan
+
+- `hetzner/.../AgentLeg.java`: `install(os, artifactory, installs)` gains a `channel` (`snapshots` or `releases`) that
+  replaces the fixed `snapshots` in both the RPM `baseurl` and the Debian source line; `Rental.java:101` passes it too.
+- The channel comes from a new `--channel snapshots|releases` option of `acceptance` and `lease` (`Main`, `Options`),
+  defaulting to `releases` when `GITHUB_REF_TYPE=tag` and `snapshots` otherwise.
+- `AgentLeg.run`: `packageArgument(options.packageName())` is checked only when there is no `--candidate`.
+- Red first in `AgentLegTest`: the install script for `releases` still names `snapshots`; `--candidate` with an
+  empty package name is refused.
+- `doc/index.md` names the option.
 
 ## Acceptance
 
@@ -25,5 +38,4 @@ looked at `--candidate`, so `--candidate` alone, which `acceptance` documents as
 
 ## To be checked
 
-- Whether the channel is an option of `acceptance` and `lease`, or read from the run (`GITHUB_REF_TYPE`), and which
-  wins when both are there.
+- Whether an explicit `--channel` wins over `GITHUB_REF_TYPE`, as planned (Agent Core's).
