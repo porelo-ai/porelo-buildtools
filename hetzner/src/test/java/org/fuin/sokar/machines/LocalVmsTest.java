@@ -14,18 +14,18 @@ import org.junit.jupiter.api.Test;
  */
 class LocalVmsTest {
 
-    /** What virsh actually printed for the machine this was written against. */
+    /** What virsh prints, in the layout it printed for a machine here, with a documentation address. */
     private static final String DOMIFADDR = """
              Name       MAC address          Protocol     Address
             -------------------------------------------------------------------------------
-             vnet3      52:54:00:1a:2b:3c    ipv4         192.168.122.174/24
+             vnet3      52:54:00:1a:2b:3c    ipv4         192.0.2.10/24
             """;
 
     @Test
     void readsTheAddressOutOfPaddedColumns() {
         // Padded rather than delimited, with a header and a rule above it: counting fields would
         // read the rule as a row.
-        assertThat(LocalVms.address(DOMIFADDR)).isEqualTo("192.168.122.174");
+        assertThat(LocalVms.address(DOMIFADDR)).isEqualTo("192.0.2.10");
     }
 
     @Test
@@ -42,7 +42,7 @@ class LocalVmsTest {
     void takesTheFirstAddressWhenAMachineHasTwoInterfaces() {
         assertThat(LocalVms.address(DOMIFADDR
                 + " vnet4      52:54:00:9d:8e:7f    ipv4         10.0.0.5/24\n"))
-                .isEqualTo("192.168.122.174");
+                .isEqualTo("192.0.2.10");
     }
 
     @Test
@@ -64,7 +64,7 @@ class LocalVmsTest {
             };
         });
         try (Lease lease = vms.acquire(spec())) {
-            assertThat(lease.address()).isEqualTo("192.168.122.174");
+            assertThat(lease.address()).isEqualTo("192.0.2.10");
             assertThat(lease.name()).isEqualTo("ubuntu26.04");
         }
         assertThat(asked).containsExactly("domstate ubuntu26.04", "start ubuntu26.04",
