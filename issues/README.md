@@ -21,5 +21,6 @@ left out.
 
 | # | Size | Blocked by | What it covers | Open questions |
 |---|---|---|---|---|
+| <a id="bt05"></a>[BT05](BT05-The-Code-Read-Against-The-Skills-It-Names.md) | L | - | Every module read against the seven skills `AGENTS.md` names, at recorded versions and SHA-256: `release`, `hetzner` and its script, `json`, `ffm-check`, `cpu-check`; each finding fixed with a test seen red or declined with why; one commit per module. | - |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Sokar from the channel the run publishes to, and `acceptance --candidate` needs no package name. | - |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `sokar=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. | - |
