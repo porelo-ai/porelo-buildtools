@@ -1,0 +1,2 @@
+title: A command run over ssh that writes much to standard error before it ends is read to its end instead of waiting for ever
+type: fixed

@@ -160,13 +160,41 @@ public final class Ssh implements AutoCloseable {
                     in.write(stdin.getBytes(StandardCharsets.UTF_8));
                 }
             }
-            final String out = new String(exec.getInputStream().readAllBytes(),
-                    StandardCharsets.UTF_8);
-            final String err = new String(exec.getErrorStream().readAllBytes(),
-                    StandardCharsets.UTF_8);
+            final String[] read = readBoth(exec.getInputStream(), exec.getErrorStream());
             exec.join();
             final Integer status = exec.getExitStatus();
-            return new Output(out, err, status == null ? -1 : status);
+            return new Output(read[0], read[1], status == null ? -1 : status);
+        }
+    }
+
+    /**
+     * Reads a command's output and its errors to their ends, side by side.
+     * <p>
+     * One after the other, a command blocked writing more errors than the channel holds never closed its output, and
+     * the read of the output waited for ever.
+     *
+     * @param out Its output.
+     * @param err Its errors.
+     * @return The output, then the errors.
+     * @throws IOException If either cannot be read.
+     */
+    static String[] readBoth(final java.io.InputStream out, final java.io.InputStream err) throws IOException {
+        final java.util.concurrent.CompletableFuture<String> errors = new java.util.concurrent.CompletableFuture<>();
+        Thread.ofPlatform().daemon().name("ssh-stderr").start(() -> {
+            try {
+                errors.complete(new String(err.readAllBytes(), StandardCharsets.UTF_8));
+            } catch (final IOException | RuntimeException ex) {
+                errors.completeExceptionally(ex);
+            }
+        });
+        final String output = new String(out.readAllBytes(), StandardCharsets.UTF_8);
+        try {
+            return new String[] {output, errors.get()};
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted while reading a command's errors", ex);
+        } catch (final java.util.concurrent.ExecutionException ex) {
+            throw ex.getCause() instanceof IOException io ? io : new IOException(ex.getCause());
         }
     }
 

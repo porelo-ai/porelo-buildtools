@@ -43,6 +43,16 @@ Each module ends in one commit, green with the whole reactor and the shared chec
 the module's name: fixed (with the test seen red) or declined (with why). A finding is a guess until a failing test
 reproduces it.
 
+### Found before the reading started
+
+- **Fixed: `Ssh.run` read a command's output to its end before its errors**, so a command blocked writing more errors
+  than the channel holds never closed its output, and the call waited for ever (found from `sokar`'s kit, which runs
+  every scenario's commands through it). Both are read side by side; `SshOutputTest` holds it with pipes, red with
+  the old order.
+- **Open: `Ssh` accepts any host key (`PromiscuousVerifier`).** It is how a server rented a moment ago is reached
+  before anything about it is known; whether that holds for every caller - the local VMs too - is read against
+  `security-audit` here.
+
 ## Acceptance
 
 - Each module above is listed here with the skills it was read against, their versions, and its commit.
