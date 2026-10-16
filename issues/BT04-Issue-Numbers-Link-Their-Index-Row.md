@@ -26,14 +26,14 @@ anchor, goes unnoticed until somebody follows a link that leads nowhere.
     target ends in `#<number>` is the one accepted form; the same number linked to an issue's file is refused, as is a
     link whose anchor names another number.
   - **A link whose anchor does not exist:** a link ending in `#<number shape>` to an index of this repository whose
-    file has no such anchor; or to `https://github.com/sokar-ai/<repository>/blob/main/<path>#<number>` whose index,
-    read from `https://raw.githubusercontent.com/sokar-ai/<repository>/main/<path>`, has none.
+    file has no such anchor; or to `https://github.com/porelo-ai/<repository>/blob/main/<path>#<number>` whose index,
+    read from `https://raw.githubusercontent.com/porelo-ai/<repository>/main/<path>`, has none.
   - **A number with no row anywhere:** a number of a known prefix that no index read has a row for - an issue finished
     before rows were kept. Said apart, as "rewrite the text, it cannot be linked".
 - Which prefixes are issue numbers: those of this repository's own issue files, and those of the rows in every index
   read - this repository's and the ones its links point at. A shape no index uses (`SHA256`, a guideline's `LLM03`) is
   not a number.
-- Another repository's index is read once per run. One that cannot be read - not published yet, as `sokar-intellij`
+- Another repository's index is read once per run. One that cannot be read - not published yet, as `porelo-intellij`
   before its first push, or no network - is named in the output with the links that were not checked, and does not
   make the check fail. `--checkouts <dir>` reads `<dir>/<repository>/<path>` instead, for a run on a machine with the
   repositories beside each other.
@@ -52,6 +52,6 @@ would turn red on its next push.
 - A link into a repository whose index cannot be read is named and not failed.
 
 Measured 2026-10-11 on the host, without `--checkouts`: the public repositories' indexes are read from
-`raw.githubusercontent.com`; a private repository's (`sokar-build-github`) answers 404 there, as `sokar-intellij`'s
+`raw.githubusercontent.com`; a private repository's (`porelo-build-github`) answers 404 there, as `porelo-intellij`'s
 before its first push, so its links are named as not checked and do not fail the check. With `--checkouts ~/git` all
 twelve trees as of that morning's anchored commits pass.

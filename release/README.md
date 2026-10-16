@@ -1,4 +1,4 @@
-# release - `sokar-release`
+# release - `porelo-release`
 
 The command line an agent repository's build and update job call: it decides what an agent package may publish
 without a person, moves named pins, and holds the shared checks - `check-actions`, `check-shared`, `check-citations`,

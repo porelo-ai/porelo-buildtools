@@ -6,15 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.fuin.sokar</groupId>
-        <artifactId>sokar-buildtools</artifactId>
-        <version>0.4.5-SNAPSHOT</version>
+        <groupId>org.fuin.porelo</groupId>
+        <artifactId>porelo-buildtools</artifactId>
+        <version>0.5.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>sokar-json</artifactId>
-    <name>Sokar JSON</name>
-    <description>Sokar - The JSON reader and writer the build tools share (BUILD)</description>
+    <artifactId>porelo-json</artifactId>
+    <name>Porelo JSON</name>
+    <description>Porelo - The JSON reader and writer the build tools share (BUILD)</description>
 
     <properties>
         <!-- Published: every published tool here depends on it. -->

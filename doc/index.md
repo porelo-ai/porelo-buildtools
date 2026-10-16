@@ -1,27 +1,27 @@
 # Build tools
 
-The tooling every Sokar repository builds and tests with, published to Maven Central under `org.fuin.sokar`. None
-of it ships to a person who runs Sokar: it rents the machines the acceptance tests run on, checks what a release
+The tooling every Porelo repository builds and tests with, published to Maven Central under `org.fuin.porelo`. None
+of it ships to a person who runs Porelo: it rents the machines the acceptance tests run on, checks what a release
 may publish, and checks the native images before they go out.
 
 ## The tools
 
 | Artifact | What it does | Commands |
 |---|---|---|
-| `sokar-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A leg whose build is cancelled ends its suite and gives its machines back at once. A snapshot proves itself by building `sokar` with the tree's own `ci/leg-build.sh`. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `sokar-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules are copied byte for byte, that no page or source cites an issue in a way that goes stale, that a release builds and packages with no snapshot, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI is the one its download names; records that CLI in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
-| `sokar-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `sokar`'s build |
-| `sokar-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `sokar`'s build |
-| `sokar-json` | The JSON reader and writer the tools above share. | - |
+| `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A leg whose build is cancelled ends its suite and gives its machines back at once. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules are copied byte for byte, that no page or source cites an issue in a way that goes stale, that a release builds and packages with no snapshot, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI is the one its download names; records that CLI in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
+| `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
+| `porelo-json` | The JSON reader and writer the tools above share. | - |
 
 ## Who uses which
 
 | Repository | Uses |
 |---|---|
-| `sokar` | all of them: the machines its acceptance legs run on, the image checks, `check-actions` and `check-shared` |
-| the agent repositories (`claude`, `pi`, `omp`) | `sokar-machines` for their acceptance legs and the GraalVM; `sokar-release` for the pinned CLI, the bill and the shared rules |
-| `frontend` | `sokar-machines` to lease a machine its integration tests reach; `sokar-release` for the shared rules |
-| `sluice`, `matrix` | `sokar-machines` for the GraalVM; `sokar-release` for the shared rules |
+| `porelo` | all of them: the machines its acceptance legs run on, the image checks, `check-actions` and `check-shared` |
+| the agent repositories (`claude`, `pi`, `omp`) | `porelo-machines` for their acceptance legs and the GraalVM; `porelo-release` for the pinned CLI, the bill and the shared rules |
+| `frontend` | `porelo-machines` to lease a machine its integration tests reach; `porelo-release` for the shared rules |
+| `sluice`, `matrix` | `porelo-machines` for the GraalVM; `porelo-release` for the shared rules |
 
 ## What `check-citations` reads
 
@@ -69,12 +69,12 @@ The list is in the check (`CheckActions.WRITES`), the same for every repository:
 | `site.yml` | `publish` | `pages`, `id-token` | publishes the documentation site |
 | `build.yml` | `windows` | `id-token`, `attestations` | the interface's Windows job attests its ZIP |
 
-A job that needs a write not in it is a change to the list, with its reason, in `sokar-buildtools`.
+A job that needs a write not in it is a change to the list, with its reason, in `porelo-buildtools`.
 
 ## What `check-readmes` reads
 
 ```
-sokar-release check-readmes [REPOSITORY ROOT, default .]
+porelo-release check-readmes [REPOSITORY ROOT, default .]
 ```
 
 The reactor from the root `pom.xml` down, through every `<module>`, a profile's included, since a module only a
@@ -90,7 +90,7 @@ runner where nothing listens:
 ```
 ./mvnw -B -s settings.xml deploy -Pcentral-sonatype-release -Dgpg.skip -DskipTests \
     -DcentralBaseUrl=http://127.0.0.1:9 -DcentralSnapshotsUrl=http://127.0.0.1:9/ > target/deploy-dry-run.log 2>&1
-sokar-release check-deploy target/deploy-dry-run.log
+porelo-release check-deploy target/deploy-dry-run.log
 ```
 
 The upload failing against the dead port is expected. Refused, each named:
@@ -111,13 +111,13 @@ The effective pom Maven writes, taken on a release tag before the build:
 
 ```
 ./mvnw -B -s settings.xml help:effective-pom -Doutput=target/effective-pom.xml
-sokar-release check-releases target/effective-pom.xml --requires org.fuin.sokar:sokar-release
+porelo-release check-releases target/effective-pom.xml --requires org.fuin.porelo:porelo-release
 ```
 
 So what is checked is what Maven resolved: every property interpolated, an imported BOM's versions merged in, plugins
 and the dependencies they run with. A release depends only on releases, so every `-SNAPSHOT` it names is refused and
 named with where it was found - parent, dependency, managed dependency, plugin, a plugin's dependency, extension. The
-enforcer's rule for release dependencies does not look at a plugin's dependencies, and the Sokar tools are exactly
+enforcer's rule for release dependencies does not look at a plugin's dependencies, and the Porelo tools are exactly
 those.
 
 - **The repository's own modules are outside the rule**: the same run builds them, and a repository whose Maven version
@@ -138,15 +138,15 @@ those.
 
 ## How a repository takes them
 
-`sokar` names the version in its root pom, `sokar.buildtools.version`, and publishes it in `sokar-bom`. Every other
-repository imports `sokar-bom` at the `sokar` version it builds against, and so takes the build tools that `sokar`
+`porelo` names the version in its root pom, `porelo.buildtools.version`, and publishes it in `porelo-bom`. Every other
+repository imports `porelo-bom` at the `porelo` version it builds against, and so takes the build tools that `porelo`
 release names, without a version of its own. A build tool runs as a plugin's dependency, for example:
 
 ```
 ./mvnw -B -s settings.xml -N exec:exec@machines -Dmachines.args=jdk
 ```
 
-The tools depend on nothing of `sokar`'s. `sokar`'s build runs them, so a dependency the other way would make the
+The tools depend on nothing of `porelo`'s. `porelo`'s build runs them, so a dependency the other way would make the
 two impossible to release one after the other.
 
 ## What `check-linkage` reads
@@ -154,8 +154,8 @@ two impossible to release one after the other.
 The native binaries a package carries, each with `readelf -d -V -W`, against what the packages declare by hand:
 
 ```
-sokar-release check-linkage --declare libc.so.6=GLIBC:2.34 --declare libz.so.1=ZLIB:1.2.2 \
-    --ceiling GLIBC=2.41 apps/app/target/sokar daemon/target/sokard
+porelo-release check-linkage --declare libc.so.6=GLIBC:2.34 --declare libz.so.1=ZLIB:1.2.2 \
+    --ceiling GLIBC=2.41 apps/app/target/porelo daemon/target/porelod
 ```
 
 jdeb and the rpm plugin do not read a binary to find what it links against, so the floor is written in the packages
@@ -178,7 +178,7 @@ would undo the derivation, and its C library's floor is still the one thing a ne
 The newest `.deb` and `.rpm` of a name in a directory, with `dpkg-deb -f` and `rpm -qp`:
 
 ```
-sokar-release check-package-version sokar-build-github 0.4.2-SNAPSHOT 7 target
+porelo-release check-package-version porelo-build-github 0.4.2-SNAPSHOT 7 target
 ```
 
 Both must carry the project's version as the packaging promises: `0.4.2-SNAPSHOT` built as run 7 is

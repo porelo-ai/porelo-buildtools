@@ -7,18 +7,18 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.fuin.sokar</groupId>
-        <artifactId>sokar-parent</artifactId>
-        <version>0.1.1</version>
+        <groupId>org.fuin.porelo</groupId>
+        <artifactId>porelo-parent</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
         <relativePath/>
     </parent>
 
-    <groupId>org.fuin.sokar</groupId>
-    <artifactId>sokar-buildtools</artifactId>
-    <version>0.4.5-SNAPSHOT</version>
+    <groupId>org.fuin.porelo</groupId>
+    <artifactId>porelo-buildtools</artifactId>
+    <version>0.5.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Sokar Buildtools</name>
-    <description>Sokar - The build and test tooling shared by the Sokar repositories (PARENT)</description>
+    <name>Porelo Buildtools</name>
+    <description>Porelo - The build and test tooling shared by the Porelo repositories (PARENT)</description>
 
     <!-- Overrides the LGPL block inherited from org.fuin:pom, which flatten copies into the
          published poms of every module here. -->
@@ -32,28 +32,28 @@
     </licenses>
 
     <!-- Without the inherit.append.path attributes Maven appends each child's artifactId,
-         so a module would advertise .../sokar-buildtools/sokar-machines/ in its published pom -
+         so a module would advertise .../porelo-buildtools/porelo-machines/ in its published pom -
          a path that does not exist. One repository, one url. The project one belongs on
          <project> and the scm ones on <scm>: they are fields of different model objects. -->
 
-    <url>https://github.com/sokar-ai/sokar-buildtools/</url>
+    <url>https://github.com/porelo-ai/porelo-buildtools/</url>
 
     <scm child.scm.url.inherit.append.path="false"
          child.scm.connection.inherit.append.path="false"
          child.scm.developerConnection.inherit.append.path="false">
-        <url>https://github.com/sokar-ai/sokar-buildtools/</url>
-        <connection>scm:git:git://github.com/sokar-ai/sokar-buildtools.git</connection>
-        <developerConnection>scm:git:git@github.com:sokar-ai/sokar-buildtools.git</developerConnection>
+        <url>https://github.com/porelo-ai/porelo-buildtools/</url>
+        <connection>scm:git:git://github.com/porelo-ai/porelo-buildtools.git</connection>
+        <developerConnection>scm:git:git@github.com:porelo-ai/porelo-buildtools.git</developerConnection>
     </scm>
 
     <issueManagement>
         <system>GitHub Issues</system>
-        <url>https://github.com/sokar-ai/sokar-buildtools/issues</url>
+        <url>https://github.com/porelo-ai/porelo-buildtools/issues</url>
     </issueManagement>
 
     <properties>
         <!-- The Java release, nothing published unless a module opts in - every module here does, the aggregator
-             does not - and the plugin and library versions come from sokar-parent. -->
+             does not - and the plugin and library versions come from porelo-parent. -->
         <!-- Late-replaced by surefire. Declared empty so '@{argLine}' resolves when JaCoCo,
              which normally sets this property, is not active. -->
         <argLine/>
@@ -123,12 +123,12 @@
                 <version>${jackson.version}</version>
             </dependency>
 
-            <!-- Nothing of sokar's: sokar's build runs these tools, so a dependency the other way made the two
+            <!-- Nothing of porelo's: porelo's build runs these tools, so a dependency the other way made the two
                  impossible to release one after the other. -->
 
             <dependency>
-                <groupId>org.fuin.sokar</groupId>
-                <artifactId>sokar-json</artifactId>
+                <groupId>org.fuin.porelo</groupId>
+                <artifactId>porelo-json</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -171,13 +171,13 @@
                              systemd user manager, task processes would otherwise go into scopes of
                              their own here and not on a CI runner, and a test would pass on one. -->
                         <environmentVariables>
-                            <SOKAR_TASK_SCOPES>off</SOKAR_TASK_SCOPES>
+                            <PORELO_TASK_SCOPES>off</PORELO_TASK_SCOPES>
                         </environmentVariables>
                         <!-- And with nothing installed, on every machine: an agent, a filter or a
-                             transport the sokar packages put under /usr would otherwise be found by
+                             transport the porelo packages put under /usr would otherwise be found by
                              the tests on a developer's machine that has them and not on a runner. -->
                         <systemPropertyVariables>
-                            <sokar.packaged.root>${project.build.directory}/no-packages</sokar.packaged.root>
+                            <porelo.packaged.root>${project.build.directory}/no-packages</porelo.packaged.root>
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>
@@ -211,7 +211,7 @@
                  published. In the main build, not a release profile: what is installed is
                  then what is deployed. Pom modules are skipped, so aggregators keep theirs. -->
 
-            <!-- Every module flattened as sokar-parent manages it, so a published pom names no parent. -->
+            <!-- Every module flattened as porelo-parent manages it, so a published pom names no parent. -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>

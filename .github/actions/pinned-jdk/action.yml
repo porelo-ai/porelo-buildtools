@@ -3,10 +3,10 @@
 # resolved to that day. The pin lives in hetzner/pom.xml and is moved by the Machine images
 # workflow once a release is three days old.
 #
-# Bootstrapped from the runner's own Java 25 (JAVA_HOME_25_X64), which runs sokar-machines once to
+# Bootstrapped from the runner's own Java 25 (JAVA_HOME_25_X64), which runs porelo-machines once to
 # install the pinned one; nothing that JDK compiles is published. Needs the repository checked out.
 name: Pinned GraalVM
-description: Installs the GraalVM sokar-machines pins, checked against its digest, as JAVA_HOME for the rest of the job.
+description: Installs the GraalVM porelo-machines pins, checked against its digest, as JAVA_HOME for the rest of the job.
 runs:
   using: composite
   steps:
@@ -30,4 +30,4 @@ runs:
         ./mvnw -B -q -s settings.xml -pl hetzner dependency:build-classpath \
             -Dmdep.outputFile=target/jdk-cp.txt
         "$JAVA_HOME/bin/java" -cp "hetzner/target/classes:$(cat hetzner/target/jdk-cp.txt)" \
-            org.fuin.sokar.machines.Main jdk --github
+            org.fuin.porelo.machines.Main jdk --github

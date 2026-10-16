@@ -6,15 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.fuin.sokar</groupId>
-        <artifactId>sokar-buildtools</artifactId>
-        <version>0.4.5-SNAPSHOT</version>
+        <groupId>org.fuin.porelo</groupId>
+        <artifactId>porelo-buildtools</artifactId>
+        <version>0.5.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>sokar-machines</artifactId>
-    <name>Sokar Machines</name>
-    <description>Sokar - Renting a test machine and talking to it (BUILD)</description>
+    <artifactId>porelo-machines</artifactId>
+    <name>Porelo Machines</name>
+    <description>Porelo - Renting a test machine and talking to it (BUILD)</description>
 
     <properties>
         <!-- Published: the agent repositories rent the same machines from their own CI, and a
@@ -40,26 +40,26 @@
         <machines.image.registry>docker.io/library/registry:2</machines.image.registry>
         <machines.image.registry.digest>sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373</machines.image.registry.digest>
 
-        <sokar.release.min-age>3d</sokar.release.min-age>
+        <porelo.release.min-age>3d</porelo.release.min-age>
         <!-- GraalVM tags its builds graal-25.x beside the older jdk-25.0.x, and names the file after
              neither, so the download address is read from the release with its digest. Line 25:
              a JDK 26 build is a decision, not an update. -->
-        <sokar.release.pin.graalvm.label>GraalVM</sokar.release.pin.graalvm.label>
-        <sokar.release.pin.graalvm.property>machines.graalvm.version</sokar.release.pin.graalvm.property>
-        <sokar.release.pin.graalvm.upstream>github-releases https://api.github.com/repos/graalvm/graalvm-ce-builds/releases?per_page=100 graal-</sokar.release.pin.graalvm.upstream>
-        <sokar.release.pin.graalvm.channel>25</sokar.release.pin.graalvm.channel>
-        <sokar.release.pin.graalvm.digest>github-asset https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/tags/graal-{version} graalvm-community-jdk-.*_linux-x64_bin\.tar\.gz</sokar.release.pin.graalvm.digest>
-        <sokar.release.pin.graalvm.sha256>machines.graalvm.sha256</sokar.release.pin.graalvm.sha256>
-        <sokar.release.pin.graalvm.url>machines.graalvm.url</sokar.release.pin.graalvm.url>
-        <sokar.release.pin.ubuntu-image.label>The ubuntu base image</sokar.release.pin.ubuntu-image.label>
-        <sokar.release.pin.ubuntu-image.property>machines.image.ubuntu.digest</sokar.release.pin.ubuntu-image.property>
-        <sokar.release.pin.ubuntu-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/ubuntu/tags/24.04</sokar.release.pin.ubuntu-image.upstream>
-        <sokar.release.pin.alpine-image.label>The alpine base image</sokar.release.pin.alpine-image.label>
-        <sokar.release.pin.alpine-image.property>machines.image.alpine.digest</sokar.release.pin.alpine-image.property>
-        <sokar.release.pin.alpine-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/alpine/tags/3.20</sokar.release.pin.alpine-image.upstream>
-        <sokar.release.pin.registry-image.label>The image cache's registry</sokar.release.pin.registry-image.label>
-        <sokar.release.pin.registry-image.property>machines.image.registry.digest</sokar.release.pin.registry-image.property>
-        <sokar.release.pin.registry-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/registry/tags/2</sokar.release.pin.registry-image.upstream>
+        <porelo.release.pin.graalvm.label>GraalVM</porelo.release.pin.graalvm.label>
+        <porelo.release.pin.graalvm.property>machines.graalvm.version</porelo.release.pin.graalvm.property>
+        <porelo.release.pin.graalvm.upstream>github-releases https://api.github.com/repos/graalvm/graalvm-ce-builds/releases?per_page=100 graal-</porelo.release.pin.graalvm.upstream>
+        <porelo.release.pin.graalvm.channel>25</porelo.release.pin.graalvm.channel>
+        <porelo.release.pin.graalvm.digest>github-asset https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/tags/graal-{version} graalvm-community-jdk-.*_linux-x64_bin\.tar\.gz</porelo.release.pin.graalvm.digest>
+        <porelo.release.pin.graalvm.sha256>machines.graalvm.sha256</porelo.release.pin.graalvm.sha256>
+        <porelo.release.pin.graalvm.url>machines.graalvm.url</porelo.release.pin.graalvm.url>
+        <porelo.release.pin.ubuntu-image.label>The ubuntu base image</porelo.release.pin.ubuntu-image.label>
+        <porelo.release.pin.ubuntu-image.property>machines.image.ubuntu.digest</porelo.release.pin.ubuntu-image.property>
+        <porelo.release.pin.ubuntu-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/ubuntu/tags/24.04</porelo.release.pin.ubuntu-image.upstream>
+        <porelo.release.pin.alpine-image.label>The alpine base image</porelo.release.pin.alpine-image.label>
+        <porelo.release.pin.alpine-image.property>machines.image.alpine.digest</porelo.release.pin.alpine-image.property>
+        <porelo.release.pin.alpine-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/alpine/tags/3.20</porelo.release.pin.alpine-image.upstream>
+        <porelo.release.pin.registry-image.label>The image cache's registry</porelo.release.pin.registry-image.label>
+        <porelo.release.pin.registry-image.property>machines.image.registry.digest</porelo.release.pin.registry-image.property>
+        <porelo.release.pin.registry-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/registry/tags/2</porelo.release.pin.registry-image.upstream>
     </properties>
 
     <dependencies>
@@ -68,8 +68,8 @@
              same shape as varlink's and this one is already published. -->
 
         <dependency>
-            <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-json</artifactId>
+            <groupId>org.fuin.porelo</groupId>
+            <artifactId>porelo-json</artifactId>
         </dependency>
 
         <dependency>
@@ -135,8 +135,8 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Automatic-Module-Name>org.fuin.sokar.machines</Automatic-Module-Name>
-                            <Main-Class>org.fuin.sokar.machines.Main</Main-Class>
+                            <Automatic-Module-Name>org.fuin.porelo.machines</Automatic-Module-Name>
+                            <Main-Class>org.fuin.porelo.machines.Main</Main-Class>
                         </manifestEntries>
                     </archive>
                 </configuration>

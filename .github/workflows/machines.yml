@@ -1,4 +1,4 @@
-# The machines a CI leg boots from, kept current - for sokar's legs and every agent repository's,
+# The machines a CI leg boots from, kept current - for porelo's legs and every agent repository's,
 # which boot the same snapshots. The pins live in hetzner/pom.xml of this repository.
 name: Machine images
 run-name: "${{ github.workflow }} · ${{ github.ref_name }}: ${{ github.event.head_commit.message || github.event.pull_request.title || github.workflow }}"
@@ -21,7 +21,7 @@ permissions:
 jobs:
 
   # One pull request for every pin that has a release at least three days old (the pom's
-  # sokar.release.min-age), one commit per pin, and never an older release instead of a newer one that
+  # porelo.release.min-age), one commit per pin, and never an older release instead of a newer one that
   # is too young.
   refresh:
     name: Ask upstream
@@ -53,7 +53,7 @@ jobs:
           set -u
           release() {
               java -cp "release/target/classes:$(cat release/target/cp.txt)" \
-                  org.fuin.sokar.release.Main "$@"
+                  org.fuin.porelo.release.Main "$@"
           }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

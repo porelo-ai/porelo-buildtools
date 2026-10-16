@@ -1,6 +1,6 @@
 # BT07 — Sokar Renamed Porelo Here
 
-**Status:** Estimated.
+**Status:** Implementing.
 **Size:** M - 850 occurrences in 162 of 194 files and 114 paths, five modules and their artifacts, and names at the
 cloud provider and Artifactory that must be renamed or swept before the tools reach them under the new name.
 
@@ -28,7 +28,17 @@ put back. Nothing is renamed before the window is announced.
 - **Artifactory:** the repositories `sokar-dist-deb`/`-rpm` the legs install from become Porelo's; the keypair
   `sokar-packages` whose public half a leg fetches is named as the preparation decides.
 
-**Exceptions:** the 36 files under `changelog/v*` (released entries), and a sentence that says what the old name was.
+**Exceptions:** what `NoOldNameTest` lets keep the old name, each for a reason:
+
+- the files under `changelog/v*` and `CHANGELOG.md`: released entries, and the changelog a release generates from
+  them again;
+- this issue and [BT08](README.md#bt08), whole, and their two rows in the index: the sentences that say what the old
+  name was;
+- `sokar-dist-deb`, `sokar-dist-rpm` and `sokar-packages`: Artifactory repository/key not yet renamed. They hold
+  no `porelo` package before `porelo`'s own renamed build publishes into them; a small commit switches them then.
+
+The Shared Area is renamed with the rest; its markers carry the renamed text's hash, which every later rename takes
+byte for byte.
 
 **What the script cannot do by replacement:** nothing found - no image, no binary, no name built across the word;
 the 10 `sokard` become `porelod`, as decided.

@@ -8,4 +8,4 @@
 /.mvn/                                           @michael-schnell
 /settings.xml                                    @michael-schnell
 /mkdocs.yml                                      @michael-schnell
-/hetzner/src/main/resources/org/fuin/sokar/machines/ @michael-schnell
+/hetzner/src/main/resources/org/fuin/porelo/machines/ @michael-schnell

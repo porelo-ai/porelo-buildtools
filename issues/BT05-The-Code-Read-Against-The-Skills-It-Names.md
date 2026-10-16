@@ -10,7 +10,7 @@ finding is either fixed with a test seen to fail first, or declined with the rea
 ## Why
 
 `AGENTS.md` has named seven skills since the repository was made public, and none of its code was read against
-them here. Only `sokar-release` was read, while it still lived in `sokar`, against three of them (`java-code-review`,
+them here. Only `porelo-release` was read, while it still lived in `porelo`, against three of them (`java-code-review`,
 `test-quality`, `security-audit`); that reading found two defects its tests had not - a CI token sent wherever a pom
 property pointed, and a fault that answered the question with exit 1. The rest was written without them.
 
@@ -46,7 +46,7 @@ reproduces it.
 ### Found before the reading started
 
 - **Fixed: `Ssh.run` read a command's output to its end before its errors**, so a command blocked writing more errors
-  than the channel holds never closed its output, and the call waited for ever (found from `sokar`'s kit, which runs
+  than the channel holds never closed its output, and the call waited for ever (found from `porelo`'s kit, which runs
   every scenario's commands through it). Both are read side by side; `SshOutputTest` holds it with pipes, red with
   the old order.
 - **Open: `Ssh` accepts any host key (`PromiscuousVerifier`).** It is how a server rented a moment ago is reached
@@ -61,5 +61,5 @@ reproduces it.
 
 ## To be checked
 
-- Whether `release`'s reading in `sokar` (`4a0e9332`, before the tooling moved) still matches the code here, so its two
+- Whether `release`'s reading in `porelo` (`4a0e9332`, before the tooling moved) still matches the code here, so its two
   fixes are not read as new findings.

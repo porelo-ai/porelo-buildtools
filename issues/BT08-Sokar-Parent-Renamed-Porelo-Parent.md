@@ -1,6 +1,6 @@
 # BT08 — Sokar Parent Renamed Porelo Parent
 
-**Status:** Estimated.
+**Status:** Review.
 **Size:** XS - one pom, a README and two workflow files in `sokar-parent`: 46 occurrences in 4 of 12 files, no path.
 
 **What must be true.** `sokar-parent` is `porelo-parent`: `org.fuin.porelo:porelo-parent` at `0.2.0`, naming the

@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/pinned-jdk
 
       # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
-      # It is also where sokar's snapshot libraries come from.
+      # It is also where porelo's snapshot libraries come from.
       - name: Build and unit tests
         run: ./mvnw -B verify -s settings.xml
 
@@ -58,7 +58,7 @@ jobs:
           ./mvnw -B -q -s settings.xml -pl release exec:java@check-deploy
 
   # Only when a change that landed on main moved what a snapshot is made of - the pom changes for
-  # other reasons too - or when a person starts this workflow on main by hand. The legs of every Sokar
+  # other reasons too - or when a person starts this workflow on main by hand. The legs of every Porelo
   # repository boot the newest snapshot, so this is where they are rebuilt: here, where the pins are.
   snapshots:
     name: Snapshot - ${{ matrix.os }}
@@ -94,7 +94,7 @@ jobs:
           fi
           base="$BEFORE"
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=HEAD~1; fi
-          recipe="hetzner/src/main/java/org/fuin/sokar/machines/Snapshots.java hetzner/src/main/resources/org/fuin/sokar/machines"
+          recipe="hetzner/src/main/java/org/fuin/porelo/machines/Snapshots.java hetzner/src/main/resources/org/fuin/porelo/machines"
           if git diff "$base" HEAD -- hetzner/pom.xml | grep -Eq '^[-+][[:space:]]*<machines\.' \
                   || ! git diff --quiet "$base" HEAD -- $recipe; then
               echo "moved=yes" >> "$GITHUB_OUTPUT"
@@ -115,12 +115,12 @@ jobs:
               -Dmdep.outputFile=target/cp.txt
 
       # The product the snapshot proves itself by building, and warms its ~/.m2 with.
-      - name: The sokar checkout the snapshot builds
+      - name: The porelo checkout the snapshot builds
         if: steps.moved.outputs.moved == 'yes'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: sokar-ai/sokar
-          path: sokar
+          repository: porelo-ai/porelo
+          path: porelo
 
       # Proven by building the product on it before it is taken.
       - name: Build the ${{ matrix.os }} snapshot
@@ -129,21 +129,21 @@ jobs:
         env:
           HETZNER_API: ${{ secrets.HETZNER_API }}
           HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
-          SOKAR_CI_LEG: snapshot-${{ matrix.os }}
+          PORELO_CI_LEG: snapshot-${{ matrix.os }}
         run: |
           java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
-              org.fuin.sokar.machines.Main snapshot --os ${{ matrix.os }} --repo sokar
+              org.fuin.porelo.machines.Main snapshot --os ${{ matrix.os }} --repo porelo
 
       - name: Delete what this run created
         if: always() && steps.moved.outputs.moved == 'yes'
         env:
           HETZNER_API: ${{ secrets.HETZNER_API }}
-          SOKAR_CI_LEG: snapshot-${{ matrix.os }}
+          PORELO_CI_LEG: snapshot-${{ matrix.os }}
         run: |
           java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
-              org.fuin.sokar.machines.Main sweep --mine
+              org.fuin.porelo.machines.Main sweep --mine
 
-  # The tools, published for the Sokar repositories to resolve.
+  # The tools, published for the Porelo repositories to resolve.
   deploy:
     name: Publish
     runs-on: ubuntu-latest
@@ -184,7 +184,7 @@ jobs:
         uses: ./.github/actions/pinned-jdk
 
       # A release depends only on releases: every snapshot in the effective pom - a dependency, a plugin, a plugin's
-      # dependency - refused and named, by the sokar-release this very commit builds, installed first.
+      # dependency - refused and named, by the porelo-release this very commit builds, installed first.
       - name: No snapshot in a release
         if: steps.channel.outputs.channel == 'releases'
         run: |

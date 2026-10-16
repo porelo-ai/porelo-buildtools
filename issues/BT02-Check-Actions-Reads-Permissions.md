@@ -33,12 +33,12 @@ workflow. A build that attests what it made needs `id-token: write` and `attesta
   the same change, with the reason.
 - `doc/index.md` says how a repository names a job in the list.
 - The workflows that would be refused today move their writes into their one job, and the list names them there:
-  - the shared `delete-runs.yml`: `actions: write` into the job `delete`, changed once in `sokar` and copied alike
+  - the shared `delete-runs.yml`: `actions: write` into the job `delete`, changed once in `porelo` and copied alike
     to every repository;
   - each agent repository's `update.yml`: `contents: write` and `pull-requests: write` into the job `update`, each
     repository its own.
 - A workflow without a top-level `permissions:` gets one, read-only or `{}`: in the agent repositories `build.yml`,
-  `shared-rules.yml` and `artifactory-smoke.yml`, and in `sokar-message-sluice` `build.yml` and `shared-rules.yml`. Those of `sokar-frontend`, `sokar-message-matrix` and `sokar-intellij`
+  `shared-rules.yml` and `artifactory-smoke.yml`, and in `porelo-message-sluice` `build.yml` and `shared-rules.yml`. Those of `porelo-frontend`, `porelo-message-matrix` and `porelo-intellij`
   already set `contents: read`.
 
 ## Decided

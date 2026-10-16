@@ -1,4 +1,4 @@
-# Sokar Machines
+# Porelo Machines
 
 Renting a test machine, and talking to one.
 
@@ -15,7 +15,7 @@ is meant to live. So destruction is structural rather than a step at the end:
 
 ```java
 try (Hetzner hetzner = Hetzner.with(token, runId);
-     Rental rental = hetzner.rent(Spec.of("sokar-ci-1", "ubuntu", "build", credential))) {
+     Rental rental = hetzner.rent(Spec.of("porelo-ci-1", "ubuntu", "build", credential))) {
     rental.awaitSsh();
     rental.ssh().run("./mvnw -B verify");
 }
@@ -25,13 +25,13 @@ try (Hetzner hetzner = Hetzner.with(token, runId);
 that outlives a script which failed on line three, not one that is deleted twice. `sweep` is the net
 under that, because a process killed between two statements cannot clean up after itself.
 
-Everything created here is labelled `sokar=ci` plus the run that made it, so the sweep finds it
+Everything created here is labelled `porelo=ci` plus the run that made it, so the sweep finds it
 without a list of names to keep in step with reality.
 
 ## Sweeping
 
 ```
-java -jar sokar-machines.jar sweep [--mine | --now | --older-than <hours>]
+java -jar porelo-machines.jar sweep [--mine | --now | --older-than <hours>]
 ```
 
 With no option it lists what would go and deletes nothing. `--mine` deletes what this run created
