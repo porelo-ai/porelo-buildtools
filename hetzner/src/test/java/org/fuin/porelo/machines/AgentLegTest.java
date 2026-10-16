@@ -58,8 +58,10 @@ class AgentLegTest {
     void takesTheRepositoryAndItsKeyFromWhereThePackagesArePublished() {
         final String script = AgentLeg.install("ubuntu", "https://fuinorg.jfrog.io/artifactory",
                 "porelo-agent-pi");
-        assertThat(script).contains("https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main");
-        assertThat(script).contains("/api/security/keypair/sokar-packages/public");
+        assertThat(script).contains("https://fuinorg.jfrog.io/artifactory/porelo-dist-deb snapshots main");
+        assertThat(script).contains("/api/security/keypair/porelo-packages/public");
+        assertThat(AgentLeg.install("fedora", "https://fuinorg.jfrog.io/artifactory", "porelo-agent-pi"))
+                .contains("https://fuinorg.jfrog.io/artifactory/porelo-dist-rpm/snapshots");
     }
 
     @Test

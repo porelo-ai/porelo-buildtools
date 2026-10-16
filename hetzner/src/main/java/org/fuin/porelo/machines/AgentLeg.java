@@ -419,7 +419,7 @@ public final class AgentLeg {
                 cat > /etc/yum.repos.d/porelo.repo <<'EOF'
                 [porelo]
                 name=Porelo
-                baseurl=@BASE@/sokar-dist-rpm/snapshots
+                baseurl=@BASE@/porelo-dist-rpm/snapshots
                 enabled=1
                 gpgcheck=0
                 EOF
@@ -439,7 +439,7 @@ public final class AgentLeg {
             apt-get update -qq
             apt-get install -y -qq ca-certificates curl gnupg podman
             curl -fsSL @KEY@ | gpg --dearmor > /usr/share/keyrings/porelo.gpg
-            echo "deb [signed-by=/usr/share/keyrings/porelo.gpg] @BASE@/sokar-dist-deb snapshots main" \\
+            echo "deb [signed-by=/usr/share/keyrings/porelo.gpg] @BASE@/porelo-dist-deb snapshots main" \\
                 > /etc/apt/sources.list.d/porelo.list
             apt-get update
             apt-get install -y -qq porelo @PACKAGE@
@@ -449,7 +449,7 @@ public final class AgentLeg {
                 else echo "$p is not offered by the repository - this machine will pass no message"; fi
             done
             """.replace("@ALWAYS@", String.join(" ", ALWAYS))
-                .replace("@KEY@", artifactory + "/api/security/keypair/sokar-packages/public")
+                .replace("@KEY@", artifactory + "/api/security/keypair/porelo-packages/public")
                 .replace("@BASE@", artifactory).replace("@PACKAGE@", installs);
     }
 

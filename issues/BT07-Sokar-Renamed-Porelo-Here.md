@@ -34,8 +34,9 @@ put back. Nothing is renamed before the window is announced.
   them again;
 - this issue and [BT08](README.md#bt08), whole, and their two rows in the index: the sentences that say what the old
   name was;
-- `sokar-dist-deb`, `sokar-dist-rpm` and `sokar-packages`: Artifactory repository/key not yet renamed. They hold
-  no `porelo` package before `porelo`'s own renamed build publishes into them; a small commit switches them then.
+- `sokar-dist-deb`, `sokar-dist-rpm` and `sokar-packages`, until `porelo`'s first renamed build published into
+  `porelo-dist-deb` and `porelo-dist-rpm`: since then the agent leg installs from those and fetches `porelo-packages`,
+  and the test keeps no outside name.
 
 The Shared Area is renamed with the rest; its markers carry the renamed text's hash, which every later rename takes
 byte for byte.

@@ -36,9 +36,6 @@ class NoOldNameTest {
     /** Lines that keep it: the rename's own rows in the issue index. */
     private static final Pattern KEPT_LINES = Pattern.compile(".*<a id=\"bt0[78]\"></a>.*");
 
-    /** Names outside that keep it until they are renamed there: Artifactory's package repositories and key. */
-    private static final List<String> KEPT_NAMES = List.of(OLD + "-dist-deb", OLD + "-dist-rpm", OLD + "-packages");
-
     private static List<String> tracked() throws IOException, InterruptedException {
         final Process git = new ProcessBuilder("git", "ls-files", "-z").directory(Path.of("..").toFile())
                 .redirectErrorStream(true).start();
@@ -71,15 +68,9 @@ class NoOldNameTest {
             }
             final List<String> lines = lines(Path.of("..", file));
             for (int i = 0; i < lines.size(); i++) {
-                String line = lines.get(i);
-                if (KEPT_LINES.matcher(line).matches()) {
-                    continue;
-                }
-                for (final String name : KEPT_NAMES) {
-                    line = line.replace(name, "");
-                }
-                if (line.toLowerCase(Locale.ROOT).contains(OLD)) {
-                    found.add(file + ":" + (i + 1) + ": " + lines.get(i).strip());
+                final String line = lines.get(i);
+                if (!KEPT_LINES.matcher(line).matches() && line.toLowerCase(Locale.ROOT).contains(OLD)) {
+                    found.add(file + ":" + (i + 1) + ": " + line.strip());
                 }
             }
         }
