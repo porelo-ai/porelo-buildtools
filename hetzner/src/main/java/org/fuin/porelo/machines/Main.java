@@ -38,8 +38,8 @@ public final class Main {
     /**
      * Runs a sweep.
      *
-     * @param args {@code sweep} with {@code --mine}, {@code --now}, {@code --older-than <hours>} or
-     *     nothing, which lists what would go.
+     * @param args {@code sweep} with {@code --mine}, {@code --now}, {@code --older-than <minutes>}
+     *     or nothing, which lists what would go.
      */
     public static void main(String[] args) {
         try {

@@ -640,14 +640,53 @@ public final class Hetzner implements Machines {
      */
     public int deleteRun(String run) throws IOException {
         int deleted = 0;
+        final List<IOException> refused = new ArrayList<>();
         for (final Server server : servers()) {
             if (server.run().equals(run)) {
                 System.out.println("deleting " + server.name());
-                delete(server.id());
-                deleted++;
+                deleted += deleted(server, refused);
             }
         }
+        failIfRefused(refused);
         return deleted;
+    }
+
+    /**
+     * Deletes one server, keeping a refusal for later rather than leaving the rest behind.
+     *
+     * @return 1 when it was deleted, 0 when it was refused.
+     */
+    private int deleted(Server server, List<IOException> refused) {
+        try {
+            delete(server.id());
+            return 1;
+        } catch (IOException ex) {
+            refused.add(
+                    new IOException(
+                            "could not delete "
+                                    + server.name()
+                                    + " ("
+                                    + server.id()
+                                    + "): "
+                                    + ex.getMessage(),
+                            ex));
+            return 0;
+        }
+    }
+
+    private static void failIfRefused(List<IOException> refused) throws IOException {
+        if (refused.isEmpty()) {
+            return;
+        }
+        final IOException failure =
+                new IOException(
+                        refused.size()
+                                + " server(s) left, still billing: "
+                                + String.join(
+                                        "; ",
+                                        refused.stream().map(IOException::getMessage).toList()));
+        refused.forEach(failure::addSuppressed);
+        throw failure;
     }
 
     /**
@@ -664,6 +703,7 @@ public final class Hetzner implements Machines {
     public int sweep(Duration olderThan, boolean dryRun) throws IOException {
         final Instant cutoff = Instant.now().minus(olderThan);
         int swept = 0;
+        final List<IOException> refused = new ArrayList<>();
         for (final Server server : servers()) {
             if (server.created().isAfter(cutoff)) {
                 // Said out loud, because "0 to delete" otherwise covers two different worlds: a
@@ -680,14 +720,12 @@ public final class Hetzner implements Machines {
                             + " (run "
                             + server.run()
                             + ")");
-            if (!dryRun) {
-                delete(server.id());
-            }
-            swept++;
+            swept += dryRun ? 1 : deleted(server, refused);
         }
-        if (swept == 0) {
+        if (swept == 0 && refused.isEmpty()) {
             System.out.println("nothing to sweep");
         }
+        failIfRefused(refused);
         return swept;
     }
 

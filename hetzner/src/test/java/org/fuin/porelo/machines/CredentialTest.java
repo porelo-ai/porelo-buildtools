@@ -25,6 +25,23 @@ class CredentialTest {
     }
 
     @Test
+    void neverPrintsTheKeyItHolds() {
+        // A credential or a spec holding one, shown in a log line or a failed assertion, would
+        // otherwise print the private key.
+        final Credential credential =
+                new Credential.InMemory(
+                        "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END-----");
+
+        assertThat(credential.toString())
+                .as("the credential as text")
+                .doesNotContain("secret")
+                .doesNotContain("PRIVATE KEY");
+        assertThat(Spec.of("leg", "ubuntu", "root", credential).toString())
+                .as("a spec holding it, as text")
+                .doesNotContain("secret");
+    }
+
+    @Test
     void alwaysEndsWithExactlyOneNewline() throws IOException {
         assertThat(new Credential.InMemory("key").material()).isEqualTo("key\n");
         assertThat(new Credential.InMemory("key\n\n\n").material()).isEqualTo("key\n");

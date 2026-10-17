@@ -179,6 +179,57 @@ class HetznerTest {
     }
 
     @Test
+    void deletesTheRestOfARunsServersWhenOneCannotBeDeletedAndNamesIt() throws IOException {
+        // A server left because another one refused bills until somebody notices.
+        try (StubApi stub = twoServersTheFirstRefusing(NOW, "run-1")) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1");
+
+            assertThatThrownBy(hetzner::deleteMine)
+                    .as("the run's clean-up fails, naming the server it could not delete")
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("refused one");
+            assertThat(stub.asked())
+                    .as("the second server is deleted all the same")
+                    .contains("DELETE /v1/servers/2");
+        }
+    }
+
+    @Test
+    void sweepsTheRestWhenOneServerCannotBeDeletedAndNamesIt() throws IOException {
+        try (StubApi stub = twoServersTheFirstRefusing(LONG_AGO, "gone")) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1");
+
+            assertThatThrownBy(() -> hetzner.sweep(Duration.ofHours(2), false))
+                    .as("the sweep fails, naming the server it could not delete")
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("refused one");
+            assertThat(stub.asked())
+                    .as("the second server is swept all the same")
+                    .contains("DELETE /v1/servers/2");
+        }
+    }
+
+    private static StubApi twoServersTheFirstRefusing(String created, String run)
+            throws IOException {
+        return new StubApi()
+                .answering(
+                        "/servers?label_selector=porelo=ci&page=1&per_page=50",
+                        """
+                    {"servers":[
+                      {"id":1,"name":"refused one","labels":{"porelo":"ci","run":"%s"},"created":"%s"},
+                      {"id":2,"name":"second one","labels":{"porelo":"ci","run":"%s"},"created":"%s"}],
+                     "meta":{"pagination":{"next_page":null}}}"""
+                                .formatted(run, created, run, created))
+                .answering(
+                        "/servers/1",
+                        exchange ->
+                                new StubApi.Answer(
+                                        423,
+                                        "{\"error\":{\"code\":\"locked\",\"message\":\"server is locked\"}}"))
+                .answering("/servers/2", "{\"action\":{\"id\":5,\"status\":\"success\"}}");
+    }
+
+    @Test
     void sweepsWhatIsOldWhoeverLeftItAndSaysWhatItWouldDoFirst() throws IOException {
         final AtomicInteger deleted = new AtomicInteger();
         try (StubApi stub =

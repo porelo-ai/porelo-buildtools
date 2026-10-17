@@ -54,6 +54,12 @@ public sealed interface Credential {
         public String material() {
             return key;
         }
+
+        /** Says what it is without the key, so a log line or a failed assertion cannot leak it. */
+        @Override
+        public String toString() {
+            return "InMemory[key=<redacted>]";
+        }
     }
 
     /**

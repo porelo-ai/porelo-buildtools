@@ -24,10 +24,10 @@ import org.junit.jupiter.api.Test;
  */
 class MainTest {
 
-    /** Fails the test rather than opening anything, so a parsing test cannot become a sweep. */
     /** A sink a test can read, so nothing reaches a job's annotations. */
     private static final Consumer<String> QUIET = message -> {};
 
+    /** Fails the test rather than opening anything, so a parsing test cannot become a sweep. */
     private static final Supplier<Hetzner> NEVER =
             () -> {
                 throw new AssertionError(

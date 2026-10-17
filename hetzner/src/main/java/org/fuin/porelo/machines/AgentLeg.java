@@ -44,10 +44,12 @@ public final class AgentLeg {
     private static final String USER = "acceptance";
 
     /**
-     * What reaches the far shell as environment rather than as arguments.
+     * What reaches the far shell on its standard input, and the suite as environment, rather than
+     * as arguments.
      *
-     * <p>{@code argv} is readable by every process on that machine. {@code PORELO_E2E_EXPECT_CLI}
-     * is not a credential and rides here only because it goes to the same place.
+     * <p>{@code argv} is readable by every process on that machine, and a failed step's command
+     * line is printed. {@code PORELO_E2E_EXPECT_CLI} is not a credential and rides here only
+     * because it goes to the same place.
      */
     private static final List<String> PASSED =
             List.of("PORELO_E2E_OPENROUTER_API_KEY", "PORELO_E2E_MODEL", "PORELO_E2E_EXPECT_CLI");
@@ -184,14 +186,8 @@ public final class AgentLeg {
                             options.script());
 
                     System.out.println("\n-- acceptance --");
-                    run(
-                            user,
-                            "cd /home/"
-                                    + USER
-                                    + " && XDG_RUNTIME_DIR=/run/user/$(id -u) "
-                                    + exported()
-                                    + "./acceptance.sh",
-                            null);
+                    final Remote suite = acceptance(System.getenv());
+                    run(user, suite.command(), suite.stdin());
                 }
             }
 
@@ -462,16 +458,41 @@ public final class AgentLeg {
     }
 
     /**
+     * A command to run on the machine and what it is fed.
+     *
+     * @param command The command line, which the far shell's arguments and a failure show.
+     * @param stdin Its standard input, or {@code null} for none.
+     */
+    record Remote(String command, @Nullable String stdin) {}
+
+    /**
+     * Returns how the suite is started, with what {@link #PASSED} names that is set here.
+     *
+     * @param env The environment of this end.
+     * @return The command and its input.
+     */
+    static Remote acceptance(Map<String, String> env) {
+        // The far shell exports what it reads from its input; the suite itself reads nothing.
+        return new Remote(
+                "cd /home/"
+                        + USER
+                        + " && set -a && . /dev/stdin && set +a"
+                        + " && XDG_RUNTIME_DIR=/run/user/$(id -u) ./acceptance.sh </dev/null",
+                exported(env));
+    }
+
+    /**
      * Returns the environment a credential travels in.
      *
-     * @return Assignments to prefix a command with, empty when nothing is set here.
+     * @param env The environment of this end.
+     * @return One shell assignment per line, empty when nothing is set here.
      */
-    private static String exported() {
+    private static String exported(Map<String, String> env) {
         final StringBuilder out = new StringBuilder();
         for (final String name : PASSED) {
-            final String value = System.getenv(name);
+            final String value = env.get(name);
             if (value != null && !value.isBlank()) {
-                out.append(name).append('=').append(quote(value)).append(' ');
+                out.append(name).append('=').append(quote(value)).append('\n');
             }
         }
         return out.toString();

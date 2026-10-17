@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** Tests for how an agent's leg installs what it is testing. */
@@ -19,6 +20,29 @@ class AgentLegTest {
                 .contains("useradd -m -s /bin/bash acceptance2")
                 .contains("loginctl enable-linger acceptance2")
                 .contains("/home/acceptance2/.ssh/authorized_keys");
+    }
+
+    @Test
+    void sendsTheSuitesCredentialOnItsInputNeverOnItsCommandLine() {
+        // A command line is in the far shell's arguments for the whole suite, and in the message a
+        // failed leg ends with.
+        final AgentLeg.Remote suite =
+                AgentLeg.acceptance(
+                        Map.of(
+                                "PORELO_E2E_OPENROUTER_API_KEY", "sk-or-v1-secret",
+                                "PORELO_E2E_MODEL", "some/model",
+                                "HOME", "/home/runner"));
+
+        assertThat(suite.command())
+                .as("the command line carries no value of the environment")
+                .doesNotContain("sk-or-v1-secret")
+                .doesNotContain("some/model")
+                .endsWith("./acceptance.sh </dev/null");
+        assertThat(suite.stdin())
+                .as("each passed value, quoted for the shell, and nothing else of the environment")
+                .isEqualTo(
+                        "PORELO_E2E_OPENROUTER_API_KEY='sk-or-v1-secret'\n"
+                                + "PORELO_E2E_MODEL='some/model'\n");
     }
 
     @Test

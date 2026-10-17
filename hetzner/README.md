@@ -15,13 +15,13 @@ is meant to live. So destruction is structural rather than a step at the end:
 
 ```java
 try (Hetzner hetzner = Hetzner.with(token, runId);
-     Rental rental = hetzner.rent(Spec.of("porelo-ci-1", "ubuntu", "build", credential))) {
-    rental.awaitSsh();
-    rental.ssh().run("./mvnw -B verify");
+     Lease lease = hetzner.acquire(Spec.of("porelo-ci-1", "ubuntu", "build", credential))) {
+    lease.awaitSsh();
+    lease.ssh().run("./mvnw -B verify");
 }
 ```
 
-`Rental.close()` deletes, and it is not conditional on success — the expensive mistake is a server
+`Lease.close()` deletes, and it is not conditional on success — the expensive mistake is a server
 that outlives a script which failed on line three, not one that is deleted twice. `sweep` is the net
 under that, because a process killed between two statements cannot clean up after itself.
 
@@ -31,7 +31,7 @@ without a list of names to keep in step with reality.
 ## Sweeping
 
 ```
-java -jar porelo-machines.jar sweep [--mine | --now | --older-than <hours>]
+java -jar porelo-machines.jar sweep [--mine | --now | --older-than <minutes>]
 ```
 
 With no option it lists what would go and deletes nothing. `--mine` deletes what this run created
