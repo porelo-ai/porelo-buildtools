@@ -9,13 +9,13 @@
     <parent>
         <groupId>org.fuin.porelo</groupId>
         <artifactId>porelo-parent</artifactId>
-        <version>0.2.0-SNAPSHOT</version>
+        <version>0.2.0</version>
         <relativePath/>
     </parent>
 
     <groupId>org.fuin.porelo</groupId>
     <artifactId>porelo-buildtools</artifactId>
-    <version>0.5.0-SNAPSHOT</version>
+    <version>0.5.0</version>
     <packaging>pom</packaging>
     <name>Porelo Buildtools</name>
     <description>Porelo - The build and test tooling shared by the Porelo repositories (PARENT)</description>
