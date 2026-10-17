@@ -80,6 +80,23 @@ class CheckDeployTest {
     }
 
     @Test
+    void refusesAnUploadToAHostWhoseNameOnlyEndsLikeApachesOwn() throws IOException {
+        // Apache's own hosts are excepted by their domain; a host merely ending in its letters is
+        // somebody else's.
+        final Path log =
+                log(
+                        """
+                [INFO] --- central-publishing:0.10.0:publish (injected-central-publishing) @ porelo-json ---
+                [INFO] Uploading to staging: https://repo.notapache.org/porelo-json-0.5.1.jar
+                """);
+
+        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log))
+                .as(stderr())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the host named").contains("aimed at repo.notapache.org");
+    }
+
+    @Test
     void refusesARunOfflineSinceThePluginThenSkipsItsGoal() throws IOException {
         final Path log =
                 log(

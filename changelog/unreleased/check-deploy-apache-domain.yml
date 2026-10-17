@@ -1,0 +1,2 @@
+title: porelo-release check-deploy refuses an upload to a host whose name only ends in apache.org, excepting Apache's own domain alone
+type: fixed

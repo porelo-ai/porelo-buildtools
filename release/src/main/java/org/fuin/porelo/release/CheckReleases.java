@@ -1,6 +1,7 @@
 package org.fuin.porelo.release;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,15 +62,12 @@ final class CheckReleases {
      */
     int check(Path file, List<String> required) {
         final Element root;
-        try {
+        try (InputStream in = Files.newInputStream(file)) {
             final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setNamespaceAware(true);
-            root =
-                    factory.newDocumentBuilder()
-                            .parse(Files.newInputStream(file))
-                            .getDocumentElement();
+            root = factory.newDocumentBuilder().parse(in).getDocumentElement();
         } catch (IOException | ParserConfigurationException | SAXException ex) {
             err.println("could not read " + file + ": " + ex.getMessage());
             return Stop.UNANSWERED;

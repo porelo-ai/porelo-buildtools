@@ -1,0 +1,2 @@
+title: porelo-release check-actions reads a job's permissions in a workflow indented by four spaces, and a 'jobs:' that carries a comment, so a job granting a write the list does not name is refused there too
+type: fixed

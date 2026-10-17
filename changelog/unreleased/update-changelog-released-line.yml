@@ -1,0 +1,2 @@
+title: porelo-release update writes a pin's changelog line under Unreleased after a release, leaving the line the release shipped with as it was
+type: fixed

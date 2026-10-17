@@ -50,9 +50,8 @@ public final class Age {
      * Reads a publication date as upstreams write it.
      *
      * <p>An instant ({@code 2026-09-16T21:56:00Z}, with or without fractions), an offset date-time,
-     * or a bare day ({@code 2026-09-16}, as Node's index has it), which counts from the start of
-     * that day in UTC - the earliest it can have been, so a day's release never waits less than the
-     * bound.
+     * or a bare day ({@code 2026-09-16}, as Node's index has it), which counts from the end of that
+     * day in UTC - the latest it can have been, so a day's release never waits less than the bound.
      *
      * @param text the date
      * @param where what it was read from, for the message
@@ -68,7 +67,10 @@ public final class Age {
                 return OffsetDateTime.parse(text).toInstant();
             } catch (DateTimeParseException offset) {
                 try {
-                    return LocalDate.parse(text).atStartOfDay(ZoneOffset.UTC).toInstant();
+                    return LocalDate.parse(text)
+                            .plusDays(1)
+                            .atStartOfDay(ZoneOffset.UTC)
+                            .toInstant();
                 } catch (DateTimeParseException day) {
                     throw Stop.unanswered(
                             where + " gives '" + text + "' as its date, which is not one", day);

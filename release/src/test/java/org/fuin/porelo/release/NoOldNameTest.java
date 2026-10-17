@@ -34,11 +34,13 @@ class NoOldNameTest {
     private static final Pattern KEPT_PATHS = Pattern.compile("CHANGELOG\\.md|changelog/v[^/]+/.*");
 
     private static List<String> tracked() throws IOException, InterruptedException {
-        final Process git =
+        final ProcessBuilder builder =
                 new ProcessBuilder("git", "ls-files", "-z")
                         .directory(Path.of("..").toFile())
-                        .redirectErrorStream(true)
-                        .start();
+                        .redirectErrorStream(true);
+        builder.environment().put("GIT_CONFIG_GLOBAL", "/dev/null");
+        builder.environment().put("GIT_CONFIG_NOSYSTEM", "1");
+        final Process git = builder.start();
         final String out = new String(git.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertThat(git.waitFor()).as("git ls-files: %s", out).isZero();
         return List.of(out.split("\0"));

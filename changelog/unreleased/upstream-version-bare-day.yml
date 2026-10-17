@@ -1,0 +1,2 @@
+title: porelo-release upstream-version counts a release dated by its day alone, as Node's index dates them, from the end of that day, so it is never taken before it is as old as the bound
+type: fixed

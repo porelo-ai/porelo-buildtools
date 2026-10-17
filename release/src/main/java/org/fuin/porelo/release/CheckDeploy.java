@@ -97,7 +97,10 @@ final class CheckDeploy {
             if (UPLOAD_LINE.matcher(line).find()) {
                 final Matcher url = URL.matcher(line);
                 while (url.find()) {
-                    if (!LOOPBACK.contains(url.group(1)) && !url.group(1).endsWith("apache.org")) {
+                    final String host = url.group(1);
+                    if (!LOOPBACK.contains(host)
+                            && !host.equals("apache.org")
+                            && !host.endsWith(".apache.org")) {
                         faults.add(
                                 "an upload was aimed at "
                                         + url.group(1)

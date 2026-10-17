@@ -96,15 +96,36 @@ class PinTest {
     }
 
     @Test
-    void aNodeDayCountsFromItsStartAndIsWaitedFor() {
+    void aNodeDayCountsFromItsEndAndIsWaitedFor() {
         pi("22.20.0");
 
         assertThat(ask("node", new FakeWeb().serve(NODE_INDEX, nodeIndex()), "3d"))
                 .as(report())
                 .isEqualTo(0);
         assertThat(stdout())
+                .as("the latest the day's release can have been published")
                 .contains("update=no\n")
-                .contains("published=2026-09-26T00:00:00Z")
+                .contains("published=2026-09-27T00:00:00Z")
+                .contains("waiting=2026-09-30T00:00:00Z");
+    }
+
+    @Test
+    void aNodeReleaseOfADayLessThanTheBoundAgoIsNotTaken() {
+        // Released late on the 25th, it is two and a half days old at noon on the 28th.
+        pi("22.20.0");
+        final String index =
+                nodeIndex()
+                        .replace(
+                                "\"2026-09-26\", \"lts\": \"Jod\"",
+                                "\"2026-09-25\", \"lts\": \"Jod\"");
+
+        assertThat(ask("node", new FakeWeb().serve(NODE_INDEX, index), "3d"))
+                .as(report())
+                .isEqualTo(0);
+        assertThat(stdout())
+                .as("a release that may be younger than the bound is waited for")
+                .contains("upstream=22.21.0")
+                .contains("update=no\n")
                 .contains("waiting=2026-09-29T00:00:00Z");
     }
 

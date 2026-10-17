@@ -44,20 +44,12 @@ public final class Changelog {
      * @throws Stop refused when there is no {@code ## [Unreleased]} to write under
      */
     public static String note(String text, String agent, String version, String was) throws Stop {
-        final Matcher existing = entry(agent).matcher(text);
-        final boolean found = existing.find();
-        final String since = found && existing.group(2) != null ? existing.group(2) : was;
-        final String line = "- " + agent + " pinned to " + version + " (was " + since + ").";
-        if (found) {
-            return text.substring(0, existing.start()) + line + text.substring(existing.end());
-        }
-
         final List<String> lines = new ArrayList<>(Arrays.asList(text.split("\n", -1)));
         final int at = indexOf(lines, 0, lines.size(), "## [Unreleased]");
         if (at < 0) {
             throw Stop.refused("CHANGELOG.md has no '## [Unreleased]' heading to write under");
         }
-        // Only this release's own block: a Changed heading under an older release is not ours.
+        // Only this release's own block: a heading or a line under an older release is history.
         int ends = lines.size();
         for (int i = at + 1; i < lines.size(); i++) {
             if (lines.get(i).startsWith("## ")) {
@@ -65,6 +57,15 @@ public final class Changelog {
                 break;
             }
         }
+        for (int i = at + 1; i < ends; i++) {
+            final Matcher existing = entry(agent).matcher(lines.get(i));
+            if (existing.matches()) {
+                final String since = existing.group(2) != null ? existing.group(2) : was;
+                lines.set(i, line(agent, version, since));
+                return String.join("\n", lines);
+            }
+        }
+        final String line = line(agent, version, was);
         final int heading = indexOf(lines, at, ends, "### Changed");
         if (heading < 0) {
             lines.addAll(at + 1, List.of("", "### Changed", "", line));
@@ -79,6 +80,10 @@ public final class Changelog {
             lines.add(first >= 0 ? first : Math.min(heading + 2, lines.size()), line);
         }
         return String.join("\n", lines);
+    }
+
+    private static String line(String agent, String version, String since) {
+        return "- " + agent + " pinned to " + version + " (was " + since + ").";
     }
 
     private static int indexOf(List<String> lines, int from, int to, String heading) {

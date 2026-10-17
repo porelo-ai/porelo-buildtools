@@ -448,6 +448,50 @@ class CheckActionsTest {
     }
 
     @Test
+    void refusesAWriteInAJobOfAWorkflowIndentedByFourSpaces() throws IOException {
+        // The shared code style indents YAML by four: a job there is no less able to write.
+        named(
+                "build.yml",
+                "on: push\npermissions:\n    contents: read\njobs:\n    test:\n        permissions:\n"
+                        + "            contents: write\n        runs-on: ubuntu-latest\n"
+                        + "        steps:\n            - run: make\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the job and the write it is refused")
+                .contains("job 'test'")
+                .contains("'contents: write'");
+    }
+
+    @Test
+    void acceptsTheWritesTheListNamesInAWorkflowIndentedByFourSpaces() throws IOException {
+        named(
+                "update.yml",
+                "on: workflow_dispatch\npermissions:\n    contents: read\njobs:\n    update:\n"
+                        + "        permissions:\n            contents: write\n"
+                        + "            pull-requests: write\n        runs-on: ubuntu-latest\n"
+                        + "        steps:\n            - run: make\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void readsTheJobsOfAWorkflowWhoseJobsKeyCarriesAComment() throws IOException {
+        // Read as GitHub reads it: a comment after 'jobs:' does not make the file no workflow.
+        named(
+                "build.yml",
+                "on: push\njobs:   # the one job\n  build:\n    permissions:\n"
+                        + "      contents: write\n    runs-on: ubuntu-latest\n"
+                        + STEP);
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("both the missing top and the job's write")
+                .contains("no 'permissions:' at its top")
+                .contains("'contents: write' in job 'build'");
+    }
+
+    @Test
     void acceptsTheWritesTheListNamesInTheirJobs() throws IOException {
         named(
                 "delete-runs.yml",

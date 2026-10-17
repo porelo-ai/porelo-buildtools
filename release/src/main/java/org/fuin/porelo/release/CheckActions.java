@@ -50,7 +50,6 @@ final class CheckActions {
     private static final java.util.Set<String> FETCHES_A_JDK =
             java.util.Set.of("graalvm/setup-graalvm", "actions/setup-java");
 
-    /** The readable version beside a pin. */
     /**
      * A trigger named as a key or in a list: not inside a quoted expression, where it is only
      * compared.
@@ -93,6 +92,9 @@ final class CheckActions {
                     // this workflow.
                     "build.yml/windows", java.util.Set.of("id-token", "attestations"));
 
+    /** The key every workflow's jobs stand under, once its comment is taken off. */
+    private static final Pattern JOBS = Pattern.compile("^jobs:\\s*$");
+
     /** A permission and its value, one per line of a map. */
     private static final Pattern GRANT = Pattern.compile("^\\s+([\\w-]+):\\s*(\\S+)\\s*$");
 
@@ -109,6 +111,7 @@ final class CheckActions {
     private static final Pattern NO_CREDENTIALS =
             Pattern.compile("^\\s*persist-credentials:\\s*(false|'false'|\"false\")\\s*$");
 
+    /** The readable version beside a pin. */
     private static final Pattern VERSION = Pattern.compile("^\\s*#\\s*v?\\d+\\.\\d+\\.\\d+(\\s|$)");
 
     private final PrintStream out;
@@ -282,24 +285,41 @@ final class CheckActions {
     static List<String> permissions(String file, List<String> lines) {
         final List<String> faults = new ArrayList<>();
         final List<String> code = lines.stream().map(CheckActions::code).toList();
-        final int jobs = code.indexOf("jobs:");
+        final int jobs =
+                java.util.stream.IntStream.range(0, code.size())
+                        .filter(at -> JOBS.matcher(code.get(at)).matches())
+                        .findFirst()
+                        .orElse(-1);
         if (jobs < 0) {
             return faults;
         }
         boolean top = false;
         String job = null;
+        // Read from the file, not assumed: a job is as deep as the first key under 'jobs:', and
+        // its own keys as deep as its first.
+        int jobIndent = -1;
+        int keyIndent = -1;
         for (int at = 0; at < code.size(); at++) {
             final String line = code.get(at);
-            if (at > jobs && line.matches("^  [\\w-]+:\\s*$")) {
-                job = line.strip().replace(":", "");
-                continue;
+            if (at > jobs && !line.isBlank()) {
+                final int depth = indent(line);
+                if (depth == 0) {
+                    job = null;
+                } else if (jobIndent < 0 || depth == jobIndent) {
+                    jobIndent = depth;
+                    job = line.strip().replaceFirst(":.*$", "");
+                    keyIndent = -1;
+                    continue;
+                } else if (job != null && keyIndent < 0 && depth > jobIndent) {
+                    keyIndent = depth;
+                }
             }
             final Matcher key = Pattern.compile("^( *)permissions:\\s*(.*?)\\s*$").matcher(line);
             if (!key.matches()) {
                 continue;
             }
             final boolean atTop = key.group(1).isEmpty();
-            if (!atTop && (job == null || key.group(1).length() != 4)) {
+            if (!atTop && (job == null || key.group(1).length() != keyIndent)) {
                 continue;
             }
             top |= atTop;

@@ -44,12 +44,6 @@ class AgeTest {
     }
 
     @Test
-    void aBareDayCountsFromItsStartSoItNeverWaitsLessThanTheBound() throws Stop {
-        assertThat(Age.published("2026-09-16", "x"))
-                .isEqualTo(Instant.parse("2026-09-16T00:00:00Z"));
-    }
-
-    @Test
     void aDateThatIsNotOneIsUnansweredNotOldEnough() {
         assertThatThrownBy(() -> Age.published("last Tuesday", "https://up.example"))
                 .isInstanceOfSatisfying(

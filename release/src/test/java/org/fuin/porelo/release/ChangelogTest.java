@@ -67,6 +67,22 @@ class ChangelogTest {
     }
 
     @Test
+    void leavesTheLineAReleaseShippedWithAndWritesANewOneUnderUnreleased() throws Stop {
+        // A released section is history: the move after a release is a line of its own.
+        final String released =
+                "## [1.0.0]\n\n### Changed\n\n- Pi pinned to 0.85.1 (was 0.85.0).\n";
+        final String before = "## [Unreleased]\n\n" + released;
+
+        final String after = Changelog.note(before, "Pi", "0.86.0", "0.85.1");
+
+        assertThat(after)
+                .as("the released line kept, the new one above the release")
+                .isEqualTo(
+                        "## [Unreleased]\n\n### Changed\n\n- Pi pinned to 0.86.0 (was 0.85.1).\n\n"
+                                + released);
+    }
+
+    @Test
     void anotherAgentsLineIsSomebodysProse() throws Stop {
         final String before =
                 "## [Unreleased]\n\n### Changed\n\n- Pi pinned to 0.85.1 (was 0.85.0).\n";
