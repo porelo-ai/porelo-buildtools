@@ -1,0 +1,2 @@
+title: porelo-ffm-check reads every record the tracing agent left under its output, not only the one whose path sorts last, so a downcall in any session that is not registered fails the check
+type: fixed

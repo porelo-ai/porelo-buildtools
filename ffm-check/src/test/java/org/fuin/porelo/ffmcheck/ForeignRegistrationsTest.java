@@ -14,6 +14,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ForeignRegistrationsTest {
 
+    private static final String METADATA = ForeignRegistrations.METADATA;
+
     private static final String GETUID = "{\"returnType\":\"jint\",\"parameterTypes\":[]}";
 
     private static final String BIND =
@@ -98,13 +100,21 @@ class ForeignRegistrationsTest {
     }
 
     @Test
-    void readsTheNewestOfSeveralRecords() throws IOException {
+    void failsOnADowncallInAnyOfSeveralRecordsWhicheverSortsLast() throws IOException {
+        // The agent names a session by its process id first, so the one that sorts last is not the
+        // newest, and a run with several forks writes several: each may hold the unregistered one.
         final Path output = directory.resolve("agent-output");
-        write(output.resolve("test/1/reachability-metadata.json"), GETUID);
-        write(output.resolve("test/2/reachability-metadata.json"), OPEN);
+        write(output.resolve("test/session-3180172-20261017T175923Z/" + METADATA), OPEN);
+        write(output.resolve("test/session-400000-20261016T100000Z/" + METADATA), GETUID);
+        final Path committed = committed("", GETUID);
 
-        assertThat(ForeignRegistrations.newestRecord(output))
-                .contains(output.resolve("test/2/reachability-metadata.json"));
+        final String failure = check(output, committed, false);
+
+        assertThat(failure)
+                .as("the downcall only the record that sorts first holds")
+                .startsWith("STALE: " + committed)
+                .contains("not registered: ")
+                .contains("void*");
     }
 
     private String check(Path agentOutput, Path committed, boolean update) {

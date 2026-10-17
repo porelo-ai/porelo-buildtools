@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -71,7 +70,7 @@ public final class ForeignRegistrations {
      */
     static @Nullable String check(
             Path agentOutput, Path committed, boolean update, PrintStream out) {
-        final Optional<Path> generated = newestRecord(agentOutput);
+        final List<Path> generated = records(agentOutput);
         if (generated.isEmpty()) {
             return "the agent produced no "
                     + METADATA
@@ -82,14 +81,19 @@ public final class ForeignRegistrations {
         final Map<String, Object> existingDocument =
                 Files.exists(committed) ? object(read(committed)) : new LinkedHashMap<>();
         final List<Object> existing = downcalls(existingDocument);
-        final List<Object> recorded = downcalls(object(read(generated.get())));
+        // Every record, not one of them: a stale one can only ask for more, never hide a downcall.
+        final Map<String, Object> recorded = new LinkedHashMap<>();
+        for (final Path record : generated) {
+            downcalls(object(read(record)))
+                    .forEach(entry -> recorded.putIfAbsent(key(entry), entry));
+        }
 
         final Set<String> known = new LinkedHashSet<>();
         existing.forEach(entry -> known.add(key(entry)));
         final List<Object> missing = new ArrayList<>();
-        for (final Object entry : recorded) {
-            if (known.add(key(entry))) {
-                missing.add(entry);
+        for (final Map.Entry<String, Object> entry : recorded.entrySet()) {
+            if (known.add(entry.getKey())) {
+                missing.add(entry.getValue());
             }
         }
         if (missing.isEmpty()) {
@@ -116,19 +120,19 @@ public final class ForeignRegistrations {
     }
 
     /**
-     * Finds the agent's record: the last by path, as the agent writes one directory per test run.
+     * Finds the agent's records: one per session, and a run may leave several.
      *
      * @param agentOutput the agent's output directory
-     * @return the record, or empty when there is none
+     * @return the records in path order, or none
      */
-    static Optional<Path> newestRecord(Path agentOutput) {
+    static List<Path> records(Path agentOutput) {
         if (!Files.isDirectory(agentOutput)) {
-            return Optional.empty();
+            return List.of();
         }
         try (Stream<Path> walk = Files.walk(agentOutput)) {
             return walk.filter(path -> path.getFileName().toString().equals(METADATA))
                     .sorted()
-                    .reduce((a, b) -> b);
+                    .toList();
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
