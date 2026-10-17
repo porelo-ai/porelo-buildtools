@@ -5,14 +5,6 @@ issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). *Open questio
 waits on the operator: the items under an issue's own *Open questions*. Its prefix is `BT`. A group with nothing in it is
 left out.
 
-## Review
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt07"></a>[BT07](BT07-Sokar-Renamed-Porelo-Here.md) | M | `sokar-buildtools` [BT08](README.md#bt08) | The tools renamed by script and published as `org.fuin.porelo` `0.5.0`; machines rented, labelled `porelo=ci` and swept under the new name, old snapshots built again; red first a test refusing the old word. |
-| <a id="bt08"></a>[BT08](BT08-Sokar-Parent-Renamed-Porelo-Parent.md) | XS | - | `sokar-parent` becomes `org.fuin.porelo:porelo-parent` `0.2.0`, naming the tools as `org.fuin.porelo` `0.5.0`; the window's first commit. |
-| <a id="bt02"></a>[BT02](BT02-Check-Actions-Reads-Permissions.md) | S | - | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
-
 ## Implementing
 
 | # | Size | Blocked by | What it covers |
@@ -32,3 +24,13 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt06"></a>[BT06](BT06-Push-Mirrors-Started-Through-The-Forge.md) | - | - | The local forge's push mirrors to the central forge run only when started through its API, staggered; the API token stays on the host. |
+| <a id="bt09"></a>[BT09](BT09-A-Limit-Wait-Names-The-Limit.md) | - | - | The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit. |
+| <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | - | - | A leg's server is created without a public IPv6 address, one primary IP instead of two, once nothing a leg does is found to need IPv6. |
+
+## Finished
+
+| # | Title | What was built |
+|---|---|---|
+| <a id="bt02"></a>BT02 | Check Actions Reads Permissions | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
+| <a id="bt07"></a>BT07 | Renamed Porelo Here | The tools are published as `org.fuin.porelo` `0.5.0`, and what they rent, label and install is named Porelo, the CI snapshots labelled `porelo=ci`; a documents test refuses the old word. |
+| <a id="bt08"></a>BT08 | Parent Renamed Porelo Parent | `org.fuin.porelo:porelo-parent` `0.2.0`, naming the tools as `org.fuin.porelo` `0.5.0`. |
