@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt07"></a>[BT07](BT07-Sokar-Renamed-Porelo-Here.md) | M | `sokar-buildtools` [BT08](README.md#bt08) | The tools renamed by script and published as `org.fuin.porelo` `0.5.0`; machines rented, labelled `porelo=ci` and swept under the new name, old snapshots built again; red first a test refusing the old word. |
 | <a id="bt08"></a>[BT08](BT08-Sokar-Parent-Renamed-Porelo-Parent.md) | XS | - | `sokar-parent` becomes `org.fuin.porelo:porelo-parent` `0.2.0`, naming the tools as `org.fuin.porelo` `0.5.0`; the window's first commit. |
 | <a id="bt02"></a>[BT02](BT02-Check-Actions-Reads-Permissions.md) | S | - | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
 
@@ -16,7 +17,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt07"></a>[BT07](BT07-Sokar-Renamed-Porelo-Here.md) | M | `sokar-buildtools` [BT08](README.md#bt08) | The tools renamed by script and published as `org.fuin.porelo` `0.5.0`; machines rented, labelled `porelo=ci` and swept under the new name, old snapshots built again; red first a test refusing the old word. |
 | <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
 
 ## Analyzed

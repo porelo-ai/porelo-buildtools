@@ -1,6 +1,6 @@
 # BT07 — Sokar Renamed Porelo Here
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - 850 occurrences in 162 of 194 files and 114 paths, five modules and their artifacts, and names at the
 cloud provider and Artifactory that must be renamed or swept before the tools reach them under the new name.
 
