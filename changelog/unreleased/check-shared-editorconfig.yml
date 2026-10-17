@@ -1,0 +1,2 @@
+title: porelo-release check-shared compares a repository's .editorconfig, when named, with the shared code style it carries, and refuses one that differs or is missing
+type: added

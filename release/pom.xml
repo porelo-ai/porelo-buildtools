@@ -74,6 +74,17 @@
     </dependencies>
 
     <build>
+        <!-- The shared .editorconfig check-shared compares a repository's copy with: the root's own, so this
+             repository keeps it once, and a release carries the text it was built with. -->
+        <resources>
+            <resource>
+                <directory>${project.basedir}/..</directory>
+                <includes>
+                    <include>.editorconfig</include>
+                </includes>
+                <targetPath>org/fuin/porelo/release</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

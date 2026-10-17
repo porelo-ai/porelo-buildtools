@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -11,6 +13,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -112,6 +115,73 @@ class CheckSharedTest {
     @Tag("documents")
     void thisRepositorysOwnRulesCarryTheirTrueHash() {
         assertThat(check(Path.of("../AGENTS.md"))).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void acceptsAnEditorconfigIdenticalToTheSharedOne() throws IOException {
+        final Path file = Files.writeString(directory.resolve(".editorconfig"), shared(), StandardCharsets.UTF_8);
+
+        assertThat(check(file)).as(stderr()).isEqualTo(0);
+        assertThat(stdout()).as("the file named as the shared copy").contains("OK    " + file + " is the shared");
+    }
+
+    @Test
+    void refusesAnEditorconfigThatDiffersAndNamesTheFileAndTheLine() throws IOException {
+        final String changed = shared().replace("max_line_length = 100", "max_line_length = 120");
+        final Path file = Files.writeString(directory.resolve(".editorconfig"), changed, StandardCharsets.UTF_8);
+        final int line = List.of(shared().split("\n", -1)).indexOf("max_line_length = 100") + 1;
+
+        assertThat(check(file)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the file, the first line that differs, what the shared copy says and what it got")
+                .contains(file + ":" + line + ": differs from the shared .editorconfig")
+                .contains("shared 'max_line_length = 100'").contains("got 'max_line_length = 120'");
+    }
+
+    @Test
+    void refusesAnEditorconfigThatEndsEarlier() throws IOException {
+        final String shorter = shared().substring(0, shared().indexOf("[*.java]"));
+        final Path file = Files.writeString(directory.resolve(".editorconfig"), shorter, StandardCharsets.UTF_8);
+
+        assertThat(check(file)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains(file + ":").contains("differs from the shared .editorconfig")
+                .contains("shared '[*.java]'");
+    }
+
+    @Test
+    void refusesAMissingEditorconfigNamingIt() {
+        final Path file = directory.resolve(".editorconfig");
+
+        assertThat(check(file)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the file asked for").contains(file + ": missing")
+                .contains("the shared .editorconfig");
+    }
+
+    @Test
+    void theSharedEditorconfigStatesTheJavaStyleAndTheCommonRules() {
+        // Google Java Style in its AOSP variant, and what every file shares.
+        assertThat(shared()).as("the copy porelo-release carries").startsWith("# ")
+                .contains("root = true")
+                .contains("[*]\ncharset = utf-8\nend_of_line = lf\ninsert_final_newline = true\n"
+                        + "trim_trailing_whitespace = true\nindent_style = space\nindent_size = 4\n")
+                .contains("[*.java]\nmax_line_length = 100\n")
+                .contains("[*.dart]\nindent_size = 2\nmax_line_length = 120\n")
+                .contains("[*.py]\nmax_line_length = 100\n")
+                .doesNotContain("indent_style = tab");
+    }
+
+    @Test
+    @Tag("documents")
+    void thisRepositorysOwnEditorconfigIsTheSharedOne() {
+        assertThat(check(Path.of("../.editorconfig"))).as(stderr()).isEqualTo(0);
+    }
+
+    private static String shared() {
+        try (InputStream in = CheckSharedTest.class.getResourceAsStream("/org/fuin/porelo/release/.editorconfig")) {
+            assertThat(in).as("the shared .editorconfig on porelo-release's class path").isNotNull();
+            return new String(java.util.Objects.requireNonNull(in).readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     private static String block(String name, String hash, String text) {

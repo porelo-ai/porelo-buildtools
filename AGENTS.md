@@ -37,7 +37,7 @@ The build and test tooling the Porelo repositories share, published to Central a
 
 ## Shared across the Porelo repositories
 
-> **BEGIN Shared Area** · sha256 `8f49d85552af3cd1` · changed 2026-10-16T16:20Z
+> **BEGIN Shared Area** · sha256 `ee4973bc037dd506` · changed 2026-10-17T17:15Z
 
 Identical in every repository `project.yml` names but `porelo-parent`, which holds only the parent pom
 and no `AGENTS.md`. The markers carry the SHA-256 of the lines between them (the first 16 hex digits)
@@ -303,9 +303,10 @@ and the UTC time that text last changed; change it in the channel first, never i
 - **A comment says why, never what, in one line where it can.** Reasoning that does not fit goes into
   documentation or a decision, and a small named method is preferred over a comment explaining a
   block.
-- **Dot files are not committed.** `.gitignore` ignores `.*` and excepts only what a build needs -
-  `.github`, `.gitignore` and `.gitkeep`, in a Maven repository also `.mvn` - and what is true of one
-  machine goes into `.AGENTS.md`.
+- **Dot files are not committed.** `.gitignore` ignores `.*` and excepts only what a build or the
+  shared code style needs - `.github`, `.gitignore`, `.gitkeep`, `.editorconfig` and
+  `.git-blame-ignore-revs`, in a Maven repository also `.mvn` - and what is true of one machine goes
+  into `.AGENTS.md`.
 - **Maven is the build system: a Java repository builds, checks and tests with Java and Maven only.**
   Another build tool only where the platform a repository builds for supports no other - an IntelliJ
   plugin, since JetBrains supports only Gradle - named with the reason in its repository's own part. A
@@ -350,4 +351,4 @@ and the UTC time that text last changed; change it in the channel first, never i
 - **Every native executable is built with `-march=x86-64`**, so it starts on any x86-64 CPU, and the
   build checks each executable for exactly that instruction set.
 
-> **END Shared Area** · sha256 `8f49d85552af3cd1`
+> **END Shared Area** · sha256 `ee4973bc037dd506`
