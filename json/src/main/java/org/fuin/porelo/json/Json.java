@@ -62,9 +62,9 @@ public final class Json {
     /**
      * Writes a value into a buffer the caller owns.
      *
-     * <p>Exists for the vault. {@link #write(Object)} hands back a {@code String}, which for the
-     * vault's document is every credential it holds in plaintext, immutable and impossible to
-     * clear. A caller that owns the buffer can overwrite it once the bytes have been encrypted.
+     * <p>For a document that holds a secret: {@link #write(Object)} hands back a {@code String},
+     * which cannot be cleared, while a caller that owns the buffer can overwrite it once the bytes
+     * are used.
      *
      * @param value Value to write.
      * @param out Where to write it.
@@ -182,14 +182,12 @@ public final class Json {
             skipWhitespace();
             expect(':');
             skipWhitespace();
+            // A duplicate key would let a second value quietly win, a null first one too. In a file
+            // that tells a fail-closed hook what to do, that is not a formatting curiosity.
             if (map.containsKey(key)) {
                 throw error("Duplicate key '" + key + "'");
             }
-            if (map.put(key, readValue()) != null) {
-                // A duplicate key would let a second value quietly win. In a file that tells a
-                // fail-closed hook what to do, that is not a formatting curiosity.
-                throw error("Duplicate key '" + key + "'");
-            }
+            map.put(key, readValue());
             skipWhitespace();
             final char next = next();
             if (next == '}') {
