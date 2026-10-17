@@ -7,20 +7,20 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * An agent repository on disk, shaped like the three that call these commands.
- */
+/** An agent repository on disk, shaped like the three that call these commands. */
 final class AgentRepository {
 
     static final String OLD_DIGEST = "a".repeat(64);
 
     static final String CLAUDE_RELEASES = "https://downloads.example/claude-code-releases";
 
-    static final String OMP_SUMS = "https://github.example/omp/releases/download/v{version}/SHA256SUMS.txt";
+    static final String OMP_SUMS =
+            "https://github.example/omp/releases/download/v{version}/SHA256SUMS.txt";
 
     static final String OMP_LATEST = "https://api.github.com/repos/omp/releases/latest";
 
-    static final String NPM_REGISTRY = "https://registry.npm.example/@earendil-works%2Fpi-coding-agent";
+    static final String NPM_REGISTRY =
+            "https://registry.npm.example/@earendil-works%2Fpi-coding-agent";
 
     final Path root;
 
@@ -40,11 +40,16 @@ final class AgentRepository {
         properties.put("porelo.release.definition", "src/main/resources/agent/claude.yaml");
         properties.put("porelo.release.upstream", "pointer " + CLAUDE_RELEASES);
         properties.put("porelo.release.channel", "stable");
-        properties.put("porelo.release.digest", "manifest " + CLAUDE_RELEASES + "/{version}/manifest.json linux-x64");
+        properties.put(
+                "porelo.release.digest",
+                "manifest " + CLAUDE_RELEASES + "/{version}/manifest.json linux-x64");
         final AgentRepository repository = new AgentRepository(root, "Claude Code", "claude.yaml");
         repository.write("pom.xml", pom("porelo-agent-claude", moduleVersion, pinned, properties));
-        repository.write("src/main/resources/agent/claude.yaml", source(CLAUDE_RELEASES + "/${agent.cli.version}/linux-x64/claude"));
-        repository.write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-09-01\n");
+        repository.write(
+                "src/main/resources/agent/claude.yaml",
+                source(CLAUDE_RELEASES + "/${agent.cli.version}/linux-x64/claude"));
+        repository.write(
+                "CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-09-01\n");
         return repository;
     }
 
@@ -56,8 +61,10 @@ final class AgentRepository {
         properties.put("porelo.release.digest", "sums " + OMP_SUMS + " omp-linux-x64");
         final AgentRepository repository = new AgentRepository(root, "Oh My Pi", "omp.yaml");
         repository.write("pom.xml", pom("porelo-agent-omp", "1.0.0-SNAPSHOT", pinned, properties));
-        repository.write("src/main/resources/agent/omp.yaml",
-                source("https://github.example/omp/releases/download/v${agent.cli.version}/omp-linux-x64"));
+        repository.write(
+                "src/main/resources/agent/omp.yaml",
+                source(
+                        "https://github.example/omp/releases/download/v${agent.cli.version}/omp-linux-x64"));
         repository.write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n");
         return repository;
     }
@@ -72,18 +79,29 @@ final class AgentRepository {
         properties.put("porelo.release.npm.image", "docker.io/library/node:22-slim");
         final AgentRepository repository = new AgentRepository(root, "Pi", "pi.yaml");
         repository.write("pom.xml", pom("porelo-agent-pi", "1.0.0-SNAPSHOT", pinned, properties));
-        repository.write("src/main/npm/package.json",
-                "{\n  \"dependencies\": {\n    \"@earendil-works/pi-coding-agent\": \"" + pinned + "\"\n  }\n}\n");
+        repository.write(
+                "src/main/npm/package.json",
+                "{\n  \"dependencies\": {\n    \"@earendil-works/pi-coding-agent\": \""
+                        + pinned
+                        + "\"\n  }\n}\n");
         repository.write("src/main/npm/package-lock.json", lockfile(pinned, 3));
         repository.write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n");
         return repository;
     }
 
     static String lockfile(String version, int others) {
-        final StringBuilder packages = new StringBuilder("\"\": {}, \"node_modules/@earendil-works/pi-coding-agent\": "
-                + "{\"version\": \"" + version + "\"}");
+        final StringBuilder packages =
+                new StringBuilder(
+                        "\"\": {}, \"node_modules/@earendil-works/pi-coding-agent\": "
+                                + "{\"version\": \""
+                                + version
+                                + "\"}");
         for (int i = 0; i < others; i++) {
-            packages.append(", \"node_modules/dep-").append(i).append("\": {\"version\": \"1.0.").append(i).append("\"}");
+            packages.append(", \"node_modules/dep-")
+                    .append(i)
+                    .append("\": {\"version\": \"1.0.")
+                    .append(i)
+                    .append("\"}");
         }
         return "{\"lockfileVersion\": 3, \"packages\": {" + packages + "}}";
     }
@@ -128,10 +146,18 @@ final class AgentRepository {
         return files;
     }
 
-    static String pom(String artifactId, String version, String pinned, Map<String, String> properties) {
+    static String pom(
+            String artifactId, String version, String pinned, Map<String, String> properties) {
         final StringBuilder declared = new StringBuilder();
-        properties.forEach((name, value) -> declared.append("        <").append(name).append('>').append(value)
-                .append("</").append(name).append(">\n"));
+        properties.forEach(
+                (name, value) ->
+                        declared.append("        <")
+                                .append(name)
+                                .append('>')
+                                .append(value)
+                                .append("</")
+                                .append(name)
+                                .append(">\n"));
         return """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <project>
@@ -147,7 +173,8 @@ final class AgentRepository {
                         <agent.cli.version>%s</agent.cli.version>
                 %s    </properties>
                 </project>
-                """.formatted(artifactId, version, pinned, declared);
+                """
+                .formatted(artifactId, version, pinned, declared);
     }
 
     private static String source(String url) {
@@ -170,7 +197,7 @@ final class AgentRepository {
                     - url: %s
                       sha256: "%s"
                       target: /usr/local/bin/fake-cli
-                """.formatted(version, url, digest);
+                """
+                .formatted(version, url, digest);
     }
-
 }

@@ -10,20 +10,20 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * A connection to a machine.
- * <p>
- * <strong>Host keys are not verified, deliberately.</strong> These machines are created and
+ *
+ * <p><strong>Host keys are not verified, deliberately.</strong> These machines are created and
  * destroyed per run - a rented server booted from a snapshot has a key nobody has seen before, and
- * pinning one would mean refusing to talk to the machine we were just given. What is protected
- * here is not the channel; it is what runs at the far end of it.
- * <p>
- * <strong>One connection, many channels.</strong> A connection per command meant one TCP handshake
- * and one key exchange each - around eighty in two minutes - and CI's sshd answered "Connection
- * refused" to two of them 145 seconds in, with nothing wrong on either side: a client that opens
- * and drops connections that fast looks like something worth refusing. Measured by counting
- * {@code Accepted publickey} in the machine's journal: about 80 connections and 15.7s before, 2 and
- * 8.5s after. Callers share one of these and open channels on it.
- * <p>
- * <strong>One connection needs a heartbeat.</strong> The connection that lives for a whole leg
+ * pinning one would mean refusing to talk to the machine we were just given. What is protected here
+ * is not the channel; it is what runs at the far end of it.
+ *
+ * <p><strong>One connection, many channels.</strong> A connection per command meant one TCP
+ * handshake and one key exchange each - around eighty in two minutes - and CI's sshd answered
+ * "Connection refused" to two of them 145 seconds in, with nothing wrong on either side: a client
+ * that opens and drops connections that fast looks like something worth refusing. Measured by
+ * counting {@code Accepted publickey} in the machine's journal: about 80 connections and 15.7s
+ * before, 2 and 8.5s after. Callers share one of these and open channels on it.
+ *
+ * <p><strong>One connection needs a heartbeat.</strong> The connection that lives for a whole leg
  * spends minutes producing nothing while an image builds, and something on the path between a
  * GitHub runner and a rented machine drops a TCP flow that idle. Both tier 1 legs of run
  * 93676645170 lost it the same way: last output at 08:57:51 as tier 1 began, five minutes of
@@ -31,8 +31,8 @@ import org.jspecify.annotations.Nullable;
  * arrived because everything buffered went with the connection. sshj sends nothing of its own
  * unless it is asked to, so this is the cost of holding one connection rather than eighty, and it
  * is paid here.
- * <p>
- * HEARTBEAT rather than KEEP_ALIVE: it sends SSH_MSG_IGNORE and expects no answer, so it cannot
+ *
+ * <p>HEARTBEAT rather than KEEP_ALIVE: it sends SSH_MSG_IGNORE and expects no answer, so it cannot
  * itself end the connection. KEEP_ALIVE disconnects after five unanswered requests, and a small
  * machine with native-image on every core is exactly where five answers might not come in time -
  * turning a working build into a lost one for the sake of noticing a dead peer sooner.
@@ -75,8 +75,8 @@ public final class Ssh implements AutoCloseable {
 
     /**
      * Tells whether a machine answers and accepts the key, without holding a connection.
-     * <p>
-     * Authenticating rather than only connecting: sshd accepts a TCP connection well before it
+     *
+     * <p>Authenticating rather than only connecting: sshd accepts a TCP connection well before it
      * will run anything, so a probe that stops at "something is listening" reports ready for a
      * machine that is still booting.
      *
@@ -116,9 +116,9 @@ public final class Ssh implements AutoCloseable {
         // After connecting, because the keepalive belongs to the connection rather than the client.
         // Started by hand, which sshj's own example omits: setting the interval only sets a field
         // and flips isEnabled() to true - the thread stays in state NEW, and nothing in connect,
-        // authenticate or startSession ever starts it. Measured, after a first version of this
-        // that set the interval and sent nothing: with the interval set and the thread unstarted,
-        // a connection idle for 60s sent exactly as many segments as one with no keepalive at all.
+        // authenticate or startSession ever starts it. Measured, after a first version of this that
+        // set the interval and sent nothing: with the interval set and the thread unstarted, a
+        // connection idle for 60s sent exactly as many segments as one with no keepalive at all.
         final net.schmizz.keepalive.KeepAlive heartbeat = fresh.getConnection().getKeepAlive();
         heartbeat.setKeepAliveInterval(HEARTBEAT_INTERVAL);
         heartbeat.start();
@@ -143,9 +143,9 @@ public final class Ssh implements AutoCloseable {
 
     /**
      * Runs a command with no terminal and feeds it standard input.
-     * <p>
-     * <strong>This is how a secret reaches a machine.</strong> A command line is readable by every
-     * process there and lands in shell history; standard input is neither.
+     *
+     * <p><strong>This is how a secret reaches a machine.</strong> A command line is readable by
+     * every process there and lands in shell history; standard input is neither.
      *
      * @param command What to run.
      * @param stdin What to feed it, or {@code null} for nothing.
@@ -169,24 +169,31 @@ public final class Ssh implements AutoCloseable {
 
     /**
      * Reads a command's output and its errors to their ends, side by side.
-     * <p>
-     * One after the other, a command blocked writing more errors than the channel holds never closed its output, and
-     * the read of the output waited for ever.
+     *
+     * <p>One after the other, a command blocked writing more errors than the channel holds never
+     * closed its output, and the read of the output waited for ever.
      *
      * @param out Its output.
      * @param err Its errors.
      * @return The output, then the errors.
      * @throws IOException If either cannot be read.
      */
-    static String[] readBoth(final java.io.InputStream out, final java.io.InputStream err) throws IOException {
-        final java.util.concurrent.CompletableFuture<String> errors = new java.util.concurrent.CompletableFuture<>();
-        Thread.ofPlatform().daemon().name("ssh-stderr").start(() -> {
-            try {
-                errors.complete(new String(err.readAllBytes(), StandardCharsets.UTF_8));
-            } catch (final IOException | RuntimeException ex) {
-                errors.completeExceptionally(ex);
-            }
-        });
+    static String[] readBoth(final java.io.InputStream out, final java.io.InputStream err)
+            throws IOException {
+        final java.util.concurrent.CompletableFuture<String> errors =
+                new java.util.concurrent.CompletableFuture<>();
+        Thread.ofPlatform()
+                .daemon()
+                .name("ssh-stderr")
+                .start(
+                        () -> {
+                            try {
+                                errors.complete(
+                                        new String(err.readAllBytes(), StandardCharsets.UTF_8));
+                            } catch (final IOException | RuntimeException ex) {
+                                errors.completeExceptionally(ex);
+                            }
+                        });
         final String output = new String(out.readAllBytes(), StandardCharsets.UTF_8);
         try {
             return new String[] {output, errors.get()};
@@ -200,8 +207,8 @@ public final class Ssh implements AutoCloseable {
 
     /**
      * Copies a local file to the machine.
-     * <p>
-     * Over the connection that is already open, rather than a second way in: one authentication,
+     *
+     * <p>Over the connection that is already open, rather than a second way in: one authentication,
      * one host to be reachable, and nothing that needs {@code scp} to exist on either side.
      *
      * @param local What to send.

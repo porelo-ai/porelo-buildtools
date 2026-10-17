@@ -10,13 +10,15 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * The CLI an agent definition pins: its {@code install.version} and {@code install.artifacts}, read from the YAML.
- * <p>
- * <strong>Read here, not through porelo's agent API</strong>, which reads the whole definition. porelo's build runs
- * these tools, so depending on porelo made the two impossible to release one after the other. Only the pin is read, by
- * the same rules porelo's reader applies to it: a mapping, no key twice, the artifacts a list of mappings each with a
- * {@code url}, every scalar as the text it was written as. Whether the rest of the definition is valid is the agent
- * repository's own tests' business, which read it with porelo's reader.
+ * The CLI an agent definition pins: its {@code install.version} and {@code install.artifacts}, read
+ * from the YAML.
+ *
+ * <p><strong>Read here, not through porelo's agent API</strong>, which reads the whole definition.
+ * porelo's build runs these tools, so depending on porelo made the two impossible to release one
+ * after the other. Only the pin is read, by the same rules porelo's reader applies to it: a
+ * mapping, no key twice, the artifacts a list of mappings each with a {@code url}, every scalar as
+ * the text it was written as. Whether the rest of the definition is valid is the agent repository's
+ * own tests' business, which read it with porelo's reader.
  *
  * @param version The pinned version, or {@code null} when the definition pins none.
  * @param artifacts What is downloaded, in the order written; empty when nothing is.
@@ -30,8 +32,7 @@ record Pinned(@Nullable String version, List<Artifact> artifacts) {
      * @param sha256 Its digest, or {@code null} when the definition records none.
      * @param license Its license as recorded, or {@code null}.
      */
-    record Artifact(String url, @Nullable String sha256, @Nullable String license) {
-    }
+    record Artifact(String url, @Nullable String sha256, @Nullable String license) {}
 
     /** A definition whose pin cannot be read. */
     static final class Unreadable extends RuntimeException {
@@ -49,7 +50,8 @@ record Pinned(@Nullable String version, List<Artifact> artifacts) {
      * @param reader The filtered definition.
      * @param origin Where it came from, for a refusal to name.
      * @return What it pins.
-     * @throws Unreadable If it is no YAML mapping, names a key twice, or its artifacts are malformed.
+     * @throws Unreadable If it is no YAML mapping, names a key twice, or its artifacts are
+     *     malformed.
      */
     static Pinned read(Reader reader, String origin) {
         final LoaderOptions options = new LoaderOptions();
@@ -66,7 +68,8 @@ record Pinned(@Nullable String version, List<Artifact> artifacts) {
         if (!(root.get("install") instanceof Map<?, ?> install)) {
             return new Pinned(null, List.of());
         }
-        return new Pinned(text(install.get("version")), artifacts(install.get("artifacts"), origin));
+        return new Pinned(
+                text(install.get("version")), artifacts(install.get("artifacts"), origin));
     }
 
     private static List<Artifact> artifacts(@Nullable Object value, String origin) {

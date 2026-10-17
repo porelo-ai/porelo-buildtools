@@ -14,9 +14,9 @@ import org.cyclonedx.model.Property;
 
 /**
  * Folds the bill of a tree a package ships into the package's own bill.
- * <p>
- * The tree's subject becomes a component of the package with the tree nested inside it, so one bill
- * says what ships inside what, and the update gate compares one document rather than two.
+ *
+ * <p>The tree's subject becomes a component of the package with the tree nested inside it, so one
+ * bill says what ships inside what, and the update gate compares one document rather than two.
  */
 public final class MergeTreeBill {
 
@@ -58,26 +58,37 @@ public final class MergeTreeBill {
             return failed(java.util.Objects.requireNonNullElse(ex.getMessage(), ex.toString()));
         }
         if (tree.getMetadata() == null || tree.getMetadata().getComponent() == null) {
-            return failed(treeBill + " names no subject in metadata.component, so there is nothing to nest it under");
+            return failed(
+                    treeBill
+                            + " names no subject in metadata.component, so there is nothing to nest it under");
         }
-        // From the two inputs, never from the merged model: a check built from its own output confirms whatever it did.
+        // From the two inputs, never from the merged model: a check built from its own output
+        // confirms whatever it did.
         final Set<String> expected = new TreeSet<>(Bill.of(merged).components().keySet());
         expected.addAll(Bill.of(tree).components().keySet());
         expected.add(Bill.identity(tree.getMetadata().getComponent()));
         merged.addComponent(subject(tree));
         try {
             Bill.write(merged, packageBill);
-            final Set<String> written = Bill.read(Files.readAllBytes(packageBill)).components().keySet();
+            final Set<String> written =
+                    Bill.read(Files.readAllBytes(packageBill)).components().keySet();
             if (!written.containsAll(expected)) {
                 final Set<String> lost = new TreeSet<>(expected);
                 lost.removeAll(written);
-                return failed("components missing from the written bill: " + lost.size() + ", first " + lost.iterator().next());
+                return failed(
+                        "components missing from the written bill: "
+                                + lost.size()
+                                + ", first "
+                                + lost.iterator().next());
             }
         } catch (IOException | IllegalArgumentException ex) {
             return failed("cannot write " + packageBill + ": " + ex.getMessage());
         }
-        out.println("merge-tree-bill: " + Bill.count(merged.getComponents()) + " components in "
-                + packageBill.getFileName());
+        out.println(
+                "merge-tree-bill: "
+                        + Bill.count(merged.getComponents())
+                        + " components in "
+                        + packageBill.getFileName());
         return DONE;
     }
 
@@ -90,7 +101,8 @@ public final class MergeTreeBill {
         delivery.setName(Recorded.DELIVERY);
         delivery.setValue(Recorded.SHIPPED);
         subject.addProperty(delivery);
-        subject.setComponents(tree.getComponents() == null ? new ArrayList<>() : tree.getComponents());
+        subject.setComponents(
+                tree.getComponents() == null ? new ArrayList<>() : tree.getComponents());
         return subject;
     }
 
@@ -98,5 +110,4 @@ public final class MergeTreeBill {
         err.println("merge-tree-bill: " + reason);
         return FAILED;
     }
-
 }

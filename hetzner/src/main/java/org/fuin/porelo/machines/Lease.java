@@ -7,12 +7,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * A machine held for as long as this is open.
- * <p>
- * <strong>Releasing is not conditional on success.</strong> The expensive mistake is a machine
- * that outlives a script which failed on line three, not one that is released twice. What
- * releasing means is the {@link Machines} implementation's business: a rented server is destroyed,
- * a local virtual machine is left running because starting it again costs forty seconds and
- * nothing else.
+ *
+ * <p><strong>Releasing is not conditional on success.</strong> The expensive mistake is a machine
+ * that outlives a script which failed on line three, not one that is released twice. What releasing
+ * means is the {@link Machines} implementation's business: a rented server is destroyed, a local
+ * virtual machine is left running because starting it again costs forty seconds and nothing else.
  */
 public final class Lease implements AutoCloseable {
 
@@ -44,13 +43,20 @@ public final class Lease implements AutoCloseable {
 
     private final Release release;
 
-    /** How long {@link #awaitSsh()} waits; shorter only where a test cannot wait minutes for a refusal. */
+    /**
+     * How long {@link #awaitSsh()} waits; shorter only where a test cannot wait minutes for a
+     * refusal.
+     */
     private final Duration sshPatience;
 
     private @Nullable Ssh ssh;
 
-    /** Whether it was given back: a cancel does that from its own thread, and the holder's close comes after. */
-    private final java.util.concurrent.atomic.AtomicBoolean released = new java.util.concurrent.atomic.AtomicBoolean();
+    /**
+     * Whether it was given back: a cancel does that from its own thread, and the holder's close
+     * comes after.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean released =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     /**
      * Constructor with everything a holder needs.
@@ -121,8 +127,11 @@ public final class Lease implements AutoCloseable {
         final Instant deadline = Instant.now().plus(sshPatience);
         while (!Ssh.reachable(address, spec.user(), spec.credential())) {
             if (Instant.now().isAfter(deadline)) {
-                throw new IOException(address + " did not accept ssh within "
-                        + sshPatience.toMinutes() + " minutes");
+                throw new IOException(
+                        address
+                                + " did not accept ssh within "
+                                + sshPatience.toMinutes()
+                                + " minutes");
             }
             sleep(SSH_INTERVAL);
         }
@@ -130,14 +139,14 @@ public final class Lease implements AutoCloseable {
 
     /**
      * Restarts the machine and waits until it is a different boot.
-     * <p>
-     * <strong>By identity, not by timing.</strong> Waiting for ssh to answer does not work: for a
-     * second or two after {@code reboot} is issued the machine is still up and sshd still
+     *
+     * <p><strong>By identity, not by timing.</strong> Waiting for ssh to answer does not work: for
+     * a second or two after {@code reboot} is issued the machine is still up and sshd still
      * authenticates, so a reachability check passes, the caller reconnects to a machine that is
      * about to go down, and the next command fails with "connection refused". That is a race, and
      * it hid on a slow machine and appeared on a fast one.
-     * <p>
-     * The kernel's boot id changes across a restart and nothing else changes it, so this waits
+     *
+     * <p>The kernel's boot id changes across a restart and nothing else changes it, so this waits
      * for a connection that reports a different one.
      *
      * @throws IOException If it never comes back as a new boot.
@@ -155,14 +164,17 @@ public final class Lease implements AutoCloseable {
         final Instant deadline = Instant.now().plus(SSH_PATIENCE);
         while (true) {
             if (Instant.now().isAfter(deadline)) {
-                throw new IOException(name + " did not come back from a restart within "
-                        + SSH_PATIENCE.toMinutes() + " minutes");
+                throw new IOException(
+                        name
+                                + " did not come back from a restart within "
+                                + SSH_PATIENCE.toMinutes()
+                                + " minutes");
             }
             sleep(SSH_INTERVAL);
             try {
                 ssh().reconnect();
-                if (!before.equals(ssh().run("cat /proc/sys/kernel/random/boot_id")
-                        .out().strip())) {
+                if (!before.equals(
+                        ssh().run("cat /proc/sys/kernel/random/boot_id").out().strip())) {
                     return;
                 }
             } catch (IOException ex) {
@@ -186,9 +198,9 @@ public final class Lease implements AutoCloseable {
 
     /**
      * Leaves exactly one Porelo agent installed, whatever was there before.
-     * <p>
-     * <strong>Named rather than assumed.</strong> A machine keeps whatever the last run put on it,
-     * so a suite that needs one agent and finds another fails with "no agent called 'x' is
+     *
+     * <p><strong>Named rather than assumed.</strong> A machine keeps whatever the last run put on
+     * it, so a suite that needs one agent and finds another fails with "no agent called 'x' is
      * installed" - which reads like a packaging fault rather than a machine that was never
      * prepared. Removing first is what makes the run say what it needs instead of inheriting it.
      *
@@ -203,22 +215,24 @@ public final class Lease implements AutoCloseable {
         }
         final Ssh.Output installed = open.run(install(agent));
         if (installed.status() != 0) {
-            throw new IOException("could not install " + agent + " on " + name + ": "
-                    + installed.all());
+            throw new IOException(
+                    "could not install " + agent + " on " + name + ": " + installed.all());
         }
     }
 
-    /** Removes every Porelo agent, on either package manager, without failing when there is none. */
+    /**
+     * Removes every Porelo agent, on either package manager, without failing when there is none.
+     */
     private static final String REMOVE_AGENTS =
             "set -e; if command -v apt-get >/dev/null; then "
-            + "p=$(dpkg-query -W -f='${Package}\\n' 'porelo-agent-*' 2>/dev/null || true); "
-            + "[ -z \"$p\" ] || sudo apt-get remove -y -qq $p >/dev/null; "
-            + "else p=$(rpm -qa 'porelo-agent-*'); "
-            + "[ -z \"$p\" ] || sudo dnf remove -y -q $p >/dev/null; fi";
+                    + "p=$(dpkg-query -W -f='${Package}\\n' 'porelo-agent-*' 2>/dev/null || true); "
+                    + "[ -z \"$p\" ] || sudo apt-get remove -y -qq $p >/dev/null; "
+                    + "else p=$(rpm -qa 'porelo-agent-*'); "
+                    + "[ -z \"$p\" ] || sudo dnf remove -y -q $p >/dev/null; fi";
 
     /**
-     * Installs one agent package, named as one and quoted: the name went into the package manager's command line as
-     * it was given.
+     * Installs one agent package, named as one and quoted: the name went into the package manager's
+     * command line as it was given.
      *
      * @param agent The package, such as {@code porelo-agent-pi}.
      * @return The command.
@@ -229,8 +243,12 @@ public final class Lease implements AutoCloseable {
         }
         final String quoted = AgentLeg.quote(agent);
         return "set -e; if command -v apt-get >/dev/null; then sudo apt-get update -qq >/dev/null; "
-                + "sudo apt-get install -y -qq " + quoted + " >/dev/null; "
-                + "else sudo dnf install -y -q " + quoted + " >/dev/null; fi";
+                + "sudo apt-get install -y -qq "
+                + quoted
+                + " >/dev/null; "
+                + "else sudo dnf install -y -q "
+                + quoted
+                + " >/dev/null; fi";
     }
 
     @Override
@@ -244,13 +262,14 @@ public final class Lease implements AutoCloseable {
             }
         } catch (IOException ex) {
             // A connection that will not close is not a reason to leave a machine held.
-            System.out.println("could not close the connection to " + name + ": "
-                    + ex.getMessage());
+            System.out.println(
+                    "could not close the connection to " + name + ": " + ex.getMessage());
         }
         try {
             release.release();
         } catch (IOException | RuntimeException ex) {
-            // Not given back, so the next close tries again: a cancel's attempt that failed must not stop the holder's.
+            // Not given back, so the next close tries again: a cancel's attempt that failed must
+            // not stop the holder's.
             released.set(false);
             throw ex;
         }

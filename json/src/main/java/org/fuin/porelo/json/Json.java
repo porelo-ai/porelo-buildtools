@@ -7,13 +7,15 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A minimal JSON reader and writer for what the build tools read: provider API replies, bills, release records.
- * <p>
- * A copy of the one in porelo's wire module, kept here so the build tools depend on nothing of porelo's: porelo's build
- * runs these tools, so a dependency the other way made the two impossible to release one after the other.
- * <p>
- * It supports objects, arrays, strings, numbers, booleans and null and nothing else. It is not a general-purpose
- * parser and should not become one.
+ * A minimal JSON reader and writer for what the build tools read: provider API replies, bills,
+ * release records.
+ *
+ * <p>A copy of the one in porelo's wire module, kept here so the build tools depend on nothing of
+ * porelo's: porelo's build runs these tools, so a dependency the other way made the two impossible
+ * to release one after the other.
+ *
+ * <p>It supports objects, arrays, strings, numbers, booleans and null and nothing else. It is not a
+ * general-purpose parser and should not become one.
  */
 public final class Json {
 
@@ -30,7 +32,7 @@ public final class Json {
      *
      * @param text The document.
      * @return A {@link Map}, {@link List}, {@link String}, {@link Double}, {@link Boolean} or
-     *         {@code null}.
+     *     {@code null}.
      * @throws JsonException If the text is not well-formed JSON.
      */
     public static @Nullable Object parse(String text) {
@@ -47,8 +49,8 @@ public final class Json {
     /**
      * Writes a value as JSON.
      *
-     * @param value A {@link Map}, {@link List}, {@link CharSequence}, {@link Number},
-     *        {@link Boolean} or {@code null}.
+     * @param value A {@link Map}, {@link List}, {@link CharSequence}, {@link Number}, {@link
+     *     Boolean} or {@code null}.
      * @return The document, without a trailing newline.
      */
     public static String write(@Nullable Object value) {
@@ -59,8 +61,8 @@ public final class Json {
 
     /**
      * Writes a value into a buffer the caller owns.
-     * <p>
-     * Exists for the vault. {@link #write(Object)} hands back a {@code String}, which for the
+     *
+     * <p>Exists for the vault. {@link #write(Object)} hands back a {@code String}, which for the
      * vault's document is every credential it holds in plaintext, immutable and impossible to
      * clear. A caller that owns the buffer can overwrite it once the bytes have been encrypted.
      *
@@ -127,7 +129,10 @@ public final class Json {
         out.append('"');
     }
 
-    /** How deep objects and arrays may nest: nothing Porelo reads comes near it, and recursion beyond it overflows. */
+    /**
+     * How deep objects and arrays may nest: nothing Porelo reads comes near it, and recursion
+     * beyond it overflows.
+     */
     private static final int MAX_DEPTH = 256;
 
     private int depth;
@@ -138,8 +143,8 @@ public final class Json {
         }
         final char c = text.charAt(position);
         if ((c == '{' || c == '[') && ++depth > MAX_DEPTH) {
-            // Refused as bad input: a message of brackets well inside its size limit overflowed the stack, and no
-            // caller that catches bad input as a RuntimeException ever saw it.
+            // Refused as bad input: a message of brackets well inside its size limit overflowed the
+            // stack, and no caller that catches bad input as a RuntimeException ever saw it.
             throw error("Nested deeper than " + MAX_DEPTH);
         }
         try {
@@ -278,8 +283,10 @@ public final class Json {
         try {
             final Double number = Double.valueOf(text.substring(start, position));
             if (number.isInfinite() || number.isNaN()) {
-                // Read as Infinity, it was written back as the bare word, which no reader takes for JSON.
-                throw error("A number no double can hold: '" + text.substring(start, position) + "'");
+                // Read as Infinity, it was written back as the bare word, which no reader takes for
+                // JSON.
+                throw error(
+                        "A number no double can hold: '" + text.substring(start, position) + "'");
             }
             return number;
         } catch (NumberFormatException ex) {

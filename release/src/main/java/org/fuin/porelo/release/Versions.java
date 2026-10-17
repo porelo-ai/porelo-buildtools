@@ -5,28 +5,29 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
-/**
- * What a pinned version looks like, how two compare, and what an update job does about them.
- */
+/** What a pinned version looks like, how two compare, and what an update job does about them. */
 public final class Versions {
 
     /**
      * Three numbers and nothing else.
-     * <p>
-     * A pointer that starts serving an error page or an empty body would otherwise travel into a pom
-     * property and be found as a build failure two steps later.
+     *
+     * <p>A pointer that starts serving an error page or an empty body would otherwise travel into a
+     * pom property and be found as a build failure two steps later.
      */
     public static final Pattern VERSION = Pattern.compile("\\d+\\.\\d+\\.\\d+");
 
     /**
      * Two numbers or more: what a pin other than the agent's CLI may be.
-     * <p>
-     * GraalVM tags its releases {@code graal-25.3.4.1}, and a JDK line is not three numbers either. The
-     * agent's CLI stays at {@link #VERSION}, which is what its packaging assumes.
+     *
+     * <p>GraalVM tags its releases {@code graal-25.3.4.1}, and a JDK line is not three numbers
+     * either. The agent's CLI stays at {@link #VERSION}, which is what its packaging assumes.
      */
     public static final Pattern RELEASE = Pattern.compile("\\d+(?:\\.\\d+)+");
 
-    /** A module version whose patch an update may move: three numbers, then optionally {@code -SNAPSHOT}. */
+    /**
+     * A module version whose patch an update may move: three numbers, then optionally {@code
+     * -SNAPSHOT}.
+     */
     private static final Pattern MODULE = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-SNAPSHOT)?");
 
     private Versions() {
@@ -42,7 +43,9 @@ public final class Versions {
         /** They are the same: nothing to do. */
         NO,
 
-        /** Upstream is older, which automation may not choose: a withdrawn release looks the same. */
+        /**
+         * Upstream is older, which automation may not choose: a withdrawn release looks the same.
+         */
         ROLLBACK;
 
         /**
@@ -53,7 +56,6 @@ public final class Versions {
         public String word() {
             return name().toLowerCase(java.util.Locale.ROOT);
         }
-
     }
 
     /**
@@ -78,10 +80,10 @@ public final class Versions {
 
     /**
      * The module version an update moves to: the next patch, a snapshot staying a snapshot.
-     * <p>
-     * The rule for the agent repositories, whose poms stay snapshots until a release is cut:
-     * {@code 1.0.0-SNAPSHOT} becomes {@code 1.0.1-SNAPSHOT}, {@code 1.0.3} becomes {@code 1.0.4}. Anything
-     * else is left alone, since its successor would be invented.
+     *
+     * <p>The rule for the agent repositories, whose poms stay snapshots until a release is cut:
+     * {@code 1.0.0-SNAPSHOT} becomes {@code 1.0.1-SNAPSHOT}, {@code 1.0.3} becomes {@code 1.0.4}.
+     * Anything else is left alone, since its successor would be invented.
      *
      * @param version the module's version
      * @return the next one, or null when it is not a shape this knows
@@ -91,14 +93,19 @@ public final class Versions {
         if (!matcher.matches()) {
             return null;
         }
-        return matcher.group(1) + "." + matcher.group(2) + "." + (Long.parseLong(matcher.group(3)) + 1)
+        return matcher.group(1)
+                + "."
+                + matcher.group(2)
+                + "."
+                + (Long.parseLong(matcher.group(3)) + 1)
                 + (matcher.group(4) == null ? "" : matcher.group(4));
     }
 
     /**
      * Compares two versions by their numbers.
-     * <p>
-     * As text 2.1.9 sorts after 2.1.10, and a gate that calls a real update a rollback gets switched off.
+     *
+     * <p>As text 2.1.9 sorts after 2.1.10, and a gate that calls a real update a rollback gets
+     * switched off.
      *
      * @param left a version
      * @param right a version
@@ -113,7 +120,8 @@ public final class Versions {
      *
      * @param pinned what the module installs
      * @param upstream what upstream offers
-     * @param named whether a person named {@code upstream} rather than a pointer - only then may it go backwards
+     * @param named whether a person named {@code upstream} rather than a pointer - only then may it
+     *     go backwards
      * @return the verdict
      */
     public static Verdict verdict(String pinned, String upstream, boolean named) {
@@ -128,7 +136,8 @@ public final class Versions {
     }
 
     /**
-     * Whether the major version moved, which changes flags and configuration and nothing may decide alone.
+     * Whether the major version moved, which changes flags and configuration and nothing may decide
+     * alone.
      *
      * @param pinned what the module installs
      * @param upstream what upstream offers
@@ -144,5 +153,4 @@ public final class Versions {
         }
         return Arrays.stream(version.split("\\.")).mapToInt(Integer::parseInt).toArray();
     }
-
 }

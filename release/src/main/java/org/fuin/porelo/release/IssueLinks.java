@@ -19,23 +19,28 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Reads how the pages under {@code issues/} name an issue: every number a link to its row in an index, every row
- * anchored by its number, every such link reaching an anchor that is there.
- * <p>
- * The row outlives the file - a finished issue keeps its row - so a link to the row does not break when the issue is
- * done. A row of this repository is read from the tree; one of another repository from that repository's index on
- * {@code main}, or from a checkout beside this one. An index that cannot be read is named, and the links into it are
- * left unchecked rather than failed: a repository not published yet has no index to read.
+ * Reads how the pages under {@code issues/} name an issue: every number a link to its row in an
+ * index, every row anchored by its number, every such link reaching an anchor that is there.
+ *
+ * <p>The row outlives the file - a finished issue keeps its row - so a link to the row does not
+ * break when the issue is done. A row of this repository is read from the tree; one of another
+ * repository from that repository's index on {@code main}, or from a checkout beside this one. An
+ * index that cannot be read is named, and the links into it are left unchecked rather than failed:
+ * a repository not published yet has no index to read.
  */
 final class IssueLinks {
 
     /** Where the repositories' indexes are published. */
     private static final Pattern GITHUB =
-            Pattern.compile("^https://github\\.com/porelo-ai/([\\w.-]+)/blob/main/([^#\\s]+)#([a-z]{1,3}\\d{2,3})$");
+            Pattern.compile(
+                    "^https://github\\.com/porelo-ai/([\\w.-]+)/blob/main/([^#\\s]+)#([a-z]{1,3}\\d{2,3})$");
 
-    /** An index row's first cell: an optional anchor, then the number, perhaps linked to its file. */
+    /**
+     * An index row's first cell: an optional anchor, then the number, perhaps linked to its file.
+     */
     private static final Pattern ROW =
-            Pattern.compile("^\\|\\s*(?:<a id=\"([^\"]*)\"></a>)?\\s*\\[?([A-Z]{1,3}\\d{2,3})\\b(?:\\]\\([^)]*\\))?");
+            Pattern.compile(
+                    "^\\|\\s*(?:<a id=\"([^\"]*)\"></a>)?\\s*\\[?([A-Z]{1,3}\\d{2,3})\\b(?:\\]\\([^)]*\\))?");
 
     /** An anchor anywhere on a page. */
     private static final Pattern ANCHOR = Pattern.compile("<a id=\"([^\"]+)\"></a>");
@@ -47,7 +52,8 @@ final class IssueLinks {
     private static final Pattern TO_A_ROW = Pattern.compile("#([a-z]{1,3}\\d{2,3})$");
 
     /** The text of a link that is one issue number, perhaps emphasized. */
-    private static final Pattern NUMBER_TEXT = Pattern.compile("^[*_`]*([A-Z]{1,3}\\d{2,3})[*_`]*$");
+    private static final Pattern NUMBER_TEXT =
+            Pattern.compile("^[*_`]*([A-Z]{1,3}\\d{2,3})[*_`]*$");
 
     /** An issue number with its prefix apart. */
     private static final Pattern NUMBER = Pattern.compile("\\b([A-Z]{1,3})\\d{2,3}\\b");
@@ -63,10 +69,11 @@ final class IssueLinks {
 
     private final Web web;
 
-    @Nullable
-    private final Path checkouts;
+    @Nullable private final Path checkouts;
 
-    /** Another repository's index, by repository and path: its anchors, or why it could not be read. */
+    /**
+     * Another repository's index, by repository and path: its anchors, or why it could not be read.
+     */
     private final Map<String, Index> elsewhere = new LinkedHashMap<>();
 
     /** The links into an index that could not be read, by that index. */
@@ -87,7 +94,8 @@ final class IssueLinks {
      * Constructor.
      *
      * @param web where another repository's index is read
-     * @param checkouts a directory holding the repositories beside each other, read instead of the web; or null
+     * @param checkouts a directory holding the repositories beside each other, read instead of the
+     *     web; or null
      */
     IssueLinks(Web web, @Nullable Path checkouts) {
         this.web = web;
@@ -115,14 +123,18 @@ final class IssueLinks {
         }
         final Set<String> prefixes = new HashSet<>(ownPrefixes);
         rows.forEach(number -> prefixes.add(prefixOf(number)));
-        // Every index linked to is read first, so its prefix is known before the plain numbers are looked for.
+        // Every index linked to is read first, so its prefix is known before the plain numbers are
+        // looked for.
         for (final String text : texts.values()) {
             final Matcher link = LINK.matcher(text);
             while (link.find()) {
                 final Matcher there = GITHUB.matcher(link.group(2));
                 if (there.matches()) {
-                    index(there.group(1), there.group(2)).ifPresent(index -> index.numbers.forEach(
-                            number -> prefixes.add(prefixOf(number))));
+                    index(there.group(1), there.group(2))
+                            .ifPresent(
+                                    index ->
+                                            index.numbers.forEach(
+                                                    number -> prefixes.add(prefixOf(number))));
                 }
             }
         }
@@ -131,14 +143,18 @@ final class IssueLinks {
         }
     }
 
-    /** Lines for the result: the indexes that could not be read and how many links into them went unchecked. */
+    /**
+     * Lines for the result: the indexes that could not be read and how many links into them went
+     * unchecked.
+     */
     List<String> notes() {
         final List<String> notes = new ArrayList<>();
-        elsewhere.forEach((name, index) -> {
-            if (index.unread != null) {
-                notes.add("not read: " + name + " (" + index.unread + ")");
-            }
-        });
+        elsewhere.forEach(
+                (name, index) -> {
+                    if (index.unread != null) {
+                        notes.add("not read: " + name + " (" + index.unread + ")");
+                    }
+                });
         final int links = unchecked.values().stream().mapToInt(Integer::intValue).sum();
         if (links > 0) {
             notes.add(links + " link(s) into them not checked");
@@ -160,7 +176,12 @@ final class IssueLinks {
         }
     }
 
-    private void readPage(Path root, Path page, String text, Map<Path, Set<String>> anchors, Set<String> prefixes,
+    private void readPage(
+            Path root,
+            Path page,
+            String text,
+            Map<Path, Set<String>> anchors,
+            Set<String> prefixes,
             Set<String> ownPrefixes) {
         final boolean isIndex = page.getFileName().toString().equals("README.md");
         final String[] lines = text.split("\n", -1);
@@ -201,14 +222,16 @@ final class IssueLinks {
                 if (hasRow(found)) {
                     unlinked.add(where + found);
                 } else if (!ownPrefixes.contains(number.group(1))) {
-                    // One of this repository's own is the deletion a mention missed, which is said apart.
+                    // One of this repository's own is the deletion a mention missed, which is said
+                    // apart.
                     rowless.add(where + found);
                 }
             }
         }
     }
 
-    private void checkLink(Path page, String where, String text, String target, Map<Path, Set<String>> anchors) {
+    private void checkLink(
+            Path page, String where, String text, String target, Map<Path, Set<String>> anchors) {
         final Matcher named = NUMBER_TEXT.matcher(text.strip());
         final Matcher toRow = TO_A_ROW.matcher(target);
         if (!toRow.find()) {
@@ -240,8 +263,10 @@ final class IssueLinks {
             return;
         }
         // A link to an anchor on the same page names no file.
-        final Path file = target.startsWith("#") ? page.toAbsolutePath().normalize()
-                : folder.resolve(target.substring(0, target.indexOf('#'))).normalize();
+        final Path file =
+                target.startsWith("#")
+                        ? page.toAbsolutePath().normalize()
+                        : folder.resolve(target.substring(0, target.indexOf('#'))).normalize();
         final Set<String> here = anchors.get(file);
         if (here == null || !here.contains(anchor)) {
             broken.add(where + target);
@@ -257,7 +282,8 @@ final class IssueLinks {
 
     /** Returns another repository's index, read once; empty when it could not be read. */
     private Optional<Index> index(String repository, String path) {
-        final Index index = elsewhere.computeIfAbsent(repository + " " + path, name -> load(repository, path));
+        final Index index =
+                elsewhere.computeIfAbsent(repository + " " + path, name -> load(repository, path));
         return index.unread == null ? Optional.of(index) : Optional.empty();
     }
 
@@ -266,11 +292,18 @@ final class IssueLinks {
             final Optional<String> text;
             if (checkouts != null) {
                 final Path file = checkouts.resolve(repository).resolve(path);
-                text = Files.isRegularFile(file) ? Optional.of(Files.readString(file, StandardCharsets.UTF_8))
-                        : Optional.empty();
+                text =
+                        Files.isRegularFile(file)
+                                ? Optional.of(Files.readString(file, StandardCharsets.UTF_8))
+                                : Optional.empty();
             } else {
-                text = web.text(URI.create("https://raw.githubusercontent.com/porelo-ai/" + repository + "/main/"
-                        + path));
+                text =
+                        web.text(
+                                URI.create(
+                                        "https://raw.githubusercontent.com/porelo-ai/"
+                                                + repository
+                                                + "/main/"
+                                                + path));
             }
             if (text.isEmpty()) {
                 return new Index(Set.of(), Set.of(), "not published");
@@ -310,6 +343,5 @@ final class IssueLinks {
     }
 
     /** An index read: its anchors and the numbers of its rows, or why it could not be read. */
-    private record Index(Set<String> anchors, Set<String> numbers, @Nullable String unread) {
-    }
+    private record Index(Set<String> anchors, Set<String> numbers, @Nullable String unread) {}
 }

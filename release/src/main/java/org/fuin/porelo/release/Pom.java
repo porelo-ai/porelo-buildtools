@@ -25,7 +25,11 @@ import org.xml.sax.SAXException;
  * @param version the module's own version, or null for a module that inherits its parent's
  * @param properties the {@code <properties>} it declares, as written
  */
-public record Pom(Path file, String text, String artifactId, @Nullable String version,
+public record Pom(
+        Path file,
+        String text,
+        String artifactId,
+        @Nullable String version,
         Map<String, String> properties) {
 
     /** Where the pinned CLI version is written by hand, and everything else is filtered from. */
@@ -65,13 +69,17 @@ public record Pom(Path file, String text, String artifactId, @Nullable String ve
             final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            project = factory.newDocumentBuilder().parse(new InputSource(new StringReader(text))).getDocumentElement();
+            project =
+                    factory.newDocumentBuilder()
+                            .parse(new InputSource(new StringReader(text)))
+                            .getDocumentElement();
         } catch (ParserConfigurationException | SAXException | IOException ex) {
             throw Stop.refused(file + " is not readable XML: " + ex.getMessage(), ex);
         }
         final String artifactId = child(project, "artifactId");
         final String version = child(project, "version");
-        // A version may be inherited - a module of a reactor has none of its own, and an update leaves it be.
+        // A version may be inherited - a module of a reactor has none of its own, and an update
+        // leaves it be.
         if (artifactId == null) {
             throw Stop.refused(file + " declares no own artifactId");
         }
@@ -151,5 +159,4 @@ public record Pom(Path file, String text, String artifactId, @Nullable String ve
         }
         return null;
     }
-
 }

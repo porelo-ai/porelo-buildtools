@@ -9,13 +9,13 @@ import net.schmizz.sshj.common.Buffer;
 
 /**
  * The fingerprint of a key, in the form the Hetzner API reports.
- * <p>
- * <strong>Derived from the key in hand, not asked of an agent.</strong> The script this replaces
+ *
+ * <p><strong>Derived from the key in hand, not asked of an agent.</strong> The script this replaces
  * ran {@code ssh-add -l -E md5}, which meant every caller had to have an agent running with the
  * right key in it before it could look anything up. Holding the material makes that a computation
  * instead of a dependency.
- * <p>
- * MD5 rather than SHA-256 because that is what the API returns; it is an identifier here, not a
+ *
+ * <p>MD5 rather than SHA-256 because that is what the API returns; it is an identifier here, not a
  * security claim.
  */
 final class Fingerprint {

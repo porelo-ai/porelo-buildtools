@@ -10,17 +10,16 @@ import java.nio.file.attribute.PosixFilePermissions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Tests for {@link Credential}.
- */
+/** Tests for {@link Credential}. */
 class CredentialTest {
 
     @Test
     void takesTheCarriageReturnsOutOfAKey() throws IOException {
-        // A stray carriage return makes an otherwise valid key fail as "error in libcrypto",
-        // naming neither the file nor the reason. It reached a key file once because the cleaning
-        // lived in one copy of a script and not in another.
-        final Credential credential = new Credential.InMemory("-----BEGIN-----\r\nabc\r\n-----END-----");
+        // A stray carriage return makes an otherwise valid key fail as "error in libcrypto", naming
+        // neither the file nor the reason. It reached a key file once because the cleaning lived in
+        // one copy of a script and not in another.
+        final Credential credential =
+                new Credential.InMemory("-----BEGIN-----\r\nabc\r\n-----END-----");
         assertThat(credential.material()).isEqualTo("-----BEGIN-----\nabc\n-----END-----\n");
         assertThat(credential.material()).doesNotContain("\r");
     }
@@ -75,8 +74,9 @@ class CredentialTest {
 
     @Test
     void refusesAKeyFileThatOthersCanRead(@TempDir Path directory) throws IOException {
-        // ssh refuses such a key itself, but only once it is on the way to a machine, and with a message about
-        // the key rather than about what to do; and a key others could read is a key others may already have.
+        // ssh refuses such a key itself, but only once it is on the way to a machine, and with a
+        // message about the key rather than about what to do; and a key others could read is a key
+        // others may already have.
         final Path file = directory.resolve("key");
         Files.writeString(file, "from-a-file");
         Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-r--r--"));

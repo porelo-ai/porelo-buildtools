@@ -18,14 +18,16 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Whether native binaries need no more than their packages declare.
- * <p>
- * A native image is linked dynamically against the C library and zlib, and neither jdeb nor the rpm plugin reads it to
- * find out against what; {@code dpkg-shlibdeps} and {@code rpmbuild} would, and neither runs in these builds. So the
- * dependencies are written by hand, and this holds them to the binaries: a library nobody declared, or a symbol
- * version above the declared floor, is refused before anything is packed. A ceiling on the floor keeps the packages
- * installable on the oldest system supported: raising past it is a decision, not a build host's side effect.
- * <p>
- * Each binary is read with {@code readelf -d -V -W} in the C locale. A statically linked one needs nothing.
+ *
+ * <p>A native image is linked dynamically against the C library and zlib, and neither jdeb nor the
+ * rpm plugin reads it to find out against what; {@code dpkg-shlibdeps} and {@code rpmbuild} would,
+ * and neither runs in these builds. So the dependencies are written by hand, and this holds them to
+ * the binaries: a library nobody declared, or a symbol version above the declared floor, is refused
+ * before anything is packed. A ceiling on the floor keeps the packages installable on the oldest
+ * system supported: raising past it is a decision, not a build host's side effect.
+ *
+ * <p>Each binary is read with {@code readelf -d -V -W} in the C locale. A statically linked one
+ * needs nothing.
  */
 final class CheckLinkage {
 
@@ -35,14 +37,16 @@ final class CheckLinkage {
      * @param prefix The prefix of its symbol versions, such as {@code GLIBC}.
      * @param floor The highest symbol version the package promises.
      */
-    record Declared(String prefix, String floor) {
-    }
+    record Declared(String prefix, String floor) {}
 
-    private static final Pattern NEEDED = Pattern.compile("\\(NEEDED\\)\\s+Shared library: \\[([^\\]]+)\\]");
+    private static final Pattern NEEDED =
+            Pattern.compile("\\(NEEDED\\)\\s+Shared library: \\[([^\\]]+)\\]");
 
-    private static final Pattern VERSION = Pattern.compile("Name: ([A-Z]+)_([0-9]+(?:\\.[0-9]+)*)\\b");
+    private static final Pattern VERSION =
+            Pattern.compile("Name: ([A-Z]+)_([0-9]+(?:\\.[0-9]+)*)\\b");
 
-    private static final Pattern DECLARATION = Pattern.compile("([^=\\s]+)=([A-Z]+):([0-9]+(?:\\.[0-9]+)*)");
+    private static final Pattern DECLARATION =
+            Pattern.compile("([^=\\s]+)=([A-Z]+):([0-9]+(?:\\.[0-9]+)*)");
 
     private static final String STATIC = "There is no dynamic section in this file.";
 
@@ -69,8 +73,8 @@ final class CheckLinkage {
      * @param binaries The binaries the packages carry.
      * @param declared What the packages declare, by library.
      * @param ceilings The highest floor allowed, by prefix.
-     * @return 0 when the packages cover every binary, {@link Stop#REFUSED} otherwise, {@link Stop#UNANSWERED} when a
-     *         binary cannot be read
+     * @return 0 when the packages cover every binary, {@link Stop#REFUSED} otherwise, {@link
+     *     Stop#UNANSWERED} when a binary cannot be read
      */
     int check(List<Path> binaries, Map<String, Declared> declared, Map<String, String> ceilings) {
         return check(binaries, declared, ceilings, false);
@@ -82,12 +86,15 @@ final class CheckLinkage {
      * @param binaries The binaries the packages carry.
      * @param declared What the packages declare, by library.
      * @param ceilings The highest floor allowed, by prefix.
-     * @param declaredOnly Whether a library nobody declared is left to the package, which derives its dependencies
-     *        from the binary, and only the declared ones are held to their floor.
-     * @return 0 when the packages cover every binary, {@link Stop#REFUSED} otherwise, {@link Stop#UNANSWERED} when a
-     *         binary cannot be read
+     * @param declaredOnly Whether a library nobody declared is left to the package, which derives
+     *     its dependencies from the binary, and only the declared ones are held to their floor.
+     * @return 0 when the packages cover every binary, {@link Stop#REFUSED} otherwise, {@link
+     *     Stop#UNANSWERED} when a binary cannot be read
      */
-    int check(List<Path> binaries, Map<String, Declared> declared, Map<String, String> ceilings,
+    int check(
+            List<Path> binaries,
+            Map<String, Declared> declared,
+            Map<String, String> ceilings,
             boolean declaredOnly) {
         final List<String> problems = new ArrayList<>(ceilings(declared, ceilings));
         for (final Path binary : binaries) {
@@ -98,16 +105,28 @@ final class CheckLinkage {
                 err.println("could not read " + binary + ": " + ex.getMessage());
                 return Stop.UNANSWERED;
             }
-            problems.addAll(problems(binary.getFileName().toString(), readelf, declared, declaredOnly));
+            problems.addAll(
+                    problems(binary.getFileName().toString(), readelf, declared, declaredOnly));
         }
         if (!problems.isEmpty()) {
             problems.forEach(problem -> err.println("FAIL  " + problem));
             return Stop.REFUSED;
         }
-        out.println("OK    " + binaries.size() + " binary(ies) need no more than the packages declare: "
-                + String.join(", ", declared.entrySet().stream()
-                        .map(one -> one.getKey() + " " + one.getValue().prefix() + " " + one.getValue().floor())
-                        .toList()));
+        out.println(
+                "OK    "
+                        + binaries.size()
+                        + " binary(ies) need no more than the packages declare: "
+                        + String.join(
+                                ", ",
+                                declared.entrySet().stream()
+                                        .map(
+                                                one ->
+                                                        one.getKey()
+                                                                + " "
+                                                                + one.getValue().prefix()
+                                                                + " "
+                                                                + one.getValue().floor())
+                                        .toList()));
         return 0;
     }
 
@@ -124,7 +143,8 @@ final class CheckLinkage {
     }
 
     /**
-     * Returns every way one binary needs more than the packages declare, every library or only the declared ones.
+     * Returns every way one binary needs more than the packages declare, every library or only the
+     * declared ones.
      *
      * @param name The binary's name, for the message.
      * @param readelf Output of {@code readelf -d -V -W} in the C locale.
@@ -132,7 +152,8 @@ final class CheckLinkage {
      * @param declaredOnly Whether a library nobody declared is left to the package.
      * @return Problems, empty when the packages cover the binary.
      */
-    static List<String> problems(String name, String readelf, Map<String, Declared> declared, boolean declaredOnly) {
+    static List<String> problems(
+            String name, String readelf, Map<String, Declared> declared, boolean declaredOnly) {
         if (readelf.contains(STATIC)) {
             return List.of();
         }
@@ -142,10 +163,13 @@ final class CheckLinkage {
             needed.add(library.group(1));
         }
         if (needed.isEmpty()) {
-            // A static-pie binary has a dynamic section for its relocations and no library in it. Output with neither
-            // that section nor the word static is a readelf that failed, not a binary that needs nothing.
-            return readelf.contains(DYNAMIC_SECTION) ? List.of()
-                    : List.of(name + ": readelf names no shared library and does not call it static");
+            // A static-pie binary has a dynamic section for its relocations and no library in it.
+            // Output with neither that section nor the word static is a readelf that failed, not a
+            // binary that needs nothing.
+            return readelf.contains(DYNAMIC_SECTION)
+                    ? List.of()
+                    : List.of(
+                            name + ": readelf names no shared library and does not call it static");
         }
         final List<String> problems = new ArrayList<>();
         for (final String lib : needed) {
@@ -161,8 +185,14 @@ final class CheckLinkage {
         for (final Declared promise : declared.values()) {
             final String max = highest.get(promise.prefix());
             if (max != null && compare(max, promise.floor()) > 0) {
-                problems.add(name + " needs " + promise.prefix() + "_" + max + ", and the packages promise only "
-                        + promise.floor());
+                problems.add(
+                        name
+                                + " needs "
+                                + promise.prefix()
+                                + "_"
+                                + max
+                                + ", and the packages promise only "
+                                + promise.floor());
             }
         }
         return problems;
@@ -180,8 +210,14 @@ final class CheckLinkage {
         for (final Declared library : declared.values()) {
             final String ceiling = ceilings.get(library.prefix());
             if (ceiling != null && compare(library.floor(), ceiling) > 0) {
-                problems.add("the packages promise " + library.prefix() + " " + library.floor() + ", above "
-                        + ceiling + ", the oldest system supported");
+                problems.add(
+                        "the packages promise "
+                                + library.prefix()
+                                + " "
+                                + library.floor()
+                                + ", above "
+                                + ceiling
+                                + ", the oldest system supported");
             }
         }
         return problems;
@@ -196,7 +232,9 @@ final class CheckLinkage {
     static Map.@Nullable Entry<String, Declared> declared(String argument) {
         final Matcher declaration = DECLARATION.matcher(argument);
         return declaration.matches()
-                ? Map.entry(declaration.group(1), new Declared(declaration.group(2), declaration.group(3)))
+                ? Map.entry(
+                        declaration.group(1),
+                        new Declared(declaration.group(2), declaration.group(3)))
                 : null;
     }
 
@@ -224,11 +262,13 @@ final class CheckLinkage {
         if (!Files.isRegularFile(binary)) {
             throw new IOException("no such file");
         }
-        final ProcessBuilder builder = new ProcessBuilder("readelf", "-d", "-V", "-W", binary.toString())
-                .redirectErrorStream(true);
+        final ProcessBuilder builder =
+                new ProcessBuilder("readelf", "-d", "-V", "-W", binary.toString())
+                        .redirectErrorStream(true);
         // The labels are translated otherwise, and the patterns above are the English ones.
         builder.environment().put("LC_ALL", "C");
-        // To a file rather than a pipe: reading a pipe to its end would wait out a hang, not the timeout.
+        // To a file rather than a pipe: reading a pipe to its end would wait out a hang, not the
+        // timeout.
         final Path output = Files.createTempFile("readelf", ".txt");
         try {
             final Process process = builder.redirectOutput(output.toFile()).start();

@@ -14,15 +14,16 @@ import org.fuin.porelo.json.JsonException;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A pin beside the agent's CLI - a runtime, a tool, a JDK, a base image - read from
- * {@code porelo.release.pin.<name>.*} in the pom.
- * <p>
- * <strong>Every pin is a pom property</strong>, and the tool reads no other file: a script or a class that
- * needs the value has it filtered in. A pin names the property holding its version and, where it has them,
- * the ones holding its digest, its download address and the digest of an image built for it. An update
- * writes each of those and nothing else - except {@code follows}: properties that spell the pin out inside
- * a longer value (an image reference naming the version and its digest), where the old values are replaced
- * by the new ones, so the two cannot disagree after a move.
+ * A pin beside the agent's CLI - a runtime, a tool, a JDK, a base image - read from {@code
+ * porelo.release.pin.<name>.*} in the pom.
+ *
+ * <p><strong>Every pin is a pom property</strong>, and the tool reads no other file: a script or a
+ * class that needs the value has it filtered in. A pin names the property holding its version and,
+ * where it has them, the ones holding its digest, its download address and the digest of an image
+ * built for it. An update writes each of those and nothing else - except {@code follows}:
+ * properties that spell the pin out inside a longer value (an image reference naming the version
+ * and its digest), where the old values are replaced by the new ones, so the two cannot disagree
+ * after a move.
  *
  * @param pom the pom it was read from
  * @param name the pin's name, as {@code --pin} gives it
@@ -33,13 +34,25 @@ import org.jspecify.annotations.Nullable;
  * @param digests where a release's digest is read
  * @param sha256 the property the digest is written to, or null for a pin that has none
  * @param url the property the download address is written to, or null
- * @param image the Docker Hub tag address of an image built for the version, with {@code {version}}, or null
+ * @param image the Docker Hub tag address of an image built for the version, with {@code
+ *     {version}}, or null
  * @param imageProperty the property that image's digest is written to, or null
  * @param follows the properties that spell the pin out inside a longer value
  */
-public record Pin(Pom pom, String name, String label, String property, Release.Upstream upstream,
-        @Nullable String channel, PinDigest digests, @Nullable String sha256, @Nullable String url,
-        @Nullable String image, @Nullable String imageProperty, List<String> follows) implements Tracked {
+public record Pin(
+        Pom pom,
+        String name,
+        String label,
+        String property,
+        Release.Upstream upstream,
+        @Nullable String channel,
+        PinDigest digests,
+        @Nullable String sha256,
+        @Nullable String url,
+        @Nullable String image,
+        @Nullable String imageProperty,
+        List<String> follows)
+        implements Tracked {
 
     /** Every pin's properties start here, then its name. */
     static final String PREFIX = Release.PREFIX + "pin.";
@@ -76,52 +89,97 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
      */
     public static Pin of(Pom pom, String name) throws Stop {
         if (!NAME.matcher(name).matches()) {
-            throw Stop.refused("'" + name + "' is not a pin name: lowercase letters, digits and dashes");
+            throw Stop.refused(
+                    "'" + name + "' is not a pin name: lowercase letters, digits and dashes");
         }
         final String prefix = PREFIX + name + ".";
         final String property = pom.required(prefix + "property");
         if (pom.optional(property) == null) {
-            throw Stop.refused(pom.file() + " declares " + prefix + "property as " + property
-                    + ", but no " + property);
+            throw Stop.refused(
+                    pom.file()
+                            + " declares "
+                            + prefix
+                            + "property as "
+                            + property
+                            + ", but no "
+                            + property);
         }
-        final Release.Upstream upstream = Release.upstream(pom.file() + ": " + prefix + "upstream",
-                pom.required(prefix + "upstream"));
+        final Release.Upstream upstream =
+                Release.upstream(
+                        pom.file() + ": " + prefix + "upstream", pom.required(prefix + "upstream"));
         final String digest = pom.optional(prefix + "digest");
-        final PinDigest digests = digest == null ? new PinDigest.None() : PinDigest.of(prefix + "digest", digest);
+        final PinDigest digests =
+                digest == null ? new PinDigest.None() : PinDigest.of(prefix + "digest", digest);
         final String sha256 = declared(pom, prefix + "sha256");
         final String url = declared(pom, prefix + "url");
         final String image = pom.optional(prefix + "image");
         final String imageProperty = declared(pom, prefix + "image-property");
         if (!(digests instanceof PinDigest.None) && sha256 == null) {
-            throw Stop.refused(pom.file() + ": " + prefix + "digest is read, but " + prefix
-                    + "sha256 names no property to write it to");
+            throw Stop.refused(
+                    pom.file()
+                            + ": "
+                            + prefix
+                            + "digest is read, but "
+                            + prefix
+                            + "sha256 names no property to write it to");
         }
         if ((image == null) != (imageProperty == null)) {
-            throw Stop.refused(pom.file() + ": " + prefix + "image and " + prefix + "image-property come together");
+            throw Stop.refused(
+                    pom.file()
+                            + ": "
+                            + prefix
+                            + "image and "
+                            + prefix
+                            + "image-property come together");
         }
-        // Written back as Docker Hub gives it, 'sha256:<hex>': held as bare hex, a follower would be rewritten
-        // to '@sha256:sha256:<hex>' - an image reference no registry resolves. Measured.
+        // Written back as Docker Hub gives it, 'sha256:<hex>': held as bare hex, a follower would
+        // be rewritten to '@sha256:sha256:<hex>' - an image reference no registry resolves.
+        // Measured.
         final String imageDigest = imageProperty == null ? null : pom.optional(imageProperty);
-        if (imageProperty != null && (imageDigest == null || !Digests.IMAGE.matcher(imageDigest).matches())) {
-            throw Stop.refused(pom.file() + ": " + imageProperty + " holds '" + imageDigest
-                    + "', but an image digest is written as sha256:<64 hex>");
+        if (imageProperty != null
+                && (imageDigest == null || !Digests.IMAGE.matcher(imageDigest).matches())) {
+            throw Stop.refused(
+                    pom.file()
+                            + ": "
+                            + imageProperty
+                            + " holds '"
+                            + imageDigest
+                            + "', but an image digest is written as sha256:<64 hex>");
         }
         if (upstream.byDigest() && !(digests instanceof PinDigest.None)) {
-            throw Stop.refused(pom.file() + ": a pin followed by its digest has no digest to read besides it");
+            throw Stop.refused(
+                    pom.file() + ": a pin followed by its digest has no digest to read besides it");
         }
         final String follows = pom.optional(prefix + "follows");
         final List<String> followed = new ArrayList<>();
         if (follows != null) {
             for (final String each : follows.strip().split("\\s+")) {
                 if (!pom.properties().containsKey(each)) {
-                    throw Stop.refused(pom.file() + " names " + each + " in " + prefix + "follows, but declares no "
-                            + each);
+                    throw Stop.refused(
+                            pom.file()
+                                    + " names "
+                                    + each
+                                    + " in "
+                                    + prefix
+                                    + "follows, but declares no "
+                                    + each);
                 }
                 followed.add(each);
             }
         }
-        return new Pin(pom, name, Optional.ofNullable(pom.optional(prefix + "label")).orElse(name), property,
-                upstream, pom.optional(prefix + "channel"), digests, sha256, url, image, imageProperty, followed);
+        return new Pin(
+                pom,
+                name,
+                Optional.ofNullable(pom.optional(prefix + "label")).orElse(name),
+                property,
+                upstream,
+                pom.optional(prefix + "channel"),
+                digests,
+                sha256,
+                url,
+                image,
+                imageProperty,
+                followed);
     }
 
     // A pin naming a property the pom does not have would move nothing and say it moved.
@@ -131,7 +189,14 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
             return null;
         }
         if (!pom.properties().containsKey(property)) {
-            throw Stop.refused(pom.file() + " names " + property + " in " + key + ", but declares no " + property);
+            throw Stop.refused(
+                    pom.file()
+                            + " names "
+                            + property
+                            + " in "
+                            + key
+                            + ", but declares no "
+                            + property);
         }
         return property;
     }
@@ -140,8 +205,14 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
     public String pinned() throws Stop {
         final String pinned = pom.required(property);
         if (!accepts(pinned)) {
-            throw Stop.refused(pom.file() + " pins '" + pinned + "' in " + property + ", which is not "
-                    + (upstream.byDigest() ? "an image digest" : "a version"));
+            throw Stop.refused(
+                    pom.file()
+                            + " pins '"
+                            + pinned
+                            + "' in "
+                            + property
+                            + ", which is not "
+                            + (upstream.byDigest() ? "an image digest" : "a version"));
         }
         return pinned;
     }
@@ -153,7 +224,9 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
      * @return true when it has the shape this pin takes
      */
     public boolean accepts(String value) {
-        return upstream.byDigest() ? Digests.IMAGE.matcher(value).matches() : Versions.isRelease(value);
+        return upstream.byDigest()
+                ? Digests.IMAGE.matcher(value).matches()
+                : Versions.isRelease(value);
     }
 
     /**
@@ -169,21 +242,23 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
             return Optional.empty();
         }
         final URI address = URI.create(image.replace("{version}", version));
-        final Object digest = field(json(fetch(web, address, Map.of(), version), address), "digest");
+        final Object digest =
+                field(json(fetch(web, address, Map.of(), version), address), "digest");
         if (!(digest instanceof String found) || !Digests.IMAGE.matcher(found).matches()) {
-            throw Stop.refused(address + " gives '" + digest + "' as the image's digest, which is not one");
+            throw Stop.refused(
+                    address + " gives '" + digest + "' as the image's digest, which is not one");
         }
         return Optional.of(found);
     }
 
     /**
-     * One release's build: its digest, and where it is downloaded when that is not derived from the version.
+     * One release's build: its digest, and where it is downloaded when that is not derived from the
+     * version.
      *
      * @param sha256 the digest, 64 lowercase hexadecimal characters
      * @param url where it is downloaded, or null when the pin's user derives it
      */
-    public record Artifact(String sha256, @Nullable String url) {
-    }
+    public record Artifact(String sha256, @Nullable String url) {}
 
     /** Where the digest of one release of a pin is read. */
     public sealed interface PinDigest {
@@ -211,11 +286,16 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
                 try {
                     return new GithubAsset(words[1], Pattern.compile(words[2]));
                 } catch (PatternSyntaxException ex) {
-                    throw Stop.refused(where + ": '" + words[2] + "' is not a pattern: " + ex.getDescription(), ex);
+                    throw Stop.refused(
+                            where + ": '" + words[2] + "' is not a pattern: " + ex.getDescription(),
+                            ex);
                 }
             }
-            throw Stop.refused(where + " is 'sums <url> <asset>', 'sha256-file <url>', 'github-asset <release api url>"
-                    + " <asset pattern>' or 'none', each with {version} where the release goes; found: " + spec);
+            throw Stop.refused(
+                    where
+                            + " is 'sums <url> <asset>', 'sha256-file <url>', 'github-asset <release api url>"
+                            + " <asset pattern>' or 'none', each with {version} where the release goes; found: "
+                            + spec);
         }
 
         /**
@@ -225,7 +305,8 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
          * @param version the release
          * @param env the environment, for a token
          * @return the build, or empty for a pin without a digest
-         * @throws Stop refused when there is no such release or build, unanswered when it cannot be read
+         * @throws Stop refused when there is no such release or build, unanswered when it cannot be
+         *     read
          */
         Optional<Artifact> artifact(Web web, String version, Map<String, String> env) throws Stop;
 
@@ -236,7 +317,6 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
             public Optional<Artifact> artifact(Web web, String version, Map<String, String> env) {
                 return Optional.empty();
             }
-
         }
 
         /**
@@ -248,12 +328,17 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
         record Sums(String template, String asset) implements PinDigest {
 
             @Override
-            public Optional<Artifact> artifact(Web web, String version, Map<String, String> env) throws Stop {
+            public Optional<Artifact> artifact(Web web, String version, Map<String, String> env)
+                    throws Stop {
                 final URI address = URI.create(template.replace("{version}", version));
-                return Optional.of(new Artifact(Digests.fromSums(fetch(web, address, Map.of(), version),
-                        asset.replace("{version}", version), version), null));
+                return Optional.of(
+                        new Artifact(
+                                Digests.fromSums(
+                                        fetch(web, address, Map.of(), version),
+                                        asset.replace("{version}", version),
+                                        version),
+                                null));
             }
-
         }
 
         /**
@@ -264,20 +349,22 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
         record Sha256File(String template) implements PinDigest {
 
             @Override
-            public Optional<Artifact> artifact(Web web, String version, Map<String, String> env) throws Stop {
+            public Optional<Artifact> artifact(Web web, String version, Map<String, String> env)
+                    throws Stop {
                 final URI address = URI.create(template.replace("{version}", version));
                 final String[] words = fetch(web, address, Map.of(), version).strip().split("\\s+");
                 if (!Digests.SHA256.matcher(words[0]).matches()) {
-                    throw Stop.refused(address + " holds '" + words[0] + "', which is not a SHA-256 digest");
+                    throw Stop.refused(
+                            address + " holds '" + words[0] + "', which is not a SHA-256 digest");
                 }
                 return Optional.of(new Artifact(words[0], null));
             }
-
         }
 
         /**
-         * The one asset of a GitHub release whose name matches, with the digest GitHub computed for it and its
-         * download address - for a release whose file names are not derived from its tag.
+         * The one asset of a GitHub release whose name matches, with the digest GitHub computed for
+         * it and its download address - for a release whose file names are not derived from its
+         * tag.
          *
          * @param template the API address of the release, with {@code {version}}
          * @param name the pattern the asset's whole name matches
@@ -285,47 +372,72 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
         record GithubAsset(String template, Pattern name) implements PinDigest {
 
             @Override
-            public Optional<Artifact> artifact(Web web, String version, Map<String, String> env) throws Stop {
+            public Optional<Artifact> artifact(Web web, String version, Map<String, String> env)
+                    throws Stop {
                 final URI address = URI.create(template.replace("{version}", version));
-                final Object assets = field(json(fetch(web, address, Release.githubHeaders(address, env), version),
-                        address), "assets");
+                final Object assets =
+                        field(
+                                json(
+                                        fetch(
+                                                web,
+                                                address,
+                                                Release.githubHeaders(address, env),
+                                                version),
+                                        address),
+                                "assets");
                 final List<Map<?, ?>> matching = new ArrayList<>();
                 if (assets instanceof List<?> all) {
                     for (final Object each : all) {
-                        if (each instanceof Map<?, ?> asset && asset.get("name") instanceof String file
+                        if (each instanceof Map<?, ?> asset
+                                && asset.get("name") instanceof String file
                                 && name.matcher(file).matches()) {
                             matching.add(asset);
                         }
                     }
                 }
                 if (matching.size() != 1) {
-                    throw Stop.refused(version + " has " + matching.size() + " assets matching '" + name
-                            + "' - exactly one is pinned, refusing to guess");
+                    throw Stop.refused(
+                            version
+                                    + " has "
+                                    + matching.size()
+                                    + " assets matching '"
+                                    + name
+                                    + "' - exactly one is pinned, refusing to guess");
                 }
                 final Map<?, ?> asset = matching.getFirst();
                 final Object digest = asset.get("digest");
                 final Object url = asset.get("browser_download_url");
-                if (!(digest instanceof String text) || !text.startsWith("sha256:")
+                if (!(digest instanceof String text)
+                        || !text.startsWith("sha256:")
                         || !Digests.SHA256.matcher(text.substring("sha256:".length())).matches()) {
-                    throw Stop.refused(asset.get("name") + " in " + version + " carries no SHA-256 digest: " + digest);
+                    throw Stop.refused(
+                            asset.get("name")
+                                    + " in "
+                                    + version
+                                    + " carries no SHA-256 digest: "
+                                    + digest);
                 }
                 if (!(url instanceof String download) || !download.startsWith("https://")) {
-                    throw Stop.refused(asset.get("name") + " in " + version + " has no https download address");
+                    throw Stop.refused(
+                            asset.get("name")
+                                    + " in "
+                                    + version
+                                    + " has no https download address");
                 }
                 return Optional.of(new Artifact(text.substring("sha256:".length()), download));
             }
-
         }
-
     }
 
     // A 404 is an answer - there is no such release - and every other failure is not.
-    private static String fetch(Web web, URI address, Map<String, String> headers, String version) throws Stop {
+    private static String fetch(Web web, URI address, Map<String, String> headers, String version)
+            throws Stop {
         final Optional<byte[]> body;
         try {
             body = web.read(address, headers);
         } catch (IOException ex) {
-            throw Stop.unanswered(java.util.Objects.requireNonNullElse(ex.getMessage(), ex.toString()), ex);
+            throw Stop.unanswered(
+                    java.util.Objects.requireNonNullElse(ex.getMessage(), ex.toString()), ex);
         }
         if (body.isEmpty()) {
             throw Stop.refused("there is no release " + version + " - " + address + " answers 404");
@@ -344,5 +456,4 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
     private static @Nullable Object field(@Nullable Object parsed, String key) {
         return parsed instanceof Map<?, ?> map ? map.get(key) : null;
     }
-
 }

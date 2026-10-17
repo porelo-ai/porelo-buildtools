@@ -3,9 +3,7 @@ package org.fuin.porelo.release;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Rewriting a file a person also edits, without guessing.
- */
+/** Rewriting a file a person also edits, without guessing. */
 public final class Texts {
 
     private Texts() {
@@ -14,9 +12,9 @@ public final class Texts {
 
     /**
      * Substitutes exactly one occurrence, refusing none and refusing several.
-     * <p>
-     * A tool that writes nothing and reports success is the failure an update pipeline exists to avoid,
-     * and one that writes a second occurrence it did not know about is worse.
+     *
+     * <p>A tool that writes nothing and reports success is the failure an update pipeline exists to
+     * avoid, and one that writes a second occurrence it did not know about is worse.
      *
      * @param text what to rewrite
      * @param pattern what to find
@@ -25,12 +23,13 @@ public final class Texts {
      * @return the rewritten text
      * @throws Stop refused unless there is exactly one occurrence
      */
-    public static String replaceOnce(String text, Pattern pattern, String replacement, String what) throws Stop {
+    public static String replaceOnce(String text, Pattern pattern, String replacement, String what)
+            throws Stop {
         final long count = pattern.matcher(text).results().count();
         if (count != 1) {
-            throw Stop.refused("expected exactly one " + what + ", found " + count + " - refusing to guess");
+            throw Stop.refused(
+                    "expected exactly one " + what + ", found " + count + " - refusing to guess");
         }
         return pattern.matcher(text).replaceFirst(replacement);
     }
-
 }

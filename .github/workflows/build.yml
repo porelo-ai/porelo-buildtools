@@ -5,208 +5,208 @@ run-name: "${{ github.workflow }} · ${{ github.ref_name }}: ${{ github.event.he
 # A push that only touches documentation builds nothing; the documents are checked locally before every
 # hand-over and by the Shared rules check once a day.
 on:
-  push:
-    branches: ['**']
-    # A release: v<version>, built and published to Central's releases. Paths are not filtered for a tag.
-    tags: ['v*']
-    paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', 'issues/**']
-  pull_request:
-    branches: ['**']
-    paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', 'issues/**']
-  workflow_dispatch:
+    push:
+        branches: ['**']
+        # A release: v<version>, built and published to Central's releases. Paths are not filtered for a tag.
+        tags: ['v*']
+        paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', 'issues/**']
+    pull_request:
+        branches: ['**']
+        paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', 'issues/**']
+    workflow_dispatch:
 
 # One run per branch. Runs queue rather than cancel each other, so a newer push cannot kill Publish
 # halfway through.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+    group: ${{ github.workflow }}-${{ github.ref }}
 
 # Read for the workflow as a whole; a job that needs to write says so in its own block.
 permissions:
-  contents: read
+    contents: read
 
 jobs:
 
-  # Every push and every pull request, including from a fork.
-  build:
-    name: Build and unit tests
-    runs-on: ubuntu-latest
-    # Every job stops after a limit: GitHub's default is six hours, and a slow runner once took 14 times as long.
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+    # Every push and every pull request, including from a fork.
+    build:
+        name: Build and unit tests
+        runs-on: ubuntu-latest
+        # Every job stops after a limit: GitHub's default is six hours, and a slow runner once took 14 times as long.
+        timeout-minutes: 20
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
 
-      - name: The pinned GraalVM
-        uses: ./.github/actions/pinned-jdk
+            - name: The pinned GraalVM
+              uses: ./.github/actions/pinned-jdk
 
-      # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
-      # It is also where porelo's snapshot libraries come from.
-      - name: Build and unit tests
-        run: ./mvnw -B verify -s settings.xml
+            # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
+            # It is also where porelo's snapshot libraries come from.
+            - name: Build and unit tests
+              run: ./mvnw -B verify -s settings.xml
 
-      # The deploy a tag runs, on every push, with both upload URLs at a port on this runner where nothing listens:
-      # every module must go through the publishing plugin and nothing may leave the machine. Its upload failing
-      # against the dead port is expected; check-deploy, from this commit, reads the log.
-      - name: Deploy dry run
-        run: |
-          set -u
-          mkdir -p target
-          ./mvnw -B -s settings.xml deploy -Pcentral-sonatype-release -Dgpg.skip -DskipTests \
-              -DcentralBaseUrl=http://127.0.0.1:9 -DcentralSnapshotsUrl=http://127.0.0.1:9/ \
-              > target/deploy-dry-run.log 2>&1 || true
-          ./mvnw -B -q -s settings.xml -pl release exec:java@check-deploy
+            # The deploy a tag runs, on every push, with both upload URLs at a port on this runner where nothing listens:
+            # every module must go through the publishing plugin and nothing may leave the machine. Its upload failing
+            # against the dead port is expected; check-deploy, from this commit, reads the log.
+            - name: Deploy dry run
+              run: |
+                  set -u
+                  mkdir -p target
+                  ./mvnw -B -s settings.xml deploy -Pcentral-sonatype-release -Dgpg.skip -DskipTests \
+                      -DcentralBaseUrl=http://127.0.0.1:9 -DcentralSnapshotsUrl=http://127.0.0.1:9/ \
+                      > target/deploy-dry-run.log 2>&1 || true
+                  ./mvnw -B -q -s settings.xml -pl release exec:java@check-deploy
 
-  # Only when a change that landed on main moved what a snapshot is made of - the pom changes for
-  # other reasons too - or when a person starts this workflow on main by hand. The legs of every Porelo
-  # repository boot the newest snapshot, so this is where they are rebuilt: here, where the pins are.
-  snapshots:
-    name: Snapshot - ${{ matrix.os }}
-    runs-on: ubuntu-latest
-    # The step that rents the machine stops sooner, so the clean-up still runs inside this limit.
-    timeout-minutes: 75
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu, fedora]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+    # Only when a change that landed on main moved what a snapshot is made of - the pom changes for
+    # other reasons too - or when a person starts this workflow on main by hand. The legs of every Porelo
+    # repository boot the newest snapshot, so this is where they are rebuilt: here, where the pins are.
+    snapshots:
+        name: Snapshot - ${{ matrix.os }}
+        runs-on: ubuntu-latest
+        # The step that rents the machine stops sooner, so the clean-up still runs inside this limit.
+        timeout-minutes: 75
+        if: >-
+            (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            && github.ref == 'refs/heads/main'
+        permissions:
+            contents: read
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu, fedora]
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+                  fetch-depth: 0
 
-      # Across everything the push brought, not only its last commit: a pin, or the recipe that builds the
-      # images from the pins. The unzip fix (cd00619) moved only the recipe, and no snapshot was built from it.
-      # Started by hand, it rebuilds whatever moved: the way to recover after a push whose snapshot failed.
-      - name: Did a pin or the recipe move?
-        id: moved
-        env:
-          BEFORE: ${{ github.event.before }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT" = workflow_dispatch ]; then
-              echo "moved=yes" >> "$GITHUB_OUTPUT"
-              exit 0
-          fi
-          base="$BEFORE"
-          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=HEAD~1; fi
-          recipe="hetzner/src/main/java/org/fuin/porelo/machines/Snapshots.java hetzner/src/main/resources/org/fuin/porelo/machines"
-          if git diff "$base" HEAD -- hetzner/pom.xml | grep -Eq '^[-+][[:space:]]*<machines\.' \
-                  || ! git diff --quiet "$base" HEAD -- $recipe; then
-              echo "moved=yes" >> "$GITHUB_OUTPUT"
-          else
-              echo "moved=no" >> "$GITHUB_OUTPUT"
-          fi
+            # Across everything the push brought, not only its last commit: a pin, or the recipe that builds the
+            # images from the pins. The unzip fix (cd00619) moved only the recipe, and no snapshot was built from it.
+            # Started by hand, it rebuilds whatever moved: the way to recover after a push whose snapshot failed.
+            - name: Did a pin or the recipe move?
+              id: moved
+              env:
+                  BEFORE: ${{ github.event.before }}
+                  EVENT: ${{ github.event_name }}
+              run: |
+                  if [ "$EVENT" = workflow_dispatch ]; then
+                      echo "moved=yes" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  base="$BEFORE"
+                  if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=HEAD~1; fi
+                  recipe="hetzner/src/main/java/org/fuin/porelo/machines/Snapshots.java hetzner/src/main/resources/org/fuin/porelo/machines"
+                  if git diff "$base" HEAD -- hetzner/pom.xml | grep -Eq '^[-+][[:space:]]*<machines\.' \
+                          || ! git diff --quiet "$base" HEAD -- $recipe; then
+                      echo "moved=yes" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "moved=no" >> "$GITHUB_OUTPUT"
+                  fi
 
-      - name: The pinned GraalVM
-        if: steps.moved.outputs.moved == 'yes'
-        uses: ./.github/actions/pinned-jdk
+            - name: The pinned GraalVM
+              if: steps.moved.outputs.moved == 'yes'
+              uses: ./.github/actions/pinned-jdk
 
-      # This commit's own build, so the snapshot holds the pins this push moved.
-      - name: Build the machine tooling
-        if: steps.moved.outputs.moved == 'yes'
-        run: |
-          ./mvnw -B -q -s settings.xml -pl hetzner -am install -DskipTests
-          ./mvnw -B -q -s settings.xml -pl hetzner dependency:build-classpath \
-              -Dmdep.outputFile=target/cp.txt
+            # This commit's own build, so the snapshot holds the pins this push moved.
+            - name: Build the machine tooling
+              if: steps.moved.outputs.moved == 'yes'
+              run: |
+                  ./mvnw -B -q -s settings.xml -pl hetzner -am install -DskipTests
+                  ./mvnw -B -q -s settings.xml -pl hetzner dependency:build-classpath \
+                      -Dmdep.outputFile=target/cp.txt
 
-      # The product the snapshot proves itself by building, and warms its ~/.m2 with.
-      - name: The porelo checkout the snapshot builds
-        if: steps.moved.outputs.moved == 'yes'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          repository: porelo-ai/porelo
-          path: porelo
+            # The product the snapshot proves itself by building, and warms its ~/.m2 with.
+            - name: The porelo checkout the snapshot builds
+              if: steps.moved.outputs.moved == 'yes'
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+                  repository: porelo-ai/porelo
+                  path: porelo
 
-      # Proven by building the product on it before it is taken.
-      - name: Build the ${{ matrix.os }} snapshot
-        if: steps.moved.outputs.moved == 'yes'
-        timeout-minutes: 60
-        env:
-          HETZNER_API: ${{ secrets.HETZNER_API }}
-          HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
-          PORELO_CI_LEG: snapshot-${{ matrix.os }}
-        run: |
-          java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
-              org.fuin.porelo.machines.Main snapshot --os ${{ matrix.os }} --repo porelo
+            # Proven by building the product on it before it is taken.
+            - name: Build the ${{ matrix.os }} snapshot
+              if: steps.moved.outputs.moved == 'yes'
+              timeout-minutes: 60
+              env:
+                  HETZNER_API: ${{ secrets.HETZNER_API }}
+                  HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
+                  PORELO_CI_LEG: snapshot-${{ matrix.os }}
+              run: |
+                  java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
+                      org.fuin.porelo.machines.Main snapshot --os ${{ matrix.os }} --repo porelo
 
-      - name: Delete what this run created
-        if: always() && steps.moved.outputs.moved == 'yes'
-        env:
-          HETZNER_API: ${{ secrets.HETZNER_API }}
-          PORELO_CI_LEG: snapshot-${{ matrix.os }}
-        run: |
-          java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
-              org.fuin.porelo.machines.Main sweep --mine
+            - name: Delete what this run created
+              if: always() && steps.moved.outputs.moved == 'yes'
+              env:
+                  HETZNER_API: ${{ secrets.HETZNER_API }}
+                  PORELO_CI_LEG: snapshot-${{ matrix.os }}
+              run: |
+                  java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
+                      org.fuin.porelo.machines.Main sweep --mine
 
-  # The tools, published for the Porelo repositories to resolve.
-  deploy:
-    name: Publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [build]
-    if: >-
-      github.event_name == 'push'
-      && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    # The tools, published for the Porelo repositories to resolve.
+    deploy:
+        name: Publish
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        needs: [build]
+        if: >-
+            github.event_name == 'push'
+            && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
 
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
 
-      # A tag publishes a release, everything else a snapshot. A release is refused unless the tag is exactly
-      # 'v' plus the version it carries, and a version is never a release and a snapshot at once.
-      - name: Which channel
-        id: channel
-        run: |
-          set -eu
-          VERSION="$(sed -n 's|^    <version>\(.*\)</version>$|\1|p' pom.xml | head -1)"
-          [ -n "$VERSION" ] || { echo "::error::no version in pom.xml"; exit 1; }
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-              [ "$GITHUB_REF_NAME" = "v$VERSION" ] \
-                  || { echo "::error::the tag $GITHUB_REF_NAME is not v$VERSION, the version this commit carries"; exit 1; }
-              case "$VERSION" in
-                  *-SNAPSHOT) echo "::error::$VERSION is a snapshot; a release carries its own version"; exit 1 ;;
-              esac
-              echo "channel=releases" >> "$GITHUB_OUTPUT"
-          else
-              case "$VERSION" in
-                  *-SNAPSHOT) ;;
-                  *) echo "::error::$VERSION on a branch would publish a release as a snapshot"; exit 1 ;;
-              esac
-              echo "channel=snapshots" >> "$GITHUB_OUTPUT"
-          fi
-          echo "  $VERSION -> $(tail -1 "$GITHUB_OUTPUT")"
+            # A tag publishes a release, everything else a snapshot. A release is refused unless the tag is exactly
+            # 'v' plus the version it carries, and a version is never a release and a snapshot at once.
+            - name: Which channel
+              id: channel
+              run: |
+                  set -eu
+                  VERSION="$(sed -n 's|^    <version>\(.*\)</version>$|\1|p' pom.xml | head -1)"
+                  [ -n "$VERSION" ] || { echo "::error::no version in pom.xml"; exit 1; }
+                  if [ "$GITHUB_REF_TYPE" = tag ]; then
+                      [ "$GITHUB_REF_NAME" = "v$VERSION" ] \
+                          || { echo "::error::the tag $GITHUB_REF_NAME is not v$VERSION, the version this commit carries"; exit 1; }
+                      case "$VERSION" in
+                          *-SNAPSHOT) echo "::error::$VERSION is a snapshot; a release carries its own version"; exit 1 ;;
+                      esac
+                      echo "channel=releases" >> "$GITHUB_OUTPUT"
+                  else
+                      case "$VERSION" in
+                          *-SNAPSHOT) ;;
+                          *) echo "::error::$VERSION on a branch would publish a release as a snapshot"; exit 1 ;;
+                      esac
+                      echo "channel=snapshots" >> "$GITHUB_OUTPUT"
+                  fi
+                  echo "  $VERSION -> $(tail -1 "$GITHUB_OUTPUT")"
 
-      - name: The pinned GraalVM
-        uses: ./.github/actions/pinned-jdk
+            - name: The pinned GraalVM
+              uses: ./.github/actions/pinned-jdk
 
-      # A release depends only on releases: every snapshot in the effective pom - a dependency, a plugin, a plugin's
-      # dependency - refused and named, by the porelo-release this very commit builds, installed first.
-      - name: No snapshot in a release
-        if: steps.channel.outputs.channel == 'releases'
-        run: |
-          set -eu
-          ./mvnw -B -q -s settings.xml install -DskipTests
-          ./mvnw -B -q -s settings.xml help:effective-pom -Doutput="$PWD/target/effective-pom.xml"
-          ./mvnw -B -s settings.xml -pl release exec:java@check-releases
+            # A release depends only on releases: every snapshot in the effective pom - a dependency, a plugin, a plugin's
+            # dependency - refused and named, by the porelo-release this very commit builds, installed first.
+            - name: No snapshot in a release
+              if: steps.channel.outputs.channel == 'releases'
+              run: |
+                  set -eu
+                  ./mvnw -B -q -s settings.xml install -DskipTests
+                  ./mvnw -B -q -s settings.xml help:effective-pom -Doutput="$PWD/target/effective-pom.xml"
+                  ./mvnw -B -s settings.xml -pl release exec:java@check-releases
 
-      # The unit tests passed in this run, on this commit, before this job could start.
-      # Signed by the plugin's BouncyCastle signer, which reads the armored key and its passphrase from this
-      # step's environment and keeps them in the build's memory: no keyring, so the private key is never written
-      # to the runner's disk for a later step or action to read.
-      - name: Deploy the jars
-        env:
-          OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
-          OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
-          MAVEN_GPG_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
-        run: ./mvnw -B deploy -Pcentral-sonatype-release -Dgpg.signer=bc -s settings.xml -DskipTests
+            # The unit tests passed in this run, on this commit, before this job could start.
+            # Signed by the plugin's BouncyCastle signer, which reads the armored key and its passphrase from this
+            # step's environment and keeps them in the build's memory: no keyring, so the private key is never written
+            # to the runner's disk for a later step or action to read.
+            - name: Deploy the jars
+              env:
+                  OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
+                  OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
+                  MAVEN_GPG_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
+                  MAVEN_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
+              run: ./mvnw -B deploy -Pcentral-sonatype-release -Dgpg.signer=bc -s settings.xml -DskipTests

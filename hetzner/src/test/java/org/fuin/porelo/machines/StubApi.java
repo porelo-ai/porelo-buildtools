@@ -13,8 +13,8 @@ import java.util.function.Function;
 
 /**
  * A Hetzner API that answers what a test tells it to.
- * <p>
- * A real server on a real socket rather than a mocked client: what is being checked here is
+ *
+ * <p>A real server on a real socket rather than a mocked client: what is being checked here is
  * paging, status codes and headers, which is exactly the layer a mock would replace with an
  * assumption.
  */
@@ -28,22 +28,31 @@ final class StubApi implements AutoCloseable {
 
     StubApi() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/v1", exchange -> {
-            final String path = exchange.getRequestURI().getPath()
-                    // getQuery() decodes, so a stub is keyed on what the caller meant rather
-                    // than on how it was escaped.
-                    + (exchange.getRequestURI().getQuery() == null ? ""
-                            : "?" + exchange.getRequestURI().getQuery());
-            asked.add(exchange.getRequestMethod() + " " + path);
-            final Function<HttpExchange, Answer> answer = answers.get(path);
-            if (answer == null) {
-                respond(exchange, 404, "{\"error\":{\"code\":\"not_found\","
-                        + "\"message\":\"no stub for " + path + "\"}}");
-                return;
-            }
-            final Answer chosen = answer.apply(exchange);
-            respond(exchange, chosen.status(), chosen.body());
-        });
+        server.createContext(
+                "/v1",
+                exchange -> {
+                    final String path =
+                            exchange.getRequestURI().getPath()
+                                    // getQuery() decodes, so a stub is keyed on what the caller
+                                    // meant rather than on how it was escaped.
+                                    + (exchange.getRequestURI().getQuery() == null
+                                            ? ""
+                                            : "?" + exchange.getRequestURI().getQuery());
+                    asked.add(exchange.getRequestMethod() + " " + path);
+                    final Function<HttpExchange, Answer> answer = answers.get(path);
+                    if (answer == null) {
+                        respond(
+                                exchange,
+                                404,
+                                "{\"error\":{\"code\":\"not_found\","
+                                        + "\"message\":\"no stub for "
+                                        + path
+                                        + "\"}}");
+                        return;
+                    }
+                    final Answer chosen = answer.apply(exchange);
+                    respond(exchange, chosen.status(), chosen.body());
+                });
         server.start();
     }
 
@@ -104,15 +113,14 @@ final class StubApi implements AutoCloseable {
 
     /**
      * One answer.
-     * <p>
-     * A returned value rather than {@code HttpExchange.setAttribute}: those attributes live on the
-     * <em>context</em>, not the exchange, so a status set for one request is still there for the
-     * next one - which made a test for waiting out a rate limit see the 429 twice and conclude the
-     * waiting did not work.
+     *
+     * <p>A returned value rather than {@code HttpExchange.setAttribute}: those attributes live on
+     * the <em>context</em>, not the exchange, so a status set for one request is still there for
+     * the next one - which made a test for waiting out a rate limit see the 429 twice and conclude
+     * the waiting did not work.
      *
      * @param status HTTP status.
      * @param body What to send.
      */
-    record Answer(int status, String body) {
-    }
+    record Answer(int status, String body) {}
 }

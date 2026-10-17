@@ -19,10 +19,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Pins beside the agent's CLI: asked about with {@code upstream-version --pin}, moved with {@code update --pin}.
- * <p>
- * Shaped like the two callers there are: Pi's tree (Node with its image, fd, ripgrep) and the machines a CI
- * leg boots from (GraalVM, and base images followed by their digest).
+ * Pins beside the agent's CLI: asked about with {@code upstream-version --pin}, moved with {@code
+ * update --pin}.
+ *
+ * <p>Shaped like the two callers there are: Pi's tree (Node with its image, fd, ripgrep) and the
+ * machines a CI leg boots from (GraalVM, and base images followed by their digest).
  */
 class PinTest {
 
@@ -30,13 +31,16 @@ class PinTest {
 
     private static final String NODE_SUMS = "https://nodejs.example/dist/v{version}/SHASUMS256.txt";
 
-    private static final String NODE_TAG = "https://hub.docker.example/v2/repositories/library/node/tags/{version}-slim";
+    private static final String NODE_TAG =
+            "https://hub.docker.example/v2/repositories/library/node/tags/{version}-slim";
 
-    private static final String GRAAL_RELEASES = "https://api.github.com/repos/graalvm/graalvm-ce-builds/releases";
+    private static final String GRAAL_RELEASES =
+            "https://api.github.com/repos/graalvm/graalvm-ce-builds/releases";
 
     private static final String GRAAL_RELEASE = GRAAL_RELEASES + "/tags/graal-{version}";
 
-    private static final String UBUNTU_TAG = "https://hub.docker.example/v2/repositories/library/ubuntu/tags/24.04";
+    private static final String UBUNTU_TAG =
+            "https://hub.docker.example/v2/repositories/library/ubuntu/tags/24.04";
 
     private static final String OLD = "a".repeat(64);
 
@@ -46,10 +50,10 @@ class PinTest {
 
     private static final String NEW_IMAGE = "sha256:" + "d".repeat(64);
 
-    private static final Clock NOW = Clock.fixed(Instant.parse("2026-09-28T12:00:00Z"), ZoneOffset.UTC);
+    private static final Clock NOW =
+            Clock.fixed(Instant.parse("2026-09-28T12:00:00Z"), ZoneOffset.UTC);
 
-    @TempDir
-    Path directory;
+    @TempDir Path directory;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -64,7 +68,9 @@ class PinTest {
 
         assertThat(ask("node", web, null)).as(report()).isEqualTo(0);
         // 24 is newer and LTS, and not on line 22; 22.22.0 is newer on the line, and not LTS.
-        assertThat(stdout()).isEqualTo("""
+        assertThat(stdout())
+                .isEqualTo(
+                        """
                 pinned=22.20.0
                 upstream=22.21.0
                 source=newest Node LTS on line 22
@@ -76,9 +82,16 @@ class PinTest {
     @Test
     void aNodeLineIsAlsoNamedByItsCodename() {
         pi("22.20.0");
-        write("pom.xml", read("pom.xml").replace("<porelo.release.pin.node.channel>22", "<porelo.release.pin.node.channel>Jod"));
+        write(
+                "pom.xml",
+                read("pom.xml")
+                        .replace(
+                                "<porelo.release.pin.node.channel>22",
+                                "<porelo.release.pin.node.channel>Jod"));
 
-        assertThat(ask("node", new FakeWeb().serve(NODE_INDEX, nodeIndex()), null)).as(report()).isEqualTo(0);
+        assertThat(ask("node", new FakeWeb().serve(NODE_INDEX, nodeIndex()), null))
+                .as(report())
+                .isEqualTo(0);
         assertThat(stdout()).contains("upstream=22.21.0");
     }
 
@@ -86,8 +99,12 @@ class PinTest {
     void aNodeDayCountsFromItsStartAndIsWaitedFor() {
         pi("22.20.0");
 
-        assertThat(ask("node", new FakeWeb().serve(NODE_INDEX, nodeIndex()), "3d")).as(report()).isEqualTo(0);
-        assertThat(stdout()).contains("update=no\n").contains("published=2026-09-26T00:00:00Z")
+        assertThat(ask("node", new FakeWeb().serve(NODE_INDEX, nodeIndex()), "3d"))
+                .as(report())
+                .isEqualTo(0);
+        assertThat(stdout())
+                .contains("update=no\n")
+                .contains("published=2026-09-26T00:00:00Z")
                 .contains("waiting=2026-09-29T00:00:00Z");
     }
 
@@ -97,7 +114,9 @@ class PinTest {
         final FakeWeb web = new FakeWeb().serve(GRAAL_RELEASES, graalReleases());
 
         assertThat(ask("graalvm", web, "3d")).as(report()).isEqualTo(0);
-        assertThat(stdout()).isEqualTo("""
+        assertThat(stdout())
+                .isEqualTo(
+                        """
                 pinned=25.0.2
                 upstream=25.4.4.1.1
                 source=newest release tagged graal-25.*
@@ -110,12 +129,20 @@ class PinTest {
     @Test
     void anImageFollowedByItsDigestIsAnUpdateWhenTheTagWasRebuilt() {
         machines();
-        final FakeWeb web = new FakeWeb().serve(UBUNTU_TAG,
-                "{\"digest\":\"" + NEW_IMAGE + "\",\"tag_last_pushed\":\"2026-09-18T19:04:13.98Z\"}");
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                UBUNTU_TAG,
+                                "{\"digest\":\""
+                                        + NEW_IMAGE
+                                        + "\",\"tag_last_pushed\":\"2026-09-18T19:04:13.98Z\"}");
 
         assertThat(ask("ubuntu-image", web, "3d")).as(report()).isEqualTo(0);
-        assertThat(stdout()).contains("pinned=" + OLD_IMAGE).contains("upstream=" + NEW_IMAGE)
-                .contains("update=yes\n").contains("major=same");
+        assertThat(stdout())
+                .contains("pinned=" + OLD_IMAGE)
+                .contains("upstream=" + NEW_IMAGE)
+                .contains("update=yes\n")
+                .contains("major=same");
     }
 
     @Test
@@ -131,17 +158,25 @@ class PinTest {
     void aPinThePomDoesNotDeclareIsUnanswered() {
         machines();
 
-        assertThat(ask("nonesuch", FakeWeb.untouchable(), null)).as(report()).isEqualTo(Stop.UNANSWERED);
+        assertThat(ask("nonesuch", FakeWeb.untouchable(), null))
+                .as(report())
+                .isEqualTo(Stop.UNANSWERED);
         assertThat(stderr()).contains("porelo.release.pin.nonesuch.property");
     }
 
     @Test
     void aPinNamingAPropertyThePomLacksIsRefusedRatherThanMovingNothing() {
         machines();
-        write("pom.xml", read("pom.xml").replace("<porelo.release.pin.graalvm.url>machines.graalvm.url",
-                "<porelo.release.pin.graalvm.url>machines.graalvm.address"));
+        write(
+                "pom.xml",
+                read("pom.xml")
+                        .replace(
+                                "<porelo.release.pin.graalvm.url>machines.graalvm.url",
+                                "<porelo.release.pin.graalvm.url>machines.graalvm.address"));
 
-        assertThat(ask("graalvm", FakeWeb.untouchable(), null)).as(report()).isEqualTo(Stop.UNANSWERED);
+        assertThat(ask("graalvm", FakeWeb.untouchable(), null))
+                .as(report())
+                .isEqualTo(Stop.UNANSWERED);
         assertThat(stderr()).contains("declares no machines.graalvm.address");
     }
 
@@ -150,10 +185,17 @@ class PinTest {
     @Test
     void movingNodeWritesItsVersionDigestImageAndTheBuilderThatSpellsThemOut() {
         pi("22.20.0");
-        final FakeWeb web = new FakeWeb()
-                .serve(NODE_SUMS.replace("{version}", "22.21.0"),
-                        NEW + "  node-v22.21.0-linux-x64.tar.xz\n" + OLD + "  node-v22.21.0-darwin-arm64.tar.gz\n")
-                .serve(NODE_TAG.replace("{version}", "22.21.0"), "{\"digest\":\"" + NEW_IMAGE + "\"}");
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                NODE_SUMS.replace("{version}", "22.21.0"),
+                                NEW
+                                        + "  node-v22.21.0-linux-x64.tar.xz\n"
+                                        + OLD
+                                        + "  node-v22.21.0-darwin-arm64.tar.gz\n")
+                        .serve(
+                                NODE_TAG.replace("{version}", "22.21.0"),
+                                "{\"digest\":\"" + NEW_IMAGE + "\"}");
 
         assertThat(move("node", "22.21.0", web)).as(report()).isEqualTo(0);
 
@@ -161,8 +203,10 @@ class PinTest {
                 .contains("<pin.node.version>22.21.0</pin.node.version>")
                 .contains("<pin.node.sha256>" + NEW + "</pin.node.sha256>")
                 .contains("<pin.node.image.digest>" + NEW_IMAGE + "</pin.node.image.digest>")
-                .contains("<porelo.release.npm.image>docker.io/library/node:22.21.0-slim@" + NEW_IMAGE
-                        + "</porelo.release.npm.image>")
+                .contains(
+                        "<porelo.release.npm.image>docker.io/library/node:22.21.0-slim@"
+                                + NEW_IMAGE
+                                + "</porelo.release.npm.image>")
                 .contains("<version>1.0.1-SNAPSHOT</version>")
                 // Only the pin moved: the others and the CLI are untouched.
                 .contains("<pin.fd.version>10.5.0</pin.fd.version>")
@@ -173,11 +217,18 @@ class PinTest {
     @Test
     void aBuilderThatSpellsOutNoneOfTheOldValuesIsRefusedAndNothingIsWritten() {
         pi("22.20.0");
-        write("pom.xml", read("pom.xml").replace("node:22.20.0-slim@" + OLD_IMAGE, "node:lts-slim"));
+        write(
+                "pom.xml",
+                read("pom.xml").replace("node:22.20.0-slim@" + OLD_IMAGE, "node:lts-slim"));
         final Map<String, String> before = files();
-        final FakeWeb web = new FakeWeb()
-                .serve(NODE_SUMS.replace("{version}", "22.21.0"), NEW + "  node-v22.21.0-linux-x64.tar.xz\n")
-                .serve(NODE_TAG.replace("{version}", "22.21.0"), "{\"digest\":\"" + NEW_IMAGE + "\"}");
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                NODE_SUMS.replace("{version}", "22.21.0"),
+                                NEW + "  node-v22.21.0-linux-x64.tar.xz\n")
+                        .serve(
+                                NODE_TAG.replace("{version}", "22.21.0"),
+                                "{\"digest\":\"" + NEW_IMAGE + "\"}");
 
         assertThat(move("node", "22.21.0", web)).as(report()).isEqualTo(Stop.REFUSED);
         assertThat(files()).isEqualTo(before);
@@ -187,12 +238,19 @@ class PinTest {
     @Test
     void anImageDigestHeldAsBareHexIsRefusedBeforeAnythingIsRead() {
         pi("22.20.0");
-        write("pom.xml", read("pom.xml").replace("<pin.node.image.digest>" + OLD_IMAGE,
-                "<pin.node.image.digest>" + OLD_IMAGE.substring("sha256:".length())));
+        write(
+                "pom.xml",
+                read("pom.xml")
+                        .replace(
+                                "<pin.node.image.digest>" + OLD_IMAGE,
+                                "<pin.node.image.digest>"
+                                        + OLD_IMAGE.substring("sha256:".length())));
         final Map<String, String> before = files();
 
         // Moved, the builder would read '@sha256:sha256:<hex>'.
-        assertThat(move("node", "22.21.0", FakeWeb.untouchable())).as(report()).isEqualTo(Stop.REFUSED);
+        assertThat(move("node", "22.21.0", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
         assertThat(files()).isEqualTo(before);
         assertThat(stderr()).contains("pin.node.image.digest holds").contains("sha256:<64 hex>");
         assertThat(ask("node", FakeWeb.untouchable(), null)).isEqualTo(Stop.UNANSWERED);
@@ -201,7 +259,11 @@ class PinTest {
     @Test
     void movingGraalvmTakesTheDownloadAndItsDigestFromTheOneMatchingAsset() {
         machines();
-        final FakeWeb web = new FakeWeb().serve(GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"), """
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"),
+                                """
                 {"assets": [
                   {"name": "graalvm-community-jdk-25i4-25.0.4.1_linux-x64_bin.tar.gz", "digest": "sha256:%s",
                    "browser_download_url": "https://github.com/graalvm/x/graalvm-community-jdk-25i4-25.0.4.1_linux-x64_bin.tar.gz"},
@@ -209,15 +271,19 @@ class PinTest {
                    "browser_download_url": "https://github.com/graalvm/x/sums"},
                   {"name": "graalvm-community-jdk-25i4-25.0.4.1_linux-aarch64_bin.tar.gz", "digest": "sha256:%s",
                    "browser_download_url": "https://github.com/graalvm/x/arm"}
-                ]}""".formatted(NEW, OLD, OLD));
+                ]}"""
+                                        .formatted(NEW, OLD, OLD));
 
         assertThat(move("graalvm", "25.4.4.1.1", web)).as(report()).isEqualTo(0);
 
-        assertThat(read("pom.xml")).contains("<machines.graalvm.version>25.4.4.1.1</machines.graalvm.version>")
+        assertThat(read("pom.xml"))
+                .contains("<machines.graalvm.version>25.4.4.1.1</machines.graalvm.version>")
                 .contains("<machines.graalvm.sha256>" + NEW + "</machines.graalvm.sha256>")
-                .contains("<machines.graalvm.url>https://github.com/graalvm/x/graalvm-community-jdk-25i4-25.0.4.1_linux-x64_bin.tar.gz</machines.graalvm.url>");
+                .contains(
+                        "<machines.graalvm.url>https://github.com/graalvm/x/graalvm-community-jdk-25i4-25.0.4.1_linux-x64_bin.tar.gz</machines.graalvm.url>");
         // A reactor module inherits its version, and keeps no changelog of its own.
-        assertThat(stdout()).contains("its parent's version, unchanged")
+        assertThat(stdout())
+                .contains("its parent's version, unchanged")
                 .contains("none - there is no CHANGELOG.md beside the pom");
         assertThat(Files.exists(directory.resolve("CHANGELOG.md"))).isFalse();
     }
@@ -226,11 +292,16 @@ class PinTest {
     void twoAssetsMatchingIsRefusedRatherThanPinningEitherOne() {
         machines();
         final Map<String, String> before = files();
-        final FakeWeb web = new FakeWeb().serve(GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"), """
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"),
+                                """
                 {"assets": [
                   {"name": "graalvm-community-jdk-a_linux-x64_bin.tar.gz", "digest": "sha256:%s", "browser_download_url": "https://x/a"},
                   {"name": "graalvm-community-jdk-b_linux-x64_bin.tar.gz", "digest": "sha256:%s", "browser_download_url": "https://x/b"}
-                ]}""".formatted(NEW, OLD));
+                ]}"""
+                                        .formatted(NEW, OLD));
 
         assertThat(move("graalvm", "25.4.4.1.1", web)).as(report()).isEqualTo(Stop.REFUSED);
         assertThat(files()).isEqualTo(before);
@@ -241,21 +312,30 @@ class PinTest {
     void movingAnImageWritesItsNewDigestAndReadsNothing() {
         machines();
 
-        assertThat(move("ubuntu-image", NEW_IMAGE, FakeWeb.untouchable())).as(report()).isEqualTo(0);
-        assertThat(read("pom.xml")).contains("<machines.image.ubuntu.digest>" + NEW_IMAGE + "</machines.image.ubuntu.digest>");
+        assertThat(move("ubuntu-image", NEW_IMAGE, FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(0);
+        assertThat(read("pom.xml"))
+                .contains(
+                        "<machines.image.ubuntu.digest>"
+                                + NEW_IMAGE
+                                + "</machines.image.ubuntu.digest>");
     }
 
     @Test
     void somethingThatIsNotAnImageDigestIsRefusedForAnImage() {
         machines();
 
-        assertThat(move("ubuntu-image", "24.04", FakeWeb.untouchable())).as(report()).isEqualTo(Stop.REFUSED);
+        assertThat(move("ubuntu-image", "24.04", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("is not an image digest");
     }
 
     @Test
     void theMachinesPinsInThisRepositoryAreReadAsTheToolReadsThem() throws Stop {
-        // The pins the machines workflow moves: a pin the tool cannot read would leave the job red every day.
+        // The pins the machines workflow moves: a pin the tool cannot read would leave the job red
+        // every day.
         final Pom machines = Pom.read(Path.of("../hetzner/pom.xml"));
 
         assertThat(Pin.of(machines, "graalvm").pinned()).matches("\\d+(\\.\\d+)+");
@@ -274,17 +354,23 @@ class PinTest {
         properties.put("pin.node.sha256", OLD);
         properties.put("pin.node.image.digest", OLD_IMAGE);
         properties.put("pin.fd.version", "10.5.0");
-        properties.put("porelo.release.npm.image", "docker.io/library/node:" + node + "-slim@" + OLD_IMAGE);
+        properties.put(
+                "porelo.release.npm.image",
+                "docker.io/library/node:" + node + "-slim@" + OLD_IMAGE);
         properties.put("porelo.release.pin.node.property", "pin.node.version");
         properties.put("porelo.release.pin.node.label", "Node");
         properties.put("porelo.release.pin.node.upstream", "node-lts " + NODE_INDEX);
         properties.put("porelo.release.pin.node.channel", "22");
-        properties.put("porelo.release.pin.node.digest", "sums " + NODE_SUMS + " node-v{version}-linux-x64.tar.xz");
+        properties.put(
+                "porelo.release.pin.node.digest",
+                "sums " + NODE_SUMS + " node-v{version}-linux-x64.tar.xz");
         properties.put("porelo.release.pin.node.sha256", "pin.node.sha256");
         properties.put("porelo.release.pin.node.image", NODE_TAG);
         properties.put("porelo.release.pin.node.image-property", "pin.node.image.digest");
         properties.put("porelo.release.pin.node.follows", "porelo.release.npm.image");
-        write("pom.xml", AgentRepository.pom("porelo-agent-pi", "1.0.0-SNAPSHOT", "0.85.0", properties));
+        write(
+                "pom.xml",
+                AgentRepository.pom("porelo-agent-pi", "1.0.0-SNAPSHOT", "0.85.0", properties));
         write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n");
     }
 
@@ -295,19 +381,33 @@ class PinTest {
         properties.put("machines.graalvm.url", "https://github.com/graalvm/old.tar.gz");
         properties.put("machines.image.ubuntu.digest", OLD_IMAGE);
         properties.put("porelo.release.pin.graalvm.property", "machines.graalvm.version");
-        properties.put("porelo.release.pin.graalvm.upstream", "github-releases " + GRAAL_RELEASES + " graal-");
+        properties.put(
+                "porelo.release.pin.graalvm.upstream",
+                "github-releases " + GRAAL_RELEASES + " graal-");
         properties.put("porelo.release.pin.graalvm.channel", "25");
-        properties.put("porelo.release.pin.graalvm.digest",
-                "github-asset " + GRAAL_RELEASE + " graalvm-community-jdk-.*_linux-x64_bin\\.tar\\.gz");
+        properties.put(
+                "porelo.release.pin.graalvm.digest",
+                "github-asset "
+                        + GRAAL_RELEASE
+                        + " graalvm-community-jdk-.*_linux-x64_bin\\.tar\\.gz");
         properties.put("porelo.release.pin.graalvm.sha256", "machines.graalvm.sha256");
         properties.put("porelo.release.pin.graalvm.url", "machines.graalvm.url");
         properties.put("porelo.release.pin.ubuntu-image.property", "machines.image.ubuntu.digest");
         properties.put("porelo.release.pin.ubuntu-image.upstream", "docker-hub " + UBUNTU_TAG);
         final StringBuilder declared = new StringBuilder();
-        properties.forEach((name, value) -> declared.append("        <").append(name).append('>').append(value)
-                .append("</").append(name).append(">\n"));
+        properties.forEach(
+                (name, value) ->
+                        declared.append("        <")
+                                .append(name)
+                                .append('>')
+                                .append(value)
+                                .append("</")
+                                .append(name)
+                                .append(">\n"));
         // A reactor module: its version is its parent's.
-        write("pom.xml", """
+        write(
+                "pom.xml",
+                """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <project>
                     <modelVersion>4.0.0</modelVersion>
@@ -320,7 +420,8 @@ class PinTest {
                     <properties>
                 %s    </properties>
                 </project>
-                """.formatted(declared));
+                """
+                        .formatted(declared));
     }
 
     private static String nodeIndex() {
@@ -354,9 +455,15 @@ class PinTest {
     }
 
     private int move(String pin, String version, Web web) {
-        return new Update(stream(out), stream(err), web, (tree, manifest, lockfile, work) -> {
-            throw new AssertionError("a pin relocks nothing");
-        }, Map.of()).pin(directory.resolve("pom.xml"), pin, version, false);
+        return new Update(
+                        stream(out),
+                        stream(err),
+                        web,
+                        (tree, manifest, lockfile, work) -> {
+                            throw new AssertionError("a pin relocks nothing");
+                        },
+                        Map.of())
+                .pin(directory.resolve("pom.xml"), pin, version, false);
     }
 
     private static PrintStream stream(ByteArrayOutputStream target) {
@@ -402,5 +509,4 @@ class PinTest {
     private String report() {
         return "stdout:%n%s%nstderr:%n%s".formatted(stdout(), stderr());
     }
-
 }

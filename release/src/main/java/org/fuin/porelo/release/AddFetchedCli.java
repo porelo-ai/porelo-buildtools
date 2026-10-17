@@ -10,9 +10,9 @@ import org.cyclonedx.model.Bom;
 
 /**
  * Adds the CLI an agent's image build fetches to the package's bill.
- * <p>
- * The package does not contain that CLI, so nothing reading the Maven graph knows about it - and a
- * bill that omits the largest thing an image installs is worse than none. It is read from the
+ *
+ * <p>The package does not contain that CLI, so nothing reading the Maven graph knows about it - and
+ * a bill that omits the largest thing an image installs is worse than none. It is read from the
  * filtered definition, the file the agent answers {@code describe} with, so the version and digest
  * recorded are the ones an image build uses.
  */
@@ -52,28 +52,46 @@ public final class AddFetchedCli {
         try (Reader reader = Files.newBufferedReader(definition)) {
             agent = Pinned.read(reader, definition.toString());
         } catch (IOException | Pinned.Unreadable ex) {
-            return failed("cannot read the agent definition " + definition + ": " + ex.getMessage());
+            return failed(
+                    "cannot read the agent definition " + definition + ": " + ex.getMessage());
         }
         if (agent.version() == null || agent.artifacts().isEmpty()) {
-            out.println("add-fetched-cli: no pinned artifact in " + definition + ", nothing to add");
+            out.println(
+                    "add-fetched-cli: no pinned artifact in " + definition + ", nothing to add");
             return DONE;
         }
         if (agent.artifacts().size() > 1) {
-            return failed(definition + " pins " + agent.artifacts().size()
-                    + " artifacts, and which one is the CLI is not something to guess");
+            return failed(
+                    definition
+                            + " pins "
+                            + agent.artifacts().size()
+                            + " artifacts, and which one is the CLI is not something to guess");
         }
         final boolean replaced;
         try {
             final Bom bom = Bill.parse(Files.readAllBytes(bill));
             final Pinned.Artifact artifact = agent.artifacts().getFirst();
-            replaced = Recorded.into(bom, Recorded.component(name, agent.version(), artifact.url(), artifact.sha256(),
-                    Recorded.FETCHED, artifact.license()));
+            replaced =
+                    Recorded.into(
+                            bom,
+                            Recorded.component(
+                                    name,
+                                    agent.version(),
+                                    artifact.url(),
+                                    artifact.sha256(),
+                                    Recorded.FETCHED,
+                                    artifact.license()));
             Bill.write(bom, bill);
         } catch (IOException | IllegalArgumentException | IllegalStateException ex) {
             return failed("cannot add the CLI to " + bill + ": " + ex.getMessage());
         }
-        out.println("add-fetched-cli: recorded " + name + " " + agent.version() + " as fetched, not shipped"
-                + (replaced ? ", in place of the one recorded before" : ""));
+        out.println(
+                "add-fetched-cli: recorded "
+                        + name
+                        + " "
+                        + agent.version()
+                        + " as fetched, not shipped"
+                        + (replaced ? ", in place of the one recorded before" : ""));
         return DONE;
     }
 
@@ -81,5 +99,4 @@ public final class AddFetchedCli {
         err.println("add-fetched-cli: " + reason);
         return FAILED;
     }
-
 }

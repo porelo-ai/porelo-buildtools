@@ -8,9 +8,10 @@ import java.util.regex.Pattern;
 
 /**
  * The one line an update writes into a {@code CHANGELOG.md} under {@code ## [Unreleased]}.
- * <p>
- * A weekly job would otherwise add a line per run. One line survives, and it keeps the version of the
- * last release as its "was": a reader wants the net move since something shipped, not the last hop.
+ *
+ * <p>A weekly job would otherwise add a line per run. One line survives, and it keeps the version
+ * of the last release as its "was": a reader wants the net move since something shipped, not the
+ * last hop.
  */
 public final class Changelog {
 
@@ -25,7 +26,10 @@ public final class Changelog {
      * @return a pattern whose group 1 is the version and group 2 the "was", if any
      */
     static Pattern entry(String agent) {
-        return Pattern.compile("^- " + Pattern.quote(agent) + " pinned to (\\S+?)\\.?(?: \\(was (\\S+?)\\.?\\))?\\.$",
+        return Pattern.compile(
+                "^- "
+                        + Pattern.quote(agent)
+                        + " pinned to (\\S+?)\\.?(?: \\(was (\\S+?)\\.?\\))?\\.$",
                 Pattern.MULTILINE);
     }
 
@@ -85,5 +89,4 @@ public final class Changelog {
         }
         return -1;
     }
-
 }

@@ -11,11 +11,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Reading a parsed JSON body without pretending it is typed.
- * <p>
- * <strong>Every number arrives as a double.</strong> The parser this shares with varlink has one
- * number type, so a server id of 42 reads back as {@code 42.0} - and a caller that puts it
- * straight into a path asks for {@code /v1/servers/42.0}, which the API answers with a 404 that
- * says nothing about the cause. {@link #id} is the only way an id should be read here.
+ *
+ * <p><strong>Every number arrives as a double.</strong> The parser this shares with varlink has one
+ * number type, so a server id of 42 reads back as {@code 42.0} - and a caller that puts it straight
+ * into a path asks for {@code /v1/servers/42.0}, which the API answers with a 404 that says nothing
+ * about the cause. {@link #id} is the only way an id should be read here.
  */
 final class Values {
 
@@ -115,8 +115,8 @@ final class Values {
 
     /**
      * Returns the next page to ask for.
-     * <p>
-     * The API reports {@code next_page: null} on the last page, which is the only reliable end:
+     *
+     * <p>The API reports {@code next_page: null} on the last page, which is the only reliable end:
      * counting entries against {@code total_entries} means trusting two numbers to agree while
      * things are being created and deleted.
      *
@@ -184,7 +184,9 @@ final class Values {
         return message.isBlank() ? brief(String.valueOf(body)) : message;
     }
 
-    /** How much of an unexpected body to quote before it stops being a message and becomes a dump. */
+    /**
+     * How much of an unexpected body to quote before it stops being a message and becomes a dump.
+     */
     private static final int QUOTE_LIMIT = 300;
 
     /**

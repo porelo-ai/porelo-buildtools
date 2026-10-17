@@ -18,26 +18,27 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Checks that a native image asks for exactly x86-64 v1, the baseline every x86-64 CPU has.
- * <p>
- * native-image's default target is the build host's generation, x86-64 v3 on any recent machine: the
- * binary then refuses to start on an older CPU or on a virtual machine that hides AVX2, and says so
- * only when an operator runs it. {@code -march=x86-64} in the shared build arguments lowers
+ *
+ * <p>native-image's default target is the build host's generation, x86-64 v3 on any recent machine:
+ * the binary then refuses to start on an older CPU or on a virtual machine that hides AVX2, and
+ * says so only when an operator runs it. {@code -march=x86-64} in the shared build arguments lowers
  * that; this proves it did, for every image, by reading the list the image carries for its own
  * startup check ("required by the image: [...]").
- * <p>
- * <strong>The exact set, not "nothing beyond it"</strong>: a list that changes in either direction
- * means the target changed - a new GraalVM that reads {@code x86-64} differently, or an image built
- * another way - and that is for a person to look at before it ships.
- * <p>
- * A binary with no such list is a failure, not a pass: a check that finds nothing to check proves
- * nothing.
+ *
+ * <p><strong>The exact set, not "nothing beyond it"</strong>: a list that changes in either
+ * direction means the target changed - a new GraalVM that reads {@code x86-64} differently, or an
+ * image built another way - and that is for a person to look at before it ships.
+ *
+ * <p>A binary with no such list is a failure, not a pass: a check that finds nothing to check
+ * proves nothing.
  */
 public final class CpuFloor {
 
     /** x86-64 v1: what every x86-64 CPU has. */
     static final Set<String> BASELINE = Set.of("CX8", "CMOV", "FXSR", "MMX", "SSE", "SSE2");
 
-    private static final Pattern REQUIRED = Pattern.compile("required by the image: \\[([A-Z0-9_, ]*)\\]");
+    private static final Pattern REQUIRED =
+            Pattern.compile("required by the image: \\[([A-Z0-9_, ]*)\\]");
 
     private CpuFloor() {
         throw new UnsupportedOperationException("Utility class");
@@ -45,8 +46,8 @@ public final class CpuFloor {
 
     /**
      * Checks the named images in one directory.
-     * <p>
-     * Throws rather than exiting: this runs inside Maven's own JVM, and an exit would end Maven.
+     *
+     * <p>Throws rather than exiting: this runs inside Maven's own JVM, and an exit would end Maven.
      *
      * @param args the directory the images are in, and their names separated by commas
      */
@@ -74,18 +75,29 @@ public final class CpuFloor {
             final Path binary = directory.resolve(image.strip());
             final Set<String> required = required(binary);
             if (required == null) {
-                failures.add(binary + ": no 'required by the image' list - not a native image, or not one this check can read");
+                failures.add(
+                        binary
+                                + ": no 'required by the image' list - not a native image, or not one this check can read");
                 continue;
             }
             if (required.equals(BASELINE)) {
-                out.println("    " + binary.getFileName() + " runs on any x86-64 CPU " + new TreeSet<>(required));
+                out.println(
+                        "    "
+                                + binary.getFileName()
+                                + " runs on any x86-64 CPU "
+                                + new TreeSet<>(required));
             } else {
                 final Set<String> beyond = new TreeSet<>(required);
                 beyond.removeAll(BASELINE);
                 final Set<String> missing = new TreeSet<>(BASELINE);
                 missing.removeAll(required);
-                failures.add(binary + " is not built for x86-64 v1: needs " + beyond + " beyond it, lacks " + missing
-                        + " of it - is -march=x86-64 still in the native build arguments?");
+                failures.add(
+                        binary
+                                + " is not built for x86-64 v1: needs "
+                                + beyond
+                                + " beyond it, lacks "
+                                + missing
+                                + " of it - is -march=x86-64 still in the native build arguments?");
             }
         }
         return failures.isEmpty() ? null : String.join("\n", failures);
@@ -115,5 +127,4 @@ public final class CpuFloor {
         }
         return new LinkedHashSet<>(Arrays.asList(lists.iterator().next().split(", ")));
     }
-
 }

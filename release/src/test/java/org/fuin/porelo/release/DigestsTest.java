@@ -23,7 +23,8 @@ class DigestsTest {
     @Test
     void refusesAReleaseWhoseSumsDoNotNameTheAsset() {
         assertThatThrownBy(() -> Digests.fromSums(OTHER + "  omp-darwin-arm64\n", ASSET, "18.1.16"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
                 .hasMessageContaining("publishes no omp-linux-x64");
     }
 
@@ -32,21 +33,27 @@ class DigestsTest {
         final String body = ONE + "  " + ASSET + "\n" + OTHER + "  " + ASSET + "\n";
 
         assertThatThrownBy(() -> Digests.fromSums(body, ASSET, "18.1.16"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
                 .hasMessageContaining("2 different digests");
     }
 
     @Test
     void refusesAValueThatIsNotADigest() {
         assertThatThrownBy(() -> Digests.fromSums("abc123  " + ASSET + "\n", ASSET, "18.1.16"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
                 .hasMessageContaining("not a SHA-256 digest");
     }
 
     @Test
     void refusesADigestInUppercase() {
-        assertThatThrownBy(() -> Digests.fromSums(ONE.toUpperCase() + "  " + ASSET + "\n", ASSET, "18.1.16"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
+        assertThatThrownBy(
+                        () ->
+                                Digests.fromSums(
+                                        ONE.toUpperCase() + "  " + ASSET + "\n", ASSET, "18.1.16"))
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
                 .hasMessageContaining("not a SHA-256 digest");
     }
 
@@ -59,25 +66,36 @@ class DigestsTest {
 
     @Test
     void readsThePlatformChecksumFromAManifest() throws Stop {
-        final String manifest = "{\"version\":\"2.1.267\",\"platforms\":{\"darwin-arm64\":{\"checksum\":\"" + OTHER
-                + "\"},\"linux-x64\":{\"checksum\":\"" + ONE + "\",\"size\":1}}}";
+        final String manifest =
+                "{\"version\":\"2.1.267\",\"platforms\":{\"darwin-arm64\":{\"checksum\":\""
+                        + OTHER
+                        + "\"},\"linux-x64\":{\"checksum\":\""
+                        + ONE
+                        + "\",\"size\":1}}}";
 
         assertThat(Digests.fromManifest(manifest, "linux-x64", "2.1.267")).isEqualTo(ONE);
     }
 
     @Test
     void aManifestWithoutThePlatformIsRefusedAndSaysWhatItHas() {
-        final String manifest = "{\"platforms\":{\"darwin-arm64\":{\"checksum\":\"" + OTHER + "\"}}}";
+        final String manifest =
+                "{\"platforms\":{\"darwin-arm64\":{\"checksum\":\"" + OTHER + "\"}}}";
 
         assertThatThrownBy(() -> Digests.fromManifest(manifest, "linux-x64", "2.1.267"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
-                .hasMessageContaining("publishes no linux-x64 checksum").hasMessageContaining("darwin-arm64");
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED))
+                .hasMessageContaining("publishes no linux-x64 checksum")
+                .hasMessageContaining("darwin-arm64");
     }
 
     @Test
     void aManifestThatIsNotJsonIsUnansweredNotRefused() {
-        assertThatThrownBy(() -> Digests.fromManifest("<html>maintenance</html>", "linux-x64", "2.1.267"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.UNANSWERED));
+        assertThatThrownBy(
+                        () ->
+                                Digests.fromManifest(
+                                        "<html>maintenance</html>", "linux-x64", "2.1.267"))
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.UNANSWERED));
     }
 
     @Test
@@ -85,7 +103,7 @@ class DigestsTest {
         final String manifest = "{\"platforms\":{\"linux-x64\":{\"checksum\":\"abc123\"}}}";
 
         assertThatThrownBy(() -> Digests.fromManifest(manifest, "linux-x64", "2.1.267"))
-                .isInstanceOfSatisfying(Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED));
+                .isInstanceOfSatisfying(
+                        Stop.class, stop -> assertThat(stop.code()).isEqualTo(Stop.REFUSED));
     }
-
 }

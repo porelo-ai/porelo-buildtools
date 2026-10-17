@@ -12,9 +12,10 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The signing key reaches Maven through its environment and is never written to the runner's disk.
- * <p>
- * {@code gpg --import} stores the private key in {@code ~/.gnupg}, where every later step of the job - and every
- * action it runs - can read it. The signer that reads {@code MAVEN_GPG_KEY} holds it in the build's memory only.
+ *
+ * <p>{@code gpg --import} stores the private key in {@code ~/.gnupg}, where every later step of the
+ * job - and every action it runs - can read it. The signer that reads {@code MAVEN_GPG_KEY} holds
+ * it in the build's memory only.
  */
 class WorkflowSigningTest {
 
@@ -27,7 +28,8 @@ class WorkflowSigningTest {
             final List<String> lines = Files.readAllLines(workflow);
             for (int at = 0; at < lines.size(); at++) {
                 if (lines.get(at).matches(".*\\bgpg\\b.*--import\\b.*")) {
-                    imports.add(workflow.getFileName() + ":" + (at + 1) + ": " + lines.get(at).strip());
+                    imports.add(
+                            workflow.getFileName() + ":" + (at + 1) + ": " + lines.get(at).strip());
                 }
             }
         }
@@ -37,14 +39,16 @@ class WorkflowSigningTest {
     @Test
     void theDeploySignsWithTheKeyFromItsEnvironment() throws IOException {
         final String build = Files.readString(WORKFLOWS.resolve("build.yml"));
-        assertThat(build).contains("MAVEN_GPG_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}")
+        assertThat(build)
+                .contains("MAVEN_GPG_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}")
                 .contains("MAVEN_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}")
                 .containsPattern("mvnw .*deploy .*-Dgpg\\.signer=bc");
     }
 
     private static List<Path> workflows() throws IOException {
         try (Stream<Path> found = Files.list(WORKFLOWS)) {
-            final List<Path> all = found.filter(file -> file.toString().endsWith(".yml")).sorted().toList();
+            final List<Path> all =
+                    found.filter(file -> file.toString().endsWith(".yml")).sorted().toList();
             assertThat(all).isNotEmpty();
             return all;
         }

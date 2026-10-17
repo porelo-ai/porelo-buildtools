@@ -14,20 +14,22 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Tests that every test reading a document of this repository carries the {@code documents} tag.
- * <p>
- * A change to documents or issues runs only the tests so tagged; one that reads a document without the tag would be
- * left out of that run, and the run would stay green while the document it checks is broken. A test that writes its
- * own pages into a temporary directory reads none of this repository's, and is not one of them.
+ *
+ * <p>A change to documents or issues runs only the tests so tagged; one that reads a document
+ * without the tag would be left out of that run, and the run would stay green while the document it
+ * checks is broken. A test that writes its own pages into a temporary directory reads none of this
+ * repository's, and is not one of them.
  */
 @Tag("documents")
 class DocumentTestsTaggedTest {
 
     /**
-     * How a test reaches this repository's documents, by a path out of its module: a Markdown file, the chapter, its
-     * navigation, or the whole repository's root.
+     * How a test reaches this repository's documents, by a path out of its module: a Markdown file,
+     * the chapter, its navigation, or the whole repository's root.
      */
-    private static final Pattern READS_DOCUMENTS = Pattern.compile(
-            "Path\\.of\\(\"\\.\\./[^\"]*\\.md\"|Path\\.of\\(\"\\.\\./doc|\"\\.\\./mkdocs\\.yml\"|Path\\.of\\(\"\\.\\.\"\\)");
+    private static final Pattern READS_DOCUMENTS =
+            Pattern.compile(
+                    "Path\\.of\\(\"\\.\\./[^\"]*\\.md\"|Path\\.of\\(\"\\.\\./doc|\"\\.\\./mkdocs\\.yml\"|Path\\.of\\(\"\\.\\.\"\\)");
 
     private static final String TAG = "@Tag(\"documents\")";
 
@@ -54,10 +56,13 @@ class DocumentTestsTaggedTest {
         final List<Path> found = testsReadingDocuments();
 
         // A guard that finds nothing passes forever: assert what it found, then what it checks.
-        assertThat(found).extracting(path -> path.getFileName().toString())
+        assertThat(found)
+                .extracting(path -> path.getFileName().toString())
                 .as("tests found reading this repository's documents")
-                .contains("CheckSharedTest.java", "CheckCitationsTest.java", "CheckDocSiteTest.java");
-        assertThat(found).filteredOn(path -> !read(path).contains(TAG))
+                .contains(
+                        "CheckSharedTest.java", "CheckCitationsTest.java", "CheckDocSiteTest.java");
+        assertThat(found)
+                .filteredOn(path -> !read(path).contains(TAG))
                 .as("tests that read a document without %s", TAG)
                 .isEmpty();
     }

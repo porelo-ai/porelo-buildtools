@@ -14,8 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class CheckDocSiteTest {
 
-    @TempDir
-    Path root;
+    @TempDir Path root;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -23,7 +22,9 @@ class CheckDocSiteTest {
 
     @Test
     void acceptsAChapterWhosePagesAreEachInTheNavigationOnce() throws IOException {
-        write("doc/index.md", "Read [the guide](guide.md#start) and [the code](https://example.org/x).\n");
+        write(
+                "doc/index.md",
+                "Read [the guide](guide.md#start) and [the code](https://example.org/x).\n");
         write("doc/guide.md", "Back to [the start](index.md).\n");
         write("mkdocs.yml", "nav:\n  - Home: index.md\n  - Guide: guide.md\n");
 
@@ -57,7 +58,9 @@ class CheckDocSiteTest {
         write("mkdocs.yml", "nav:\n  - Home: index.md\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("index.md -> ../AGENTS.md").contains("index.md -> missing.md");
+        assertThat(stderr())
+                .contains("index.md -> ../AGENTS.md")
+                .contains("index.md -> missing.md");
     }
 
     @Test
@@ -81,9 +84,13 @@ class CheckDocSiteTest {
     @Tag("documents")
     void thisRepositorysChapterCanBeFoundAndFollowed() {
         // check-doc-site is this repository's own, so this test is the check.
-        assertThat(new CheckDocSite(new PrintStream(out, true, StandardCharsets.UTF_8),
-                new PrintStream(err, true, StandardCharsets.UTF_8)).check(Path.of("../doc"), Path.of("../mkdocs.yml")))
-                .as(stderr()).isEqualTo(0);
+        assertThat(
+                        new CheckDocSite(
+                                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                                        new PrintStream(err, true, StandardCharsets.UTF_8))
+                                .check(Path.of("../doc"), Path.of("../mkdocs.yml")))
+                .as(stderr())
+                .isEqualTo(0);
     }
 
     @Test
@@ -95,8 +102,10 @@ class CheckDocSiteTest {
     }
 
     private int check() {
-        return new CheckDocSite(new PrintStream(out, true, StandardCharsets.UTF_8),
-                new PrintStream(err, true, StandardCharsets.UTF_8)).check(root.resolve("doc"), root.resolve("mkdocs.yml"));
+        return new CheckDocSite(
+                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                        new PrintStream(err, true, StandardCharsets.UTF_8))
+                .check(root.resolve("doc"), root.resolve("mkdocs.yml"));
     }
 
     private void write(String name, String text) throws IOException {

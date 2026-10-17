@@ -9,7 +9,7 @@
     <parent>
         <groupId>org.fuin.porelo</groupId>
         <artifactId>porelo-parent</artifactId>
-        <version>0.2.0</version>
+        <version>0.2.1-SNAPSHOT</version>
         <relativePath/>
     </parent>
 
@@ -187,6 +187,13 @@
         </pluginManagement>
 
         <plugins>
+
+            <!-- The shared code style, from porelo-parent: google-java-format (AOSP) and shfmt, checked in validate.
+                 'spotless:apply' formats; the formatting commit is in .git-blame-ignore-revs. -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+            </plugin>
 
             <plugin>
                 <groupId>dev.logchange</groupId>

@@ -76,5 +76,4 @@ class VersionsTest {
     void theVerdictReadsAsTheWordAWorkflowCompares() {
         assertThat(Verdict.ROLLBACK.word()).isEqualTo("rollback");
     }
-
 }

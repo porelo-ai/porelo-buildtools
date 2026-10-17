@@ -6,9 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.StringReader;
 import org.junit.jupiter.api.Test;
 
-/**
- * Tests for {@link Pinned}, on agent definitions as an agent repository's build filters them.
- */
+/** Tests for {@link Pinned}, on agent definitions as an agent repository's build filters them. */
 class PinnedTest {
 
     private static Pinned read(String yaml) {
@@ -17,7 +15,9 @@ class PinnedTest {
 
     @Test
     void readsThePinFromTheInstallSection() {
-        final Pinned pinned = read("""
+        final Pinned pinned =
+                read(
+                        """
                 name: claude
                 binary: claude
                 install:
@@ -30,11 +30,16 @@ class PinnedTest {
                 """);
 
         assertThat(pinned.version()).isEqualTo("2.1.267");
-        assertThat(pinned.artifacts()).singleElement().satisfies(artifact -> {
-            assertThat(artifact.url()).isEqualTo("https://example.org/claude/2.1.267/claude-linux-x64");
-            assertThat(artifact.sha256()).isEqualTo("0f1e2d3c");
-            assertThat(artifact.license()).isEqualTo("SEE LICENSE IN README.md");
-        });
+        assertThat(pinned.artifacts())
+                .singleElement()
+                .satisfies(
+                        artifact -> {
+                            assertThat(artifact.url())
+                                    .isEqualTo(
+                                            "https://example.org/claude/2.1.267/claude-linux-x64");
+                            assertThat(artifact.sha256()).isEqualTo("0f1e2d3c");
+                            assertThat(artifact.license()).isEqualTo("SEE LICENSE IN README.md");
+                        });
     }
 
     @Test
@@ -47,15 +52,20 @@ class PinnedTest {
 
     @Test
     void aVersionWrittenAsANumberIsReadAsItsText() {
-        // YAML reads 2.1 as a number; the version is what was written, as porelo's own reader says it.
+        // YAML reads 2.1 as a number; the version is what was written, as porelo's own reader says
+        // it.
         assertThat(read("install:\n  version: 2.1\n").version()).isEqualTo("2.1");
     }
 
     @Test
     void refusesWhatPorelosOwnReaderRefuses() {
-        assertThatThrownBy(() -> read("- a list\n")).hasMessageContaining("claude.yaml").hasMessageContaining("mapping");
+        assertThatThrownBy(() -> read("- a list\n"))
+                .hasMessageContaining("claude.yaml")
+                .hasMessageContaining("mapping");
         assertThatThrownBy(() -> read("name: a\nname: b\n")).hasMessageContaining("claude.yaml");
-        assertThatThrownBy(() -> read("install:\n  artifacts: one\n")).hasMessageContaining("'install.artifacts' must be a list");
-        assertThatThrownBy(() -> read("install:\n  artifacts:\n    - sha256: 00\n")).hasMessageContaining("'url' is required");
+        assertThatThrownBy(() -> read("install:\n  artifacts: one\n"))
+                .hasMessageContaining("'install.artifacts' must be a list");
+        assertThatThrownBy(() -> read("install:\n  artifacts:\n    - sha256: 00\n"))
+                .hasMessageContaining("'url' is required");
     }
 }

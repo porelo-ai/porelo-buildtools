@@ -17,8 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class MergeTreeBillTest {
 
-    @TempDir
-    Path directory;
+    @TempDir Path directory;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -32,15 +31,24 @@ class MergeTreeBillTest {
         assertThat(merge(pkg, tree)).as(report()).isEqualTo(MergeTreeBill.DONE);
 
         final Bom merged = Bill.parse(Files.readAllBytes(pkg));
-        final Component subject = merged.getComponents().stream()
-                .filter(c -> "pi-coding-agent".equals(c.getName())).findFirst().orElseThrow();
+        final Component subject =
+                merged.getComponents().stream()
+                        .filter(c -> "pi-coding-agent".equals(c.getName()))
+                        .findFirst()
+                        .orElseThrow();
         assertThat(subject.getType()).isEqualTo(Component.Type.APPLICATION);
-        assertThat(subject.getBomRef()).as("a second document's reference means nothing in this one").isNull();
-        assertThat(subject.getProperties()).anySatisfy(property -> {
-            assertThat(property.getName()).isEqualTo("porelo:delivery");
-            assertThat(property.getValue()).isEqualTo("shipped-in-package");
-        });
-        assertThat(subject.getComponents()).extracting(Component::getName).containsExactly("left-pad");
+        assertThat(subject.getBomRef())
+                .as("a second document's reference means nothing in this one")
+                .isNull();
+        assertThat(subject.getProperties())
+                .anySatisfy(
+                        property -> {
+                            assertThat(property.getName()).isEqualTo("porelo:delivery");
+                            assertThat(property.getValue()).isEqualTo("shipped-in-package");
+                        });
+        assertThat(subject.getComponents())
+                .extracting(Component::getName)
+                .containsExactly("left-pad");
     }
 
     @Test
@@ -55,7 +63,8 @@ class MergeTreeBillTest {
         assertThat(merge(pkg, tree)).as(report()).isEqualTo(MergeTreeBill.DONE);
 
         assertThat(Bill.read(Files.readAllBytes(pkg)).components()).hasSize(2 + 1 + 135);
-        assertThat(out.toString(StandardCharsets.UTF_8)).contains("merge-tree-bill: 138 components in");
+        assertThat(out.toString(StandardCharsets.UTF_8))
+                .contains("merge-tree-bill: 138 components in");
     }
 
     @Test
@@ -73,12 +82,16 @@ class MergeTreeBillTest {
     void aMissingTreeFailsTheBuild() throws IOException {
         final Path pkg = write(CompareBillsTest.bill(jar("adapter")));
 
-        assertThat(merge(pkg, directory.resolve("absent.cdx.json"))).as(report()).isEqualTo(MergeTreeBill.FAILED);
+        assertThat(merge(pkg, directory.resolve("absent.cdx.json")))
+                .as(report())
+                .isEqualTo(MergeTreeBill.FAILED);
     }
 
     private int merge(Path pkg, Path tree) {
-        return new MergeTreeBill(new PrintStream(out, true, StandardCharsets.UTF_8),
-                new PrintStream(err, true, StandardCharsets.UTF_8)).merge(pkg, tree);
+        return new MergeTreeBill(
+                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                        new PrintStream(err, true, StandardCharsets.UTF_8))
+                .merge(pkg, tree);
     }
 
     private Path write(String json) throws IOException {
@@ -89,21 +102,29 @@ class MergeTreeBillTest {
         return "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.5\",\"version\":1,\"metadata\":{\"component\":"
                 + "{\"type\":\"library\",\"bom-ref\":\"root\",\"name\":\"pi-coding-agent\",\"version\":\"0.9.0\","
                 + "\"purl\":\"pkg:npm/%40earendil-works/pi-coding-agent@0.9.0\"}},\"components\":["
-                + String.join(",", components) + "]}";
+                + String.join(",", components)
+                + "]}";
     }
 
     private static String jar(String name) {
-        return CompareBillsTest.component(name, "1.0", "pkg:maven/org.example/" + name + "@1.0",
+        return CompareBillsTest.component(
+                name,
+                "1.0",
+                "pkg:maven/org.example/" + name + "@1.0",
                 CompareBillsTest.license("id", "Apache-2.0"));
     }
 
     private static String npm(String name, String version) {
-        return CompareBillsTest.component(name, version, "pkg:npm/" + name + "@" + version,
+        return CompareBillsTest.component(
+                name,
+                version,
+                "pkg:npm/" + name + "@" + version,
                 CompareBillsTest.license("id", "MIT"));
     }
 
     private String report() {
-        return "stdout:%n%s%nstderr:%n%s".formatted(out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
+        return "stdout:%n%s%nstderr:%n%s"
+                .formatted(
+                        out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
     }
-
 }

@@ -2,9 +2,7 @@ package org.fuin.porelo.release;
 
 import org.jspecify.annotations.Nullable;
 
-/**
- * Something a module pins and an update job follows: the agent's CLI, or a named pin beside it.
- */
+/** Something a module pins and an update job follows: the agent's CLI, or a named pin beside it. */
 public interface Tracked {
 
     /**
@@ -35,5 +33,4 @@ public interface Tracked {
      * @return the channel, or null
      */
     @Nullable String channel();
-
 }

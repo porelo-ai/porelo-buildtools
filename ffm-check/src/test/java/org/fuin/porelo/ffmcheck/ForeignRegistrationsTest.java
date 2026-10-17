@@ -16,12 +16,13 @@ class ForeignRegistrationsTest {
 
     private static final String GETUID = "{\"returnType\":\"jint\",\"parameterTypes\":[]}";
 
-    private static final String BIND = "{\"returnType\":\"jint\",\"parameterTypes\":[\"jint\"],\"options\":{\"captureCallState\":true}}";
+    private static final String BIND =
+            "{\"returnType\":\"jint\",\"parameterTypes\":[\"jint\"],\"options\":{\"captureCallState\":true}}";
 
-    private static final String OPEN = "{\"returnType\":\"jint\",\"parameterTypes\":[\"void*\",\"jint\"]}";
+    private static final String OPEN =
+            "{\"returnType\":\"jint\",\"parameterTypes\":[\"void*\",\"jint\"]}";
 
-    @TempDir
-    Path directory;
+    @TempDir Path directory;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -30,7 +31,8 @@ class ForeignRegistrationsTest {
         final Path committed = committed("", GETUID, BIND);
 
         assertThat(check(recorded(GETUID), committed, false)).isNull();
-        assertThat(out.toString(StandardCharsets.UTF_8)).contains("up to date (2 registered, 1 observed)");
+        assertThat(out.toString(StandardCharsets.UTF_8))
+                .contains("up to date (2 registered, 1 observed)");
     }
 
     @Test
@@ -47,33 +49,51 @@ class ForeignRegistrationsTest {
 
         final String failure = check(recorded(GETUID, OPEN), committed, false);
 
-        assertThat(failure).startsWith("STALE: " + committed).contains("not registered: ").contains("void*")
+        assertThat(failure)
+                .startsWith("STALE: " + committed)
+                .contains("not registered: ")
+                .contains("void*")
                 .contains("-Dporelo.ffm.update=true");
     }
 
     @Test
     void comparesEntriesWhateverTheOrderOfTheirKeys() throws IOException {
-        final Path committed = committed("", "{\"parameterTypes\":[\"jint\"],\"options\":{\"captureCallState\":true},\"returnType\":\"jint\"}");
+        final Path committed =
+                committed(
+                        "",
+                        "{\"parameterTypes\":[\"jint\"],\"options\":{\"captureCallState\":true},\"returnType\":\"jint\"}");
 
         assertThat(check(recorded(BIND), committed, false)).isNull();
     }
 
     @Test
     void anUpdateAddsWhatIsMissingAndKeepsTheHandWrittenComment() throws IOException {
-        final Path committed = committed("\"comment\": [\"Written by hand.\", \"Verified in a container.\"],", BIND);
+        final Path committed =
+                committed(
+                        "\"comment\": [\"Written by hand.\", \"Verified in a container.\"],", BIND);
 
         assertThat(check(recorded(GETUID, OPEN), committed, true)).isNull();
 
         final String text = Files.readString(committed);
-        assertThat(text).contains("\"comment\": [\n    \"Written by hand.\",\n    \"Verified in a container.\"\n  ]");
+        assertThat(text)
+                .contains(
+                        "\"comment\": [\n    \"Written by hand.\",\n    \"Verified in a container.\"\n  ]");
         assertThat(Json.parse(text)).isNotNull();
-        assertThat(check(recorded(GETUID, OPEN), committed, false)).as("the updated file now passes").isNull();
-        assertThat(text).as("the hand-written entry survives the update").contains("captureCallState");
+        assertThat(check(recorded(GETUID, OPEN), committed, false))
+                .as("the updated file now passes")
+                .isNull();
+        assertThat(text)
+                .as("the hand-written entry survives the update")
+                .contains("captureCallState");
     }
 
     @Test
     void saysSoWhenTheAgentRecordedNothing() {
-        assertThat(check(directory.resolve("no-agent-output"), directory.resolve("committed.json"), false))
+        assertThat(
+                        check(
+                                directory.resolve("no-agent-output"),
+                                directory.resolve("committed.json"),
+                                false))
                 .contains("the agent produced no reachability-metadata.json");
     }
 
@@ -83,11 +103,13 @@ class ForeignRegistrationsTest {
         write(output.resolve("test/1/reachability-metadata.json"), GETUID);
         write(output.resolve("test/2/reachability-metadata.json"), OPEN);
 
-        assertThat(ForeignRegistrations.newestRecord(output)).contains(output.resolve("test/2/reachability-metadata.json"));
+        assertThat(ForeignRegistrations.newestRecord(output))
+                .contains(output.resolve("test/2/reachability-metadata.json"));
     }
 
     private String check(Path agentOutput, Path committed, boolean update) {
-        return ForeignRegistrations.check(agentOutput, committed, update, new PrintStream(out, true, StandardCharsets.UTF_8));
+        return ForeignRegistrations.check(
+                agentOutput, committed, update, new PrintStream(out, true, StandardCharsets.UTF_8));
     }
 
     private Path recorded(String... downcalls) throws IOException {
@@ -99,12 +121,21 @@ class ForeignRegistrationsTest {
     private Path committed(String before, String... downcalls) throws IOException {
         final Path file = directory.resolve("committed/reachability-metadata.json");
         Files.createDirectories(file.getParent());
-        return Files.writeString(file, "{" + before + "\"foreign\":{\"downcalls\":[" + String.join(",", downcalls) + "]}}");
+        return Files.writeString(
+                file,
+                "{"
+                        + before
+                        + "\"foreign\":{\"downcalls\":["
+                        + String.join(",", downcalls)
+                        + "]}}");
     }
 
     private static void write(Path file, String... downcalls) throws IOException {
         Files.createDirectories(file.getParent());
-        Files.writeString(file, "{\"reflection\":[],\"foreign\":{\"downcalls\":[" + String.join(",", downcalls) + "]}}");
+        Files.writeString(
+                file,
+                "{\"reflection\":[],\"foreign\":{\"downcalls\":["
+                        + String.join(",", downcalls)
+                        + "]}}");
     }
-
 }

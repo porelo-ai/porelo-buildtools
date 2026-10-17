@@ -7,8 +7,8 @@ import java.util.Base64;
 
 /**
  * A throwaway key, made where it is used.
- * <p>
- * Generated rather than checked in: a private key in a repository is a finding in every scanner
+ *
+ * <p>Generated rather than checked in: a private key in a repository is a finding in every scanner
  * that looks at one, and explaining that this particular one is harmless costs more than making a
  * new one each run.
  */
@@ -32,9 +32,10 @@ final class Keys {
         }
         generator.initialize(2048);
         final KeyPair pair = generator.generateKeyPair();
-        final String encoded = Base64.getMimeEncoder(64, new byte[] {'\n'})
-                .encodeToString(pair.getPrivate().getEncoded());
-        return new Credential.InMemory("-----BEGIN PRIVATE KEY-----\n" + encoded
-                + "\n-----END PRIVATE KEY-----");
+        final String encoded =
+                Base64.getMimeEncoder(64, new byte[] {'\n'})
+                        .encodeToString(pair.getPrivate().getEncoded());
+        return new Credential.InMemory(
+                "-----BEGIN PRIVATE KEY-----\n" + encoded + "\n-----END PRIVATE KEY-----");
     }
 }

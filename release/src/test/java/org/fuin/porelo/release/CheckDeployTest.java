@@ -13,16 +13,18 @@ import org.junit.jupiter.api.io.TempDir;
 
 class CheckDeployTest {
 
-    @TempDir
-    Path dir;
+    @TempDir Path dir;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
 
     @Test
-    void acceptsADryRunWhereEveryModuleWentThroughThePublishingPluginAndOnlyTheDeadPortWasTried() throws IOException {
-        final Path log = log("""
+    void acceptsADryRunWhereEveryModuleWentThroughThePublishingPluginAndOnlyTheDeadPortWasTried()
+            throws IOException {
+        final Path log =
+                log(
+                        """
                 [INFO] --- install:3.1.4:install (default-install) @ porelo-buildtools ---
                 [INFO] --- central-publishing:0.10.0:publish (injected-central-publishing) @ porelo-buildtools ---
                 [INFO] --- jar:3.4.2:jar (default-jar) @ porelo-json ---
@@ -33,54 +35,69 @@ class CheckDeployTest {
                 [ERROR] Unable to upload bundle for deployment: Deployment
                 """);
 
-        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log)).as(stderr()).isEqualTo(0);
+        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log))
+                .as(stderr())
+                .isEqualTo(0);
         assertThat(stdout()).contains("every one of 2 module(s)");
     }
 
     @Test
     void refusesAModuleTheReleaseProfilesPluginDidNotReachAsAnExtension() throws IOException {
-        // A parent declared the publishing plugin a second time, not inherited, to opt itself in; Maven merged the
-        // release profile's declaration into it, and every child fell back to maven-deploy-plugin.
-        final Path log = log("""
+        // A parent declared the publishing plugin a second time, not inherited, to opt itself in;
+        // Maven merged the release profile's declaration into it, and every child fell back to
+        // maven-deploy-plugin.
+        final Path log =
+                log(
+                        """
                 [INFO] --- central-publishing:0.10.0:publish (injected-central-publishing) @ porelo-buildtools ---
                 [INFO] --- deploy:3.1.4:deploy (default-deploy) @ porelo-json ---
                 [INFO] --- jar:3.4.2:jar (default-jar) @ porelo-release ---
                 """);
 
-        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("porelo-json was deployed by default-deploy")
+        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log))
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("porelo-json was deployed by default-deploy")
                 .contains("porelo-release never ran injected-central-publishing");
     }
 
     @Test
     void refusesAnUploadAimedAnywhereButTheLoopbackAddress() throws IOException {
-        // A dry run that set only the release URL sent a snapshot to the real snapshot repository; only the missing
-        // credentials stopped it, with a 401.
-        final Path log = log("""
+        // A dry run that set only the release URL sent a snapshot to the real snapshot repository;
+        // only the missing credentials stopped it, with a 401.
+        final Path log =
+                log(
+                        """
                 [INFO] --- central-publishing:0.10.0:publish (injected-central-publishing) @ porelo-parent ---
                 [ERROR] Failed to deploy artifacts: Could not transfer artifact \
                 org.fuin.porelo:porelo-parent:pom:0.1.1-20261008.075641-3 from/to central \
                 (https://central.sonatype.com/repository/maven-snapshots/): status code: 401, reason phrase: Unauthorized
                 """);
 
-        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log)).isEqualTo(Stop.REFUSED);
+        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log))
+                .isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("aimed at central.sonatype.com");
     }
 
     @Test
     void refusesARunOfflineSinceThePluginThenSkipsItsGoal() throws IOException {
-        final Path log = log("""
+        final Path log =
+                log(
+                        """
                 [INFO] --- central-publishing:0.10.0:publish (injected-central-publishing) @ porelo-json ---
                 [WARNING] Goal publish requires online mode for execution but Maven is currently offline, skipping
                 """);
 
-        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log)).isEqualTo(Stop.REFUSED);
+        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log))
+                .isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("ran offline");
     }
 
     @Test
     void aFileThatShowsNoModuleIsNoAnswer() throws IOException {
-        assertThat(new CheckDeploy(new PrintStream(out), new PrintStream(err)).check(log("nothing\n")))
+        assertThat(
+                        new CheckDeploy(new PrintStream(out), new PrintStream(err))
+                                .check(log("nothing\n")))
                 .isEqualTo(Stop.UNANSWERED);
     }
 

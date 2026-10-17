@@ -23,20 +23,31 @@ class WebTest {
     @BeforeEach
     void serve() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/moved", exchange -> {
-            // Another host name for the same server, so the redirect crosses hosts as a hostile one would.
-            exchange.getResponseHeaders().add("Location", "http://localhost:" + server.getAddress().getPort() + "/target");
-            exchange.sendResponseHeaders(302, -1);
-            exchange.close();
-        });
-        server.createContext("/target", exchange -> {
-            final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            authorizationAtTarget.add(authorization == null ? "none" : authorization);
-            final byte[] body = "arrived".getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, body.length);
-            exchange.getResponseBody().write(body);
-            exchange.close();
-        });
+        server.createContext(
+                "/moved",
+                exchange -> {
+                    // Another host name for the same server, so the redirect crosses hosts as a
+                    // hostile one would.
+                    exchange.getResponseHeaders()
+                            .add(
+                                    "Location",
+                                    "http://localhost:"
+                                            + server.getAddress().getPort()
+                                            + "/target");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
+        server.createContext(
+                "/target",
+                exchange -> {
+                    final String authorization =
+                            exchange.getRequestHeaders().getFirst("Authorization");
+                    authorizationAtTarget.add(authorization == null ? "none" : authorization);
+                    final byte[] body = "arrived".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                    exchange.close();
+                });
         server.start();
     }
 
@@ -47,20 +58,25 @@ class WebTest {
 
     @Test
     void followsARedirectWhenNoCredentialIsSent() throws IOException {
-        assertThat(Web.overHttp().read(address("/moved"))).hasValueSatisfying(
-                body -> assertThat(new String(body, StandardCharsets.UTF_8)).isEqualTo("arrived"));
+        assertThat(Web.overHttp().read(address("/moved")))
+                .hasValueSatisfying(
+                        body ->
+                                assertThat(new String(body, StandardCharsets.UTF_8))
+                                        .isEqualTo("arrived"));
     }
 
     @Test
     void aRedirectToAnotherHostDoesNotCarryTheCredential() throws IOException {
         Web.overHttp().read(address("/moved"), Map.of("Authorization", "Bearer t0ken"));
 
-        assertThat(authorizationAtTarget).as("the JDK drops Authorization when a redirect changes host; if this"
-                + " fails, the client now forwards a token to wherever it is sent").containsExactly("none");
+        assertThat(authorizationAtTarget)
+                .as(
+                        "the JDK drops Authorization when a redirect changes host; if this"
+                                + " fails, the client now forwards a token to wherever it is sent")
+                .containsExactly("none");
     }
 
     private URI address(String path) {
         return URI.create("http://127.0.0.1:" + server.getAddress().getPort() + path);
     }
-
 }

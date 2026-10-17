@@ -7,24 +7,24 @@ import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * Tests for how an agent's leg installs what it is testing.
- */
+/** Tests for how an agent's leg installs what it is testing. */
 class AgentLegTest {
 
     @Test
     void namesItsAccountsTheFirstAsAlwaysAndMakesEachLingeringWithThisRunsKey() {
         assertThat(AgentLeg.accounts(1)).containsExactly("acceptance");
-        assertThat(AgentLeg.accounts(3)).containsExactly("acceptance", "acceptance2", "acceptance3");
-        assertThat(AgentLeg.account("acceptance2")).contains("useradd -m -s /bin/bash acceptance2")
+        assertThat(AgentLeg.accounts(3))
+                .containsExactly("acceptance", "acceptance2", "acceptance3");
+        assertThat(AgentLeg.account("acceptance2"))
+                .contains("useradd -m -s /bin/bash acceptance2")
                 .contains("loginctl enable-linger acceptance2")
                 .contains("/home/acceptance2/.ssh/authorized_keys");
     }
 
     @Test
     void installsTheAgentInTheSameCommandAsPorelo() {
-        // Neither 'dpkg -i' nor 'rpm -i' resolves a dependency, and installing porelo separately
-        // by hand would prove less than an operator's own package manager does.
+        // Neither 'dpkg -i' nor 'rpm -i' resolves a dependency, and installing porelo separately by
+        // hand would prove less than an operator's own package manager does.
         assertThat(AgentLeg.install("ubuntu", "https://x/artifactory", "porelo-agent-claude"))
                 .contains("apt-get install -y -qq porelo porelo-agent-claude");
         assertThat(AgentLeg.install("fedora", "https://x/artifactory", "porelo-agent-omp"))
@@ -41,33 +41,46 @@ class AgentLegTest {
 
     @Test
     void installsTheFilterAsAPreparedMachineHasIt() {
-        // Measured on an agent repository's lease on 2026-09-29: with porelo alone, 'talk pass' passed
-        // nothing and 'talk held' listed nothing, while the same scenario held on a prepared machine.
+        // Measured on an agent repository's lease on 2026-09-29: with porelo alone, 'talk pass'
+        // passed nothing and 'talk held' listed nothing, while the same scenario held on a prepared
+        // machine.
         for (final String os : new String[] {"ubuntu", "fedora"}) {
             final String script = AgentLeg.install(os, "https://x", "porelo-agent-pi");
-            assertThat(script).contains("for p in porelo-message-sluice-filter; do")
-                    .as("the local transport is retired").doesNotContain("porelo-message-transport-local");
+            assertThat(script)
+                    .contains("for p in porelo-message-sluice-filter; do")
+                    .as("the local transport is retired")
+                    .doesNotContain("porelo-message-transport-local");
             // After the command that installs porelo and any candidate, so a candidate filter wins.
             assertThat(script.indexOf("for p in")).isGreaterThan(script.indexOf("install -y -q"));
         }
-        assertThat(AgentLeg.install("ubuntu", "https://x", "p")).contains("dpkg -s \"$p\" >/dev/null 2>&1 && continue");
-        assertThat(AgentLeg.install("fedora", "https://x", "p")).contains("rpm -q \"$p\" >/dev/null 2>&1 && continue");
+        assertThat(AgentLeg.install("ubuntu", "https://x", "p"))
+                .contains("dpkg -s \"$p\" >/dev/null 2>&1 && continue");
+        assertThat(AgentLeg.install("fedora", "https://x", "p"))
+                .contains("rpm -q \"$p\" >/dev/null 2>&1 && continue");
     }
 
     @Test
     void takesTheRepositoryAndItsKeyFromWhereThePackagesArePublished() {
-        final String script = AgentLeg.install("ubuntu", "https://fuinorg.jfrog.io/artifactory",
-                "porelo-agent-pi");
-        assertThat(script).contains("https://fuinorg.jfrog.io/artifactory/porelo-dist-deb snapshots main");
+        final String script =
+                AgentLeg.install(
+                        "ubuntu", "https://fuinorg.jfrog.io/artifactory", "porelo-agent-pi");
+        assertThat(script)
+                .contains("https://fuinorg.jfrog.io/artifactory/porelo-dist-deb snapshots main");
         assertThat(script).contains("/api/security/keypair/porelo-packages/public");
-        assertThat(AgentLeg.install("fedora", "https://fuinorg.jfrog.io/artifactory", "porelo-agent-pi"))
+        assertThat(
+                        AgentLeg.install(
+                                "fedora",
+                                "https://fuinorg.jfrog.io/artifactory",
+                                "porelo-agent-pi"))
                 .contains("https://fuinorg.jfrog.io/artifactory/porelo-dist-rpm/snapshots");
     }
 
     @Test
     void usesEachDistributionsOwnRepositoryFormat() {
-        assertThat(AgentLeg.install("fedora", "https://x", "p")).contains("/etc/yum.repos.d/porelo.repo");
-        assertThat(AgentLeg.install("ubuntu", "https://x", "p")).contains("/etc/apt/sources.list.d/porelo.list");
+        assertThat(AgentLeg.install("fedora", "https://x", "p"))
+                .contains("/etc/yum.repos.d/porelo.repo");
+        assertThat(AgentLeg.install("ubuntu", "https://x", "p"))
+                .contains("/etc/apt/sources.list.d/porelo.list");
     }
 
     @Test
@@ -109,8 +122,9 @@ class AgentLegTest {
     @Test
     void tellsTwoPackagesApartFromTwoBuildsOfOne() {
         assertThat(AgentLeg.packageName("porelo-message-sluice-filter_1.0.0_amd64.deb", ".deb"))
-                .isNotEqualTo(AgentLeg.packageName(
-                        "porelo-message-transport-local_1.0.0_amd64.deb", ".deb"));
+                .isNotEqualTo(
+                        AgentLeg.packageName(
+                                "porelo-message-transport-local_1.0.0_amd64.deb", ".deb"));
         assertThat(AgentLeg.packageName("porelo_0.1.0~snapshot.150_amd64.deb", ".deb"))
                 .isEqualTo(AgentLeg.packageName("porelo_0.1.0~snapshot.151_amd64.deb", ".deb"));
     }
@@ -122,31 +136,43 @@ class AgentLegTest {
 
     @Test
     void namesEachCandidateOnTheMachineQuotedSoAShellTakesItWhole() throws Exception {
-        assertThat(AgentLeg.candidatePaths(List.of("porelo_0.1.0~snapshot.151_amd64.deb",
-                "porelo-agent-claude-1.2.3-1.x86_64.rpm", "porelo+extra.deb")))
-                .isEqualTo("'/root/candidate/porelo_0.1.0~snapshot.151_amd64.deb'"
-                        + " '/root/candidate/porelo-agent-claude-1.2.3-1.x86_64.rpm'"
-                        + " '/root/candidate/porelo+extra.deb'");
+        assertThat(
+                        AgentLeg.candidatePaths(
+                                List.of(
+                                        "porelo_0.1.0~snapshot.151_amd64.deb",
+                                        "porelo-agent-claude-1.2.3-1.x86_64.rpm",
+                                        "porelo+extra.deb")))
+                .isEqualTo(
+                        "'/root/candidate/porelo_0.1.0~snapshot.151_amd64.deb'"
+                                + " '/root/candidate/porelo-agent-claude-1.2.3-1.x86_64.rpm'"
+                                + " '/root/candidate/porelo+extra.deb'");
     }
 
     @Test
     void refusesACandidateWhoseFileNameAShellWouldReadAsMoreThanAName() {
-        // The name goes into a command run as root on the machine; a working tree is not trusted to hold only
-        // what a build made there.
-        for (final String name : new String[] {"a;reboot.deb", "$(id).deb", "a b.deb", "a'b.deb", "-rf.deb"}) {
+        // The name goes into a command run as root on the machine; a working tree is not trusted to
+        // hold only what a build made there.
+        for (final String name :
+                new String[] {"a;reboot.deb", "$(id).deb", "a b.deb", "a'b.deb", "-rf.deb"}) {
             assertThatThrownBy(() -> AgentLeg.candidatePaths(List.of("porelo_1_amd64.deb", name)))
-                    .as(name).isInstanceOf(IOException.class)
-                    .hasMessageContaining(name).hasMessageContaining("[A-Za-z0-9._+~-]");
+                    .as(name)
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining(name)
+                    .hasMessageContaining("[A-Za-z0-9._+~-]");
         }
     }
 
     @Test
     void quotesTheOperatorsPackageAndRefusesOneThatIsNotAName() throws Exception {
-        assertThat(AgentLeg.packageArgument("porelo-agent-claude")).isEqualTo("'porelo-agent-claude'");
-        assertThat(AgentLeg.install("ubuntu", "https://x", AgentLeg.packageArgument("porelo-agent-pi")))
+        assertThat(AgentLeg.packageArgument("porelo-agent-claude"))
+                .isEqualTo("'porelo-agent-claude'");
+        assertThat(
+                        AgentLeg.install(
+                                "ubuntu", "https://x", AgentLeg.packageArgument("porelo-agent-pi")))
                 .contains("apt-get install -y -qq porelo 'porelo-agent-pi'");
         assertThatThrownBy(() -> AgentLeg.packageArgument("porelo-agent-pi; reboot"))
-                .isInstanceOf(IOException.class).hasMessageContaining("porelo-agent-pi; reboot")
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("porelo-agent-pi; reboot")
                 .hasMessageContaining("--package");
     }
 }

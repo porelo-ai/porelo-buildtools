@@ -1,6 +1,4 @@
-/**
- * The JSON reader and writer the build tools share.
- */
+/** The JSON reader and writer the build tools share. */
 @NullMarked
 package org.fuin.porelo.json;
 

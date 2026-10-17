@@ -15,8 +15,7 @@ class CheckActionsTest {
 
     private static final String COMMIT = "11bd71901bbe5b1630ceea73d27597364c9af683";
 
-    @TempDir
-    Path directory;
+    @TempDir Path directory;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -30,8 +29,11 @@ class CheckActionsTest {
 
     @Test
     void acceptsACommitWithItsVersionBesideIt() throws IOException {
-        workflow("      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n"
-                + "        with:\n          persist-credentials: false\n");
+        workflow(
+                "      - uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n"
+                        + "        with:\n          persist-credentials: false\n");
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
         assertThat(stdout()).contains("OK    1 step(s)");
@@ -42,7 +44,8 @@ class CheckActionsTest {
         workflow("      - uses: actions/checkout@v7\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("ci.yml:1: actions/checkout@v7 names a tag or a branch, not a commit")
+        assertThat(stderr())
+                .contains("ci.yml:1: actions/checkout@v7 names a tag or a branch, not a commit")
                 .contains("uses: owner/action@<40-digit commit> # v1.2.3");
     }
 
@@ -97,7 +100,9 @@ class CheckActionsTest {
     @Test
     void readsACompositeActionAndAQuotedReference() throws IOException {
         Files.createDirectories(directory.resolve("actions/x"));
-        Files.writeString(directory.resolve("actions/x/action.yaml"), "    - uses: 'jfrog/setup-jfrog-cli@v5'\n");
+        Files.writeString(
+                directory.resolve("actions/x/action.yaml"),
+                "    - uses: 'jfrog/setup-jfrog-cli@v5'\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("action.yaml:1: jfrog/setup-jfrog-cli@v5");
@@ -113,7 +118,9 @@ class CheckActionsTest {
         workflow("      - uses: graalvm/setup-graalvm@" + COMMIT + " # v1.3.0\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("fetches a JDK by its version name").contains("porelo-machines jdk --github");
+        assertThat(stderr())
+                .contains("fetches a JDK by its version name")
+                .contains("porelo-machines jdk --github");
     }
 
     @Test
@@ -129,18 +136,22 @@ class CheckActionsTest {
     void refusesDependabotThatDoesNotWatchTheLocalActions() throws IOException {
         workflow("      - uses: ./.github/actions/pinned-jdk\n");
         Files.createDirectories(directory.resolve("actions/pinned-jdk"));
-        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
-                + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
+        Files.writeString(
+                directory.resolve("dependabot.yml"),
+                "updates:\n  - package-ecosystem: github-actions\n"
+                        + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("does not watch /.github/actions/*");
     }
 
     @Test
-    void refusesADependabotThatTakesAReleaseTheDayItAppearsOrMovesEachActionAlone() throws IOException {
+    void refusesADependabotThatTakesAReleaseTheDayItAppearsOrMovesEachActionAlone()
+            throws IOException {
         // Measured against the published check: both passed.
         workflow("      - uses: ./.github/actions/pinned-jdk\n");
-        Files.writeString(directory.resolve("dependabot.yml"),
+        Files.writeString(
+                directory.resolve("dependabot.yml"),
                 "updates:\n  - package-ecosystem: github-actions\n    cooldown:\n      default-days: 0\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
@@ -148,36 +159,45 @@ class CheckActionsTest {
     }
 
     @Test
-    void aGroupedEntryOfAnotherEcosystemDoesNotCoverAnUngroupedGithubActionsOne() throws IOException {
+    void aGroupedEntryOfAnotherEcosystemDoesNotCoverAnUngroupedGithubActionsOne()
+            throws IOException {
         // Measured: a docker entry's groups and cooldown answered for the github-actions entry.
         workflow("      - uses: ./.github/actions/pinned-jdk\n");
-        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
-                + "    directory: /\n  - package-ecosystem: docker\n    directory: /\n    cooldown:\n"
-                + "      default-days: 3\n    groups:\n      images:\n        patterns: [\"*\"]\n");
+        Files.writeString(
+                directory.resolve("dependabot.yml"),
+                "updates:\n  - package-ecosystem: github-actions\n"
+                        + "    directory: /\n  - package-ecosystem: docker\n    directory: /\n    cooldown:\n"
+                        + "      default-days: 3\n    groups:\n      images:\n        patterns: [\"*\"]\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("github-actions entry has no 'cooldown").contains("github-actions entry has no 'groups:'");
+        assertThat(stderr())
+                .contains("github-actions entry has no 'cooldown")
+                .contains("github-actions entry has no 'groups:'");
     }
 
     @Test
     void readsNothingADependabotConfigurationOnlySaysInAComment() throws IOException {
         // A comment that names what is missing is not what is missing; Dependabot reads no comment.
         workflow("      - uses: ./.github/actions/pinned-jdk\n");
-        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n"
-                + "  # - package-ecosystem: github-actions\n"
-                + "  - package-ecosystem: maven # github-actions to follow\n"
-                + "    directory: /\n");
+        Files.writeString(
+                directory.resolve("dependabot.yml"),
+                "updates:\n"
+                        + "  # - package-ecosystem: github-actions\n"
+                        + "  - package-ecosystem: maven # github-actions to follow\n"
+                        + "    directory: /\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("no github-actions ecosystem");
 
         err.reset();
-        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n"
-                + "  - package-ecosystem: github-actions # cooldown: default-days: 7\n"
-                + "    directories: [\"/\", \"/.github/actions/*\"]\n"
-                + "    # cooldown:\n"
-                + "    #   default-days: 7\n"
-                + "    groups:\n      actions:\n        patterns: [\"*\"]\n");
+        Files.writeString(
+                directory.resolve("dependabot.yml"),
+                "updates:\n"
+                        + "  - package-ecosystem: github-actions # cooldown: default-days: 7\n"
+                        + "    directories: [\"/\", \"/.github/actions/*\"]\n"
+                        + "    # cooldown:\n"
+                        + "    #   default-days: 7\n"
+                        + "    groups:\n      actions:\n        patterns: [\"*\"]\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("github-actions entry has no 'cooldown");
@@ -186,11 +206,13 @@ class CheckActionsTest {
     @Test
     void aHashInsideQuotesIsNotAComment() throws IOException {
         workflow("      - uses: ./.github/actions/pinned-jdk\n");
-        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n"
-                + "  - package-ecosystem: \"github-actions\"\n"
-                + "    directories: [\"/\", \"/.github/actions/*\"]\n"
-                + "    cooldown:\n      default-days: 3\n"
-                + "    groups:\n      \"actions #1\":\n        patterns: [\"*\"]\n");
+        Files.writeString(
+                directory.resolve("dependabot.yml"),
+                "updates:\n"
+                        + "  - package-ecosystem: \"github-actions\"\n"
+                        + "    directories: [\"/\", \"/.github/actions/*\"]\n"
+                        + "    cooldown:\n      default-days: 3\n"
+                        + "    groups:\n      \"actions #1\":\n        patterns: [\"*\"]\n");
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
     }
@@ -200,16 +222,23 @@ class CheckActionsTest {
         final Path repository = directory.resolve("repo");
         final Path github = Files.createDirectories(repository.resolve(".github/workflows"));
         Files.writeString(github.resolve("ci.yml"), "      - uses: ./.github/actions/x\n");
-        Files.writeString(repository.resolve(".github/dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
-                + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
+        Files.writeString(
+                repository.resolve(".github/dependabot.yml"),
+                "updates:\n  - package-ecosystem: github-actions\n"
+                        + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
         Files.createDirectories(repository.resolve(".mvn/wrapper"));
-        Files.writeString(repository.resolve(".mvn/wrapper/maven-wrapper.properties"), "distributionUrl=https://x/maven.zip\n");
+        Files.writeString(
+                repository.resolve(".mvn/wrapper/maven-wrapper.properties"),
+                "distributionUrl=https://x/maven.zip\n");
 
         assertThat(check(repository.resolve(".github"))).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("no distributionSha256Sum");
 
-        Files.writeString(repository.resolve(".mvn/wrapper/maven-wrapper.properties"),
-                "distributionUrl=https://x/maven.zip\ndistributionSha256Sum=" + "a".repeat(64) + "\n");
+        Files.writeString(
+                repository.resolve(".mvn/wrapper/maven-wrapper.properties"),
+                "distributionUrl=https://x/maven.zip\ndistributionSha256Sum="
+                        + "a".repeat(64)
+                        + "\n");
         err.reset();
         assertThat(check(repository.resolve(".github"))).as(stderr()).isEqualTo(0);
     }
@@ -217,37 +246,56 @@ class CheckActionsTest {
     @Test
     void refusesAGradleWrapperWithoutItsDigestOrAVersion() throws IOException {
 
-        // The one repository built with Gradle downloads its build tool as Maven's wrapper does, and is held to the
-        // same pin.
+        // The one repository built with Gradle downloads its build tool as Maven's wrapper does,
+        // and is held to the same pin.
         final Path repository = directory.resolve("repo");
         final Path github = Files.createDirectories(repository.resolve(".github/workflows"));
         Files.writeString(github.resolve("ci.yml"), "      - uses: ./.github/actions/x\n");
-        Files.writeString(repository.resolve(".github/dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
-                + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
-        final Path properties = Files.createDirectories(repository.resolve("gradle/wrapper"))
-                .resolve("gradle-wrapper.properties");
-        Files.writeString(properties, "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.0-bin.zip\n");
+        Files.writeString(
+                repository.resolve(".github/dependabot.yml"),
+                "updates:\n  - package-ecosystem: github-actions\n"
+                        + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
+        final Path properties =
+                Files.createDirectories(repository.resolve("gradle/wrapper"))
+                        .resolve("gradle-wrapper.properties");
+        Files.writeString(
+                properties,
+                "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.0-bin.zip\n");
 
         assertThat(check(repository.resolve(".github"))).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("gradle-wrapper.properties").contains("no distributionSha256Sum");
+        assertThat(stderr())
+                .contains("gradle-wrapper.properties")
+                .contains("no distributionSha256Sum");
 
-        Files.writeString(properties, "distributionUrl=https\\://services.gradle.org/distributions/gradle-latest.zip\n"
-                + "distributionSha256Sum=" + "a".repeat(64) + "\n");
+        Files.writeString(
+                properties,
+                "distributionUrl=https\\://services.gradle.org/distributions/gradle-latest.zip\n"
+                        + "distributionSha256Sum="
+                        + "a".repeat(64)
+                        + "\n");
         err.reset();
         assertThat(check(repository.resolve(".github"))).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("names no version");
 
-        Files.writeString(properties, "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.0-bin.zip\n"
-                + "distributionSha256Sum=" + "a".repeat(64) + "\n");
+        Files.writeString(
+                properties,
+                "distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.0-bin.zip\n"
+                        + "distributionSha256Sum="
+                        + "a".repeat(64)
+                        + "\n");
         err.reset();
         assertThat(check(repository.resolve(".github"))).as(stderr()).isEqualTo(0);
     }
 
     @Test
     void refusesAWorkflowThatAForkCanTriggerWithTheSecrets() throws IOException {
-        // pull_request_target runs with this repository's secrets on an event a fork's pull request raises.
-        workflow("on:\n  push:\n  pull_request_target:\n    types: [opened]\njobs:\n  a:\n    runs-on: ubuntu-latest\n"
-                + "    steps:\n      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n");
+        // pull_request_target runs with this repository's secrets on an event a fork's pull request
+        // raises.
+        workflow(
+                "on:\n  push:\n  pull_request_target:\n    types: [opened]\njobs:\n  a:\n    runs-on: ubuntu-latest\n"
+                        + "    steps:\n      - uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("workflows/ci.yml:3").contains("pull_request_target");
@@ -263,9 +311,12 @@ class CheckActionsTest {
 
     @Test
     void refusesARunAfterAnotherThatChecksOutThePullRequestsCode() throws IOException {
-        workflow("on:\n  workflow_run:\n    workflows: [Build]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n"
-                + "      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n"
-                + "        with:\n          ref: ${{ github.event.workflow_run.head_sha }}\n");
+        workflow(
+                "on:\n  workflow_run:\n    workflows: [Build]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n"
+                        + "      - uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n"
+                        + "        with:\n          ref: ${{ github.event.workflow_run.head_sha }}\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("workflows/ci.yml:10").contains("workflow_run");
@@ -273,9 +324,13 @@ class CheckActionsTest {
 
     @Test
     void acceptsARunAfterAnotherOnItsOwnCodeAndTheWordInAnExpression() throws IOException {
-        workflow("on:\n  workflow_run:\n    workflows: [Build]\npermissions: {}\njobs:\n  a:\n"
-                + "    if: github.event_name != 'pull_request_target'\n    runs-on: ubuntu-latest\n    steps:\n"
-                + "      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n" + "        with:\n          persist-credentials: false\n");
+        workflow(
+                "on:\n  workflow_run:\n    workflows: [Build]\npermissions: {}\njobs:\n  a:\n"
+                        + "    if: github.event_name != 'pull_request_target'\n    runs-on: ubuntu-latest\n    steps:\n"
+                        + "      - uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n"
+                        + "        with:\n          persist-credentials: false\n");
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
     }
@@ -283,38 +338,54 @@ class CheckActionsTest {
     @Test
     void refusesACheckoutThatKeepsItsTokenNamingTheFileAndTheStep() throws IOException {
         // Without the option, the token stays in .git/config for every later step to read.
-        workflow("permissions: {}\njobs:\n  build:\n    steps:\n      - name: Check out\n        uses: actions/checkout@" + COMMIT
-                + " # v7.0.1\n        with:\n          fetch-depth: 0\n      - name: Build\n        run: ./mvnw verify\n"
-                + "        with:\n          persist-credentials: false\n");
+        workflow(
+                "permissions: {}\njobs:\n  build:\n    steps:\n      - name: Check out\n        uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n        with:\n          fetch-depth: 0\n      - name: Build\n        run: ./mvnw verify\n"
+                        + "        with:\n          persist-credentials: false\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).as("the file, the step and what it lacks")
-                .contains("workflows/ci.yml:6: step 'Check out' checks out without 'persist-credentials: false'")
-                .contains("persist-credentials: false").doesNotContain("Pin each step");
+        assertThat(stderr())
+                .as("the file, the step and what it lacks")
+                .contains(
+                        "workflows/ci.yml:6: step 'Check out' checks out without 'persist-credentials: false'")
+                .contains("persist-credentials: false")
+                .doesNotContain("Pin each step");
     }
 
     @Test
     void refusesACheckoutWithPersistCredentialsTrue() throws IOException {
-        workflow("      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n        with:\n"
-                + "          persist-credentials: true\n");
+        workflow(
+                "      - uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n        with:\n"
+                        + "          persist-credentials: true\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("workflows/ci.yml:1: step at line 1 checks out without"
-                + " 'persist-credentials: false'");
+        assertThat(stderr())
+                .contains(
+                        "workflows/ci.yml:1: step at line 1 checks out without"
+                                + " 'persist-credentials: false'");
     }
 
     @Test
     void acceptsACheckoutWithPersistCredentialsFalseBesideItsOtherOptions() throws IOException {
-        workflow("permissions: {}\njobs:\n  build:\n    steps:\n      - name: Check out\n"
-                + "        uses: actions/checkout@" + COMMIT + " # v7.0.1\n        with:\n          fetch-depth: 0\n"
-                + "          persist-credentials: 'false' # no token for later steps\n"
-                + "          path: porelo\n      - run: ./mvnw verify\n");
+        workflow(
+                "permissions: {}\njobs:\n  build:\n    steps:\n      - name: Check out\n"
+                        + "        uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n        with:\n          fetch-depth: 0\n"
+                        + "          persist-credentials: 'false' # no token for later steps\n"
+                        + "          path: porelo\n      - run: ./mvnw verify\n");
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
     }
 
-    private static final String STEP = "    steps:\n      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n"
-            + "        with:\n          persist-credentials: false\n";
+    private static final String STEP =
+            "    steps:\n      - uses: actions/checkout@"
+                    + COMMIT
+                    + " # v7.0.1\n"
+                    + "        with:\n          persist-credentials: false\n";
 
     private void named(String file, String text) throws IOException {
         workflow("");
@@ -328,23 +399,33 @@ class CheckActionsTest {
         named("build.yml", "on: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n" + STEP);
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("workflows/build.yml").contains("no 'permissions:' at its top");
+        assertThat(stderr())
+                .contains("workflows/build.yml")
+                .contains("no 'permissions:' at its top");
     }
 
     @Test
     void refusesAWriteAtTheTopByName() throws IOException {
-        named("build.yml", "on: push\npermissions:\n  contents: write\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
-                + STEP);
+        named(
+                "build.yml",
+                "on: push\npermissions:\n  contents: write\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+                        + STEP);
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("workflows/build.yml").contains("'contents: write' at its top")
-                .contains("only the jobs check-actions' list names may write").doesNotContain("Pin each step");
+        assertThat(stderr())
+                .contains("workflows/build.yml")
+                .contains("'contents: write' at its top")
+                .contains("only the jobs check-actions' list names may write")
+                .doesNotContain("Pin each step");
     }
 
     @Test
     void refusesWriteAllWherever() throws IOException {
-        named("build.yml", "on: push\npermissions: read-all\njobs:\n  build:\n    permissions: write-all\n"
-                + "    runs-on: ubuntu-latest\n" + STEP);
+        named(
+                "build.yml",
+                "on: push\npermissions: read-all\njobs:\n  build:\n    permissions: write-all\n"
+                        + "    runs-on: ubuntu-latest\n"
+                        + STEP);
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("job 'build'").contains("write-all");
@@ -352,30 +433,46 @@ class CheckActionsTest {
 
     @Test
     void refusesAWriteInAJobTheListDoesNotName() throws IOException {
-        named("build.yml", "on: push\npermissions:\n  contents: read\njobs:\n  test:\n    permissions:\n"
-                + "      id-token: write\n      contents: read\n    runs-on: ubuntu-latest\n" + STEP);
+        named(
+                "build.yml",
+                "on: push\npermissions:\n  contents: read\njobs:\n  test:\n    permissions:\n"
+                        + "      id-token: write\n      contents: read\n    runs-on: ubuntu-latest\n"
+                        + STEP);
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("workflows/build.yml").contains("job 'test'").contains("'id-token: write'")
+        assertThat(stderr())
+                .contains("workflows/build.yml")
+                .contains("job 'test'")
+                .contains("'id-token: write'")
                 .contains("allows no write there");
     }
 
     @Test
     void acceptsTheWritesTheListNamesInTheirJobs() throws IOException {
-        named("delete-runs.yml", "on: workflow_dispatch\npermissions: {}\njobs:\n  delete:\n    permissions:\n"
-                + "      actions: write\n    runs-on: ubuntu-latest\n" + STEP);
-        Files.writeString(directory.resolve("workflows/update.yml"), "on: workflow_dispatch\npermissions:\n"
-                + "  contents: read\njobs:\n  update:\n    permissions:\n      contents: write\n"
-                + "      pull-requests: write\n    runs-on: ubuntu-latest\n" + STEP);
+        named(
+                "delete-runs.yml",
+                "on: workflow_dispatch\npermissions: {}\njobs:\n  delete:\n    permissions:\n"
+                        + "      actions: write\n    runs-on: ubuntu-latest\n"
+                        + STEP);
+        Files.writeString(
+                directory.resolve("workflows/update.yml"),
+                "on: workflow_dispatch\npermissions:\n"
+                        + "  contents: read\njobs:\n  update:\n    permissions:\n      contents: write\n"
+                        + "      pull-requests: write\n    runs-on: ubuntu-latest\n"
+                        + STEP);
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
     }
 
     @Test
     void acceptsTheAttestationInTheBuildsWindowsJobOnly() throws IOException {
-        named("build.yml", "on: push\npermissions:\n  contents: read\njobs:\n  windows:\n    permissions:\n"
-                + "      contents: read\n      id-token: write\n      attestations: write\n    runs-on: windows-latest\n"
-                + STEP + "  test:\n    permissions:\n      id-token: write\n    runs-on: windows-latest\n" + STEP);
+        named(
+                "build.yml",
+                "on: push\npermissions:\n  contents: read\njobs:\n  windows:\n    permissions:\n"
+                        + "      contents: read\n      id-token: write\n      attestations: write\n    runs-on: windows-latest\n"
+                        + STEP
+                        + "  test:\n    permissions:\n      id-token: write\n    runs-on: windows-latest\n"
+                        + STEP);
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("job 'test'").doesNotContain("job 'windows'");
@@ -383,8 +480,11 @@ class CheckActionsTest {
 
     @Test
     void refusesAWriteTheListNamesForAnotherPermission() throws IOException {
-        named("delete-runs.yml", "on: workflow_dispatch\npermissions: {}\njobs:\n  delete:\n    permissions:\n"
-                + "      actions: write\n      contents: write\n    runs-on: ubuntu-latest\n" + STEP);
+        named(
+                "delete-runs.yml",
+                "on: workflow_dispatch\npermissions: {}\njobs:\n  delete:\n    permissions:\n"
+                        + "      actions: write\n      contents: write\n    runs-on: ubuntu-latest\n"
+                        + STEP);
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("'contents: write'").contains("allows only actions there");
@@ -392,7 +492,8 @@ class CheckActionsTest {
 
     private void workflow(String text) throws IOException {
         if (!Files.exists(directory.resolve("dependabot.yml"))) {
-            Files.writeString(directory.resolve("dependabot.yml"),
+            Files.writeString(
+                    directory.resolve("dependabot.yml"),
                     "updates:\n  - package-ecosystem: github-actions\n    directories: [\"/\", \"/.github/actions/*\"]\n"
                             + "    cooldown:\n      default-days: 3\n    groups:\n      actions:\n        patterns: [\"*\"]\n");
         }
@@ -401,8 +502,10 @@ class CheckActionsTest {
     }
 
     private int check(Path under) {
-        return new CheckActions(new PrintStream(out, true, StandardCharsets.UTF_8),
-                new PrintStream(err, true, StandardCharsets.UTF_8)).check(under);
+        return new CheckActions(
+                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                        new PrintStream(err, true, StandardCharsets.UTF_8))
+                .check(under);
     }
 
     private String stdout() {

@@ -10,17 +10,17 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Building the images a test leg boots from.
- * <p>
- * <strong>Why this exists at all.</strong> The images it replaces were made by hand and the recipe
- * was written down nowhere - the code that used them said "build one with the snapshot
+ *
+ * <p><strong>Why this exists at all.</strong> The images it replaces were made by hand and the
+ * recipe was written down nowhere - the code that used them said "build one with the snapshot
  * provisioner" and no such thing was in the repository. An image nobody can rebuild is one nobody
  * can change, and it quietly decides things: the first pair were taken on a 320 GB machine to hold
  * 1.6 GB of content, and a snapshot only restores onto a disk at least as big as the one it came
  * from, so every leg had to rent the one server type big enough - at 0.1114 EUR/h against 0.0136
  * for one that does the work in about the same money.
- * <p>
- * <strong>What is in one, and why.</strong> Only what a leg cannot install for itself in less time
- * than booting costs: the JDK it builds with, the C toolchain that JDK links against, the
+ *
+ * <p><strong>What is in one, and why.</strong> Only what a leg cannot install for itself in less
+ * time than booting costs: the JDK it builds with, the C toolchain that JDK links against, the
  * container runtime and the pieces rootless podman needs, an unprivileged {@code build} user that
  * lingers so a user systemd session survives, and the two base images every task starts from.
  * Porelo itself is deliberately absent - building it is what a leg is for.
@@ -29,28 +29,29 @@ public final class Snapshots {
 
     /**
      * Where a snapshot is built, cheapest adequate first.
-     * <p>
-     * <strong>Small, because the disk it is taken on becomes the image's floor</strong> - a
+     *
+     * <p><strong>Small, because the disk it is taken on becomes the image's floor</strong> - a
      * snapshot only restores onto a disk at least as big as the one it came from, and a 320 GB
      * floor is what forced every leg onto the one server type big enough.
-     * <p>
-     * <strong>But big enough to build.</strong> This list was chosen when preparing an image
-     * meant installing packages; it now compiles six native images, and native-image peaked at
-     * 2.32 GB resident on a machine with room. {@code cpx12} has one core and 2 GB, is usually
-     * the only one of these on offer, and was picked by the availability fallback the first time
-     * the two facts met - which would have thrashed for an hour and then failed. It is not here.
-     * <p>
-     * The consequence of the order is worth knowing: the image's floor is whatever it happened to
-     * be built on. A 40 GB machine gives an image that boots anywhere; an 80 GB one gives an image
-     * that needs 80 GB. Both boot the type a leg rents, so this is a preference, not a
+     *
+     * <p><strong>But big enough to build.</strong> This list was chosen when preparing an image
+     * meant installing packages; it now compiles six native images, and native-image peaked at 2.32
+     * GB resident on a machine with room. {@code cpx12} has one core and 2 GB, is usually the only
+     * one of these on offer, and was picked by the availability fallback the first time the two
+     * facts met - which would have thrashed for an hour and then failed. It is not here.
+     *
+     * <p>The consequence of the order is worth knowing: the image's floor is whatever it happened
+     * to be built on. A 40 GB machine gives an image that boots anywhere; an 80 GB one gives an
+     * image that needs 80 GB. Both boot the type a leg rents, so this is a preference, not a
      * requirement.
      */
     public static final List<String> BUILD_TYPES = List.of("cx23", "cpx22", "cx33");
 
     /** Which stock image each operating system starts from. */
-    private static final Map<String, String> STOCK = Map.of(
-            "ubuntu", "ubuntu-26.04",
-            "fedora", "fedora-44");
+    private static final Map<String, String> STOCK =
+            Map.of(
+                    "ubuntu", "ubuntu-26.04",
+                    "fedora", "fedora-44");
 
     /** The unprivileged user a leg connects as. */
     private static final String USER = "build";
@@ -59,32 +60,35 @@ public final class Snapshots {
     private static final String GRAALVM_HOME = "/opt/graalvm";
 
     /**
-     * How the product is built once to prove an image can: the tree's own {@code ci/leg-build.sh}, which knows its
-     * module layout, so a regrouping there needs no release here. A tree from before the script gets the module list
-     * it had, with the app where that tree keeps it. Shell, run from the checkout with the JDK on the PATH; no single
-     * quote, since it is passed inside one.
+     * How the product is built once to prove an image can: the tree's own {@code ci/leg-build.sh},
+     * which knows its module layout, so a regrouping there needs no release here. A tree from
+     * before the script gets the module list it had, with the app where that tree keeps it. Shell,
+     * run from the checkout with the JDK on the PATH; no single quote, since it is passed inside
+     * one.
      */
-    static final String TREE_BUILD = "if [ -f ci/leg-build.sh ]; then sh ci/leg-build.sh; "
-            // porelo's settings.xml, where the build tooling's snapshots come from.
-            + "else ./mvnw -B -s settings.xml -Pnative -DskipTests package "
-            + "-pl $(test -d apps/app && echo apps/app || echo app),daemon,hooks,agents/stub"
-            + "$(test -d builds/stub && echo ,builds/stub) -am; fi";
+    static final String TREE_BUILD =
+            "if [ -f ci/leg-build.sh ]; then sh ci/leg-build.sh; "
+                    // porelo's settings.xml, where the build tooling's snapshots come from.
+                    + "else ./mvnw -B -s settings.xml -Pnative -DskipTests package "
+                    + "-pl $(test -d apps/app && echo apps/app || echo app),daemon,hooks,agents/stub"
+                    + "$(test -d builds/stub && echo ,builds/stub) -am; fi";
 
     /**
-     * What a snapshot is made of, as the pom pins it: the JDK a leg builds with and the base images every
-     * task starts from.
-     * <p>
-     * <strong>The JDK is not on the PATH, deliberately.</strong> The remote build names it -
-     * {@code JAVA_HOME=/opt/graalvm} - so a machine where somebody installed a different java does not
-     * quietly build with that one instead. Left out of the first rebuild of these snapshots and found the
-     * hard way: the build died on "The JAVA_HOME environment variable is not defined correctly", because an
-     * inventory that asked dpkg what was installed never thought to look in {@code /opt}.
-     * <p>
-     * <strong>Everything here is verified.</strong> The JDK by its published digest - the agent CLI is
-     * checked by SHA-256, npm by lockfile integrity, the musl toolchain by digest, and a JDK trusted because
-     * the host answered was the one exception nobody decided to make. The base images by digest too: a tag is
-     * rebuilt in place, so two snapshots built a week apart would otherwise hold different bytes under one
-     * name.
+     * What a snapshot is made of, as the pom pins it: the JDK a leg builds with and the base images
+     * every task starts from.
+     *
+     * <p><strong>The JDK is not on the PATH, deliberately.</strong> The remote build names it -
+     * {@code JAVA_HOME=/opt/graalvm} - so a machine where somebody installed a different java does
+     * not quietly build with that one instead. Left out of the first rebuild of these snapshots and
+     * found the hard way: the build died on "The JAVA_HOME environment variable is not defined
+     * correctly", because an inventory that asked dpkg what was installed never thought to look in
+     * {@code /opt}.
+     *
+     * <p><strong>Everything here is verified.</strong> The JDK by its published digest - the agent
+     * CLI is checked by SHA-256, npm by lockfile integrity, the musl toolchain by digest, and a JDK
+     * trusted because the host answered was the one exception nobody decided to make. The base
+     * images by digest too: a tag is rebuilt in place, so two snapshots built a week apart would
+     * otherwise hold different bytes under one name.
      *
      * @param graalvmVersion the JDK's version, as the release tooling moves it
      * @param graalvmUrl where the JDK archive is downloaded
@@ -92,7 +96,11 @@ public final class Snapshots {
      * @param images the base images, pulled once here rather than per run
      * @param registry the image the machine's pull-through cache of {@code docker.io} runs
      */
-    record Contents(String graalvmVersion, String graalvmUrl, String graalvmSha256, List<Image> images,
+    record Contents(
+            String graalvmVersion,
+            String graalvmUrl,
+            String graalvmSha256,
+            List<Image> images,
             Image registry) {
 
         /** The resource the pom's pins are filtered into. */
@@ -102,8 +110,8 @@ public final class Snapshots {
          * Reads what the pom pins.
          *
          * @return the contents
-         * @throws IllegalStateException when the resource is missing, unfiltered or pins something malformed -
-         *     a build fault, never a machine's
+         * @throws IllegalStateException when the resource is missing, unfiltered or pins something
+         *     malformed - a build fault, never a machine's
          */
         static Contents pinned() {
             final java.util.Properties read = new java.util.Properties();
@@ -132,24 +140,35 @@ public final class Snapshots {
             }
             final String sha256 = value(values, "graalvm.sha256");
             if (!sha256.matches("[0-9a-f]{64}")) {
-                throw new IllegalStateException("graalvm.sha256 is not a SHA-256 digest: " + sha256);
+                throw new IllegalStateException(
+                        "graalvm.sha256 is not a SHA-256 digest: " + sha256);
             }
             final List<Image> images = new java.util.ArrayList<>();
             for (final String image : List.of("ubuntu", "alpine")) {
-                images.add(new Image(value(values, "image." + image), value(values, "image." + image + ".digest")));
+                images.add(
+                        new Image(
+                                value(values, "image." + image),
+                                value(values, "image." + image + ".digest")));
             }
-            return new Contents(value(values, "graalvm.version"), url, sha256, List.copyOf(images),
-                    new Image(value(values, "image.registry"), value(values, "image.registry.digest")));
+            return new Contents(
+                    value(values, "graalvm.version"),
+                    url,
+                    sha256,
+                    List.copyOf(images),
+                    new Image(
+                            value(values, "image.registry"),
+                            value(values, "image.registry.digest")));
         }
 
-        private static String value(java.util.function.Function<String, @Nullable String> values, String name) {
+        private static String value(
+                java.util.function.Function<String, @Nullable String> values, String name) {
             final String value = values.apply(name);
             if (value == null || value.isBlank() || value.contains("${")) {
-                throw new IllegalStateException(RESOURCE + " pins no " + name + " - was it filtered? found: " + value);
+                throw new IllegalStateException(
+                        RESOURCE + " pins no " + name + " - was it filtered? found: " + value);
             }
             return value.strip();
         }
-
     }
 
     /**
@@ -168,10 +187,12 @@ public final class Snapshots {
          */
         Image {
             if (!digest.matches("sha256:[0-9a-f]{64}")) {
-                throw new IllegalStateException(name + " is pinned to '" + digest + "', which is not an image digest");
+                throw new IllegalStateException(
+                        name + " is pinned to '" + digest + "', which is not an image digest");
             }
             if (repository(name).equals(name)) {
-                throw new IllegalStateException(name + " names no tag, and a task asks for a tagged image");
+                throw new IllegalStateException(
+                        name + " names no tag, and a task asks for a tagged image");
             }
         }
 
@@ -188,7 +209,6 @@ public final class Snapshots {
             final int colon = name.lastIndexOf(':');
             return colon > name.lastIndexOf('/') ? name.substring(0, colon) : name;
         }
-
     }
 
     private Snapshots() {
@@ -205,22 +225,22 @@ public final class Snapshots {
      * @return The new image's id.
      * @throws IOException If it cannot be built.
      */
-    public static long build(Hetzner hetzner, String os, List<String> types,
-            Credential credential) throws IOException {
+    public static long build(Hetzner hetzner, String os, List<String> types, Credential credential)
+            throws IOException {
         return build(hetzner, os, types, credential, null, null);
     }
 
     /**
      * Builds one snapshot, proving it by building the product on it.
-     * <p>
-     * <strong>The image is verified by the thing it exists for.</strong> Two rebuilds of these
-     * snapshots shipped broken because they were checked by booting them and running a
-     * hello-world native image - which links nothing statically and so never touched the musl
-     * toolchain the hooks need, and needs no JDK on the machine at all. A snapshot that has
-     * compiled Porelo once cannot be missing what compiling Porelo needs.
-     * <p>
-     * It also leaves {@code ~/.m2} warm, which is the difference between a leg that downloads its
-     * dependencies and one that does not - and a leg's wall-clock is charged to CI minutes.
+     *
+     * <p><strong>The image is verified by the thing it exists for.</strong> Two rebuilds of these
+     * snapshots shipped broken because they were checked by booting them and running a hello-world
+     * native image - which links nothing statically and so never touched the musl toolchain the
+     * hooks need, and needs no JDK on the machine at all. A snapshot that has compiled Porelo once
+     * cannot be missing what compiling Porelo needs.
+     *
+     * <p>It also leaves {@code ~/.m2} warm, which is the difference between a leg that downloads
+     * its dependencies and one that does not - and a leg's wall-clock is charged to CI minutes.
      *
      * @param hetzner Where to build it.
      * @param os Which operating system.
@@ -231,19 +251,32 @@ public final class Snapshots {
      * @return The new image's id.
      * @throws IOException If it cannot be built.
      */
-    public static long build(Hetzner hetzner, String os, List<String> types,
-            Credential credential, java.nio.file.@Nullable Path archive, @Nullable String musl) throws IOException {
+    public static long build(
+            Hetzner hetzner,
+            String os,
+            List<String> types,
+            Credential credential,
+            java.nio.file.@Nullable Path archive,
+            @Nullable String musl)
+            throws IOException {
         final String stock = STOCK.get(os);
         if (stock == null) {
             throw new IOException("No stock image for '" + os + "'. Known: " + STOCK.keySet());
         }
-        final String stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-                .format(ZonedDateTime.now(ZoneOffset.UTC));
+        final String stamp =
+                DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+                        .format(ZonedDateTime.now(ZoneOffset.UTC));
         final String description = "porelo-ci " + stock + " " + stamp;
 
         // root, because this is the machine being prepared rather than one being used.
-        final Spec spec = new Spec("porelo-snapshot-" + os + "-" + stamp, os, types, "root",
-                credential, false);
+        final Spec spec =
+                new Spec(
+                        "porelo-snapshot-" + os + "-" + stamp,
+                        os,
+                        types,
+                        "root",
+                        credential,
+                        false);
         try (Lease lease = hetzner.acquireFromStock(spec, stock)) {
             lease.awaitSsh();
             System.out.println("preparing " + os);
@@ -261,32 +294,57 @@ public final class Snapshots {
                 // Hetzner's Fedora image ships SELinux permissive. Everything above was installed
                 // in that state, so the relabel is not optional - and a relabel needs a reboot.
                 System.out.println("turning SELinux on, and relabelling");
-                run(lease, "sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config "
-                        + "&& touch /.autorelabel", null);
+                run(
+                        lease,
+                        "sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config "
+                                + "&& touch /.autorelabel",
+                        null);
                 lease.restart();
                 run(lease, "getenforce | grep -qx Enforcing", null);
             }
             if (archive != null) {
                 System.out.println("building the product once, to prove this image can");
                 lease.ssh().upload(archive, "/tmp/tree.tar");
-                run(lease, "su - " + USER + " -c 'rm -rf ~/porelo && mkdir -p ~/porelo "
-                        + "&& tar -x -C ~/porelo -f /tmp/tree.tar'", null);
-                run(lease, "su - " + USER + " -c 'cd ~/porelo && "
-                        + "export JAVA_HOME=" + GRAALVM_HOME + " GRAALVM_HOME=" + GRAALVM_HOME
-                        + " PATH=" + GRAALVM_HOME + "/bin:$PATH && " + TREE_BUILD + "'", null);
+                run(
+                        lease,
+                        "su - "
+                                + USER
+                                + " -c 'rm -rf ~/porelo && mkdir -p ~/porelo "
+                                + "&& tar -x -C ~/porelo -f /tmp/tree.tar'",
+                        null);
+                run(
+                        lease,
+                        "su - "
+                                + USER
+                                + " -c 'cd ~/porelo && "
+                                + "export JAVA_HOME="
+                                + GRAALVM_HOME
+                                + " GRAALVM_HOME="
+                                + GRAALVM_HOME
+                                + " PATH="
+                                + GRAALVM_HOME
+                                + "/bin:$PATH && "
+                                + TREE_BUILD
+                                + "'",
+                        null);
                 if ("fedora".equals(os)) {
                     // Compiled here rather than shipped compiled - a .pp is tied to the policy
-                    // version of the machine that built it - and while the checkout is still
-                    // there. Without porelo_socket a task is denied connectto on its own vault
-                    // socket, the denial is dontaudit'ed, and it presents as an agent that cannot
-                    // authenticate with nothing in the audit log.
+                    // version of the machine that built it - and while the checkout is still there.
+                    // Without porelo_socket a task is denied connectto on its own vault socket, the
+                    // denial is dontaudit'ed, and it presents as an agent that cannot authenticate
+                    // with nothing in the audit log.
                     System.out.println("loading Porelo's SELinux policy");
-                    run(lease, "cd /home/" + USER + "/porelo "
-                            + "&& bash selinux/install-selinux-policy.sh", null);
+                    run(
+                            lease,
+                            "cd /home/"
+                                    + USER
+                                    + "/porelo "
+                                    + "&& bash selinux/install-selinux-policy.sh",
+                            null);
                     run(lease, "semodule -l | grep -qx porelo_socket", null);
                 }
-                // The tree goes, the dependencies stay: what a leg wants is a warm repository,
-                // not somebody else's checkout.
+                // The tree goes, the dependencies stay: what a leg wants is a warm repository, not
+                // somebody else's checkout.
                 run(lease, "su - " + USER + " -c 'rm -rf ~/porelo' && rm -f /tmp/tree.tar", null);
             }
             // Stopped first: an image of a running machine is a picture of a half-written disk.
@@ -306,21 +364,26 @@ public final class Snapshots {
      * @param stdin What to feed it, or {@code null}.
      * @throws IOException If the step failed.
      */
-    private static void run(Lease lease, String command, @Nullable String stdin) throws IOException {
+    private static void run(Lease lease, String command, @Nullable String stdin)
+            throws IOException {
         final Ssh.Output out = lease.ssh().run(command, stdin);
         if (out.status() != 0) {
             throw new IOException("preparing the image failed at: " + command + "\n" + out.all());
         }
     }
 
-    /** The musl installer, beside the pins on the classpath rather than read from a porelo checkout. */
+    /**
+     * The musl installer, beside the pins on the classpath rather than read from a porelo checkout.
+     */
     static final String MUSL_INSTALLER = "install-musl.sh";
 
     /**
-     * Returns the script that installs the musl toolchain and a musl-built zlib, both pinned by digest.
+     * Returns the script that installs the musl toolchain and a musl-built zlib, both pinned by
+     * digest.
      *
      * @return The script.
-     * @throws IllegalStateException When it is not on the classpath - a build fault, never a machine's.
+     * @throws IllegalStateException When it is not on the classpath - a build fault, never a
+     *     machine's.
      */
     public static String muslInstaller() {
         try (java.io.InputStream in = Snapshots.class.getResourceAsStream(MUSL_INSTALLER)) {
@@ -351,8 +414,7 @@ public final class Snapshots {
      * @return A script.
      */
     static String recipe(String os, Contents contents) {
-        return TEMPLATE
-                .replace("@PACKAGES@", packages(os))
+        return TEMPLATE.replace("@PACKAGES@", packages(os))
                 .replace("@DOWNLOAD@", contents.graalvmUrl())
                 .replace("@GRAALVM@", GRAALVM_HOME)
                 .replace("@SHA256@", contents.graalvmSha256())
@@ -364,8 +426,8 @@ public final class Snapshots {
 
     /**
      * Returns what to install from the distribution's own packages.
-     * <p>
-     * The C toolchain is native-image's rather than podman's: it links what it generates, and
+     *
+     * <p>The C toolchain is native-image's rather than podman's: it links what it generates, and
      * GraalVM's prerequisites on Linux are a compiler, the glibc headers and zlib.
      *
      * @param os Which operating system.
@@ -377,7 +439,8 @@ public final class Snapshots {
                     + "shadow-utils slirp4netns passt fuse-overlayfs crun dnsmasq "
                     + "gcc glibc-devel zlib-devel libstdc++-static unzip && dnf clean all";
         }
-        // unzip for the Maven wrapper: without it, mvnw fetches the .tar.gz and refuses it against the .zip's digest.
+        // unzip for the Maven wrapper: without it, mvnw fetches the .tar.gz and refuses it against
+        // the .zip's digest.
         return "export DEBIAN_FRONTEND=noninteractive && apt-get update -qq && "
                 + "apt-get install -y -qq podman nftables git curl gnupg ca-certificates "
                 + "uidmap slirp4netns passt fuse-overlayfs crun dnsmasq-base "
@@ -385,34 +448,44 @@ public final class Snapshots {
                 + "&& apt-get clean && rm -rf /var/lib/apt/lists/*";
     }
 
-    // By digest, then tagged by the name a task asks for: pulled by digest alone it has no name, and a
-    // task naming the tag would pull it again - whatever the tag names that day.
+    // By digest, then tagged by the name a task asks for: pulled by digest alone it has no name,
+    // and a task naming the tag would pull it again - whatever the tag names that day.
     private static String pulls(List<Image> images) {
         final StringBuilder out = new StringBuilder();
         for (final Image image : images) {
-            out.append("su - ").append(USER).append(" -c 'podman pull -q ").append(image.pinned())
-                    .append(" && podman tag ").append(image.pinned()).append(' ').append(image.name())
+            out.append("su - ")
+                    .append(USER)
+                    .append(" -c 'podman pull -q ")
+                    .append(image.pinned())
+                    .append(" && podman tag ")
+                    .append(image.pinned())
+                    .append(' ')
+                    .append(image.name())
                     .append("'\n");
         }
         return out.toString().strip();
     }
 
-    /** Where the machine's image cache listens: loopback only, so it serves this machine's accounts and no one else. */
+    /**
+     * Where the machine's image cache listens: loopback only, so it serves this machine's accounts
+     * and no one else.
+     */
     static final String MIRROR = "127.0.0.1:5000";
 
     /**
      * Installs the machine's image cache: a registry as a pull-through mirror of {@code docker.io}.
-     * <p>
-     * <strong>Why a leg needs one.</strong> Every account keeps its own image store, so several accounts on one
-     * machine would each pull every base image - several times the time, and several times against Docker
-     * Hub's limit for anonymous pulls from one address. A mirror named in {@code registries.conf.d} serves all
-     * of them, rootless included, and keeps the registry's own digests, so a pin by digest still matches -
-     * unlike an image loaded from an archive. Measured on Fedora 44: a second account's pull took 1.3 s against
-     * 8.6 s from Docker Hub. A store shared read-only from root was measured too, and cannot be run from by a
-     * rootless account.
-     * <p>
-     * A system service, so it is up after the leg's boot; if it is ever not, podman falls back to Docker Hub.
-     * The snapshot's own pulls go through it, which is what ships it filled.
+     *
+     * <p><strong>Why a leg needs one.</strong> Every account keeps its own image store, so several
+     * accounts on one machine would each pull every base image - several times the time, and
+     * several times against Docker Hub's limit for anonymous pulls from one address. A mirror named
+     * in {@code registries.conf.d} serves all of them, rootless included, and keeps the registry's
+     * own digests, so a pin by digest still matches - unlike an image loaded from an archive.
+     * Measured on Fedora 44: a second account's pull took 1.3 s against 8.6 s from Docker Hub. A
+     * store shared read-only from root was measured too, and cannot be run from by a rootless
+     * account.
+     *
+     * <p>A system service, so it is up after the leg's boot; if it is ever not, podman falls back
+     * to Docker Hub. The snapshot's own pulls go through it, which is what ships it filled.
      *
      * @param registry The registry image, by digest.
      * @return A script fragment.
@@ -445,22 +518,31 @@ public final class Snapshots {
                 mkdir -p /etc/containers/registries.conf.d
                 printf '%s\\n' '[[registry]]' 'location = "docker.io"' '' '[[registry.mirror]]' \
                     'location = "@MIRROR_ADDRESS@"' 'insecure = true' > /etc/containers/registries.conf.d/99-porelo-mirror.conf"""
-                .replace("@MIRROR_ADDRESS@", MIRROR).replace("@REGISTRY@", registry.pinned());
+                .replace("@MIRROR_ADDRESS@", MIRROR)
+                .replace("@REGISTRY@", registry.pinned());
     }
 
-    // Checked, not assumed: a snapshot whose pulls went round the cache would ship it empty and say nothing.
+    // Checked, not assumed: a snapshot whose pulls went round the cache would ship it empty and say
+    // nothing.
     private static String cached(List<Image> images) {
         final StringBuilder out = new StringBuilder();
         for (final Image image : images) {
-            final String repository = image.name().replaceFirst("^docker\\.io/", "").replaceFirst(":[^/:]*$", "");
-            out.append("curl -sf --max-time 30 http://").append(MIRROR).append("/v2/_catalog | grep -q '\"").append(repository)
-                    .append("\"' || { echo 'the image cache holds no ").append(repository).append("'; exit 1; }\n");
+            final String repository =
+                    image.name().replaceFirst("^docker\\.io/", "").replaceFirst(":[^/:]*$", "");
+            out.append("curl -sf --max-time 30 http://")
+                    .append(MIRROR)
+                    .append("/v2/_catalog | grep -q '\"")
+                    .append(repository)
+                    .append("\"' || { echo 'the image cache holds no ")
+                    .append(repository)
+                    .append("'; exit 1; }\n");
         }
         return out.toString().strip();
     }
 
     /** What a fresh machine is turned into. Placeholders rather than positional arguments. */
-    private static final String TEMPLATE = """
+    private static final String TEMPLATE =
+            """
             set -eu
             @PACKAGES@
             curl -fsSL @DOWNLOAD@ -o /tmp/graalvm.tar.gz

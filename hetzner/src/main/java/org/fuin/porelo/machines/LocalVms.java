@@ -12,14 +12,14 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Virtual machines already on this host, driven with {@code virsh}.
- * <p>
- * <strong>The same suites, for nothing, in seconds.</strong> Measured on 2026-09-10: this
- * repository's suite is 91 scenarios in 8.7s against a local machine, and an agent's is 13 in
- * 2.8s - against roughly a minute per leg on a rented server, plus the minutes spent creating it,
- * times two legs, times four repositories. A run that finds nothing has cost nothing, which is
- * what makes it worth doing before every push rather than after a red build.
- * <p>
- * <strong>Releasing leaves the machine running.</strong> That is the opposite of {@link Hetzner}
+ *
+ * <p><strong>The same suites, for nothing, in seconds.</strong> Measured on 2026-09-10: this
+ * repository's suite is 91 scenarios in 8.7s against a local machine, and an agent's is 13 in 2.8s
+ * - against roughly a minute per leg on a rented server, plus the minutes spent creating it, times
+ * two legs, times four repositories. A run that finds nothing has cost nothing, which is what makes
+ * it worth doing before every push rather than after a red build.
+ *
+ * <p><strong>Releasing leaves the machine running.</strong> That is the opposite of {@link Hetzner}
  * and for the opposite reason: nothing is billing, and booting again costs forty seconds that buy
  * nothing. Shut one down with {@code virsh shutdown} when the host needs the memory back.
  */
@@ -32,13 +32,13 @@ public final class LocalVms implements Machines {
     private static final Duration ADDRESS_INTERVAL = Duration.ofSeconds(3);
 
     /** An IPv4 line of {@code virsh domifaddr}, whose columns are padded rather than delimited. */
-    private static final Pattern IPV4 = Pattern.compile(
-            "\\bipv4\\s+((?:\\d{1,3}\\.){3}\\d{1,3})(?:/\\d+)?");
+    private static final Pattern IPV4 =
+            Pattern.compile("\\bipv4\\s+((?:\\d{1,3}\\.){3}\\d{1,3})(?:/\\d+)?");
 
     /**
      * What {@code virsh domstate} says about a machine that is up.
-     * <p>
-     * <strong>In the C locale, which is why one is forced.</strong> virsh translates its output:
+     *
+     * <p><strong>In the C locale, which is why one is forced.</strong> virsh translates its output:
      * on a German host {@code domstate} answers {@code laufend}, the check for "running" never
      * matches, and the next thing this does is start a machine that is already started - which
      * fails with {@code Domain ist bereits aktiv} and reads like a broken hypervisor.
@@ -78,8 +78,12 @@ public final class LocalVms implements Machines {
     public Lease acquire(Spec spec) throws IOException {
         final String domain = domains.get(spec.os());
         if (domain == null) {
-            throw new IOException("No local machine for '" + spec.os() + "'. This host has: "
-                    + domains.keySet() + ". Name one of those, or add the domain to the map.");
+            throw new IOException(
+                    "No local machine for '"
+                            + spec.os()
+                            + "'. This host has: "
+                            + domains.keySet()
+                            + ". Name one of those, or add the domain to the map.");
         }
         if (!RUNNING.equals(virsh.run("domstate", domain).strip())) {
             System.out.println("starting " + domain);
@@ -87,9 +91,18 @@ public final class LocalVms implements Machines {
         }
         final String address = addressOf(domain);
         System.out.println("using    " + domain + " at " + address);
-        return new Lease(0, domain, address, spec,
-                () -> System.out.println("leaving  " + domain + " running; 'virsh shutdown "
-                        + domain + "' when the host needs the memory"));
+        return new Lease(
+                0,
+                domain,
+                address,
+                spec,
+                () ->
+                        System.out.println(
+                                "leaving  "
+                                        + domain
+                                        + " running; 'virsh shutdown "
+                                        + domain
+                                        + "' when the host needs the memory"));
     }
 
     /**
@@ -107,26 +120,29 @@ public final class LocalVms implements Machines {
                 return found;
             }
             if (Instant.now().isAfter(deadline)) {
-                throw new IOException(domain + " had no address after "
-                        + ADDRESS_PATIENCE.toMinutes() + " minutes. It may have no network, or "
-                        + "no guest agent to report one.");
+                throw new IOException(
+                        domain
+                                + " had no address after "
+                                + ADDRESS_PATIENCE.toMinutes()
+                                + " minutes. It may have no network, or "
+                                + "no guest agent to report one.");
             }
             try {
                 Thread.sleep(ADDRESS_INTERVAL.toMillis());
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted waiting for " + domain + " to get an address",
-                        ex);
+                throw new IOException(
+                        "interrupted waiting for " + domain + " to get an address", ex);
             }
         }
     }
 
     /**
      * Reads the address out of what {@code virsh domifaddr} printed.
-     * <p>
-     * Its columns are padded rather than delimited and it prints a header, so this looks for the
-     * shape of the line instead of counting fields - and takes the first IPv4, since a machine
-     * with two interfaces lists both and the first is the one libvirt's own network gave it.
+     *
+     * <p>Its columns are padded rather than delimited and it prints a header, so this looks for the
+     * shape of the line instead of counting fields - and takes the first IPv4, since a machine with
+     * two interfaces lists both and the first is the one libvirt's own network gave it.
      *
      * @param output What virsh wrote.
      * @return The address, or {@code null} when there is none yet.
@@ -138,10 +154,10 @@ public final class LocalVms implements Machines {
 
     @Override
     public Lease acquireFromStock(Spec spec, String image) throws IOException {
-        // The name is ignored on purpose: a machine that is already here was installed once and
-        // is whatever it is. A leg that needs a particular starting point has to rent one.
-        System.out.println("(ignoring the stock image '" + image
-                + "': this machine is already installed)");
+        // The name is ignored on purpose: a machine that is already here was installed once and is
+        // whatever it is. A leg that needs a particular starting point has to rent one.
+        System.out.println(
+                "(ignoring the stock image '" + image + "': this machine is already installed)");
         return acquire(spec);
     }
 
@@ -177,8 +193,10 @@ public final class LocalVms implements Machines {
             builder.environment().put("LANG", "C");
             process = builder.start();
         } catch (IOException ex) {
-            throw new IOException("could not run virsh. Is libvirt installed, and is this user in"
-                    + " the libvirt group?", ex);
+            throw new IOException(
+                    "could not run virsh. Is libvirt installed, and is this user in"
+                            + " the libvirt group?",
+                    ex);
         }
         final String output = new String(process.getInputStream().readAllBytes());
         final int status;

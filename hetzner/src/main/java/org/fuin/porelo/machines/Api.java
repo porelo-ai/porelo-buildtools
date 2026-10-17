@@ -14,13 +14,13 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The Hetzner Cloud REST API, as much of it as this repository uses.
- * <p>
- * <strong>Seven endpoints, not a client library.</strong> What is needed here is creating a
+ *
+ * <p><strong>Seven endpoints, not a client library.</strong> What is needed here is creating a
  * server, waiting for it, deleting it, listing what was left behind, and finding an image, a
  * location and a key. Everything else the API offers is somebody else's problem.
- * <p>
- * <strong>Paging is not optional.</strong> The API returns 25 entries a page. A caller that reads
- * the first page and stops finds fewer leaked servers than exist and reports success - and a
+ *
+ * <p><strong>Paging is not optional.</strong> The API returns 25 entries a page. A caller that
+ * reads the first page and stops finds fewer leaked servers than exist and reports success - and a
  * server nobody deletes costs 81 EUR a month against 3 cents for the fifteen minutes it was meant
  * to live. That is why {@link #all} exists and why nothing here calls {@link #get} for a list.
  */
@@ -84,8 +84,8 @@ final class Api implements AutoCloseable {
         final String separator = path.contains("?") ? "&" : "?";
         long page = 1;
         while (page > 0) {
-            final Map<String, Object> body = get(path + separator + "page=" + page
-                    + "&per_page=50");
+            final Map<String, Object> body =
+                    get(path + separator + "page=" + page + "&per_page=50");
             found.addAll(Values.objects(body, field));
             page = Values.nextPage(body);
         }
@@ -115,17 +115,20 @@ final class Api implements AutoCloseable {
         return send("DELETE", path, null);
     }
 
-    private Map<String, Object> send(String method, String path, @Nullable String body) throws IOException {
+    private Map<String, Object> send(String method, String path, @Nullable String body)
+            throws IOException {
         for (int attempt = 1; ; attempt++) {
-            final HttpRequest.BodyPublisher content = body == null
-                    ? HttpRequest.BodyPublishers.noBody()
-                    : HttpRequest.BodyPublishers.ofString(body);
-            final HttpRequest request = HttpRequest.newBuilder(URI.create(base + path))
-                    .header("Authorization", "Bearer " + token)
-                    .header("Content-Type", "application/json")
-                    .timeout(TIMEOUT)
-                    .method(method, content)
-                    .build();
+            final HttpRequest.BodyPublisher content =
+                    body == null
+                            ? HttpRequest.BodyPublishers.noBody()
+                            : HttpRequest.BodyPublishers.ofString(body);
+            final HttpRequest request =
+                    HttpRequest.newBuilder(URI.create(base + path))
+                            .header("Authorization", "Bearer " + token)
+                            .header("Content-Type", "application/json")
+                            .timeout(TIMEOUT)
+                            .method(method, content)
+                            .build();
             final HttpResponse<String> response;
             try {
                 response = http.send(request, HttpResponse.BodyHandlers.ofString());
@@ -136,16 +139,15 @@ final class Api implements AutoCloseable {
             if (response.statusCode() == 429 && attempt < RATE_LIMIT_ATTEMPTS) {
                 // The API says when it will answer again. Guessing shorter only spends the
                 // remaining budget faster.
-                pause(Values.retryAfter(response.headers().firstValue("Retry-After")
-                        .orElse(null)));
+                pause(Values.retryAfter(response.headers().firstValue("Retry-After").orElse(null)));
                 continue;
             }
             return answered(method, path, response);
         }
     }
 
-    private static Map<String, Object> answered(String method, String path,
-            HttpResponse<String> response) throws IOException {
+    private static Map<String, Object> answered(
+            String method, String path, HttpResponse<String> response) throws IOException {
         final String body = response.body();
         if (response.statusCode() == 204 || body == null || body.isBlank()) {
             return Map.of();
@@ -154,12 +156,26 @@ final class Api implements AutoCloseable {
         try {
             parsed = Values.object(Json.parse(body));
         } catch (RuntimeException ex) {
-            throw new IOException(method + " " + path + " answered " + response.statusCode()
-                    + " with something that is not JSON: " + Values.brief(body), ex);
+            throw new IOException(
+                    method
+                            + " "
+                            + path
+                            + " answered "
+                            + response.statusCode()
+                            + " with something that is not JSON: "
+                            + Values.brief(body),
+                    ex);
         }
         if (response.statusCode() >= 400) {
-            throw new ApiException(Values.errorCode(parsed), method + " " + path + " answered "
-                    + response.statusCode() + ": " + Values.errorMessage(parsed));
+            throw new ApiException(
+                    Values.errorCode(parsed),
+                    method
+                            + " "
+                            + path
+                            + " answered "
+                            + response.statusCode()
+                            + ": "
+                            + Values.errorMessage(parsed));
         }
         return parsed;
     }

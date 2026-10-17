@@ -9,13 +9,14 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/**
- * Tests for {@link LocalVms}, without a hypervisor.
- */
+/** Tests for {@link LocalVms}, without a hypervisor. */
 class LocalVmsTest {
 
-    /** What virsh prints, in the layout it printed for a machine here, with a documentation address. */
-    private static final String DOMIFADDR = """
+    /**
+     * What virsh prints, in the layout it printed for a machine here, with a documentation address.
+     */
+    private static final String DOMIFADDR =
+            """
              Name       MAC address          Protocol     Address
             -------------------------------------------------------------------------------
              vnet3      52:54:00:1a:2b:3c    ipv4         192.0.2.10/24
@@ -31,57 +32,72 @@ class LocalVmsTest {
     @Test
     void hasNoAddressYetWhileTheMachineIsStillBooting() {
         // virsh prints the header and nothing under it, which is not an error and not an address.
-        assertThat(LocalVms.address("""
+        assertThat(
+                        LocalVms.address(
+                                """
              Name       MAC address          Protocol     Address
             -------------------------------------------------------------------------------
-            """)).isNull();
+            """))
+                .isNull();
         assertThat(LocalVms.address("")).isNull();
     }
 
     @Test
     void takesTheFirstAddressWhenAMachineHasTwoInterfaces() {
-        assertThat(LocalVms.address(DOMIFADDR
-                + " vnet4      52:54:00:9d:8e:7f    ipv4         10.0.0.5/24\n"))
+        assertThat(
+                        LocalVms.address(
+                                DOMIFADDR
+                                        + " vnet4      52:54:00:9d:8e:7f    ipv4         10.0.0.5/24\n"))
                 .isEqualTo("192.0.2.10");
     }
 
     @Test
     void ignoresAnIpv6OnlyInterface() {
-        assertThat(LocalVms.address("""
+        assertThat(
+                        LocalVms.address(
+                                """
              vnet3      52:54:00:1a:2b:3c    ipv6         fe80::1/64
-            """)).isNull();
+            """))
+                .isNull();
     }
 
     @Test
     void startsAMachineThatIsNotRunningAndLeavesOneThatIs() throws IOException {
         final List<String> asked = new ArrayList<>();
-        final LocalVms vms = new LocalVms(Map.of("ubuntu", "ubuntu26.04"), arguments -> {
-            asked.add(String.join(" ", arguments));
-            return switch (arguments[0]) {
-                case "domstate" -> asked.size() > 3 ? "running\n" : "shut off\n";
-                case "domifaddr" -> DOMIFADDR;
-                default -> "";
-            };
-        });
+        final LocalVms vms =
+                new LocalVms(
+                        Map.of("ubuntu", "ubuntu26.04"),
+                        arguments -> {
+                            asked.add(String.join(" ", arguments));
+                            return switch (arguments[0]) {
+                                case "domstate" -> asked.size() > 3 ? "running\n" : "shut off\n";
+                                case "domifaddr" -> DOMIFADDR;
+                                default -> "";
+                            };
+                        });
         try (Lease lease = vms.acquire(spec())) {
             assertThat(lease.address()).isEqualTo("192.0.2.10");
             assertThat(lease.name()).isEqualTo("ubuntu26.04");
         }
-        assertThat(asked).containsExactly("domstate ubuntu26.04", "start ubuntu26.04",
-                "domifaddr ubuntu26.04");
+        assertThat(asked)
+                .containsExactly(
+                        "domstate ubuntu26.04", "start ubuntu26.04", "domifaddr ubuntu26.04");
     }
 
     @Test
     void doesNotStartAMachineThatIsAlreadyUp() throws IOException {
         // The stub answers in English and so this passed while the real thing failed: virsh
-        // translates, and on a German host 'domstate' says 'laufend'. The check never matched,
-        // a running machine was started again, and it read like a broken hypervisor. The fix is
-        // in LocalVms - a forced C locale - and it is not something this test can see.
+        // translates, and on a German host 'domstate' says 'laufend'. The check never matched, a
+        // running machine was started again, and it read like a broken hypervisor. The fix is in
+        // LocalVms - a forced C locale - and it is not something this test can see.
         final List<String> asked = new ArrayList<>();
-        final LocalVms vms = new LocalVms(Map.of("ubuntu", "ubuntu26.04"), arguments -> {
-            asked.add(arguments[0]);
-            return "domstate".equals(arguments[0]) ? "running\n" : DOMIFADDR;
-        });
+        final LocalVms vms =
+                new LocalVms(
+                        Map.of("ubuntu", "ubuntu26.04"),
+                        arguments -> {
+                            asked.add(arguments[0]);
+                            return "domstate".equals(arguments[0]) ? "running\n" : DOMIFADDR;
+                        });
         try (Lease lease = vms.acquire(spec())) {
             assertThat(lease.address()).isNotBlank();
         }
@@ -90,10 +106,18 @@ class LocalVmsTest {
 
     @Test
     void saysWhichMachinesThisHostHasWhenAskedForOneItDoesNot() {
-        final LocalVms vms = new LocalVms(Map.of("ubuntu", "ubuntu26.04", "fedora", "fedora"),
-                arguments -> "");
-        assertThatThrownBy(() -> vms.acquire(
-                new Spec("x", "debian", Spec.DEFAULT_TYPES, "claude", Keys.generated(), false)))
+        final LocalVms vms =
+                new LocalVms(Map.of("ubuntu", "ubuntu26.04", "fedora", "fedora"), arguments -> "");
+        assertThatThrownBy(
+                        () ->
+                                vms.acquire(
+                                        new Spec(
+                                                "x",
+                                                "debian",
+                                                Spec.DEFAULT_TYPES,
+                                                "claude",
+                                                Keys.generated(),
+                                                false)))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("No local machine for 'debian'")
                 .hasMessageContaining("ubuntu");
@@ -104,10 +128,13 @@ class LocalVmsTest {
         // The opposite of a rented server and for the opposite reason: nothing is billing, and
         // booting again costs forty seconds that buy nothing.
         final List<String> asked = new ArrayList<>();
-        final LocalVms vms = new LocalVms(Map.of("ubuntu", "ubuntu26.04"), arguments -> {
-            asked.add(arguments[0]);
-            return "domstate".equals(arguments[0]) ? "running\n" : DOMIFADDR;
-        });
+        final LocalVms vms =
+                new LocalVms(
+                        Map.of("ubuntu", "ubuntu26.04"),
+                        arguments -> {
+                            asked.add(arguments[0]);
+                            return "domstate".equals(arguments[0]) ? "running\n" : DOMIFADDR;
+                        });
         vms.acquire(spec()).close();
         assertThat(asked).doesNotContain("shutdown", "destroy");
     }

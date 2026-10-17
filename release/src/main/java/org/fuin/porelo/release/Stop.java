@@ -5,15 +5,14 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Why a command ended before doing what it was asked, and with which exit code.
- * <p>
- * Two kinds, kept apart on purpose: a request that was answered with no, and a question that was
+ *
+ * <p>Two kinds, kept apart on purpose: a request that was answered with no, and a question that was
  * never answered. A caller that treats them alike reads a proxy outage as a withdrawn release.
  */
 public final class Stop extends Exception {
 
     /** Serialization version. */
-    @Serial
-    private static final long serialVersionUID = 1L;
+    @Serial private static final long serialVersionUID = 1L;
 
     /** Exit code: the request cannot be carried out, or the facts disagree. */
     public static final int REFUSED = 1;
@@ -79,5 +78,4 @@ public final class Stop extends Exception {
     public int code() {
         return code;
     }
-
 }

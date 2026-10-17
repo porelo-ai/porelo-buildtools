@@ -16,11 +16,13 @@ class CpuFloorTest {
 
     private static final String V1 = "CX8, CMOV, FXSR, MMX, SSE, SSE2";
 
-    /** What GraalVM 25 builds by default on a current machine, measured from porelo's own binaries. */
-    private static final String V3 = V1 + ", SSE3, SSSE3, SSE4_1, SSE4_2, POPCNT, LZCNT, AVX, AVX2, BMI1, BMI2, FMA, F16C";
+    /**
+     * What GraalVM 25 builds by default on a current machine, measured from porelo's own binaries.
+     */
+    private static final String V3 =
+            V1 + ", SSE3, SSSE3, SSE4_1, SSE4_2, POPCNT, LZCNT, AVX, AVX2, BMI1, BMI2, FMA, F16C";
 
-    @TempDir
-    Path directory;
+    @TempDir Path directory;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -36,8 +38,11 @@ class CpuFloorTest {
     void failsNamingEachFeatureBeyondTheBaseline() throws IOException {
         image("porelod", V3);
 
-        assertThat(check("porelod")).contains("porelod is not built for x86-64 v1: needs [AVX, AVX2, BMI1")
-                .contains("SSE4_2").contains("lacks []").contains("-march=x86-64");
+        assertThat(check("porelod"))
+                .contains("porelod is not built for x86-64 v1: needs [AVX, AVX2, BMI1")
+                .contains("SSE4_2")
+                .contains("lacks []")
+                .contains("-march=x86-64");
     }
 
     @Test
@@ -46,8 +51,10 @@ class CpuFloorTest {
         image("porelo-hook-nft", V3);
         Files.writeString(directory.resolve("script"), "#!/bin/sh\n");
 
-        assertThat(check("script", "porelo", "porelo-hook-nft")).contains("script: no 'required by the image' list")
-                .contains("porelo-hook-nft is not built").doesNotContain("porelo is not built");
+        assertThat(check("script", "porelo", "porelo-hook-nft"))
+                .contains("script: no 'required by the image' list")
+                .contains("porelo-hook-nft is not built")
+                .doesNotContain("porelo is not built");
     }
 
     @Test
@@ -55,7 +62,8 @@ class CpuFloorTest {
         // v2 has no AVX: a check for "no v3" alone would let this through.
         image("porelo", V1 + ", SSE3, SSSE3, SSE4_1, SSE4_2, POPCNT");
 
-        assertThat(check("porelo")).contains("needs [POPCNT, SSE3, SSE4_1, SSE4_2, SSSE3] beyond it");
+        assertThat(check("porelo"))
+                .contains("needs [POPCNT, SSE3, SSE4_1, SSE4_2, SSSE3] beyond it");
     }
 
     @Test
@@ -68,7 +76,9 @@ class CpuFloorTest {
 
     @Test
     void anImageWithoutTheListFails() throws IOException {
-        Files.write(directory.resolve("script"), "#!/bin/sh\necho not an image\n".getBytes(StandardCharsets.US_ASCII));
+        Files.write(
+                directory.resolve("script"),
+                "#!/bin/sh\necho not an image\n".getBytes(StandardCharsets.US_ASCII));
 
         assertThat(check("script")).contains("no 'required by the image' list");
     }
@@ -76,30 +86,37 @@ class CpuFloorTest {
     @Test
     void readsTheListAmongBinaryBytes() throws IOException {
         final byte[] noise = {0, (byte) 0xff, (byte) 0xc3, 0x7f, 0};
-        final byte[] message = ("The current machine does not support all of the following CPU features that are required by the image: ["
-                + V1 + "].").getBytes(StandardCharsets.US_ASCII);
+        final byte[] message =
+                ("The current machine does not support all of the following CPU features that are required by the image: ["
+                                + V1
+                                + "].")
+                        .getBytes(StandardCharsets.US_ASCII);
         final byte[] binary = new byte[noise.length * 2 + message.length];
         System.arraycopy(noise, 0, binary, 0, noise.length);
         System.arraycopy(message, 0, binary, noise.length, message.length);
         System.arraycopy(noise, 0, binary, noise.length + message.length, noise.length);
         Files.write(directory.resolve("porelo"), binary);
 
-        assertThat(CpuFloor.required(directory.resolve("porelo"))).containsExactly("CX8", "CMOV", "FXSR", "MMX", "SSE", "SSE2");
+        assertThat(CpuFloor.required(directory.resolve("porelo")))
+                .containsExactly("CX8", "CMOV", "FXSR", "MMX", "SSE", "SSE2");
     }
 
     @Test
     void twoDifferentListsAreNotAnAnswer() throws IOException {
-        Files.writeString(directory.resolve("porelo"), "required by the image: [" + V1 + "]\0required by the image: [" + V3 + "]");
+        Files.writeString(
+                directory.resolve("porelo"),
+                "required by the image: [" + V1 + "]\0required by the image: [" + V3 + "]");
 
         assertThat(check("porelo")).contains("no 'required by the image' list");
     }
 
     private String check(String... images) {
-        return CpuFloor.check(directory, List.of(images), new PrintStream(out, true, StandardCharsets.UTF_8));
+        return CpuFloor.check(
+                directory, List.of(images), new PrintStream(out, true, StandardCharsets.UTF_8));
     }
 
     private void image(String name, String features) throws IOException {
-        Files.writeString(directory.resolve(name), "\0\0required by the image: [" + features + "].\0");
+        Files.writeString(
+                directory.resolve(name), "\0\0required by the image: [" + features + "].\0");
     }
-
 }

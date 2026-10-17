@@ -12,10 +12,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Checks that everything naming the pinned version says the same thing.
- * <p>
- * Read from the filtered definition, the file the agent answers {@code describe} with - checking the
- * source template would prove nothing about the build. The digest is the one fact typed by hand, and
- * the one that needs the network.
+ *
+ * <p>Read from the filtered definition, the file the agent answers {@code describe} with - checking
+ * the source template would prove nothing about the build. The digest is the one fact typed by
+ * hand, and the one that needs the network.
  */
 public final class CheckPin {
 
@@ -51,8 +51,8 @@ public final class CheckPin {
      * @param pomFile the module's pom
      * @param definition the filtered definition, or null for where the build puts it
      * @param offline whether to skip the published digest
-     * @return {@link #AGREE}, {@link Stop#REFUSED} when they disagree, {@link Stop#UNANSWERED} when it
-     *     could not be checked
+     * @return {@link #AGREE}, {@link Stop#REFUSED} when they disagree, {@link Stop#UNANSWERED} when
+     *     it could not be checked
      */
     public int check(Path pomFile, @Nullable Path definition, boolean offline) {
         final Report report = new Report(out);
@@ -65,7 +65,8 @@ public final class CheckPin {
         }
         final Path filtered = definition != null ? definition : release.filteredDefinition();
         if (!Files.isRegularFile(filtered)) {
-            err.println(filtered + " does not exist - build first, this reads what the build produced");
+            err.println(
+                    filtered + " does not exist - build first, this reads what the build produced");
             return Stop.UNANSWERED;
         }
         final Pinned agent;
@@ -76,16 +77,25 @@ public final class CheckPin {
             return report.summary();
         }
         final String version = agent.version();
-        if (version == null || agent.artifacts().size() != 1 || agent.artifacts().getFirst().sha256() == null) {
-            report.bad(filtered + " has no complete pinned artifact - version=" + (version != null) + " artifacts="
-                    + agent.artifacts().size());
+        if (version == null
+                || agent.artifacts().size() != 1
+                || agent.artifacts().getFirst().sha256() == null) {
+            report.bad(
+                    filtered
+                            + " has no complete pinned artifact - version="
+                            + (version != null)
+                            + " artifacts="
+                            + agent.artifacts().size());
             return report.summary();
         }
         final Pinned.Artifact artifact = agent.artifacts().getFirst();
         out.println("== the pin, as " + filtered + " carries it ==");
 
         if (version.contains("${") || artifact.url().contains("${")) {
-            report.bad("resource filtering did not run - the definition still reads '" + version + "'");
+            report.bad(
+                    "resource filtering did not run - the definition still reads '"
+                            + version
+                            + "'");
             return report.summary();
         }
         report.ok("the definition installs " + release.agent() + " " + version);
@@ -100,7 +110,8 @@ public final class CheckPin {
         }
 
         // A tag may carry a leading 'v', so '/18.1.13/' is not in the address and '/v18.1.13/' is.
-        if (artifact.url().contains("/" + version + "/") || artifact.url().contains("/v" + version + "/")) {
+        if (artifact.url().contains("/" + version + "/")
+                || artifact.url().contains("/v" + version + "/")) {
             report.ok("the download URL names it");
         } else {
             report.bad("the download URL does not name " + version + ": " + artifact.url());
@@ -118,14 +129,20 @@ public final class CheckPin {
                     err.println("Could not check the digest. This is not the same as 'it agrees'.");
                     return Stop.UNANSWERED;
                 }
-                report.bad(java.util.Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
+                report.bad(
+                        java.util.Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
                 return report.summary();
             }
             if (published.isEmpty()) {
                 out.println("  SKIP  the digest - this agent pins none that is published");
             } else if (!published.get().equals(artifact.sha256())) {
-                report.bad("the digest is not the one published for " + version + "\n          definition "
-                        + artifact.sha256() + "\n          published  " + published.get());
+                report.bad(
+                        "the digest is not the one published for "
+                                + version
+                                + "\n          definition "
+                                + artifact.sha256()
+                                + "\n          published  "
+                                + published.get());
             } else {
                 report.ok("the digest is the published one (" + release.digests().describe() + ")");
             }
@@ -138,18 +155,37 @@ public final class CheckPin {
             } catch (Stop stop) {
                 if (stop.code() == Stop.UNANSWERED) {
                     out.println("  UNKNOWN  " + stop.getMessage());
-                    err.println("Could not check the license. This is not the same as 'it agrees'.");
+                    err.println(
+                            "Could not check the license. This is not the same as 'it agrees'.");
                     return Stop.UNANSWERED;
                 }
-                report.bad(java.util.Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
+                report.bad(
+                        java.util.Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
                 return report.summary();
             }
             if (artifact.license() == null) {
-                report.bad("the definition records no license; " + version + " declares '" + declared + "'");
+                report.bad(
+                        "the definition records no license; "
+                                + version
+                                + " declares '"
+                                + declared
+                                + "'");
             } else if (!artifact.license().equals(declared)) {
-                report.bad("the definition records '" + artifact.license() + "', " + version + " declares '" + declared + "'");
+                report.bad(
+                        "the definition records '"
+                                + artifact.license()
+                                + "', "
+                                + version
+                                + " declares '"
+                                + declared
+                                + "'");
             } else {
-                report.ok("the license is the declared one: " + declared + " (" + licenses.describe() + ")");
+                report.ok(
+                        "the license is the declared one: "
+                                + declared
+                                + " ("
+                                + licenses.describe()
+                                + ")");
             }
         }
         return report.summary();
@@ -178,14 +214,15 @@ public final class CheckPin {
         int summary() {
             out.println();
             if (failures > 0) {
-                out.println("STOP: " + failures + " of the pinned facts disagree. An image build would install"
-                        + " something other than what this package advertises.");
+                out.println(
+                        "STOP: "
+                                + failures
+                                + " of the pinned facts disagree. An image build would install"
+                                + " something other than what this package advertises.");
                 return Stop.REFUSED;
             }
             out.println("The pin agrees everywhere it is written.");
             return AGREE;
         }
-
     }
-
 }

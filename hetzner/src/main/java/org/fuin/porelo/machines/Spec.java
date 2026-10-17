@@ -15,30 +15,35 @@ import java.util.List;
  * @param credential The key to connect with, and the one the server is created for.
  * @param keep Whether to leave it running, for debugging.
  */
-public record Spec(String name, String os, List<String> serverTypes, String user,
-        Credential credential, boolean keep) {
+public record Spec(
+        String name,
+        String os,
+        List<String> serverTypes,
+        String user,
+        Credential credential,
+        boolean keep) {
 
     /**
      * What to create when a caller names nothing, in the order to try it.
-     * <p>
-     * <strong>{@code cpx42} first, and that is a choice about CI minutes rather than about
+     *
+     * <p><strong>{@code cpx42} first, and that is a choice about CI minutes rather than about
      * rent.</strong> The runner blocks while the rented machine builds, so a slower machine costs
      * more of the scarce resource than it saves of the cheap one. Everything after it is a
      * fallback: a leg that runs slowly beats a leg that does not run.
-     * <p>
-     * <strong>Ordered by capability, cheapest adequate last.</strong> {@code cx43} carries the
+     *
+     * <p><strong>Ordered by capability, cheapest adequate last.</strong> {@code cx43} carries the
      * same 8 cores and 16 GB as {@code cpx42} at roughly a quarter of the price - how fast it
      * builds is NOT measured, and it sits second because a fallback has to work rather than to be
-     * quick. {@code cpx32} and {@code cx33} have four cores and are the real last resorts.
-     * {@code cx23} is deliberately absent: two cores stretched a leg to about 25 minutes on
-     * 2026-09-10, and in CI the runner pays for that wait.
-     * <p>
-     * <strong>The floor that makes this list possible.</strong> A snapshot restores only onto a
-     * disk at least as big as the one it was taken on. The images were rebuilt small on
-     * 2026-09-10 and report 40 GB, so every type here can boot them. Measured on the same day
-     * over a full leg - build, six native images and tier 1 - the peak was 3.6 GB of 38 GB
-     * usable, on both operating systems. Building an image on a fast machine again would raise
-     * that floor and silently empty this list, which is how it came to hold one entry before.
+     * quick. {@code cpx32} and {@code cx33} have four cores and are the real last resorts. {@code
+     * cx23} is deliberately absent: two cores stretched a leg to about 25 minutes on 2026-09-10,
+     * and in CI the runner pays for that wait.
+     *
+     * <p><strong>The floor that makes this list possible.</strong> A snapshot restores only onto a
+     * disk at least as big as the one it was taken on. The images were rebuilt small on 2026-09-10
+     * and report 40 GB, so every type here can boot them. Measured on the same day over a full leg
+     * - build, six native images and tier 1 - the peak was 3.6 GB of 38 GB usable, on both
+     * operating systems. Building an image on a fast machine again would raise that floor and
+     * silently empty this list, which is how it came to hold one entry before.
      */
     public static final List<String> DEFAULT_TYPES = List.of("cpx42", "cx43", "cpx32", "cx33");
 

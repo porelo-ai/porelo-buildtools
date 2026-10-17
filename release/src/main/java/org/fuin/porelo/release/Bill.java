@@ -71,7 +71,8 @@ public record Bill(Map<String, Component> components) {
         try {
             return new JsonParser().parse(json);
         } catch (ParseException ex) {
-            throw new IllegalArgumentException("not a CycloneDX bill in JSON: " + ex.getMessage(), ex);
+            throw new IllegalArgumentException(
+                    "not a CycloneDX bill in JSON: " + ex.getMessage(), ex);
         }
     }
 
@@ -84,11 +85,18 @@ public record Bill(Map<String, Component> components) {
      * @throws IllegalArgumentException if the spec version is one this library cannot write
      */
     static void write(Bom bom, Path target) throws IOException {
-        final Version version = Arrays.stream(Version.values())
-                .filter(candidate -> candidate.getVersionString().equals(bom.getSpecVersion()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "cannot write spec version " + bom.getSpecVersion() + " - not one this library knows"));
+        final Version version =
+                Arrays.stream(Version.values())
+                        .filter(
+                                candidate ->
+                                        candidate.getVersionString().equals(bom.getSpecVersion()))
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new IllegalArgumentException(
+                                                "cannot write spec version "
+                                                        + bom.getSpecVersion()
+                                                        + " - not one this library knows"));
         try {
             Files.writeString(target, BomGeneratorFactory.createJson(version, bom).toJsonString());
         } catch (GeneratorException ex) {
@@ -126,8 +134,8 @@ public record Bill(Map<String, Component> components) {
 
     /**
      * The identity a component is compared by.
-     * <p>
-     * The purl, because a name is not an identity: cyclonedx-npm strips the scope, so
+     *
+     * <p>The purl, because a name is not an identity: cyclonedx-npm strips the scope, so
      * {@code @earendil-works/pi-coding-agent} appears as {@code pi-coding-agent}.
      *
      * @param component a component
@@ -166,5 +174,4 @@ public record Bill(Map<String, Component> components) {
         }
         return named;
     }
-
 }

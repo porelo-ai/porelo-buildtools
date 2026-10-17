@@ -11,9 +11,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Records a component a package ships inside something else, from facts a build script holds.
- * <p>
- * For a runtime a tree is built against and shipped with - Pi's Node - whose version and digest are
- * pinned in the script that fetches it, so nothing reading a dependency graph knows it is there.
+ *
+ * <p>For a runtime a tree is built against and shipped with - Pi's Node - whose version and digest
+ * are pinned in the script that fetches it, so nothing reading a dependency graph knows it is
+ * there.
  */
 public final class AddComponent {
 
@@ -49,12 +50,24 @@ public final class AddComponent {
      * @param license its SPDX license id, or null when the bill cannot say
      * @return {@link #DONE} or {@link #FAILED}
      */
-    public int add(Path bill, String name, String version, String url, String sha256, @Nullable String license) {
-        if (name.isBlank() || version.isBlank() || version.chars().anyMatch(Character::isWhitespace)) {
-            return failed("a component needs a name and a version, got '" + name + "' '" + version + "'");
+    public int add(
+            Path bill,
+            String name,
+            String version,
+            String url,
+            String sha256,
+            @Nullable String license) {
+        if (name.isBlank()
+                || version.isBlank()
+                || version.chars().anyMatch(Character::isWhitespace)) {
+            return failed(
+                    "a component needs a name and a version, got '" + name + "' '" + version + "'");
         }
         if (!Digests.SHA256.matcher(sha256).matches()) {
-            return failed("'" + sha256 + "' is not a SHA-256 digest - 64 lowercase hexadecimal characters");
+            return failed(
+                    "'"
+                            + sha256
+                            + "' is not a SHA-256 digest - 64 lowercase hexadecimal characters");
         }
         try {
             final URI address = URI.create(url);
@@ -67,13 +80,22 @@ public final class AddComponent {
         final boolean replaced;
         try {
             final Bom bom = Bill.parse(Files.readAllBytes(bill));
-            replaced = Recorded.into(bom, Recorded.component(name, version, url, sha256, Recorded.SHIPPED, license));
+            replaced =
+                    Recorded.into(
+                            bom,
+                            Recorded.component(
+                                    name, version, url, sha256, Recorded.SHIPPED, license));
             Bill.write(bom, bill);
         } catch (IOException | IllegalArgumentException | IllegalStateException ex) {
             return failed("cannot add " + name + " to " + bill + ": " + ex.getMessage());
         }
-        out.println("add-component: recorded " + name + " " + version + " as shipped in the package"
-                + (replaced ? ", in place of the one recorded before" : ""));
+        out.println(
+                "add-component: recorded "
+                        + name
+                        + " "
+                        + version
+                        + " as shipped in the package"
+                        + (replaced ? ", in place of the one recorded before" : ""));
         return DONE;
     }
 
@@ -81,5 +103,4 @@ public final class AddComponent {
         err.println("add-component: " + reason);
         return FAILED;
     }
-
 }

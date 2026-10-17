@@ -9,9 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * A web that answers from a table and remembers what it was asked.
- */
+/** A web that answers from a table and remembers what it was asked. */
 final class FakeWeb implements Web {
 
     private final Map<String, String> bodies = new HashMap<>();
@@ -40,7 +38,8 @@ final class FakeWeb implements Web {
         if (failure != null) {
             throw failure;
         }
-        return Optional.ofNullable(bodies.get(address.toString())).map(body -> body.getBytes(StandardCharsets.UTF_8));
+        return Optional.ofNullable(bodies.get(address.toString()))
+                .map(body -> body.getBytes(StandardCharsets.UTF_8));
     }
 
     /** A web that must not be asked anything. */
@@ -49,5 +48,4 @@ final class FakeWeb implements Web {
             throw new AssertionError("nothing may be read here, but " + address + " was");
         };
     }
-
 }

@@ -11,8 +11,8 @@ import org.cyclonedx.model.Property;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A component a package's build records in its bill because nothing reading the Maven graph can know
- * about it: a CLI an image build fetches, a runtime a tree ships.
+ * A component a package's build records in its bill because nothing reading the Maven graph can
+ * know about it: a CLI an image build fetches, a runtime a tree ships.
  */
 final class Recorded {
 
@@ -40,13 +40,19 @@ final class Recorded {
      * @param license an SPDX license id, or null when the bill cannot say
      * @return the component
      */
-    static Component component(String name, String version, String url, @Nullable String sha256, String delivery,
+    static Component component(
+            String name,
+            String version,
+            String url,
+            @Nullable String sha256,
+            String delivery,
             @Nullable String license) {
         final Component component = new Component();
         component.setType(Component.Type.APPLICATION);
         component.setName(name);
         component.setVersion(version);
-        // Unencoded, as the published bills already carry it: an encoded one would read as a different component.
+        // Unencoded, as the published bills already carry it: an encoded one would read as a
+        // different component.
         component.setPurl("pkg:generic/" + name + "@" + version + "?download_url=" + url);
         final ExternalReference distribution = new ExternalReference();
         distribution.setType(ExternalReference.Type.DISTRIBUTION);
@@ -61,7 +67,8 @@ final class Recorded {
         }
         if (license != null) {
             final License named = new License();
-            // An SPDX id where the publisher gives one; otherwise the name it uses, which CycloneDX keeps as a name.
+            // An SPDX id where the publisher gives one; otherwise the name it uses, which CycloneDX
+            // keeps as a name.
             if (license.matches("[A-Za-z0-9.+-]+")) {
                 named.setId(license);
             } else {
@@ -76,23 +83,30 @@ final class Recorded {
 
     /**
      * Records a component in a bill's top level, in place of an earlier recording of it.
-     * <p>
-     * A build without {@code clean} hands this the bill it already wrote into, so a second run must
-     * leave one component, not two. A component of that name delivered some other way is not this
-     * one to replace.
+     *
+     * <p>A build without {@code clean} hands this the bill it already wrote into, so a second run
+     * must leave one component, not two. A component of that name delivered some other way is not
+     * this one to replace.
      *
      * @param bom the bill
      * @param component what to record
      * @return whether an earlier recording was replaced
-     * @throws IllegalStateException when the bill names a component of that name delivered otherwise
+     * @throws IllegalStateException when the bill names a component of that name delivered
+     *     otherwise
      */
     static boolean into(Bom bom, Component component) {
         final String delivery = deliveryOf(component);
-        final List<Component> earlier = bom.getComponents() == null ? List.of()
-                : bom.getComponents().stream().filter(c -> component.getName().equals(c.getName())).toList();
+        final List<Component> earlier =
+                bom.getComponents() == null
+                        ? List.of()
+                        : bom.getComponents().stream()
+                                .filter(c -> component.getName().equals(c.getName()))
+                                .toList();
         if (earlier.stream().anyMatch(c -> delivery == null || !delivery.equals(deliveryOf(c)))) {
-            throw new IllegalStateException("the bill already names a '" + component.getName()
-                    + "' delivered otherwise; recording this one beside it would make two things of one name");
+            throw new IllegalStateException(
+                    "the bill already names a '"
+                            + component.getName()
+                            + "' delivered otherwise; recording this one beside it would make two things of one name");
         }
         if (!earlier.isEmpty()) {
             bom.getComponents().removeAll(earlier);
@@ -102,8 +116,12 @@ final class Recorded {
     }
 
     private static @Nullable String deliveryOf(Component component) {
-        return component.getProperties() == null ? null : component.getProperties().stream()
-                .filter(p -> DELIVERY.equals(p.getName())).map(Property::getValue).findFirst().orElse(null);
+        return component.getProperties() == null
+                ? null
+                : component.getProperties().stream()
+                        .filter(p -> DELIVERY.equals(p.getName()))
+                        .map(Property::getValue)
+                        .findFirst()
+                        .orElse(null);
     }
-
 }

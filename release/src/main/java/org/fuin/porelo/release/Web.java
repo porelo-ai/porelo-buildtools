@@ -10,9 +10,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Where the commands read what a vendor or a repository has published.
- */
+/** Where the commands read what a vendor or a repository has published. */
 @FunctionalInterface
 public interface Web {
 
@@ -50,22 +48,24 @@ public interface Web {
 
     /**
      * Reads over HTTP.
-     * <p>
-     * Redirects are followed: Artifactory serves a small bill directly and offloads a large one with a
-     * 302, so a reader that stops there gets an empty body for the packages with the most to say.
+     *
+     * <p>Redirects are followed: Artifactory serves a small bill directly and offloads a large one
+     * with a 302, so a reader that stops there gets an empty body for the packages with the most to
+     * say.
      *
      * @return a reader that treats 404 as "not there" and every other failure as unreadable
      */
     static Web overHttp() {
-        // Measured on JDK 25: a redirect to another host drops Authorization, so a credential stays where it was sent.
-        final HttpClient client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .connectTimeout(Duration.ofSeconds(60))
-                .build();
+        // Measured on JDK 25: a redirect to another host drops Authorization, so a credential stays
+        // where it was sent.
+        final HttpClient client =
+                HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .connectTimeout(Duration.ofSeconds(60))
+                        .build();
         return (address, headers) -> {
-            final HttpRequest.Builder request = HttpRequest.newBuilder(address)
-                    .timeout(Duration.ofSeconds(60))
-                    .GET();
+            final HttpRequest.Builder request =
+                    HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(60)).GET();
             headers.forEach(request::header);
             final HttpResponse<byte[]> response;
             try {
@@ -83,5 +83,4 @@ public interface Web {
             return Optional.of(response.body());
         };
     }
-
 }

@@ -9,9 +9,7 @@ import java.util.Map;
 import org.fuin.porelo.json.Json;
 import org.junit.jupiter.api.Test;
 
-/**
- * Tests for {@link Values}.
- */
+/** Tests for {@link Values}. */
 class ValuesTest {
 
     @Test
@@ -33,10 +31,18 @@ class ValuesTest {
 
     @Test
     void stopsPagingWhenTheApiSaysThereIsNoNextPage() {
-        assertThat(Values.nextPage(Values.object(Json.parse(
-                "{\"meta\":{\"pagination\":{\"next_page\":null}}}")))).isZero();
-        assertThat(Values.nextPage(Values.object(Json.parse(
-                "{\"meta\":{\"pagination\":{\"next_page\":3}}}")))).isEqualTo(3L);
+        assertThat(
+                        Values.nextPage(
+                                Values.object(
+                                        Json.parse(
+                                                "{\"meta\":{\"pagination\":{\"next_page\":null}}}"))))
+                .isZero();
+        assertThat(
+                        Values.nextPage(
+                                Values.object(
+                                        Json.parse(
+                                                "{\"meta\":{\"pagination\":{\"next_page\":3}}}"))))
+                .isEqualTo(3L);
         assertThat(Values.nextPage(Map.of())).isZero();
     }
 
@@ -52,8 +58,10 @@ class ValuesTest {
 
     @Test
     void readsWhenSomethingWasCreated() {
-        assertThat(Values.created(Values.object(Json.parse(
-                "{\"created\":\"2026-09-10T04:00:00+00:00\"}"))))
+        assertThat(
+                        Values.created(
+                                Values.object(
+                                        Json.parse("{\"created\":\"2026-09-10T04:00:00+00:00\"}"))))
                 .isEqualTo(Instant.parse("2026-09-10T04:00:00Z"));
         // Missing or unreadable counts as ancient, so a sweep errs towards deleting rather than
         // towards leaving something billing.
@@ -63,9 +71,13 @@ class ValuesTest {
 
     @Test
     void readsLabelsAndSurvivesTheirAbsence() {
-        assertThat(Values.labels(Values.object(Json.parse(
-                "{\"labels\":{\"porelo\":\"ci\",\"run\":\"123\"}}"))))
-                .containsEntry("porelo", "ci").containsEntry("run", "123");
+        assertThat(
+                        Values.labels(
+                                Values.object(
+                                        Json.parse(
+                                                "{\"labels\":{\"porelo\":\"ci\",\"run\":\"123\"}}"))))
+                .containsEntry("porelo", "ci")
+                .containsEntry("run", "123");
         assertThat(Values.labels(Map.of())).isEmpty();
     }
 

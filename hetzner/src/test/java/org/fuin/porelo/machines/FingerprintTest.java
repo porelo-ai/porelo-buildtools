@@ -8,9 +8,7 @@ import java.util.Base64;
 import net.schmizz.sshj.common.Buffer;
 import org.junit.jupiter.api.Test;
 
-/**
- * Tests for {@link Fingerprint}.
- */
+/** Tests for {@link Fingerprint}. */
 class FingerprintTest {
 
     /** An ed25519 public key, kept only so its fingerprint is a known answer. */
@@ -19,8 +17,8 @@ class FingerprintTest {
 
     /**
      * What {@code ssh-keygen -lf key.pub -E md5} says about it, minus the {@code MD5:} prefix.
-     * <p>
-     * The reference implementation's answer, recorded rather than recomputed: this has to agree
+     *
+     * <p>The reference implementation's answer, recorded rather than recomputed: this has to agree
      * with what the Hetzner API reports for the same key, and the API is agreeing with ssh-keygen
      * rather than with us. Checked against ed25519 and RSA when this was written.
      */
@@ -28,15 +26,15 @@ class FingerprintTest {
 
     @Test
     void agreesWithSshKeygen() throws IOException, Buffer.BufferException {
-        final PublicKey pub = new Buffer.PlainBuffer(Base64.getDecoder().decode(PUBLIC_KEY))
-                .readPublicKey();
+        final PublicKey pub =
+                new Buffer.PlainBuffer(Base64.getDecoder().decode(PUBLIC_KEY)).readPublicKey();
         assertThat(Fingerprint.md5(pub)).isEqualTo(EXPECTED);
     }
 
     @Test
     void readsTheKeyItIsGivenRatherThanAskingAnAgent() throws IOException {
-        // The script this replaces ran 'ssh-add -l -E md5', so every caller needed an agent
-        // holding the right key before it could look anything up.
+        // The script this replaces ran 'ssh-add -l -E md5', so every caller needed an agent holding
+        // the right key before it could look anything up.
         final String fingerprint = Fingerprint.md5(Keys.generated());
         assertThat(fingerprint).matches("([0-9a-f]{2}:){15}[0-9a-f]{2}");
     }

@@ -12,15 +12,15 @@ import java.util.TreeSet;
 
 /**
  * Renting test machines, and making sure none is left behind.
- * <p>
- * <strong>The one thing worth reading first: a server that is not destroyed costs 81 EUR a
+ *
+ * <p><strong>The one thing worth reading first: a server that is not destroyed costs 81 EUR a
  * month</strong>, against 3 cents for the fifteen minutes it is meant to live. So destruction is
- * structural rather than a step at the end - {@link #acquire} hands back a {@link Lease}
- * that deletes, and {@link #sweep} exists because a process killed between two statements cannot
- * clean up after itself.
- * <p>
- * Everything created here is labelled {@code porelo=ci} so the sweep can find it without a list of
- * names to keep in step with reality.
+ * structural rather than a step at the end - {@link #acquire} hands back a {@link Lease} that
+ * deletes, and {@link #sweep} exists because a process killed between two statements cannot clean
+ * up after itself.
+ *
+ * <p>Everything created here is labelled {@code porelo=ci} so the sweep can find it without a list
+ * of names to keep in step with reality.
  */
 public final class Hetzner implements Machines {
 
@@ -32,18 +32,18 @@ public final class Hetzner implements Machines {
 
     /**
      * Where a CI server may be created.
-     * <p>
-     * A zone rather than a location on purpose: a single location runs out - fsn1 offered zero
-     * server types on 2026-09-06 while nbg1 and hel1 offered eighteen - and a hard-coded one
-     * fails with "unsupported location for server type", which reads like a wrong type or a bad
-     * token rather than a full datacentre.
+     *
+     * <p>A zone rather than a location on purpose: a single location runs out - fsn1 offered zero
+     * server types on 2026-09-06 while nbg1 and hel1 offered eighteen - and a hard-coded one fails
+     * with "unsupported location for server type", which reads like a wrong type or a bad token
+     * rather than a full datacentre.
      */
     private static final String NETWORK_ZONE = "eu-central";
 
     /**
      * How long to keep asking when the project is at its server limit, and how often.
-     * <p>
-     * Four repositories rent machines now and nothing coordinates them, so overlapping runs
+     *
+     * <p>Four repositories rent machines now and nothing coordinates them, so overlapping runs
      * collide. The API says {@code resource_limit_exceeded} and the run dies twenty minutes in,
      * having already built everything.
      */
@@ -51,8 +51,8 @@ public final class Hetzner implements Machines {
 
     /**
      * How long to wait out a full project before giving up.
-     * <p>
-     * An hour, because acceptance legs run one after another: a run queued behind others waits
+     *
+     * <p>An hour, because acceptance legs run one after another: a run queued behind others waits
      * out their whole legs.
      */
     private static final Duration LIMIT_PATIENCE = Duration.ofMinutes(60);
@@ -112,8 +112,8 @@ public final class Hetzner implements Machines {
 
     /**
      * Creates a server and hands back something that deletes it.
-     * <p>
-     * The delete is in the {@code close}, so a caller using try-with-resources cannot forget it
+     *
+     * <p>The delete is in the {@code close}, so a caller using try-with-resources cannot forget it
      * and cannot skip it by failing early. That is the whole reason this returns a resource rather
      * than a server.
      *
@@ -124,17 +124,16 @@ public final class Hetzner implements Machines {
     @Override
     public Lease acquire(Spec spec) throws IOException {
         final Map<String, Object> snapshot = newestSnapshot(spec.os());
-        return acquire(spec, Values.id(snapshot.get("id")),
-                Values.text(snapshot, "description"));
+        return acquire(spec, Values.id(snapshot.get("id")), Values.text(snapshot, "description"));
     }
 
     /**
      * Returns what identifies this run.
-     * <p>
-     * Used in a server's name as well as its labels: a name built from a timestamp collides when
-     * two runs start in the same second, which is exactly what two pushes landing together
-     * produce - and the API refuses the second with "server name is already used", failing a leg
-     * for a reason that has nothing to do with the change under test.
+     *
+     * <p>Used in a server's name as well as its labels: a name built from a timestamp collides when
+     * two runs start in the same second, which is exactly what two pushes landing together produce
+     * - and the API refuses the second with "server name is already used", failing a leg for a
+     * reason that has nothing to do with the change under test.
      *
      * @return The run id.
      */
@@ -144,8 +143,9 @@ public final class Hetzner implements Machines {
 
     /**
      * Creates a machine from a stock image rather than from one of ours.
-     * <p>
-     * What the snapshot provisioner starts from: there is no snapshot yet when one is being made.
+     *
+     * <p>What the snapshot provisioner starts from: there is no snapshot yet when one is being
+     * made.
      *
      * @param spec What to create.
      * @param image A stock image name, such as {@code ubuntu-26.04}.
@@ -164,51 +164,71 @@ public final class Hetzner implements Machines {
         Placement placement = null;
         final List<String> refused = new ArrayList<>();
         for (final Placement candidate : candidates) {
-            System.out.println("creating " + spec.name() + ": " + candidate.type() + ", "
-                    + describedAs + ", " + candidate.location());
+            System.out.println(
+                    "creating "
+                            + spec.name()
+                            + ": "
+                            + candidate.type()
+                            + ", "
+                            + describedAs
+                            + ", "
+                            + candidate.location());
             try {
                 created = createWhenThereIsRoom(spec, image, candidate, key);
                 placement = candidate;
                 break;
             } catch (Api.ApiException ex) {
-                // A type this image cannot go on is the same answer as a type nobody has: move
-                // to the next one named rather than ending the run. Measured against a snapshot
-                // taken from a 160 GB machine - every cheaper type answered "image disk is
-                // bigger than server type disk", which is a property of the pair and not of the
-                // project's stock.
+                // A type this image cannot go on is the same answer as a type nobody has: move to
+                // the next one named rather than ending the run. Measured against a snapshot taken
+                // from a 160 GB machine - every cheaper type answered "image disk is bigger than
+                // server type disk", which is a property of the pair and not of the project's
+                // stock.
                 if (!refusesTheType(ex)) {
                     throw ex;
                 }
-                System.out.println("  " + candidate.type() + " will not take this image: "
-                        + ex.getMessage());
+                System.out.println(
+                        "  " + candidate.type() + " will not take this image: " + ex.getMessage());
                 refused.add(candidate.type());
             }
         }
         if (created == null) {
-            throw new IOException("none of " + spec.serverTypes() + " could host the '"
-                    + spec.os() + "' snapshot" + (refused.isEmpty() ? ""
-                            : "; refused by " + refused)
-                    + ". A snapshot can only be restored onto a disk at least as big as the one it"
-                    + " was taken from, so cheaper types need a snapshot built on a smaller disk.");
+            throw new IOException(
+                    "none of "
+                            + spec.serverTypes()
+                            + " could host the '"
+                            + spec.os()
+                            + "' snapshot"
+                            + (refused.isEmpty() ? "" : "; refused by " + refused)
+                            + ". A snapshot can only be restored onto a disk at least as big as the one it"
+                            + " was taken from, so cheaper types need a snapshot built on a smaller disk.");
         }
         final Map<String, Object> server = Values.object(created, "server");
         final long id = Values.id(server.get("id"));
-        // The server bills from the moment the API answered. Until the Lease that deletes it exists, a failure
-        // here is the only thing that knows its id, so it deletes it before giving up.
+        // The server bills from the moment the API answered. Until the Lease that deletes it
+        // exists, a failure here is the only thing that knows its id, so it deletes it before
+        // giving up.
         final String address;
         try {
             await(Values.object(created, "action"));
             address = Values.text(Values.object(Values.object(server, "public_net"), "ipv4"), "ip");
             if (address.isBlank()) {
-                throw new IOException("the API named no address for " + spec.name() + " (server " + id + ")");
+                throw new IOException(
+                        "the API named no address for " + spec.name() + " (server " + id + ")");
             }
         } catch (IOException | RuntimeException ex) {
-            System.err.println("deleting " + spec.name() + " (server " + id + "), which never became usable");
+            System.err.println(
+                    "deleting " + spec.name() + " (server " + id + "), which never became usable");
             try {
                 delete(id);
             } catch (IOException | RuntimeException deleteFailed) {
-                System.err.println("COULD NOT DELETE " + spec.name() + " (server " + id + "): "
-                        + deleteFailed.getMessage() + " - delete it by hand, it is billing");
+                System.err.println(
+                        "COULD NOT DELETE "
+                                + spec.name()
+                                + " (server "
+                                + id
+                                + "): "
+                                + deleteFailed.getMessage()
+                                + " - delete it by hand, it is billing");
                 ex.addSuppressed(deleteFailed);
             }
             throw ex;
@@ -219,10 +239,10 @@ public final class Hetzner implements Machines {
 
     /**
      * Tells whether the API refused the type rather than the request.
-     * <p>
-     * Narrow on purpose: everything else - a bad token, a full project, an image that does not
-     * exist - is a mistake that trying a different machine cannot fix, and quietly working
-     * through a list of types would turn one clear error into several confusing ones.
+     *
+     * <p>Narrow on purpose: everything else - a bad token, a full project, an image that does not
+     * exist - is a mistake that trying a different machine cannot fix, and quietly working through
+     * a list of types would turn one clear error into several confusing ones.
      *
      * @param refusal What the API said.
      * @return Whether another type is worth trying.
@@ -241,8 +261,12 @@ public final class Hetzner implements Machines {
      */
     private void destroy(Spec spec, long id, String address) throws IOException {
         if (spec.keep()) {
-            System.out.println("KEEPING " + spec.name() + " at " + address
-                    + " - it is costing money until it is swept or deleted by hand.");
+            System.out.println(
+                    "KEEPING "
+                            + spec.name()
+                            + " at "
+                            + address
+                            + " - it is costing money until it is swept or deleted by hand.");
             return;
         }
         System.out.println("deleting " + spec.name());
@@ -256,8 +280,8 @@ public final class Hetzner implements Machines {
         }
     }
 
-    private Map<String, Object> createWhenThereIsRoom(Spec spec, Object image,
-            Placement placement, long key) throws IOException {
+    private Map<String, Object> createWhenThereIsRoom(
+            Spec spec, Object image, Placement placement, long key) throws IOException {
         final Map<String, Object> labels = new LinkedHashMap<>();
         labels.put("porelo", "ci");
         labels.put(RUN_LABEL, runId);
@@ -274,20 +298,29 @@ public final class Hetzner implements Machines {
             try {
                 return api.post("/servers", body);
             } catch (Api.ApiException ex) {
-                // Only that one error is retried. Anything else - a bad image, a full datacentre,
-                // a rejected token - is a mistake that waiting cannot fix, and burning an hour
-                // before reporting it would be worse than failing now.
+                // Only that one error is retried. Anything else - a bad image, a full datacentre, a
+                // rejected token - is a mistake that waiting cannot fix, and burning an hour before
+                // reporting it would be worse than failing now.
                 if (!"resource_limit_exceeded".equals(ex.code())) {
                     throw ex;
                 }
                 if (attempt == LIMIT_ATTEMPTS) {
-                    throw new IOException("the project was still at its server limit after "
-                            + LIMIT_PATIENCE.toMinutes() + " minutes. Another "
-                            + "run is holding machines, or something leaked one: check with the "
-                            + "sweep.", ex);
+                    throw new IOException(
+                            "the project was still at its server limit after "
+                                    + LIMIT_PATIENCE.toMinutes()
+                                    + " minutes. Another "
+                                    + "run is holding machines, or something leaked one: check with the "
+                                    + "sweep.",
+                            ex);
                 }
-                System.out.println("  at the project's server limit, waiting "
-                        + limitWait.toSeconds() + "s (" + attempt + "/" + LIMIT_ATTEMPTS + ")");
+                System.out.println(
+                        "  at the project's server limit, waiting "
+                                + limitWait.toSeconds()
+                                + "s ("
+                                + attempt
+                                + "/"
+                                + LIMIT_ATTEMPTS
+                                + ")");
                 sleep(limitWait);
             }
         }
@@ -309,8 +342,12 @@ public final class Hetzner implements Machines {
         String status = Values.text(action, "status");
         while ("running".equals(status)) {
             if (Instant.now().isAfter(deadline)) {
-                throw new IOException("action " + id + " was still running after "
-                        + ACTION_PATIENCE.toMinutes() + " minutes");
+                throw new IOException(
+                        "action "
+                                + id
+                                + " was still running after "
+                                + ACTION_PATIENCE.toMinutes()
+                                + " minutes");
             }
             sleep(Duration.ofSeconds(2));
             status = Values.text(Values.object(api.get("/actions/" + id), "action"), "status");
@@ -322,8 +359,8 @@ public final class Hetzner implements Machines {
 
     /**
      * Returns the most recent snapshot for one operating system.
-     * <p>
-     * By label rather than by id, so a workflow does not carry a number that goes stale the next
+     *
+     * <p>By label rather than by id, so a workflow does not carry a number that goes stale the next
      * time a snapshot is rebuilt. Newest wins, because rebuilding is how an image is updated.
      *
      * @param os The {@code os} label a snapshot was built with, such as {@code fedora}.
@@ -332,46 +369,51 @@ public final class Hetzner implements Machines {
      */
     Map<String, Object> newestSnapshot(String os) throws IOException {
         final List<Map<String, Object>> available = new ArrayList<>();
-        for (final Map<String, Object> image : api.all(
-                "/images?type=snapshot&label_selector=" + LABEL_SELECTOR + ",os=" + os, "images")) {
+        for (final Map<String, Object> image :
+                api.all(
+                        "/images?type=snapshot&label_selector=" + LABEL_SELECTOR + ",os=" + os,
+                        "images")) {
             if ("available".equals(Values.text(image, "status"))) {
                 available.add(image);
             }
         }
         if (available.isEmpty()) {
             final TreeSet<String> built = new TreeSet<>();
-            for (final Map<String, Object> image : api.all(
-                    "/images?type=snapshot&label_selector=" + LABEL_SELECTOR, "images")) {
+            for (final Map<String, Object> image :
+                    api.all("/images?type=snapshot&label_selector=" + LABEL_SELECTOR, "images")) {
                 built.add(Values.labels(image).getOrDefault("os", "?"));
             }
-            throw new IOException("No snapshot for '" + os + "'. Built: "
-                    + (built.isEmpty() ? "none" : built)
-                    + ". Build one with the snapshot provisioner before running a leg.");
+            throw new IOException(
+                    "No snapshot for '"
+                            + os
+                            + "'. Built: "
+                            + (built.isEmpty() ? "none" : built)
+                            + ". Build one with the snapshot provisioner before running a leg.");
         }
         return available.stream().max(Comparator.comparing(Values::created)).orElseThrow();
     }
 
     /**
      * Picks the first wanted type that a location in the zone can actually serve right now.
-     * <p>
-     * <strong>Ordered, so cheaper can be preferred without risking a run.</strong> A workflow
+     *
+     * <p><strong>Ordered, so cheaper can be preferred without risking a run.</strong> A workflow
      * names the types it wants in the order it wants them and gets the first that is available;
      * naming one type instead means a run dies when that type is sold out.
-     * <p>
-     * <strong>Availability, not adequacy.</strong> This moves on when a type is not
+     *
+     * <p><strong>Availability, not adequacy.</strong> This moves on when a type is not
      * <em>offered</em>, never when it turns out too small for the work - a two-core machine that
      * exists will be used and the build will fail on it. The order is a price preference among
      * machines that can be created, and the smallest entry has to be one the job can actually run
      * on.
-     * <p>
-     * Asked rather than assumed: availability is per location and changes - fsn1 offered zero
+     *
+     * <p>Asked rather than assumed: availability is per location and changes - fsn1 offered zero
      * server types on 2026-09-06 while nbg1 and hel1 offered eighteen - and Hetzner reports a
      * location that cannot serve a type the same way it reports a nonsense one.
-     * <p>
-     * <strong>Asked of the server type, where the API keeps it now.</strong> Each type lists its locations with
-     * whether it is {@code available} there; the zone of a location comes from {@code /locations}. The
-     * {@code /datacenters} endpoint this read before answers 410 since Hetzner removed it on 2026-10-01, which
-     * stopped every leg before it had a machine.
+     *
+     * <p><strong>Asked of the server type, where the API keeps it now.</strong> Each type lists its
+     * locations with whether it is {@code available} there; the zone of a location comes from
+     * {@code /locations}. The {@code /datacenters} endpoint this read before answers 410 since
+     * Hetzner removed it on 2026-10-01, which stopped every leg before it had a machine.
      *
      * @param types Types to try, in order.
      * @return The type to create and where.
@@ -385,23 +427,24 @@ public final class Hetzner implements Machines {
         final List<Placement> found = new ArrayList<>();
         final List<String> tried = new ArrayList<>();
         for (final String type : types) {
-            final List<Map<String, Object>> known = api.all("/server_types?name=" + type,
-                    "server_types");
+            final List<Map<String, Object>> known =
+                    api.all("/server_types?name=" + type, "server_types");
             if (known.isEmpty()) {
                 tried.add(type + "=no such type");
                 continue;
             }
             final List<String> where = new ArrayList<>();
-            for (final Map<String, Object> location : Values.objects(known.getFirst(), "locations")) {
+            for (final Map<String, Object> location :
+                    Values.objects(known.getFirst(), "locations")) {
                 final String here = Values.text(location, "name");
                 if (!NETWORK_ZONE.equals(zones.get(here))) {
                     continue;
                 }
                 if (Boolean.TRUE.equals(location.get("available"))) {
-                    // The rate, because the reason for an ordered list is money and a run that
-                    // does not say what it chose to spend cannot be checked against the bill.
-                    System.out.println("location " + here + " has " + type
-                            + hourly(known.getFirst(), here));
+                    // The rate, because the reason for an ordered list is money and a run that does
+                    // not say what it chose to spend cannot be checked against the bill.
+                    System.out.println(
+                            "location " + here + " has " + type + hourly(known.getFirst(), here));
                     found.add(new Placement(type, here));
                     break;
                 }
@@ -412,8 +455,13 @@ public final class Hetzner implements Machines {
             }
         }
         if (found.isEmpty()) {
-            throw new IOException("no location in " + NETWORK_ZONE + " currently offers any of "
-                    + types + ": " + String.join("; ", tried));
+            throw new IOException(
+                    "no location in "
+                            + NETWORK_ZONE
+                            + " currently offers any of "
+                            + types
+                            + ": "
+                            + String.join("; ", tried));
         }
         return found;
     }
@@ -447,7 +495,8 @@ public final class Hetzner implements Machines {
     static String trimmed(String price) {
         try {
             return new java.math.BigDecimal(price)
-                    .setScale(4, java.math.RoundingMode.HALF_UP).toPlainString();
+                    .setScale(4, java.math.RoundingMode.HALF_UP)
+                    .toPlainString();
         } catch (NumberFormatException ex) {
             return price;
         }
@@ -459,16 +508,15 @@ public final class Hetzner implements Machines {
      * @param type The Hetzner server type.
      * @param location Where it can be created.
      */
-    record Placement(String type, String location) {
-    }
+    record Placement(String type, String location) {}
 
     /**
      * Returns the project's key that matches the private key in hand.
-     * <p>
-     * Matched by fingerprint rather than by name. Naming it means keeping two things in step - the
-     * secret holding the private half and the key registered in the project - and when they drift
-     * the server is created with a public key nobody holds, which shows up as a connection refused
-     * twenty lines later. The fingerprint cannot drift.
+     *
+     * <p>Matched by fingerprint rather than by name. Naming it means keeping two things in step -
+     * the secret holding the private half and the key registered in the project - and when they
+     * drift the server is created with a public key nobody holds, which shows up as a connection
+     * refused twenty lines later. The fingerprint cannot drift.
      *
      * @param credential The private key that will be used to connect.
      * @return The id of the matching key in the project.
@@ -480,15 +528,21 @@ public final class Hetzner implements Machines {
         final List<String> held = new ArrayList<>();
         for (final Map<String, Object> key : available) {
             if (wanted.equals(Values.text(key, "fingerprint"))) {
-                System.out.println("ssh key '" + Values.text(key, "name")
-                        + "' matches the private key in hand");
+                System.out.println(
+                        "ssh key '"
+                                + Values.text(key, "name")
+                                + "' matches the private key in hand");
                 return Values.id(key.get("id"));
             }
             held.add(Values.text(key, "name") + "=" + Values.text(key, "fingerprint"));
         }
-        throw new IOException("No key in the project matches the private key (" + wanted + ")."
-                + " In the project: " + (held.isEmpty() ? "none" : held)
-                + ". Add its public half to the project.");
+        throw new IOException(
+                "No key in the project matches the private key ("
+                        + wanted
+                        + ")."
+                        + " In the project: "
+                        + (held.isEmpty() ? "none" : held)
+                        + ". Add its public half to the project.");
     }
 
     /**
@@ -511,9 +565,16 @@ public final class Hetzner implements Machines {
      * @throws IOException If the API refuses.
      */
     public long snapshot(long id, String description, String os) throws IOException {
-        final Map<String, Object> answer = api.post("/servers/" + id + "/actions/create_image",
-                Map.of("description", description, "type", "snapshot",
-                        "labels", Map.of("porelo", "ci", "os", os)));
+        final Map<String, Object> answer =
+                api.post(
+                        "/servers/" + id + "/actions/create_image",
+                        Map.of(
+                                "description",
+                                description,
+                                "type",
+                                "snapshot",
+                                "labels",
+                                Map.of("porelo", "ci", "os", os)));
         await(Values.object(answer, "action"));
         return Values.id(Values.object(answer, "image").get("id"));
     }
@@ -536,19 +597,25 @@ public final class Hetzner implements Machines {
      */
     public List<Server> servers() throws IOException {
         final List<Server> found = new ArrayList<>();
-        for (final Map<String, Object> body : api.all("/servers?label_selector=" + LABEL_SELECTOR,
-                "servers")) {
-            found.add(new Server(Values.id(body.get("id")), Values.text(body, "name"),
-                    Values.labels(body).getOrDefault(RUN_LABEL, ""), Values.created(body),
-                    Values.text(Values.object(Values.object(body, "public_net"), "ipv4"), "ip")));
+        for (final Map<String, Object> body :
+                api.all("/servers?label_selector=" + LABEL_SELECTOR, "servers")) {
+            found.add(
+                    new Server(
+                            Values.id(body.get("id")),
+                            Values.text(body, "name"),
+                            Values.labels(body).getOrDefault(RUN_LABEL, ""),
+                            Values.created(body),
+                            Values.text(
+                                    Values.object(Values.object(body, "public_net"), "ipv4"),
+                                    "ip")));
         }
         return found;
     }
 
     /**
      * Deletes the servers this run created, and only those.
-     * <p>
-     * Deleting by age instead would catch another run's server whenever that run is slower than
+     *
+     * <p>Deleting by age instead would catch another run's server whenever that run is slower than
      * the window, and the symptom - ssh dying part way through a build - is close to undebuggable.
      *
      * @return How many were deleted.
@@ -560,12 +627,12 @@ public final class Hetzner implements Machines {
 
     /**
      * Deletes what one named run created.
-     * <p>
-     * <strong>Named rather than implied, because a run id is not always reproducible.</strong> In
-     * CI it comes from {@code GITHUB_RUN_ID} and the leg, so every step of one leg derives the
-     * same one and {@link #deleteMine()} is enough. Locally it is a timestamp, and a second
-     * process cannot derive what a first one used - so a lease writes its id down and a sweep is
-     * told it. Without this, that line in the file would be something nothing could read.
+     *
+     * <p><strong>Named rather than implied, because a run id is not always reproducible.</strong>
+     * In CI it comes from {@code GITHUB_RUN_ID} and the leg, so every step of one leg derives the
+     * same one and {@link #deleteMine()} is enough. Locally it is a timestamp, and a second process
+     * cannot derive what a first one used - so a lease writes its id down and a sweep is told it.
+     * Without this, that line in the file would be something nothing could read.
      *
      * @param run The id to match, as {@code lease --write} recorded it.
      * @return How many were deleted.
@@ -585,9 +652,9 @@ public final class Hetzner implements Machines {
 
     /**
      * Deletes servers older than a window, whoever created them.
-     * <p>
-     * This is the net under everything else: a process killed between two statements cannot clean
-     * up after itself, and what it leaves behind bills until somebody notices.
+     *
+     * <p>This is the net under everything else: a process killed between two statements cannot
+     * clean up after itself, and what it leaves behind bills until somebody notices.
      *
      * @param olderThan How old a server must be to count as left behind.
      * @param dryRun Whether to only say what would go.
@@ -600,13 +667,19 @@ public final class Hetzner implements Machines {
         for (final Server server : servers()) {
             if (server.created().isAfter(cutoff)) {
                 // Said out loud, because "0 to delete" otherwise covers two different worlds: a
-                // project holding three machines that are all in use, and a project holding
-                // none. Only one of those means the sweep is looking at what it thinks it is.
+                // project holding three machines that are all in use, and a project holding none.
+                // Only one of those means the sweep is looking at what it thinks it is.
                 System.out.println("keeping " + server.name() + ", created " + server.created());
                 continue;
             }
-            System.out.println((dryRun ? "WOULD DELETE " : "deleting ") + server.name()
-                    + ", created " + server.created() + " (run " + server.run() + ")");
+            System.out.println(
+                    (dryRun ? "WOULD DELETE " : "deleting ")
+                            + server.name()
+                            + ", created "
+                            + server.created()
+                            + " (run "
+                            + server.run()
+                            + ")");
             if (!dryRun) {
                 delete(server.id());
             }
@@ -641,6 +714,5 @@ public final class Hetzner implements Machines {
      * @param created When it was created.
      * @param address Its address.
      */
-    public record Server(long id, String name, String run, Instant created, String address) {
-    }
+    public record Server(long id, String name, String run, Instant created, String address) {}
 }

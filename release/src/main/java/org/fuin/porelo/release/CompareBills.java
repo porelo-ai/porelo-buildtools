@@ -17,8 +17,8 @@ import org.cyclonedx.model.Component;
 /**
  * Compares a freshly built bill with the published one, and says whether publishing may proceed
  * without a person.
- * <p>
- * Two things are not an update job's to decide: the set of third-party components changed, or a
+ *
+ * <p>Two things are not an update job's to decide: the set of third-party components changed, or a
  * license did. Exit codes: {@link #PUBLISH}, {@link #STOP}, {@link #UNANSWERED}.
  */
 public final class CompareBills {
@@ -80,12 +80,15 @@ public final class CompareBills {
         try {
             before = Bill.read(body.get());
         } catch (IllegalArgumentException ex) {
-            return unanswered("could not read the published bill - " + address + ": " + ex.getMessage());
+            return unanswered(
+                    "could not read the published bill - " + address + ": " + ex.getMessage());
         }
         return report(now.components(), before.components(), expectMoved);
     }
 
-    private int report(Map<String, Component> built, Map<String, Component> published,
+    private int report(
+            Map<String, Component> built,
+            Map<String, Component> published,
             List<String> expectMoved) {
         final List<String> added = new ArrayList<>(new TreeSet<>(difference(built, published)));
         final List<String> removed = new ArrayList<>(new TreeSet<>(difference(published, built)));
@@ -99,14 +102,22 @@ public final class CompareBills {
         }
         // Reported by the key it arrived as, so the line names the version a reader would look at.
         for (final Move move : moved) {
-            relicensed(move.to(), in(published, move.from()), in(built, move.to())).ifPresent(relicensed::add);
+            relicensed(move.to(), in(published, move.from()), in(built, move.to()))
+                    .ifPresent(relicensed::add);
         }
 
         for (final Move move : moved) {
             final Component was = in(published, move.from());
             final Component is = in(built, move.to());
-            out.println("  moved     " + was.getName() + " " + was.getVersion() + " -> " + is.getVersion()
-                    + "   " + shown(Bill.licenses(is)));
+            out.println(
+                    "  moved     "
+                            + was.getName()
+                            + " "
+                            + was.getVersion()
+                            + " -> "
+                            + is.getVersion()
+                            + "   "
+                            + shown(Bill.licenses(is)));
         }
         // The license goes on the line: an added component's has been compared with nothing.
         for (final String key : added) {
@@ -116,18 +127,31 @@ public final class CompareBills {
             out.println("  removed   " + key + "   " + shown(Bill.licenses(in(published, key))));
         }
         for (final Relicensed change : relicensed) {
-            out.println("  relicensed " + change.key() + ": " + listed(change.before()) + " -> "
-                    + listed(change.after()));
+            out.println(
+                    "  relicensed "
+                            + change.key()
+                            + ": "
+                            + listed(change.before())
+                            + " -> "
+                            + listed(change.after()));
         }
 
         if (added.isEmpty() && removed.isEmpty() && relicensed.isEmpty()) {
-            out.println("the same " + built.size() + " components, unchanged licenses - publishing");
+            out.println(
+                    "the same " + built.size() + " components, unchanged licenses - publishing");
             return PUBLISH;
         }
         out.println();
-        out.println("STOP: " + added.size() + " added, " + removed.size() + " removed, "
-                + relicensed.size() + " relicensed.");
-        out.println("New third-party code or a changed license is not something to decide automatically.");
+        out.println(
+                "STOP: "
+                        + added.size()
+                        + " added, "
+                        + removed.size()
+                        + " removed, "
+                        + relicensed.size()
+                        + " relicensed.");
+        out.println(
+                "New third-party code or a changed license is not something to decide automatically.");
         return STOP;
     }
 
@@ -144,19 +168,25 @@ public final class CompareBills {
 
     /**
      * Takes the component this run is deliberately updating out of the added and removed sets.
-     * <p>
-     * Its version is in its purl, so an update reads as one removed and one added and would stop
+     *
+     * <p>Its version is in its purl, so an update reads as one removed and one added and would stop
      * every update. Only an unambiguous pair moves - exactly one of each carrying that name - and
      * its license is still compared.
      */
-    static List<Move> pairMoves(List<String> expected, Map<String, Component> built,
-            Map<String, Component> published, List<String> added, List<String> removed) {
+    static List<Move> pairMoves(
+            List<String> expected,
+            Map<String, Component> built,
+            Map<String, Component> published,
+            List<String> added,
+            List<String> removed) {
         final List<Move> moved = new ArrayList<>();
         for (final String name : expected) {
-            final List<String> arrived = added.stream()
-                    .filter(key -> name.equals(in(built, key).getName())).toList();
-            final List<String> left = removed.stream()
-                    .filter(key -> name.equals(in(published, key).getName())).toList();
+            final List<String> arrived =
+                    added.stream().filter(key -> name.equals(in(built, key).getName())).toList();
+            final List<String> left =
+                    removed.stream()
+                            .filter(key -> name.equals(in(published, key).getName()))
+                            .toList();
             if (arrived.size() != 1 || left.size() != 1) {
                 continue;
             }
@@ -170,10 +200,13 @@ public final class CompareBills {
     private static Optional<Relicensed> relicensed(String key, Component was, Component is) {
         final Set<String> before = Bill.licenses(was);
         final Set<String> after = Bill.licenses(is);
-        return before.equals(after) ? Optional.empty() : Optional.of(new Relicensed(key, before, after));
+        return before.equals(after)
+                ? Optional.empty()
+                : Optional.of(new Relicensed(key, before, after));
     }
 
-    private static Set<String> difference(Map<String, Component> left, Map<String, Component> right) {
+    private static Set<String> difference(
+            Map<String, Component> left, Map<String, Component> right) {
         final Set<String> keys = new TreeSet<>(left.keySet());
         keys.removeAll(right.keySet());
         return keys;
@@ -194,10 +227,7 @@ public final class CompareBills {
     }
 
     /** A component this run updated, by the key it left as and the key it arrived as. */
-    record Move(String from, String to) {
-    }
+    record Move(String from, String to) {}
 
-    private record Relicensed(String key, Set<String> before, Set<String> after) {
-    }
-
+    private record Relicensed(String key, Set<String> before, Set<String> after) {}
 }

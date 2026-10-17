@@ -12,8 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class SnapshotsTreeBuildTest {
 
-    @TempDir
-    Path dir;
+    @TempDir Path dir;
 
     @Test
     void aTreeWithItsOwnBuildScriptIsBuiltByItAndNoModuleListHereIsUsed() throws Exception {
@@ -26,8 +25,8 @@ class SnapshotsTreeBuildTest {
 
     @Test
     void aTreeFromBeforeTheScriptGetsTheModuleListItHadWithTheAppWhereItKeepsIt() throws Exception {
-        // The grouping moved app under apps/; a list naming app stopped every leg at "Could not find the
-        // selected project in the reactor: app", on rented machines only.
+        // The grouping moved app under apps/; a list naming app stopped every leg at "Could not
+        // find the selected project in the reactor: app", on rented machines only.
         final Path grouped = tree();
         Files.createDirectories(grouped.resolve("apps/app"));
         Files.createDirectories(grouped.resolve("builds/stub"));
@@ -36,7 +35,8 @@ class SnapshotsTreeBuildTest {
 
         final Path older = Files.createDirectories(dir.resolve("older"));
         mvnw(older);
-        assertThat(sh(older, Snapshots.TREE_BUILD)).endsWith("-pl app,daemon,hooks,agents/stub -am");
+        assertThat(sh(older, Snapshots.TREE_BUILD))
+                .endsWith("-pl app,daemon,hooks,agents/stub -am");
     }
 
     @Test
@@ -56,10 +56,15 @@ class SnapshotsTreeBuildTest {
         Files.setPosixFilePermissions(mvnw, PosixFilePermissions.fromString("rwx------"));
     }
 
-    private static String sh(final Path tree, final String command) throws IOException, InterruptedException {
-        final Process process = new ProcessBuilder("sh", "-c", command).directory(tree.toFile())
-                .redirectErrorStream(true).start();
-        final String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
+    private static String sh(final Path tree, final String command)
+            throws IOException, InterruptedException {
+        final Process process =
+                new ProcessBuilder("sh", "-c", command)
+                        .directory(tree.toFile())
+                        .redirectErrorStream(true)
+                        .start();
+        final String out =
+                new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
         assertThat(process.waitFor()).as(out).isZero();
         return out;
     }

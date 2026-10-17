@@ -23,8 +23,7 @@ class AddFetchedCliTest {
 
     private static final String URL = "https://downloads.example/cli/2.1.267/linux-x64/cli";
 
-    @TempDir
-    Path directory;
+    @TempDir Path directory;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -35,34 +34,49 @@ class AddFetchedCliTest {
         final Path bill = bill(CompareBillsTest.bill(lib()));
 
         assertThat(add(bill, definition("2.1.267", artifact(URL, DIGEST)), "claude-code"))
-                .as(report()).isEqualTo(AddFetchedCli.DONE);
+                .as(report())
+                .isEqualTo(AddFetchedCli.DONE);
 
         final Component cli = component(bill, "claude-code");
         assertThat(cli.getVersion()).isEqualTo("2.1.267");
         assertThat(cli.getType()).isEqualTo(Component.Type.APPLICATION);
         assertThat(cli.getPurl()).isEqualTo("pkg:generic/claude-code@2.1.267?download_url=" + URL);
-        assertThat(cli.getHashes()).singleElement().satisfies(hash -> {
-            assertThat(hash.getAlgorithm()).isEqualTo("SHA-256");
-            assertThat(hash.getValue()).isEqualTo(DIGEST);
-        });
-        assertThat(cli.getExternalReferences()).singleElement().satisfies(reference -> {
-            assertThat(reference.getType()).isEqualTo(ExternalReference.Type.DISTRIBUTION);
-            assertThat(reference.getUrl()).isEqualTo(URL);
-        });
-        assertThat(cli.getProperties()).anySatisfy(property -> {
-            assertThat(property.getName()).isEqualTo("porelo:delivery");
-            assertThat(property.getValue()).isEqualTo("fetched-at-image-build");
-        });
+        assertThat(cli.getHashes())
+                .singleElement()
+                .satisfies(
+                        hash -> {
+                            assertThat(hash.getAlgorithm()).isEqualTo("SHA-256");
+                            assertThat(hash.getValue()).isEqualTo(DIGEST);
+                        });
+        assertThat(cli.getExternalReferences())
+                .singleElement()
+                .satisfies(
+                        reference -> {
+                            assertThat(reference.getType())
+                                    .isEqualTo(ExternalReference.Type.DISTRIBUTION);
+                            assertThat(reference.getUrl()).isEqualTo(URL);
+                        });
+        assertThat(cli.getProperties())
+                .anySatisfy(
+                        property -> {
+                            assertThat(property.getName()).isEqualTo("porelo:delivery");
+                            assertThat(property.getValue()).isEqualTo("fetched-at-image-build");
+                        });
         assertThat(Bill.read(Files.readAllBytes(bill)).components()).hasSize(2);
     }
 
     @Test
     void anUnverifiedArtifactIsRecordedWithoutADigest() throws IOException {
         final Path bill = bill(CompareBillsTest.bill(lib()));
-        final String unverified = "      - url: " + URL + "\n        target: /usr/local/bin/cli\n"
-                + "        unverified: true\n        reason: the vendor publishes no digest\n";
+        final String unverified =
+                "      - url: "
+                        + URL
+                        + "\n        target: /usr/local/bin/cli\n"
+                        + "        unverified: true\n        reason: the vendor publishes no digest\n";
 
-        assertThat(add(bill, definition("2.1.267", unverified), "claude-code")).as(report()).isEqualTo(AddFetchedCli.DONE);
+        assertThat(add(bill, definition("2.1.267", unverified), "claude-code"))
+                .as(report())
+                .isEqualTo(AddFetchedCli.DONE);
         assertThat(component(bill, "claude-code").getHashes()).isNullOrEmpty();
     }
 
@@ -71,7 +85,9 @@ class AddFetchedCliTest {
         final String before = CompareBillsTest.bill(lib());
         final Path bill = bill(before);
 
-        assertThat(add(bill, definition("2.1.267", ""), "claude-code")).as(report()).isEqualTo(AddFetchedCli.DONE);
+        assertThat(add(bill, definition("2.1.267", ""), "claude-code"))
+                .as(report())
+                .isEqualTo(AddFetchedCli.DONE);
         assertThat(Files.readString(bill)).isEqualTo(before);
         assertThat(out.toString(StandardCharsets.UTF_8)).contains("nothing to add");
     }
@@ -80,9 +96,12 @@ class AddFetchedCliTest {
     void refusesToGuessWhichOfTwoArtifactsIsTheCli() throws IOException {
         final String before = CompareBillsTest.bill(lib());
         final Path bill = bill(before);
-        final String two = artifact(URL, DIGEST) + artifact("https://downloads.example/rg", "b".repeat(64));
+        final String two =
+                artifact(URL, DIGEST) + artifact("https://downloads.example/rg", "b".repeat(64));
 
-        assertThat(add(bill, definition("2.1.267", two), "claude-code")).as(report()).isEqualTo(AddFetchedCli.FAILED);
+        assertThat(add(bill, definition("2.1.267", two), "claude-code"))
+                .as(report())
+                .isEqualTo(AddFetchedCli.FAILED);
         assertThat(Files.readString(bill)).isEqualTo(before);
         assertThat(err.toString(StandardCharsets.UTF_8)).contains("pins 2 artifacts");
     }
@@ -91,7 +110,8 @@ class AddFetchedCliTest {
     void readsTheVersionFromTheInstallSectionNotTheFirstVersionInTheFile() throws IOException {
         final Path bill = bill(CompareBillsTest.bill(lib()));
         final Path definition = definition("2.1.267", artifact(URL, DIGEST));
-        Files.writeString(definition, "# pinned before: version: 1.0.0\n" + Files.readString(definition));
+        Files.writeString(
+                definition, "# pinned before: version: 1.0.0\n" + Files.readString(definition));
 
         assertThat(add(bill, definition, "claude-code")).as(report()).isEqualTo(AddFetchedCli.DONE);
         assertThat(component(bill, "claude-code").getVersion()).isEqualTo("2.1.267");
@@ -102,23 +122,33 @@ class AddFetchedCliTest {
         final Path bill = bill("<html>");
 
         assertThat(add(bill, definition("2.1.267", artifact(URL, DIGEST)), "claude-code"))
-                .as(report()).isEqualTo(AddFetchedCli.FAILED);
+                .as(report())
+                .isEqualTo(AddFetchedCli.FAILED);
         assertThat(Files.readString(bill)).isEqualTo("<html>");
     }
 
     @Test
     void theNameRecordedIsTheOneCompareBillsPairsAnUpdateBy() throws IOException {
         final Path published = bill(CompareBillsTest.bill(lib()));
-        add(published, definition("2.1.236", artifact(URL.replace("2.1.267", "2.1.236"), DIGEST)), "claude-code");
+        add(
+                published,
+                definition("2.1.236", artifact(URL.replace("2.1.267", "2.1.236"), DIGEST)),
+                "claude-code");
         final Path built = bill(CompareBillsTest.bill(lib()));
         add(built, definition("2.1.267", artifact(URL, "c".repeat(64))), "claude-code");
         final byte[] before = Files.readAllBytes(published);
 
-        final int code = new CompareBills(stream(out), stream(err), (address, headers) -> Optional.of(before))
-                .compare(built, URI.create("https://repo.example/bom.json"), List.of("claude-code"));
+        final int code =
+                new CompareBills(
+                                stream(out), stream(err), (address, headers) -> Optional.of(before))
+                        .compare(
+                                built,
+                                URI.create("https://repo.example/bom.json"),
+                                List.of("claude-code"));
 
         assertThat(code).as(report()).isEqualTo(CompareBills.PUBLISH);
-        assertThat(out.toString(StandardCharsets.UTF_8)).contains("moved     claude-code 2.1.236 -> 2.1.267");
+        assertThat(out.toString(StandardCharsets.UTF_8))
+                .contains("moved     claude-code 2.1.236 -> 2.1.267");
     }
 
     private int add(Path bill, Path definition, String name) {
@@ -130,7 +160,8 @@ class AddFetchedCliTest {
     }
 
     private Path definition(String version, String artifacts) throws IOException {
-        final String yaml = """
+        final String yaml =
+                """
                 name: fake
                 label: Fake Agent
                 binary: fake-cli
@@ -141,55 +172,80 @@ class AddFetchedCliTest {
                   prompt_flag: "-p"
                 install:
                   version: "%s"
-                %s""".formatted(version, artifacts.isEmpty() ? "" : "  artifacts:\n" + artifacts);
+                %s"""
+                        .formatted(
+                                version, artifacts.isEmpty() ? "" : "  artifacts:\n" + artifacts);
         return Files.writeString(Files.createTempFile(directory, "agent", ".yaml"), yaml);
     }
 
     private static String artifact(String url, String digest) {
-        return "      - url: " + url + "\n        sha256: " + digest + "\n        target: /usr/local/bin/cli\n";
+        return "      - url: "
+                + url
+                + "\n        sha256: "
+                + digest
+                + "\n        target: /usr/local/bin/cli\n";
     }
 
     private static String lib() {
-        return CompareBillsTest.component("lib", "1.0", "pkg:maven/org.example/lib@1.0",
+        return CompareBillsTest.component(
+                "lib",
+                "1.0",
+                "pkg:maven/org.example/lib@1.0",
                 CompareBillsTest.license("id", "Apache-2.0"));
     }
 
     private static Component component(Path bill, String name) throws IOException {
         final Bom bom = Bill.parse(Files.readAllBytes(bill));
-        return bom.getComponents().stream().filter(c -> name.equals(c.getName())).findFirst().orElseThrow();
+        return bom.getComponents().stream()
+                .filter(c -> name.equals(c.getName()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private String report() {
-        return "stdout:%n%s%nstderr:%n%s".formatted(out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
+        return "stdout:%n%s%nstderr:%n%s"
+                .formatted(
+                        out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
     }
 
     private static PrintStream stream(ByteArrayOutputStream target) {
         return new PrintStream(target, true, StandardCharsets.UTF_8);
     }
 
-
     @Test
     void aSecondRunOnTheSameBillLeavesOneCli() throws IOException {
         final Path bill = bill(CompareBillsTest.bill(lib()));
-        add(bill, definition("2.1.236", artifact(URL.replace("2.1.267", "2.1.236"), DIGEST)), "claude-code");
+        add(
+                bill,
+                definition("2.1.236", artifact(URL.replace("2.1.267", "2.1.236"), DIGEST)),
+                "claude-code");
 
-        assertThat(add(bill, definition("2.1.267", artifact(URL, DIGEST)), "claude-code")).as(report())
+        assertThat(add(bill, definition("2.1.267", artifact(URL, DIGEST)), "claude-code"))
+                .as(report())
                 .isEqualTo(AddFetchedCli.DONE);
 
         final Bom bom = Bill.parse(Files.readAllBytes(bill));
-        assertThat(bom.getComponents()).filteredOn(c -> "claude-code".equals(c.getName()))
-                .singleElement().extracting(Component::getVersion).isEqualTo("2.1.267");
+        assertThat(bom.getComponents())
+                .filteredOn(c -> "claude-code".equals(c.getName()))
+                .singleElement()
+                .extracting(Component::getVersion)
+                .isEqualTo("2.1.267");
         assertThat(bom.getComponents()).hasSize(2);
     }
 
     @Test
     void refusesToRecordAFetchedCliBesideAShippedComponentOfTheSameName() throws IOException {
-        final String shipped = CompareBillsTest.component("claude-code", "1.0", "pkg:maven/x/claude-code@1.0",
-                CompareBillsTest.license("id", "MIT"));
+        final String shipped =
+                CompareBillsTest.component(
+                        "claude-code",
+                        "1.0",
+                        "pkg:maven/x/claude-code@1.0",
+                        CompareBillsTest.license("id", "MIT"));
         final String before = CompareBillsTest.bill(shipped);
         final Path bill = bill(before);
 
-        assertThat(add(bill, definition("2.1.267", artifact(URL, DIGEST)), "claude-code")).as(report())
+        assertThat(add(bill, definition("2.1.267", artifact(URL, DIGEST)), "claude-code"))
+                .as(report())
                 .isEqualTo(AddFetchedCli.FAILED);
         assertThat(Files.readString(bill)).isEqualTo(before);
     }

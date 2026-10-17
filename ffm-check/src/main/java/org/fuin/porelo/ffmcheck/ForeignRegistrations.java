@@ -19,15 +19,15 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Checks that every FFM downcall a module's tests made is registered for the native image.
- * <p>
- * FFM downcalls are not found by native-image's static analysis: an unregistered one is not a build
- * error but a {@code MissingForeignRegistrationError} at runtime, in the shipped binary. The tests run
- * under the tracing agent, which records each downcall they execute; this compares that record with
- * the committed {@code reachability-metadata.json}.
- * <p>
- * <strong>The committed set must be a superset, not equal.</strong> Some downcalls cannot run in a
- * test - binding an NFLOG group needs CAP_NET_ADMIN, an exec replaces the process - so their entries
- * are written by hand, and demanding equality would delete them on every run.
+ *
+ * <p>FFM downcalls are not found by native-image's static analysis: an unregistered one is not a
+ * build error but a {@code MissingForeignRegistrationError} at runtime, in the shipped binary. The
+ * tests run under the tracing agent, which records each downcall they execute; this compares that
+ * record with the committed {@code reachability-metadata.json}.
+ *
+ * <p><strong>The committed set must be a superset, not equal.</strong> Some downcalls cannot run in
+ * a test - binding an NFLOG group needs CAP_NET_ADMIN, an exec replaces the process - so their
+ * entries are written by hand, and demanding equality would delete them on every run.
  */
 public final class ForeignRegistrations {
 
@@ -43,14 +43,15 @@ public final class ForeignRegistrations {
 
     /**
      * Checks one module, or updates its committed metadata.
-     * <p>
-     * Throws rather than exiting: this runs inside Maven's own JVM, and an exit would end Maven.
+     *
+     * <p>Throws rather than exiting: this runs inside Maven's own JVM, and an exit would end Maven.
      *
      * @param args the agent's output directory, and the committed metadata file
      */
     public static void main(String[] args) {
         if (args.length != 2) {
-            throw new IllegalArgumentException("usage: <agent output directory> <committed " + METADATA + ">");
+            throw new IllegalArgumentException(
+                    "usage: <agent output directory> <committed " + METADATA + ">");
         }
         final boolean update = Boolean.getBoolean(UPDATE);
         final String failure = check(Path.of(args[0]), Path.of(args[1]), update, System.out);
@@ -68,13 +69,18 @@ public final class ForeignRegistrations {
      * @param out where the result is reported
      * @return why the check failed, or {@code null} when it passed or the file was updated
      */
-    static @Nullable String check(Path agentOutput, Path committed, boolean update, PrintStream out) {
+    static @Nullable String check(
+            Path agentOutput, Path committed, boolean update, PrintStream out) {
         final Optional<Path> generated = newestRecord(agentOutput);
         if (generated.isEmpty()) {
-            return "the agent produced no " + METADATA + " under " + agentOutput
+            return "the agent produced no "
+                    + METADATA
+                    + " under "
+                    + agentOutput
                     + " - did the tests run with the native profile and -Dagent=true?";
         }
-        final Map<String, Object> existingDocument = Files.exists(committed) ? object(read(committed)) : new LinkedHashMap<>();
+        final Map<String, Object> existingDocument =
+                Files.exists(committed) ? object(read(committed)) : new LinkedHashMap<>();
         final List<Object> existing = downcalls(existingDocument);
         final List<Object> recorded = downcalls(object(read(generated.get())));
 
@@ -87,7 +93,12 @@ public final class ForeignRegistrations {
             }
         }
         if (missing.isEmpty()) {
-            out.println("    up to date (" + existing.size() + " registered, " + recorded.size() + " observed)");
+            out.println(
+                    "    up to date ("
+                            + existing.size()
+                            + " registered, "
+                            + recorded.size()
+                            + " observed)");
             return null;
         }
         if (update) {
@@ -115,7 +126,9 @@ public final class ForeignRegistrations {
             return Optional.empty();
         }
         try (Stream<Path> walk = Files.walk(agentOutput)) {
-            return walk.filter(path -> path.getFileName().toString().equals(METADATA)).sorted().reduce((a, b) -> b);
+            return walk.filter(path -> path.getFileName().toString().equals(METADATA))
+                    .sorted()
+                    .reduce((a, b) -> b);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -151,11 +164,12 @@ public final class ForeignRegistrations {
 
     /**
      * Writes the committed file with the merged downcalls, every other key kept as it was.
-     * <p>
-     * One downcall per line, which is the shape the committed files have: a hand-written comment
+     *
+     * <p>One downcall per line, which is the shape the committed files have: a hand-written comment
      * survives, and an update is a diff of added lines.
      */
-    private static void write(Path committed, Map<String, Object> document, List<Object> downcalls) {
+    private static void write(
+            Path committed, Map<String, Object> document, List<Object> downcalls) {
         final StringBuilder out = new StringBuilder("{\n");
         final List<String> names = new ArrayList<>(document.keySet());
         if (!names.contains("foreign")) {
@@ -169,7 +183,9 @@ public final class ForeignRegistrations {
             } else if (document.get(name) instanceof List<?> lines) {
                 out.append("[\n");
                 for (int j = 0; j < lines.size(); j++) {
-                    out.append("    ").append(Json.write(lines.get(j))).append(j + 1 < lines.size() ? ",\n" : "\n");
+                    out.append("    ")
+                            .append(Json.write(lines.get(j)))
+                            .append(j + 1 < lines.size() ? ",\n" : "\n");
                 }
                 out.append("  ]");
             } else {
@@ -186,19 +202,27 @@ public final class ForeignRegistrations {
         }
     }
 
-    private static void foreign(StringBuilder out, @Nullable Object foreign, List<Object> downcalls) {
+    private static void foreign(
+            StringBuilder out, @Nullable Object foreign, List<Object> downcalls) {
         out.append("{\n");
         if (foreign instanceof Map<?, ?> map) {
             // Anything else the agent may record under 'foreign' - upcalls - is kept as it was.
-            map.forEach((name, value) -> {
-                if (!"downcalls".equals(name)) {
-                    out.append("    ").append(Json.write(String.valueOf(name))).append(": ").append(Json.write(value)).append(",\n");
-                }
-            });
+            map.forEach(
+                    (name, value) -> {
+                        if (!"downcalls".equals(name)) {
+                            out.append("    ")
+                                    .append(Json.write(String.valueOf(name)))
+                                    .append(": ")
+                                    .append(Json.write(value))
+                                    .append(",\n");
+                        }
+                    });
         }
         out.append("    \"downcalls\": [\n");
         for (int i = 0; i < downcalls.size(); i++) {
-            out.append("      ").append(Json.write(downcalls.get(i))).append(i + 1 < downcalls.size() ? ",\n" : "\n");
+            out.append("      ")
+                    .append(Json.write(downcalls.get(i)))
+                    .append(i + 1 < downcalls.size() ? ",\n" : "\n");
         }
         out.append("    ]\n  }");
     }
@@ -218,5 +242,4 @@ public final class ForeignRegistrations {
             throw new UncheckedIOException(ex);
         }
     }
-
 }
