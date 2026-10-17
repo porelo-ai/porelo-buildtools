@@ -71,6 +71,14 @@ The list is in the check (`CheckActions.WRITES`), the same for every repository:
 
 A job that needs a write not in it is a change to the list, with its reason, in `porelo-buildtools`.
 
+## What `check-actions` reads about checkouts
+
+Every `actions/checkout` step sets `persist-credentials: false` under its own `with:`; one without it, or with
+`true`, is refused, naming the workflow file, the line and the step. Otherwise the job's token stays in the
+checkout's `.git/config`, where every later step can read it. No step is excepted: a step that pushes with git
+hands the token to that one command from the environment, as `machines.yml` does, and a repository that cannot
+names it in the channel.
+
 ## What `check-readmes` reads
 
 ```

@@ -24,6 +24,9 @@ import java.util.stream.Stream;
  * <p>
  * GitHub's own actions are held to the same rule: the argument is the same, and the credentials stand
  * next to them all the same.
+ * <p>
+ * Every {@code actions/checkout} step sets {@code persist-credentials: false}: otherwise the job's token stays in
+ * the checkout's {@code .git/config}, where every later step can read it. No step is excepted.
  */
 final class CheckActions {
 
@@ -77,6 +80,13 @@ final class CheckActions {
     /** A permission and its value, one per line of a map. */
     private static final Pattern GRANT = Pattern.compile("^\\s+([\\w-]+):\\s*(\\S+)\\s*$");
 
+    /** The step that checks the repository out, and leaves the job's token in {@code .git/config} by default. */
+    private static final String CHECKOUT = "actions/checkout";
+
+    /** The one value of {@code persist-credentials} that keeps the token out of the checkout, quoted or not. */
+    private static final Pattern NO_CREDENTIALS =
+            Pattern.compile("^\\s*persist-credentials:\\s*(false|'false'|\"false\")\\s*$");
+
     private static final Pattern VERSION = Pattern.compile("^\\s*#\\s*v?\\d+\\.\\d+\\.\\d+(\\s|$)");
 
     private final PrintStream out;
@@ -111,6 +121,7 @@ final class CheckActions {
         int steps = 0;
         int forkFaults = 0;
         int permissionFaults = 0;
+        int checkoutFaults = 0;
         try (Stream<Path> files = Files.walk(directory)) {
             for (final Path file : files.filter(CheckActions::isYaml).sorted().toList()) {
                 final List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
@@ -130,9 +141,15 @@ final class CheckActions {
                         continue;
                     }
                     steps++;
-                    final String fault = fault(unquoted(uses.group(1)), uses.group(2));
+                    final String reference = unquoted(uses.group(1));
+                    final String fault = fault(reference, uses.group(2));
                     if (fault != null) {
                         faults.add(directory.relativize(file) + ":" + (at + 1) + ": " + fault);
+                    }
+                    final String credentials = reference.startsWith(CHECKOUT + "@") ? credentials(lines, at) : null;
+                    if (credentials != null) {
+                        faults.add(directory.relativize(file) + ":" + (at + 1) + ": " + credentials);
+                        checkoutFaults++;
                     }
                 }
             }
@@ -147,6 +164,12 @@ final class CheckActions {
                 err.println(faults.size() + " workflow(s) a fork's pull request can run with this repository's secrets."
                         + " Run on 'pull_request', which a fork gets without them, and keep what needs a secret to a"
                         + " workflow on this repository's own commits.");
+                return Stop.REFUSED;
+            }
+            if (checkoutFaults == faults.size()) {
+                err.println(faults.size() + " checkout(s) that leave the job's token in .git/config for every later"
+                        + " step. Give each actions/checkout step 'persist-credentials: false' under its 'with:';"
+                        + " a step that must push with git is named in the channel, never excepted here.");
                 return Stop.REFUSED;
             }
             if (permissionFaults == faults.size()) {
@@ -405,6 +428,56 @@ final class CheckActions {
         }
         return entries;
     }
+    /**
+     * Says whether a checkout step keeps the job's token out of its checkout.
+     * <p>
+     * The step is the list item {@code uses:} belongs to: from its {@code -} to the next line indented no deeper
+     * than that. Only its own {@code with:} counts.
+     *
+     * @param lines the workflow's lines
+     * @param uses the index of the step's {@code uses:} line
+     * @return the fault, or {@code null} when the step sets {@code persist-credentials: false}
+     */
+    static @org.jspecify.annotations.Nullable String credentials(List<String> lines, int uses) {
+        int item = uses;
+        while (item > 0 && !code(lines.get(item)).stripLeading().startsWith("- ")) {
+            item--;
+        }
+        final int dash = indent(lines.get(item));
+        String name = null;
+        boolean inWith = false;
+        int withIndent = -1;
+        for (int at = item; at < lines.size(); at++) {
+            final String line = code(lines.get(at));
+            if (line.isBlank()) {
+                continue;
+            }
+            final String key = at == item ? line.stripLeading().substring(2).stripLeading() : line.strip();
+            final int keyIndent = at == item ? line.indexOf(key) : indent(line);
+            if (at > item && keyIndent <= dash) {
+                break;
+            }
+            if (inWith && keyIndent > withIndent) {
+                if (NO_CREDENTIALS.matcher(key).matches()) {
+                    return null;
+                }
+                continue;
+            }
+            inWith = key.equals("with:");
+            withIndent = keyIndent;
+            if (key.startsWith("name:")) {
+                name = unquoted(key.substring("name:".length()).strip());
+            }
+        }
+        return (name == null ? "step at line " + (item + 1) : "step '" + name + "'")
+                + " checks out without 'persist-credentials: false', so the job's token stays in .git/config for"
+                + " every later step";
+    }
+
+    private static int indent(String line) {
+        return line.length() - line.stripLeading().length();
+    }
+
     /**
      * Says what is wrong with one step, or nothing.
      *

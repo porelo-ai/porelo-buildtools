@@ -36,6 +36,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: The pinned GraalVM
         uses: ./.github/actions/pinned-jdk
@@ -77,6 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # Across everything the push brought, not only its last commit: a pin, or the recipe that builds the
@@ -119,6 +122,7 @@ jobs:
         if: steps.moved.outputs.moved == 'yes'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: porelo-ai/porelo
           path: porelo
 
@@ -155,6 +159,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # A tag publishes a release, everything else a snapshot. A release is refused unless the tag is exactly
       # 'v' plus the version it carries, and a version is never a release and a snapshot at once.

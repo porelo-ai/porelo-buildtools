@@ -32,6 +32,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: The pinned GraalVM
         uses: ./.github/actions/pinned-jdk
@@ -92,8 +94,11 @@ jobs:
               echo "nothing moved"
               exit "$failed"
           fi
-          # Replaces what an open request held: it always says what upstream offers today.
-          git push -q --force origin "$branch"
+          # Replaces what an open request held: it always says what upstream offers today. The checkout kept no
+          # token, so this one push takes it from the environment, never from the command line or .git/config.
+          git -c credential.helper= \
+              -c credential.helper='!f() { echo username=x-access-token; echo "password=$GITHUB_TOKEN"; }; f' \
+              push -q --force origin "$branch"
           title="Pin $moved"
           body="$(printf 'The machines a CI leg boots from. Each pin that moved is one commit; merging rebuilds the snapshots once.\n\n```%s\n```' "$answers")"
           if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then

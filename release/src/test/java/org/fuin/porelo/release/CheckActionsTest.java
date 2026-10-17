@@ -30,7 +30,8 @@ class CheckActionsTest {
 
     @Test
     void acceptsACommitWithItsVersionBesideIt() throws IOException {
-        workflow("      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n");
+        workflow("      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n"
+                + "        with:\n          persist-credentials: false\n");
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
         assertThat(stdout()).contains("OK    1 step(s)");
@@ -274,12 +275,46 @@ class CheckActionsTest {
     void acceptsARunAfterAnotherOnItsOwnCodeAndTheWordInAnExpression() throws IOException {
         workflow("on:\n  workflow_run:\n    workflows: [Build]\npermissions: {}\njobs:\n  a:\n"
                 + "    if: github.event_name != 'pull_request_target'\n    runs-on: ubuntu-latest\n    steps:\n"
-                + "      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n");
+                + "      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n" + "        with:\n          persist-credentials: false\n");
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
     }
 
-    private static final String STEP = "    steps:\n      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n";
+    @Test
+    void refusesACheckoutThatKeepsItsTokenNamingTheFileAndTheStep() throws IOException {
+        // Without the option, the token stays in .git/config for every later step to read.
+        workflow("permissions: {}\njobs:\n  build:\n    steps:\n      - name: Check out\n        uses: actions/checkout@" + COMMIT
+                + " # v7.0.1\n        with:\n          fetch-depth: 0\n      - name: Build\n        run: ./mvnw verify\n"
+                + "        with:\n          persist-credentials: false\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the file, the step and what it lacks")
+                .contains("workflows/ci.yml:6: step 'Check out' checks out without 'persist-credentials: false'")
+                .contains("persist-credentials: false").doesNotContain("Pin each step");
+    }
+
+    @Test
+    void refusesACheckoutWithPersistCredentialsTrue() throws IOException {
+        workflow("      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n        with:\n"
+                + "          persist-credentials: true\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("workflows/ci.yml:1: step at line 1 checks out without"
+                + " 'persist-credentials: false'");
+    }
+
+    @Test
+    void acceptsACheckoutWithPersistCredentialsFalseBesideItsOtherOptions() throws IOException {
+        workflow("permissions: {}\njobs:\n  build:\n    steps:\n      - name: Check out\n"
+                + "        uses: actions/checkout@" + COMMIT + " # v7.0.1\n        with:\n          fetch-depth: 0\n"
+                + "          persist-credentials: 'false' # no token for later steps\n"
+                + "          path: porelo\n      - run: ./mvnw verify\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(0);
+    }
+
+    private static final String STEP = "    steps:\n      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n"
+            + "        with:\n          persist-credentials: false\n";
 
     private void named(String file, String text) throws IOException {
         workflow("");
