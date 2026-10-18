@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.fuin.porelo.json.Json;
 import org.junit.jupiter.api.Test;
 
 /** Tests for creating and destroying a machine - the path where a mistake bills 81 EUR a month. */
@@ -80,6 +84,46 @@ class LeaseTest {
             }
             assertThat(attempts.get()).isEqualTo(3);
         }
+    }
+
+    @Test
+    void createsTheServerWithAnIpv4AddressAndNoIpv6One() throws IOException {
+        // The project may hold 16 primary IPs, and a server made with both kinds takes two: 8
+        // servers filled it on
+        // 2026-10-18 while the vCPUs stood at 20 of 32. Nothing reads the IPv6 address.
+        final Credential credential = Keys.generated();
+        final AtomicReference<String> sent = new AtomicReference<>();
+        try (StubApi stub =
+                lookups()
+                        .answering(
+                                "/ssh_keys?page=1&per_page=50", keys(Fingerprint.md5(credential)))
+                        .answering(
+                                "/servers",
+                                exchange -> {
+                                    try {
+                                        sent.set(
+                                                new String(
+                                                        exchange.getRequestBody().readAllBytes(),
+                                                        StandardCharsets.UTF_8));
+                                    } catch (IOException ex) {
+                                        throw new java.io.UncheckedIOException(ex);
+                                    }
+                                    return new StubApi.Answer(201, created());
+                                })
+                        .answering(
+                                "/servers/77",
+                                exchange ->
+                                        new StubApi.Answer(
+                                                200,
+                                                "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
+            try (Lease rental =
+                    Hetzner.against(stub.base(), "run-1", NO_WAIT).acquire(spec(credential))) {
+                assertThat(rental.address()).isEqualTo("1.2.3.4");
+            }
+        }
+        assertThat(Values.object(Values.object(Json.parse(sent.get())), "public_net"))
+                .as("the server create's public network, in %s", sent.get())
+                .isEqualTo(Map.of("enable_ipv4", Boolean.TRUE, "enable_ipv6", Boolean.FALSE));
     }
 
     @Test

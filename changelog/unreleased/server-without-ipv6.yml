@@ -1,0 +1,2 @@
+title: porelo-machines creates every server with an IPv4 address and no IPv6 one, so a server holds one of the project's primary IPs instead of two
+type: changed

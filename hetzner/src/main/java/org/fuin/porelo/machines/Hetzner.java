@@ -292,6 +292,13 @@ public final class Hetzner implements Machines {
         body.put("location", placement.location());
         body.put("ssh_keys", List.of(key));
         body.put("labels", labels);
+        // An IPv4 address only. The project holds 16 primary IPs, and a server made with an IPv6
+        // address as well takes two of them, so eight servers filled it on 2026-10-18 while the
+        // vCPUs stood at 20 of 32. Nothing here reads the IPv6 address; every ssh goes to the IPv4.
+        final Map<String, Object> net = new LinkedHashMap<>();
+        net.put("enable_ipv4", Boolean.TRUE);
+        net.put("enable_ipv6", Boolean.FALSE);
+        body.put("public_net", net);
         body.put("start_after_create", Boolean.TRUE);
 
         for (int attempt = 1; attempt <= LIMIT_ATTEMPTS; attempt++) {
@@ -300,7 +307,9 @@ public final class Hetzner implements Machines {
             } catch (Api.ApiException ex) {
                 // Only that one error is retried. Anything else - a bad image, a full datacentre, a
                 // rejected token - is a mistake that waiting cannot fix, and burning an hour before
-                // reporting it would be worse than failing now.
+                // reporting it would be worse than failing now. The API names every quota of the
+                // account with this code, the primary IPs as much as the vCPUs; its primary_ip_*
+                // codes are about assigning an address, not about running out of them.
                 if (!"resource_limit_exceeded".equals(ex.code())) {
                     throw ex;
                 }

@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | Every server is created with an IPv4 address and no IPv6 one, one primary IP instead of two; built with its test seen red, the full-quota answer read from the API's reference; left: the leg kinds green on such servers in the Builds after the push. |
 | <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
 
 ## Backlog
@@ -18,7 +19,6 @@ left out.
 | <a id="bt11"></a>[BT11](BT11-A-Rented-Machine-Answers-With-Its-Own-Key.md) | M | - | A rented machine gets a host key made per run in its `user_data`, and `Ssh` accepts only that key for `porelo`'s legs, the agent legs and the kit; the local VMs and `deploy` accepting any key is a written risk. |
 | <a id="bt12"></a>[BT12](BT12-A-Rented-Machine-Carries-Its-Expiry.md) | M | - | Every lease labels its server `porelo-expires`, from the job's time limit plus a margin; `sweep` deletes only servers past their expiry or without one, refuses `--older-than 0`, and deletes servers in use only with `--including-in-use`; `porelo`'s `sweep.yml` moves with it. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | M | - | The template every repository takes: a push of only `.github/` starts no Build, a light pull-request check with no rented machine, auto-merge for Dependabot's patch and minor action moves with its write permission in one job that `check-actions` knows, and the operator's settings in [PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28)'s list. |
-| <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | A leg's server is created without a public IPv6 address, one primary IP instead of two, once nothing a leg does is found to need IPv6. |
 
 ## Analyzed
 
