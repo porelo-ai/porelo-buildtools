@@ -1,0 +1,2 @@
+title: "check-shared's .editorconfig gives Ansible's YAML in roles, playbooks, molecule, extensions and galaxy.yml two spaces, as that collection's own convention is"
+type: changed
