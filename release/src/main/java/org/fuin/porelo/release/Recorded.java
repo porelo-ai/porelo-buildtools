@@ -1,6 +1,7 @@
 package org.fuin.porelo.release;
 
 import java.util.List;
+import java.util.Objects;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.Component;
 import org.cyclonedx.model.ExternalReference;
@@ -85,14 +86,15 @@ final class Recorded {
      * Records a component in a bill's top level, in place of an earlier recording of it.
      *
      * <p>A build without {@code clean} hands this the bill it already wrote into, so a second run
-     * must leave one component, not two. A component of that name delivered some other way is not
-     * this one to replace.
+     * must leave one component, not two. A component of that group and name delivered some other
+     * way is not this one to replace; one of the same name in another group, such as npm's
+     * {@code @types/node} beside the Node runtime, is another thing and stays beside it.
      *
      * @param bom the bill
      * @param component what to record
      * @return whether an earlier recording was replaced
-     * @throws IllegalStateException when the bill names a component of that name delivered
-     *     otherwise
+     * @throws IllegalStateException when the bill names a component of that group and name
+     *     delivered otherwise
      */
     static boolean into(Bom bom, Component component) {
         final String delivery = deliveryOf(component);
@@ -100,7 +102,7 @@ final class Recorded {
                 bom.getComponents() == null
                         ? List.of()
                         : bom.getComponents().stream()
-                                .filter(c -> component.getName().equals(c.getName()))
+                                .filter(c -> sameThing(component, c))
                                 .toList();
         if (earlier.stream().anyMatch(c -> delivery == null || !delivery.equals(deliveryOf(c)))) {
             throw new IllegalStateException(
@@ -113,6 +115,11 @@ final class Recorded {
         }
         bom.addComponent(component);
         return !earlier.isEmpty();
+    }
+
+    private static boolean sameThing(Component one, Component other) {
+        return Objects.equals(one.getGroup(), other.getGroup())
+                && one.getName().equals(other.getName());
     }
 
     private static @Nullable String deliveryOf(Component component) {

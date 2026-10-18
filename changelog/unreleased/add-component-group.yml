@@ -1,0 +1,2 @@
+title: '`add-component` records a runtime beside a package of the same name in another group, such as npm''s `@types/node` beside Node, instead of refusing both as one thing'
+type: fixed

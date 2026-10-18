@@ -96,6 +96,32 @@ class AddComponentTest {
         assertThat(err.toString(StandardCharsets.UTF_8)).contains("delivered otherwise");
     }
 
+    @Test
+    void recordsTheRuntimeBesideAPackageOfTheSameNameInAnotherGroup() throws IOException {
+        final Path bill = bill();
+        final Bom bom = Bill.parse(Files.readAllBytes(bill));
+        final Component typings = new Component();
+        typings.setType(Component.Type.LIBRARY);
+        typings.setGroup("@types");
+        typings.setName("node");
+        typings.setVersion("26.6.5");
+        typings.setPurl("pkg:npm/%40types/node@26.6.5");
+        bom.addComponent(typings);
+        Bill.write(bom, bill);
+
+        assertThat(add(bill, "node", "22.20.0", URL, DIGEST, "MIT"))
+                .as("npm's typings @types/node and the Node runtime are two things: %s", report())
+                .isEqualTo(AddComponent.DONE);
+
+        assertThat(Bill.parse(Files.readAllBytes(bill)).getComponents())
+                .as("both stay in the bill, each with its own purl")
+                .filteredOn(c -> "node".equals(c.getName()))
+                .extracting(Component::getPurl)
+                .containsExactlyInAnyOrder(
+                        "pkg:npm/%40types/node@26.6.5",
+                        "pkg:generic/node@22.20.0?download_url=" + URL);
+    }
+
     private int add(
             Path bill, String name, String version, String url, String sha256, String license) {
         return new AddComponent(
