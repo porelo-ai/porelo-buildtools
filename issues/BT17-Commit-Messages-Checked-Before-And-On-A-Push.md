@@ -1,6 +1,6 @@
 # BT17 — Commit Messages Checked Before And On A Push
 
-**Status:** Backlog.
+**Status:** Implementing. Built in porelo-buildtools; each repository's pre-push routine and Build take it.
 **Size:** M - one check in `porelo-release` with its tests, the sign-off of an outside pull request among them (S on
 its own), and then every repository takes it into its pre-push routine, its Build and its pull-request check, which is
 what makes it M.

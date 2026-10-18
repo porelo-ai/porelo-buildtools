@@ -9,7 +9,7 @@ may publish, and checks the native images before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A leg whose build is cancelled ends its suite and gives its machines back at once. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that a release builds and packages with no snapshot, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI is the one its download names; records that CLI in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI is the one its download names; records that CLI in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
@@ -46,6 +46,37 @@ writes: an SVG image's path data, a lock file's hashes. Build output is not read
 - **A whole file of such text** is named in `citations-exempt.txt` at the repository's root, one path per line,
   relative to the root, with `#` starting a comment; a path there that is not a committed file is refused, so the
   list cannot outlive what it exempts.
+
+## What `check-commits` reads
+
+```
+porelo-release check-commits RANGE [--outside]
+```
+
+The commits of a git range in the working directory, a repository's root: before a push over `origin/main..HEAD`,
+in a Build over the pushed range. In this repository's own build it runs as
+`./mvnw -B -s settings.xml -pl release exec:java@check-commits -Dcommits.range=<range>`, or `@check-commits-outside`.
+Each commit is held to the shared rule, and each fault is one line with the commit's short hash:
+
+- **A subject of at most 72 characters**, every character counted, `[skip ci]` among them.
+- **Below it, only a blank line and trailers** - `Assisted-by:`, `Signed-off-by:` and the `Co-authored-by:` GitHub
+  writes; any other line is a body and refused.
+- **No requirement number**: a word made of an issue prefix and digits. The prefixes are the ones `check-citations`
+  reads: those of the repository's own issue files and index rows, and of every other repository's index its issues
+  link to. So `IPv4` or `x86_64` is none, and a prefix no index read names is not caught. An index that cannot be read
+  is named in a `NOTE` line; a repository with no issue prefix at all is not checked but refused, exit 2.
+- **Nobody named as having asked for or made the change.** A heuristic: a match is refused, and a pass proves nothing.
+  It matches a party named - `operator`, `coordinator`, `Smith`, `Agent` and a capitalized name, an `@handle`, or the
+  commit's own author or committer name - and a phrase that gives credit, taken whole: "at X's word", "as X chose",
+  "asked by", "found by", "decided by", "reported by", "accepted by", "per" and a name, "X's review", "X's test". The
+  lists are in `Who`. Trailers are not read for it, since they name a person on purpose.
+- **With `--outside`**, for a pull request from outside, every commit also carries a `Signed-off-by:` naming its
+  author's address, the Developer Certificate of Origin. Without it a sign-off is neither asked for nor refused.
+
+Exempt are the commits authored by `dependabot[bot]` or `github-actions[bot]`, and those GitHub committed in its web
+interface (committer `GitHub`), told by the author and committer the commit records, never by its message. Exit 0 when
+no commit breaks the rule, an empty range among them; 1 when one does; 2 when git or the issues cannot be read, or the
+range starts with `-`, since git would read it as an option.
 
 ## What `check-actions` reads about permissions
 

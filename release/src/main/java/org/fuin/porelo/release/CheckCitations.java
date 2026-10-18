@@ -312,6 +312,38 @@ final class CheckCitations {
         return Stop.REFUSED;
     }
 
+    /**
+     * Returns the prefixes an issue number is made of, as this check reads them: those of the
+     * repository's own issue files and index rows, and of every index its issues link to.
+     *
+     * @param root the repository's root
+     * @param web where another repository's index is read
+     * @param checkouts a directory holding the repositories beside each other, read instead of the
+     *     web; or null
+     * @param out where an index that could not be read is named
+     * @return the prefixes, such as {@code BT}
+     * @throws IOException when the issues cannot be listed or read
+     */
+    static Set<String> issuePrefixes(Path root, Web web, @Nullable Path checkouts, PrintStream out)
+            throws IOException {
+        final List<Path> pages =
+                committed(root).stream()
+                        .filter(path -> isIssue(root, path) && path.toString().endsWith(".md"))
+                        .filter(path -> !generated(root, path))
+                        .sorted()
+                        .toList();
+        final Set<String> own =
+                pages.stream()
+                        .map(path -> ISSUE_FILE.matcher(path.getFileName().toString()))
+                        .filter(Matcher::matches)
+                        .map(match -> match.group(2))
+                        .collect(Collectors.toSet());
+        final IssueLinks issueLinks = new IssueLinks(web, checkouts);
+        issueLinks.read(root, pages, own);
+        issueLinks.notes().forEach(note -> out.println("NOTE  " + note));
+        return Set.copyOf(issueLinks.prefixes);
+    }
+
     private void report(List<String> faults, String why) {
         if (!faults.isEmpty()) {
             err.println(why + ":");

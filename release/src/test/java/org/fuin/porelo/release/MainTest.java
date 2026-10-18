@@ -66,6 +66,15 @@ class MainTest {
     }
 
     @Test
+    void checkCommitsWithoutOneRangeIsAUsageErrorAndNotAPass() {
+        // A workflow that lost its range must not read as a range with nothing wrong in it.
+        assertThat(run("check-commits")).isEqualTo(2);
+        assertThat(run("check-commits", "a..b", "c..d")).isEqualTo(2);
+        assertThat(run("check-commits", "a..b", "--outsider")).isEqualTo(2);
+        assertThat(stderr()).contains("usage: check-commits RANGE [--outside]");
+    }
+
+    @Test
     void compareBillsWithAMissingArgumentIsUnansweredNotAStop() {
         assertThat(run("compare-bills", "built.json")).isEqualTo(CompareBills.UNANSWERED);
         assertThat(asked).as("nothing may be fetched for a call that is not understood").isEmpty();

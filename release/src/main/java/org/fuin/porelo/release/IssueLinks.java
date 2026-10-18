@@ -91,6 +91,12 @@ final class IssueLinks {
     final Set<String> rows = new HashSet<>();
 
     /**
+     * The prefixes an issue number is made of, once read: this repository's own, its rows', and
+     * those of every index its pages link to.
+     */
+    final Set<String> prefixes = new HashSet<>();
+
+    /**
      * Constructor.
      *
      * @param web where another repository's index is read
@@ -121,7 +127,7 @@ final class IssueLinks {
                 readRows(root, page, text);
             }
         }
-        final Set<String> prefixes = new HashSet<>(ownPrefixes);
+        prefixes.addAll(ownPrefixes);
         rows.forEach(number -> prefixes.add(prefixOf(number)));
         // Every index linked to is read first, so its prefix is known before the plain numbers are
         // looked for.

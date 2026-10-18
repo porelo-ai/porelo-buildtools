@@ -18,16 +18,11 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that the operator requires on `main` before merging an action move by hand; no auto-merge, decided 2026-10-18. |
 | <a id="bt15"></a>[BT15](BT15-Legs-Taken-From-A-Proven-Run.md) | M | - | A Build on `main` takes its legs from a run of the same tree, from a trusted event, at most 24 h old, with its leg jobs green: `porelo-release proven-legs`, built; each Build adopts it. |
 | <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | Every server is created with an IPv4 address and no IPv6 one, one primary IP instead of two; built with its test seen red, the full-quota answer read from the API's reference; left: the leg kinds green on such servers in the Builds after the push. |
 | <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
-
-## Backlog
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt. |
 
 ## Analyzed
 

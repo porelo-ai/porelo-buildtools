@@ -1,0 +1,2 @@
+title: porelo-release check-commits holds every commit of a range to one line of at most 72 characters with only trailers below it, no requirement number and nobody named, and on a pull request from outside to its author's sign-off
+type: added

@@ -1,2 +1,3 @@
-# The tests of check-citations feed it issue numbers on purpose, to watch each rule refuse them.
+# The tests of check-citations and check-commits feed them issue numbers on purpose, to watch each rule refuse them.
 release/src/test/java/org/fuin/porelo/release/CheckCitationsTest.java
+release/src/test/java/org/fuin/porelo/release/CheckCommitsTest.java

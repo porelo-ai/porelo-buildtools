@@ -34,6 +34,7 @@ public final class Main {
                     "check-actions",
                     "check-shared",
                     "check-citations",
+                    "check-commits",
                     "check-doc-site",
                     "check-releases",
                     "check-readmes",
@@ -60,6 +61,21 @@ public final class Main {
         }
         return new CheckCitations(out, err, Web.overHttp(), checkouts)
                 .check(Path.of(roots.isEmpty() ? "." : roots.getFirst()));
+    }
+
+    private static int checkCommits(List<String> rest, PrintStream out, PrintStream err, Web web) {
+        final Options options = Options.parse(rest, Set.of(), Set.of("--outside"));
+        if (options == null || options.positional().size() != 1) {
+            return usage(err, "check-commits RANGE [--outside]");
+        }
+        // git and the issues are read where the command runs: a repository's root.
+        final Path here = Path.of(".");
+        return new CheckCommits(
+                        out,
+                        err,
+                        CheckCommits.Git.in(here, Map.of()),
+                        () -> CheckCitations.issuePrefixes(here, web, null, out))
+                .check(options.positional().getFirst(), options.flag("--outside"));
     }
 
     private Main() {
@@ -242,6 +258,7 @@ public final class Main {
                                     (rest.isEmpty() ? List.of("AGENTS.md") : rest)
                                             .stream().map(Path::of).toList());
             case "check-citations" -> checkCitations(rest, out, err);
+            case "check-commits" -> checkCommits(rest, out, err, web);
             case "check-doc-site" ->
                     rest.size() > 2
                             ? usage(

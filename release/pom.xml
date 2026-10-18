@@ -141,6 +141,37 @@
                             </arguments>
                         </configuration>
                     </execution>
+                    <!-- Every commit of a range held to the shared rule on messages, from the repository's root:
+                         '-pl release exec:java@check-commits -Dcommits.range=origin/main..HEAD' before a push or
+                         over a pushed range; '@check-commits-outside' for a pull request from outside, which also
+                         asks each commit for its author's sign-off. A range left unset ends in exit 2, never a pass. -->
+                    <execution>
+                        <id>check-commits</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.porelo.release.Main</mainClass>
+                            <arguments>
+                                <argument>check-commits</argument>
+                                <argument>${commits.range}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>check-commits-outside</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.porelo.release.Main</mainClass>
+                            <arguments>
+                                <argument>check-commits</argument>
+                                <argument>${commits.range}</argument>
+                                <argument>--outside</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                     <!-- The deploy dry run of every push, read: '-pl release exec:java@check-deploy' after the dry run
                          wrote target/deploy-dry-run.log. -->
                     <execution>
