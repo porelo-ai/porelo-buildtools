@@ -28,6 +28,7 @@ public final class Main {
                     "add-component",
                     "merge-tree-bill",
                     "upstream-version",
+                    "proven-legs",
                     "update",
                     "check-pin",
                     "check-actions",
@@ -165,6 +166,40 @@ public final class Main {
                                         options.value("--upstream"),
                                         options.value("--pin"),
                                         options.value("--min-age"));
+            }
+            case "proven-legs" -> {
+                final Options options =
+                        Options.parse(
+                                rest,
+                                Set.of("--repository", "--tree", "--jobs", "--max-age"),
+                                Set.of());
+                yield options == null
+                                || !options.positional().isEmpty()
+                                || options.value("--repository") == null
+                                || options.value("--tree") == null
+                                || options.value("--jobs") == null
+                        ? usage(
+                                err,
+                                "proven-legs --repository OWNER/NAME --tree HASH --jobs \"A,B;C\" [--max-age 24h]"
+                                        + " - a ',' joins jobs that must all be green, a ';' parts groups")
+                        : new ProvenLegs(out, err, web, env, java.time.Clock.systemUTC())
+                                .find(
+                                        options.value("--repository"),
+                                        options.value("--tree"),
+                                        java.util.Arrays.stream(options.value("--jobs").split(";"))
+                                                .map(
+                                                        group ->
+                                                                java.util.Arrays.stream(
+                                                                                group.split(","))
+                                                                        .map(String::strip)
+                                                                        .filter(
+                                                                                name ->
+                                                                                        !name
+                                                                                                .isEmpty())
+                                                                        .toList())
+                                                .toList(),
+                                        java.util.Objects.requireNonNullElse(
+                                                options.value("--max-age"), "24h"));
             }
             case "update" -> {
                 final Options options =
