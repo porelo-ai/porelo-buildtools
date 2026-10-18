@@ -36,6 +36,9 @@ public final class ProvenLegs {
     /** The question was answered, whatever the answer. */
     public static final int ANSWERED = 0;
 
+    /** The name of the artifact a run makes to say which tree it verified other than its head's. */
+    public static final String VERIFIED_TREE = "porelo-verified-tree-";
+
     /** The events whose code is the repository's own. */
     private static final Set<String> TRUSTED = Set.of("push", "workflow_dispatch", "schedule");
 
@@ -169,12 +172,21 @@ public final class ProvenLegs {
             final String number = Long.toString(id.longValue());
             // Each of these is read before anything of the run is asked for: a pull request's run
             // is not looked at, whatever its jobs say.
+            final String event = String.valueOf(run.get("event"));
             if (number.equals(self)
-                    || !TRUSTED.contains(String.valueOf(run.get("event")))
-                    || !tree.equals(field(run.get("head_commit"), "tree_id"))
+                    || !TRUSTED.contains(event)
                     || !repository.equals(field(run.get("repository"), "full_name"))
                     || !repository.equals(field(run.get("head_repository"), "full_name"))
                     || Instant.parse(when).isBefore(since)) {
+                continue;
+            }
+            // An update run starts on main and verifies the commit it pushes afterwards, so its
+            // head's
+            // tree is not the one merged later. It names that tree in an artifact, which only the
+            // run
+            // itself can make - unlike a pull request's text, which anybody editing it can change.
+            if (!tree.equals(field(run.get("head_commit"), "tree_id"))
+                    && ("push".equals(event) || !verified(repository, number, tree))) {
                 continue;
             }
             if (proves(repository, number, groups)) {
@@ -182,6 +194,25 @@ public final class ProvenLegs {
             }
         }
         return null;
+    }
+
+    private boolean verified(String repository, String run, String tree) throws Stop {
+        final URI address =
+                URI.create(
+                        "https://api.github.com/repos/"
+                                + repository
+                                + "/actions/runs/"
+                                + run
+                                + "/artifacts?per_page=100");
+        if (field(read(address), "artifacts") instanceof List<?> all) {
+            for (final Object each : all) {
+                if (each instanceof Map<?, ?> artifact
+                        && (VERIFIED_TREE + tree).equals(artifact.get("name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean proves(String repository, String run, List<List<String>> groups) throws Stop {

@@ -254,4 +254,81 @@ class ProvenLegsTest {
                 .contains("proven=yes\n")
                 .contains("run=803\n");
     }
+
+    private static String artifactsOf(long id) {
+        return "https://api.github.com/repos/porelo-ai/porelo/actions/runs/"
+                + id
+                + "/artifacts?per_page=100";
+    }
+
+    @Test
+    void takesAnUpdateRunByTheTreeItSaysItVerified() {
+
+        // An update run starts on main and verifies the pin commit it pushes afterwards, so its
+        // head's tree
+        // is not the merged one: it names the tree it verified in an artifact only the run itself
+        // can make.
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                RUNS,
+                                runs(
+                                        run(
+                                                804,
+                                                "schedule",
+                                                "cccc3333",
+                                                "2026-10-18T05:17:00Z",
+                                                REPO)))
+                        .serve(
+                                artifactsOf(804),
+                                "{\"artifacts\":[{\"name\":\"porelo-verified-tree-"
+                                        + TREE
+                                        + "\"}]}")
+                        .serve(jobsOf(804), jobs("Follow upstream", "success"));
+
+        assertThat(
+                        new ProvenLegs(
+                                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                                        new PrintStream(err, true, StandardCharsets.UTF_8),
+                                        web,
+                                        env,
+                                        NOW)
+                                .find(REPO, TREE, List.of(List.of("Follow upstream")), "24h"))
+                .isZero();
+        assertThat(stdout())
+                .as("the answer for an update run naming the tree")
+                .contains("proven=yes\n");
+    }
+
+    @Test
+    void anArtifactNamingAnotherTreeProvesNothing() {
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                RUNS,
+                                runs(
+                                        run(
+                                                804,
+                                                "schedule",
+                                                "cccc3333",
+                                                "2026-10-18T05:17:00Z",
+                                                REPO)))
+                        .serve(
+                                artifactsOf(804),
+                                "{\"artifacts\":[{\"name\":\"porelo-verified-tree-dddd4444\"}]}")
+                        .serve(jobsOf(804), jobs("Follow upstream", "success"));
+
+        assertThat(
+                        new ProvenLegs(
+                                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                                        new PrintStream(err, true, StandardCharsets.UTF_8),
+                                        web,
+                                        env,
+                                        NOW)
+                                .find(REPO, TREE, List.of(List.of("Follow upstream")), "24h"))
+                .isZero();
+        assertThat(stdout())
+                .as("the answer for an artifact of another tree")
+                .contains("proven=no\n");
+    }
 }

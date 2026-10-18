@@ -21,7 +21,10 @@ the same machines a second time for nothing.
 - **A run counts** only when all of these hold:
   - it is in the same repository, and its head is in the same repository too, so a fork's run never counts;
   - it was started by a push, a dispatch or a schedule, never by a pull request;
-  - its commit has the same tree (`head_commit.tree_id`);
+  - its commit has the same tree (`head_commit.tree_id`), or, for a dispatched or scheduled run, it made an artifact
+    named `porelo-verified-tree-<tree>`. An update run starts on `main` and verifies the pin commit it pushes
+    afterwards, whose tree a squash merge of its request puts on `main`, so it names that tree this way. An
+    artifact only the run itself can make; a pull request's text could be changed by anyone editing it;
   - it is no older than `--max-age`, because images, snapshots and downloaded programs move under an unchanged tree;
   - it is not the asking run itself;
   - every job of one of the named groups in it concluded `success`. A `,` joins jobs that must all be green, and a `;`
@@ -35,8 +38,8 @@ the same machines a second time for nothing.
 
 - [x] The command answers yes for a run of the same tree with every job of a group green. It answers no for these:
   another tree, a red leg, a run older than the bound, a pull request's or a fork's run (their jobs are never read),
-  its own run, and a tag. It answers yes for an update run's one job. `ProvenLegsTest`; all were seen red against a
-  command that always said no.
+  its own run, a tag, and an artifact naming another tree. It answers yes for an update run's one job, and for an
+  update run by the tree its artifact names. `ProvenLegsTest`, all seen red first.
 - [x] Asked against porelo itself on 2026-10-18: the tree of `c31a94bc` is proven by Build 39103478961, and an
   unknown tree is not.
 - [ ] porelo's Build adopts it, and a push of an already proven tree shows "legs taken from run ..." with no machine
