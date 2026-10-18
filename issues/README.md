@@ -5,12 +5,6 @@ issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). *Open questio
 waits on the operator: the items under an issue's own *Open questions*. Its prefix is `BT`. A group with nothing in it is
 left out.
 
-## Review
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt05"></a>[BT05](BT05-The-Code-Read-Against-The-Skills-It-Names.md) | L | - | Every module read against the seven skills `AGENTS.md` names, at recorded versions and SHA-256; each finding fixed with a test seen red or declined with why; its three decisions taken ([BT11](#bt11), [BT12](#bt12), `check-citations` kept). |
-
 ## Implementing
 
 | # | Size | Blocked by | What it covers |
@@ -44,6 +38,7 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt05"></a>BT05 | The Code Read Against The Skills It Names | Every module read against the seven skills `AGENTS.md` names, each finding fixed with a test seen red or declined, and its three questions decided. |
 | <a id="bt02"></a>BT02 | Check Actions Reads Permissions | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
 | <a id="bt07"></a>BT07 | Renamed Porelo Here | The tools are published as `org.fuin.porelo` `0.5.0`, and what they rent, label and install is named Porelo, the CI snapshots labelled `porelo=ci`; a documents test refuses the old word. |
 | <a id="bt08"></a>BT08 | Parent Renamed Porelo Parent | `org.fuin.porelo:porelo-parent` `0.2.0`, naming the tools as `org.fuin.porelo` `0.5.0`. |

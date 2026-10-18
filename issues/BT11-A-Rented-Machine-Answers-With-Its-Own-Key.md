@@ -11,10 +11,10 @@ omission.
 
 ## Why
 
-[BT05](README.md#bt05) found that `Ssh` accepts any host key (`PromiscuousVerifier` in `Ssh.reachable` and
-`Ssh.connected`). Somebody on the path between the runner and the provider could pose as a rented machine. They could
-not reach the real machine, since key authentication cannot be relayed. But they would receive what a leg sends, and
-could answer a leg as passed.
+The reading of this repository's code against its skills found, on 2026-10-18, that `Ssh` accepts any host key
+(`PromiscuousVerifier` in `Ssh.reachable` and `Ssh.connected`). Somebody on the path between the runner and the
+provider could pose as a rented machine. They could not reach the real machine, since key authentication cannot be
+relayed. But they would receive what a leg sends, and could answer a leg as passed.
 
 Decided by the operator, 2026-10-18:
 - **Rented machines:** a host key made per run on the runner, its private half passed in the server's `user_data`,
@@ -57,7 +57,6 @@ Decided by the operator, 2026-10-18:
   from it lets OpenSSH connect with `StrictHostKeyChecking=yes`.
 - [ ] Accepting any host key for the local VMs and `porelo`'s `deploy` is written into `doc/decisions.md`, with the
   reason above. Each call that accepts any key says so in its code, not by default.
-- [ ] [BT05](README.md#bt05)'s finding names this issue.
 
 ## To be checked
 

@@ -9,10 +9,10 @@ when its time ends, and `sweep` deletes only servers past that time, and `porelo
 
 ## Why
 
-[BT05](README.md#bt05) found that `sweep` deletes by age: any `porelo=ci` server older than its window (`--older-than`,
-60 minutes by default), whoever made it, against the shared rule that a run never sweeps by age. A test that runs longer
-than the window loses its machine to `porelo`'s hourly `sweep.yml`. `--older-than 0` with `--now` deletes every server
-in use.
+The reading of this repository's code against its skills found, on 2026-10-18, that `sweep` deletes by age: any
+`porelo=ci` server older than its window (`--older-than`, 60 minutes by default), whoever made it, against the shared
+rule that a run never sweeps by age. A test that runs longer than the window loses its machine to `porelo`'s hourly
+`sweep.yml`. `--older-than 0` with `--now` deletes every server in use.
 
 Decided by the operator, 2026-10-18: an expiry per machine.
 - Every lease writes a label `porelo-expires=<instant>` on the server it creates: the job's own time limit plus a
@@ -49,7 +49,6 @@ Decided by the operator, 2026-10-18: an expiry per machine.
 - [ ] `sweep --older-than 0` is refused with a message naming `--including-in-use`. Only with `--including-in-use` does
   a sweep delete a server within its time.
 - [ ] `porelo`'s `sweep.yml` runs the new sweep and is green on its next hourly run.
-- [ ] [BT05](README.md#bt05)'s finding names this issue.
 
 ## To be checked
 
