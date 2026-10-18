@@ -1,6 +1,6 @@
 # BT19 — A Component Told Apart By Its Group
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** XS - one comparison in `Recorded.into` and its test; no contract changes.
 
 **What must be true.** `porelo-release add-component` records a runtime in a tree's bill beside a package of the same
@@ -20,5 +20,6 @@ and name delivered another way.
 ## Acceptance
 
 - [x] The test above seen red, then green, with the class's five others.
-- [ ] porelo-pi's `-Pnative,dist verify` with Pi 1.3.0 passes `build-pi-tree` against the published snapshot; the only
+- [x] porelo-pi's `-Pnative,dist verify` with Pi 1.3.0 passes `build-pi-tree` against the published snapshot
+  `0.5.1-SNAPSHOT` `20261018.165817-10`, with `@types/node` 26.6.5 and Node 22.23.3 both in the tree's bill; the only
   caller of `add-component` is porelo-pi's `buildtools/build-pi-tree.sh`.
