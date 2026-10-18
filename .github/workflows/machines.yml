@@ -5,8 +5,10 @@ run-name: "${{ github.workflow }} · ${{ github.ref_name }}: ${{ github.event.he
 
 on:
     # Daily: a release becomes old enough on a day of its own, not on the day it was published.
+    # At 01:17 UTC, away from the agents' update runs at 05:17: merging its pull request starts a
+    # Build that rents machines.
     schedule:
-        - cron: '17 5 * * *'
+        - cron: '17 1 * * *'
     # Merging the pull request it opens rebuilds the snapshots in Build: one run per push.
     workflow_dispatch:
 
