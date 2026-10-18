@@ -28,7 +28,7 @@ one-line pin move cost a Build with its legs.
   the workflow files' validity (each loads as YAML, names its triggers and jobs). The operator makes it a required
   check. A repository whose Build already runs on `pull_request` with no renting job may name that job instead, as
   long as it stays light.
-- **Auto-merge for Dependabot.** A workflow on `pull_request_target`, or on `pull_request` from `dependabot[bot]`, reads
+- **Auto-merge for Dependabot.** A workflow on `pull_request` from `dependabot[bot]` (never `pull_request_target`) reads
   the update with `dependabot/fetch-metadata`, pinned by commit like every action. For a `github-actions` update whose
   `update-type` is `version-update:semver-patch` or `version-update:semver-minor`, it turns on GitHub's auto-merge
   (`gh pr merge --auto`). A major move gets a comment that it waits for the operator. The write permission it needs
@@ -52,11 +52,23 @@ one-line pin move cost a Build with its legs.
   [PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28)'s list.
 - [ ] Every repository has taken the template; the agents name their commits.
 
+## Open questions
+
+- **The organisation's ruleset on `main` stops an auto-merge as it stands** (read 2026-10-18, ruleset 24845358, every
+  repository): a pull request needs one approving review and the code owner's review, and `CODEOWNERS` names the
+  operator for `.github/`, which is all an action move touches. Dependabot's pull requests ask for the operator's
+  review (porelo-pi #6, porelo-omp #4). So an auto-merge waits for the operator anyway, unless the ruleset lets these
+  pull requests through without it: Dependabot as a bypass actor for `.github/` alone, or a review given by a bot the
+  ruleset accepts. That widens what may change `main` without the operator, which
+  [PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28) was built to prevent; it is the
+  operator's to weigh.
+
 ## To be checked
 
-- Whether `pull_request_target` or `pull_request` with the `dependabot[bot]` actor is the safer trigger. Dependabot's
-  pull requests get a read-only token and no secrets on `pull_request`, so turning on auto-merge may need
-  `pull_request_target`, which must then never check out the pull request's code.
+- `pull_request_target` is refused by `check-actions` everywhere
+  ([PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28)), so the auto-merge job runs on
+  `pull_request` from `dependabot[bot]` with the write permissions the job itself declares, which GitHub lets a job of
+  a Dependabot pull request raise, and never checks out the pull request's code.
 - Whether GitHub's auto-merge waits for every required check when the merging job itself is a check of the same pull
   request.
 - Whether a grouped Dependabot pull request that holds a patch move and a major move counts as major, and how
