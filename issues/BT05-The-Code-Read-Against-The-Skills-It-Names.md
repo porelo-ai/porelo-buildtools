@@ -123,13 +123,14 @@ Each fixed finding names the harm and the test, which was run red before the fix
 - **Fixed without a test, no harm:** the module's `README.md` showed an API that is gone (`rent`, `Rental.close()`)
   and `--older-than <hours>` where the code reads minutes, as `Main`'s Javadoc did; a Javadoc in `MainTest` sat above
   the wrong field.
-- **Not fixed, waits on a decision: `Ssh` accepts any host key.** For a rented machine the reason holds: its key is
-  new on every run and nothing about it is known before. Somebody on the path between runner and provider could pose
-  as it, and could not reach the real machine, since key authentication cannot be relayed, but would receive what is
-  sent and could answer a leg as passed. For the local VMs and `porelo`'s `deploy` the reason does not hold: their keys
-  do not change. The exposure there needs a place on the host's libvirt bridge. Pinning their keys changes how `Ssh`
-  behaves for `porelo`'s legs and kit. Accepting the rented case is a risk to write into `doc/decisions.md`; a key
-  made per run and passed in the machine's user data would change the answer.
+- **Decided 2026-10-18, to be built in [BT11](README.md#bt11): `Ssh` accepts any host key.** For a rented machine the
+  reason holds: its key is new on every run and nothing about it is known before. Somebody on the path between runner
+  and provider could pose as it, and could not reach the real machine, since key authentication cannot be relayed, but
+  would receive what is sent and could answer a leg as passed. For the local VMs and `porelo`'s `deploy` the reason
+  does not hold: their keys do not change. The exposure there needs a place on the host's libvirt bridge. Pinning
+  their keys changes how `Ssh` behaves for `porelo`'s legs and kit. The operator decided: a rented machine gets a host
+  key made per run and passed in its `user_data`, and `Ssh` accepts that key only; the local VMs and `deploy` are a
+  risk written into `doc/decisions.md`.
 - **Not fixed, waits on a decision: `sweep` deletes by age** any `porelo=ci` server older than its window, whoever
   made it, against the shared rule that a run never sweeps by age; `--older-than 0` with `--now` deletes every server
   in use. Both are `porelo-machines` options workflows call.
@@ -189,6 +190,4 @@ Each fixed finding names the harm and the test, which was run red before the fix
 
 ## Open questions
 
-- `Ssh`'s host key: accept it for rented machines as a written risk, and pin the local VMs' keys, which changes
-  `porelo`'s legs and kit, or accept both?
 - `sweep` by age: keep it as the net it is, or hold it to the shared rule, which changes options workflows call?
