@@ -350,7 +350,7 @@ public final class Snapshots {
             // Stopped first: an image of a running machine is a picture of a half-written disk.
             System.out.println("stopping and taking the image");
             hetzner.shutdown(lease.id());
-            final long image = hetzner.snapshot(lease.id(), description, os);
+            final long image = hetzner.snapshot(lease.id(), description, os, inputs(os));
             System.out.println("snapshot " + image + ": " + description);
             return image;
         }
@@ -394,6 +394,75 @@ public final class Snapshots {
         } catch (IOException ex) {
             throw new java.io.UncheckedIOException(ex);
         }
+    }
+
+    /**
+     * Names what an image is made from: the recipe with its pins, the toolchain it installs, and
+     * the code that runs them.
+     *
+     * <p>A snapshot carries this as its {@code inputs} label, so a push that changes none of it
+     * does not build the images again - about 40 minutes of rented machines each time, rebuilt on
+     * every push before (2026-10-18).
+     *
+     * @param os Which operating system.
+     * @return Sixteen hex digits.
+     */
+    static String inputs(String os) {
+        final byte[] code;
+        try (java.io.InputStream in = Snapshots.class.getResourceAsStream("Snapshots.class")) {
+            if (in == null) {
+                throw new IllegalStateException("Snapshots.class is not on the classpath");
+            }
+            code = in.readAllBytes();
+        } catch (IOException ex) {
+            throw new java.io.UncheckedIOException(ex);
+        }
+        return inputs(recipe(os), muslInstaller(), code);
+    }
+
+    /**
+     * Names what an image is made from, from its parts.
+     *
+     * @param recipe the script run on the machine
+     * @param musl the toolchain's installer
+     * @param code the code that runs them
+     * @return Sixteen hex digits.
+     */
+    static String inputs(String recipe, String musl, byte[] code) {
+        final java.security.MessageDigest digest;
+        try {
+            digest = java.security.MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
+        digest.update(recipe.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        digest.update((byte) 0);
+        digest.update(musl.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        digest.update((byte) 0);
+        digest.update(code);
+        return java.util.HexFormat.of().formatHex(digest.digest()).substring(0, 16);
+    }
+
+    /**
+     * Tells whether the newest snapshot of a system was made from these inputs.
+     *
+     * @param hetzner the project
+     * @param os Which operating system.
+     * @param inputs what an image is made from, as {@link #inputs(String)} names it
+     * @return true when it was; false when it was not, carries no name, or there is none
+     * @throws IOException If the API refuses.
+     */
+    static boolean current(Hetzner hetzner, String os, String inputs) throws IOException {
+        final Map<String, Object> newest;
+        try {
+            newest = hetzner.newestSnapshot(os);
+        } catch (IOException ex) {
+            if (ex.getMessage() != null && ex.getMessage().startsWith("No snapshot for")) {
+                return false;
+            }
+            throw ex;
+        }
+        return inputs.equals(Values.labels(newest).get("inputs"));
     }
 
     /**

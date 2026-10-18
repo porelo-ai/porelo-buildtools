@@ -570,10 +570,12 @@ public final class Hetzner implements Machines {
      * @param id The server.
      * @param description What to call it.
      * @param os The {@code os} label, which is how a leg finds it again.
+     * @param inputs The {@code inputs} label: what the image is made from, so a push that changes
+     *     none of it builds no new one.
      * @return The new image's id.
      * @throws IOException If the API refuses.
      */
-    public long snapshot(long id, String description, String os) throws IOException {
+    public long snapshot(long id, String description, String os, String inputs) throws IOException {
         final Map<String, Object> answer =
                 api.post(
                         "/servers/" + id + "/actions/create_image",
@@ -583,7 +585,7 @@ public final class Hetzner implements Machines {
                                 "type",
                                 "snapshot",
                                 "labels",
-                                Map.of("porelo", "ci", "os", os)));
+                                Map.of("porelo", "ci", "os", os, "inputs", inputs)));
         await(Values.object(answer, "action"));
         return Values.id(Values.object(answer, "image").get("id"));
     }

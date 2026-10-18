@@ -96,6 +96,7 @@ public final class Main {
                     """
                 Usage: sweep [--mine | --from <file>] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
+                                [--unless-current]
                        acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
                                 [--os <o>] [--type <t,t...>] [--keep] [--accounts <n>]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
@@ -216,12 +217,14 @@ public final class Main {
         String key = null;
         String repo = null;
         String type = null;
+        boolean unlessCurrent = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
                 case "--key" -> key = value(args, ++at);
                 case "--repo" -> repo = value(args, ++at);
                 case "--type" -> type = value(args, ++at);
+                case "--unless-current" -> unlessCurrent = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -241,6 +244,18 @@ public final class Main {
         final java.nio.file.Path archive =
                 repo == null ? null : archiveOf(java.nio.file.Path.of(repo));
         try (Hetzner hetzner = open.get()) {
+            // Asked before anything is rented: a snapshot already made from what this one would be
+            // made from is the image a leg boots, and building it again only bills.
+            final String inputs = Snapshots.inputs(os);
+            if (unlessCurrent && Snapshots.current(hetzner, os, inputs)) {
+                System.out.println(
+                        "the newest "
+                                + os
+                                + " snapshot was made from these inputs ("
+                                + inputs
+                                + "), so none is built");
+                return 0;
+            }
             // A named type wins over the small-disk preference. The floor an image gets is the disk
             // it was built on, and a leg rents a 320 GB machine anyway - so when the wait matters
             // more than the floor, say so rather than waiting on two cores.

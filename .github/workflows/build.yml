@@ -60,9 +60,9 @@ jobs:
                       > target/deploy-dry-run.log 2>&1 || true
                   ./mvnw -B -q -s settings.xml -pl release exec:java@check-deploy
 
-    # Only when a change that landed on main moved what a snapshot is made of - the pom changes for
-    # other reasons too - or when a person starts this workflow on main by hand. The legs of every Porelo
-    # repository boot the newest snapshot, so this is where they are rebuilt: here, where the pins are.
+    # Only when the newest snapshot was made from other inputs than this commit names, or when a person
+    # starts this workflow on main by hand. The legs of every Porelo repository boot the newest snapshot, so
+    # this is where they are rebuilt: here, where the pins are.
     snapshots:
         name: Snapshot - ${{ matrix.os }}
         runs-on: ubuntu-latest
@@ -81,38 +81,12 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
-                  fetch-depth: 0
-
-            # Across everything the push brought, not only its last commit: a pin, or the recipe that builds the
-            # images from the pins. The unzip fix (cd00619) moved only the recipe, and no snapshot was built from it.
-            # Started by hand, it rebuilds whatever moved: the way to recover after a push whose snapshot failed.
-            - name: Did a pin or the recipe move?
-              id: moved
-              env:
-                  BEFORE: ${{ github.event.before }}
-                  EVENT: ${{ github.event_name }}
-              run: |
-                  if [ "$EVENT" = workflow_dispatch ]; then
-                      echo "moved=yes" >> "$GITHUB_OUTPUT"
-                      exit 0
-                  fi
-                  base="$BEFORE"
-                  if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=HEAD~1; fi
-                  recipe="hetzner/src/main/java/org/fuin/porelo/machines/Snapshots.java hetzner/src/main/resources/org/fuin/porelo/machines"
-                  if git diff "$base" HEAD -- hetzner/pom.xml | grep -Eq '^[-+][[:space:]]*<machines\.' \
-                          || ! git diff --quiet "$base" HEAD -- $recipe; then
-                      echo "moved=yes" >> "$GITHUB_OUTPUT"
-                  else
-                      echo "moved=no" >> "$GITHUB_OUTPUT"
-                  fi
 
             - name: The pinned GraalVM
-              if: steps.moved.outputs.moved == 'yes'
               uses: ./.github/actions/pinned-jdk
 
             # This commit's own build, so the snapshot holds the pins this push moved.
             - name: Build the machine tooling
-              if: steps.moved.outputs.moved == 'yes'
               run: |
                   ./mvnw -B -q -s settings.xml -pl hetzner -am install -DskipTests
                   ./mvnw -B -q -s settings.xml -pl hetzner dependency:build-classpath \
@@ -120,16 +94,16 @@ jobs:
 
             # The product the snapshot proves itself by building, and warms its ~/.m2 with.
             - name: The porelo checkout the snapshot builds
-              if: steps.moved.outputs.moved == 'yes'
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
                   repository: porelo-ai/porelo
                   path: porelo
 
-            # Proven by building the product on it before it is taken.
+            # Proven by building the product on it before it is taken. On a push only when the newest snapshot was
+            # made from other inputs - the recipe with its pins, the toolchain, the code that runs them - which the
+            # command names and asks before it rents; started by hand it always builds, the way to recover.
             - name: Build the ${{ matrix.os }} snapshot
-              if: steps.moved.outputs.moved == 'yes'
               timeout-minutes: 60
               env:
                   HETZNER_API: ${{ secrets.HETZNER_API }}
@@ -137,10 +111,11 @@ jobs:
                   PORELO_CI_LEG: snapshot-${{ matrix.os }}
               run: |
                   java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
-                      org.fuin.porelo.machines.Main snapshot --os ${{ matrix.os }} --repo porelo
+                      org.fuin.porelo.machines.Main snapshot --os ${{ matrix.os }} --repo porelo \
+                      ${{ github.event_name == 'workflow_dispatch' && ' ' || '--unless-current' }}
 
             - name: Delete what this run created
-              if: always() && steps.moved.outputs.moved == 'yes'
+              if: always()
               env:
                   HETZNER_API: ${{ secrets.HETZNER_API }}
                   PORELO_CI_LEG: snapshot-${{ matrix.os }}

@@ -3,6 +3,7 @@ package org.fuin.porelo.machines;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -274,5 +275,74 @@ class SnapshotsTest {
 
     private static Snapshots.Contents contents() {
         return Snapshots.Contents.of(values()::get);
+    }
+
+    @Test
+    void namesWhatAnImageIsMadeFromByOneHash() {
+
+        // Each push rebuilt both images, about 40 minutes of rented machines, though nothing an
+        // image
+        // is made from had moved (2026-10-18): what it is made from is named, so a snapshot that
+        // already holds it is not built again.
+        assertThat(Snapshots.inputs("ubuntu")).as("the inputs' name").matches("[0-9a-f]{16}");
+        assertThat(Snapshots.inputs("ubuntu"))
+                .as("asked twice")
+                .isEqualTo(Snapshots.inputs("ubuntu"));
+        assertThat(Snapshots.inputs("ubuntu"))
+                .as("against fedora's")
+                .isNotEqualTo(Snapshots.inputs("fedora"));
+        assertThat(Snapshots.inputs("a recipe", "a toolchain", new byte[] {1}))
+                .as("with the recipe changed")
+                .isNotEqualTo(Snapshots.inputs("another recipe", "a toolchain", new byte[] {1}))
+                .as("with the code changed")
+                .isNotEqualTo(Snapshots.inputs("a recipe", "a toolchain", new byte[] {2}));
+    }
+
+    @Test
+    void takesTheNewestSnapshotAsCurrentOnlyWhenItWasMadeFromTheSameInputs() throws IOException {
+        final String listing =
+                "/images?type=snapshot&label_selector=porelo=ci,os=ubuntu&page=1&per_page=50";
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                listing,
+                                "{\"images\":[{\"id\":3,\"status\":\"available\",\"created\":\"2026-10-17T00:00:00+00:00\","
+                                        + "\"labels\":{\"porelo\":\"ci\",\"os\":\"ubuntu\",\"inputs\":\"0123456789abcdef\"}}],"
+                                        + "\"meta\":{\"pagination\":{\"next_page\":null}}}")) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1");
+            assertThat(Snapshots.current(hetzner, "ubuntu", "0123456789abcdef"))
+                    .as("the same inputs")
+                    .isTrue();
+            assertThat(Snapshots.current(hetzner, "ubuntu", "fedcba9876543210"))
+                    .as("other inputs")
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void takesASnapshotWithoutInputsOrNoneAtAllAsNotCurrent() throws IOException {
+        final String listing =
+                "/images?type=snapshot&label_selector=porelo=ci,os=ubuntu&page=1&per_page=50";
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                listing,
+                                "{\"images\":[{\"id\":3,\"status\":\"available\",\"created\":\"2026-10-17T00:00:00+00:00\","
+                                        + "\"labels\":{\"porelo\":\"ci\",\"os\":\"ubuntu\"}}],"
+                                        + "\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                        .answering(
+                                "/images?type=snapshot&label_selector=porelo=ci,os=fedora&page=1&per_page=50",
+                                "{\"images\":[],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                        .answering(
+                                "/images?type=snapshot&label_selector=porelo=ci&page=1&per_page=50",
+                                "{\"images\":[],\"meta\":{\"pagination\":{\"next_page\":null}}}")) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1");
+            assertThat(Snapshots.current(hetzner, "ubuntu", "0123456789abcdef"))
+                    .as("an image from before")
+                    .isFalse();
+            assertThat(Snapshots.current(hetzner, "fedora", "0123456789abcdef"))
+                    .as("no image")
+                    .isFalse();
+        }
     }
 }

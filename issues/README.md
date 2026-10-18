@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt16"></a>[BT16](BT16-A-Snapshot-Built-Only-From-New-Inputs.md) | S | - | A CI snapshot is built only when the newest one was made from other inputs - the recipe with its pins, the toolchain, the code - named as a label on the image; a dispatch always builds. |
 | <a id="bt14"></a>[BT14](BT14-The-Newest-Release-That-Has-Stood.md) | S | - | A release tool takes the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; every upstream source reads its history for it. |
 
 ## Implementing
