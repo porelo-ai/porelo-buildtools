@@ -9,7 +9,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt19"></a>[BT19](BT19-A-Component-Told-Apart-By-Its-Group.md) | XS | - | `add-component` tells a recorded runtime from a package of the same name in another group, so npm's `@types/node` and Node stand side by side; built, published, and proven by porelo-pi's tree with Pi 1.3.0. |
 | <a id="bt12"></a>[BT12](BT12-A-Rented-Machine-Carries-Its-Expiry.md) | M | - | Every lease labels its server `porelo-expires`, from the job's time limit plus a margin; `sweep` deletes only servers past their expiry or without one, refuses `--older-than`, and deletes servers in use only with `--including-in-use`; `porelo`'s `sweep.yml` moves with it; built here, left: `porelo`'s `sweep.yml` and a run of the hourly sweep. |
 | <a id="bt11"></a>[BT11](BT11-A-Rented-Machine-Answers-With-Its-Own-Key.md) | M | - | A rented machine gets a host key made per run in its `user_data`, and `Ssh` accepts only that key for `porelo`'s legs, the agent legs and the kit; the local VMs and `deploy` accepting any key is a written risk; built here, left: `porelo`'s legs and kit, and a rented run of each leg kind. |
 | <a id="bt16"></a>[BT16](BT16-A-Snapshot-Built-Only-From-New-Inputs.md) | S | - | A CI snapshot is built only when the newest one was made from other inputs - the recipe with its pins, the toolchain, the code - named as a label on the image; a dispatch always builds. |
@@ -49,6 +48,7 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt19"></a>BT19 | A Component Told Apart By Its Group | `add-component` matches a recorded component on group and name, so npm's `@types/node` and the Node runtime stand side by side in a tree's bill. |
 | <a id="bt05"></a>BT05 | The Code Read Against The Skills It Names | Every module read against the seven skills `AGENTS.md` names, each finding fixed with a test seen red or declined, and its three questions decided. |
 | <a id="bt02"></a>BT02 | Check Actions Reads Permissions | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
 | <a id="bt07"></a>BT07 | Renamed Porelo Here | The tools are published as `org.fuin.porelo` `0.5.0`, and what they rent, label and install is named Porelo, the CI snapshots labelled `porelo=ci`; a documents test refuses the old word. |
