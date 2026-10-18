@@ -1,6 +1,6 @@
 # BT05 — The Code Read Against The Skills It Names
 
-**Status:** Analyzed.
+**Status:** Review. Read, fixed and green in the Build, 2026-10-18; its three open decisions taken.
 **Size:** L - every module, about 11,000 lines of Java and 7,100 of tests in five modules, read against seven skills,
 and each finding a fix with a test seen to fail first; one commit per module.
 
