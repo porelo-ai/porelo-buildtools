@@ -131,9 +131,11 @@ Each fixed finding names the harm and the test, which was run red before the fix
   their keys changes how `Ssh` behaves for `porelo`'s legs and kit. The operator decided: a rented machine gets a host
   key made per run and passed in its `user_data`, and `Ssh` accepts that key only; the local VMs and `deploy` are a
   risk written into `doc/decisions.md`.
-- **Not fixed, waits on a decision: `sweep` deletes by age** any `porelo=ci` server older than its window, whoever
-  made it, against the shared rule that a run never sweeps by age; `--older-than 0` with `--now` deletes every server
-  in use. Both are `porelo-machines` options workflows call.
+- **Decided 2026-10-18, to be built in [BT12](README.md#bt12): `sweep` deletes by age** any `porelo=ci` server older
+  than its window, whoever made it, against the shared rule that a run never sweeps by age; `--older-than 0` with
+  `--now` deletes every server in use. Both are `porelo-machines` options workflows call. The operator decided: every
+  lease labels its server with an expiry, `sweep` deletes only servers past it or without one, `--older-than 0` is
+  refused, and deleting servers in use needs `--including-in-use`.
 - **Declined:**
   - `Ssh.reconnect` and a failed authentication leave a client open; `Lease.ssh` is set without a lock and may be read
     stale by the stop hook: their threads are daemons and the connections die with the machine.
@@ -187,7 +189,3 @@ Each fixed finding names the harm and the test, which was run red before the fix
 - Each module above is listed here with the skills it was read against, their versions, and its commit.
 - Every finding is fixed with a test seen to fail without the fix, or declined with the reason written here.
 - The whole reactor and the shared checks are green on each module's commit.
-
-## Open questions
-
-- `sweep` by age: keep it as the net it is, or hold it to the shared rule, which changes options workflows call?

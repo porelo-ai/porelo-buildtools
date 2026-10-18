@@ -16,12 +16,13 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt11"></a>[BT11](BT11-A-Rented-Machine-Answers-With-Its-Own-Key.md) | M | - | A rented machine gets a host key made per run in its `user_data`, and `Ssh` accepts only that key for `porelo`'s legs, the agent legs and the kit; the local VMs and `deploy` accepting any key is a written risk. |
+| <a id="bt12"></a>[BT12](BT12-A-Rented-Machine-Carries-Its-Expiry.md) | M | - | Every lease labels its server `porelo-expires`, from the job's time limit plus a margin; `sweep` deletes only servers past their expiry or without one, refuses `--older-than 0`, and deletes servers in use only with `--including-in-use`; `porelo`'s `sweep.yml` moves with it. |
 
 ## Analyzed
 
 | # | Size | Blocked by | What it covers | Open questions |
 |---|---|---|---|---|
-| <a id="bt05"></a>[BT05](BT05-The-Code-Read-Against-The-Skills-It-Names.md) | L | - | Every module read against the seven skills `AGENTS.md` names, at recorded versions and SHA-256: `release`, `hetzner` and its script, `json`, `ffm-check`, `cpu-check`; each finding fixed with a test seen red or declined with why; one commit per module. Read and built: eight fixes with a test seen red, the rest declined; one finding waits on a decision. | 1 |
+| <a id="bt05"></a>[BT05](BT05-The-Code-Read-Against-The-Skills-It-Names.md) | L | - | Every module read against the seven skills `AGENTS.md` names, at recorded versions and SHA-256: `release`, `hetzner` and its script, `json`, `ffm-check`, `cpu-check`; each finding fixed with a test seen red or declined with why; one commit per module. Read and built: eight fixes with a test seen red, the rest declined; the three that waited on a decision are decided: [BT11](#bt11), [BT12](#bt12), and `check-citations` kept as it is. | - |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. | - |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. | - |
 
