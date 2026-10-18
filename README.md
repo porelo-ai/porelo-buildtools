@@ -28,6 +28,8 @@ JAVA_HOME=~/.sdkman/candidates/java/25.3.4+1.r25-graalce ./mvnw -B clean verify
 JDK 25; the pinned GraalVM is the one CI uses. The tools depend on nothing of porelo's; `porelo-json` is
 their own JSON reader. See [AGENTS.md](AGENTS.md) for the conventions.
 
+[Contributing](CONTRIBUTING.md), and [reporting a vulnerability](SECURITY.md).
+
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE).
