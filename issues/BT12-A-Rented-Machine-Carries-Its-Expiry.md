@@ -1,6 +1,7 @@
 # BT12 — A Rented Machine Carries Its Expiry
 
-**Status:** Implementing. Built in porelo-buildtools; porelo's sweep.yml and a run of the hourly sweep are left.
+**Status:** Review. Built and published by Build 39131553741 on `8377caa`, 2026-10-18; porelo's `sweep.yml` moves in a
+later wave, after a quiet hour.
 **Size:** M - a label written at creation, `sweep` deciding by it instead of by age, two options changed, and
 `porelo`'s `sweep.yml` moved with them; each workflow that rents names its time limit.
 

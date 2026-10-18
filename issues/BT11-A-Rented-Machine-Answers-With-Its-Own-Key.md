@@ -1,7 +1,7 @@
 # BT11 — A Rented Machine Answers With Its Own Key
 
-**Status:** Implementing. Built in porelo-buildtools and in porelo's legs and kit; proven on rented machines on
-2026-10-18, to Review once pushed and published.
+**Status:** Review. Built in porelo-buildtools and in porelo's legs and kit, proven on both rented legs, and published
+by Build 39131553741 on `8377caa`, 2026-10-18; the agent legs take the key once each adapter adds its line.
 **Size:** M - a host key made per run and passed in the server's `user_data`, `Ssh` taking the one key it may accept
 instead of `PromiscuousVerifier`, every caller handing it on (`Lease`, `AgentLeg`, `porelo`'s legs and kit), the key in
 `lease`'s file, a written risk for the local VMs, and a run of each leg kind on a rented machine.
