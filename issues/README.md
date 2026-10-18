@@ -5,6 +5,12 @@ issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). *Open questio
 waits on the operator: the items under an issue's own *Open questions*. Its prefix is `BT`. A group with nothing in it is
 left out.
 
+## Review
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt14"></a>[BT14](BT14-The-Newest-Release-That-Has-Stood.md) | S | - | A release tool takes the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; every upstream source reads its history for it. |
+
 ## Implementing
 
 | # | Size | Blocked by | What it covers |

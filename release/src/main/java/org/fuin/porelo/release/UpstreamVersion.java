@@ -81,10 +81,11 @@ public final class UpstreamVersion {
     /**
      * Answers.
      *
-     * <p><strong>A release younger than the age asked for is not an update yet</strong>, and the
-     * one before it is not offered instead: the answer is {@code update=no} with a {@code waiting=}
-     * line saying when the newest becomes old enough. A version a person named is theirs to judge
-     * and waits for nothing.
+     * <p><strong>The newest release that is at least the age asked for is the update</strong>, even
+     * where newer, younger ones exist: it says {@code upstream=} that one and {@code newest=} the
+     * newer one. When none newer than the pin is old enough, the answer is {@code update=no} with a
+     * {@code waiting=} line saying when the newest becomes old enough. A version a person named is
+     * theirs to judge and waits for nothing.
      *
      * @param pom the module's pom
      * @param channel the channel or dist-tag named on the command line, or null for the pom's
@@ -137,12 +138,33 @@ public final class UpstreamVersion {
             answer.put("update", verdict.word());
             answer.put("major", !byDigest && Versions.majorMoved(have, there) ? "moved" : "same");
             if (age != null && named == null && verdict == Versions.Verdict.YES) {
-                final Instant published = tracked.upstream().published(web, there, followed, env);
-                answer.put("published", published.toString());
-                final Instant old = published.plus(age);
-                if (clock.instant().isBefore(old)) {
+                // The newest release that has stood the age, even where newer, younger ones exist:
+                // a project that releases more often than the age would otherwise never move.
+                final Instant newestPublished =
+                        tracked.upstream().published(web, there, followed, env);
+                final java.util.Optional<Release.Standing> standing =
+                        clock.instant().isBefore(newestPublished.plus(age))
+                                ? tracked.upstream()
+                                        .standing(web, followed, env, clock.instant().minus(age))
+                                : java.util.Optional.of(
+                                        new Release.Standing(there, newestPublished));
+                if (standing.isPresent()
+                        && (byDigest
+                                ? !standing.get().version().equals(have)
+                                : Versions.compare(standing.get().version(), have) > 0)) {
+                    final String taken = standing.get().version();
+                    answer.put("upstream", taken);
+                    answer.put(
+                            "major",
+                            !byDigest && Versions.majorMoved(have, taken) ? "moved" : "same");
+                    answer.put("published", standing.get().published().toString());
+                    if (!taken.equals(there)) {
+                        answer.put("newest", there);
+                    }
+                } else {
                     answer.put("update", Versions.Verdict.NO.word());
-                    answer.put("waiting", old.toString());
+                    answer.put("published", newestPublished.toString());
+                    answer.put("waiting", newestPublished.plus(age).toString());
                 }
             }
         } catch (Stop stop) {

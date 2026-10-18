@@ -22,8 +22,8 @@ permissions:
 jobs:
 
     # One pull request for every pin that has a release at least three days old (the pom's
-    # porelo.release.min-age), one commit per pin, and never an older release instead of a newer one that
-    # is too young.
+    # porelo.release.min-age), one commit per pin: the newest release that old, even where newer,
+    # younger ones exist.
     refresh:
         name: Ask upstream
         runs-on: ubuntu-latest

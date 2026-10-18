@@ -305,6 +305,14 @@ public record Release(
      */
     public record NpmTree(String packageName, Path directory, String image) {}
 
+    /**
+     * A version upstream offers that has stood long enough, with when it was published.
+     *
+     * @param version the version
+     * @param published when it was published
+     */
+    public record Standing(String version, Instant published) {}
+
     /** Where the version upstream offers is read. */
     public sealed interface Upstream {
 
@@ -342,6 +350,30 @@ public record Release(
         Instant published(
                 Web web, String version, @Nullable String channel, Map<String, String> env)
                 throws Stop;
+
+        /**
+         * Reads the newest version published no later than a moment: one that has stood that long
+         * without being withdrawn, even where newer, younger ones exist.
+         *
+         * <p>For a source that lists no history - a pointer, an image tag - that is the newest one
+         * if it is old enough, and none otherwise.
+         *
+         * @param web where to read
+         * @param channel the channel or dist-tag, or null when none applies
+         * @param env the environment, for a token
+         * @param by the moment a version has to be published by
+         * @return the version with its date, or empty when none of the source's is old enough
+         * @throws Stop unanswered when it cannot be read, or a date is missing
+         */
+        default Optional<Standing> standing(
+                Web web, @Nullable String channel, Map<String, String> env, Instant by)
+                throws Stop {
+            final String newest = version(web, channel, env);
+            final Instant published = published(web, newest, channel, env);
+            return published.isAfter(by)
+                    ? Optional.empty()
+                    : Optional.of(new Standing(newest, published));
+        }
 
         /**
          * Whether what this answers is a digest rather than a version: one image tag, rebuilt in
@@ -436,6 +468,32 @@ public record Release(
                 return date(times instanceof Map<?, ?> all ? all.get(version) : null, registry);
             }
 
+            // Every version the registry dated up to the dist-tag's own, so a tag never moves a
+            // pin past the line it names; 'created' and 'modified' are not versions.
+            @Override
+            public Optional<Standing> standing(
+                    Web web, @Nullable String channel, Map<String, String> env, Instant by)
+                    throws Stop {
+                final String tagged = version(web, channel, env);
+                final Object times = field(parse(read(web, registry, Map.of()), registry), "time");
+                Standing found = null;
+                if (times instanceof Map<?, ?> all) {
+                    for (final Map.Entry<?, ?> each : all.entrySet()) {
+                        if (each.getKey() instanceof String version
+                                && Versions.isRelease(version)
+                                && Versions.compare(version, tagged) <= 0) {
+                            final Instant published = date(each.getValue(), registry);
+                            if (!published.isAfter(by)
+                                    && (found == null
+                                            || Versions.compare(version, found.version()) > 0)) {
+                                found = new Standing(version, published);
+                            }
+                        }
+                    }
+                }
+                return Optional.ofNullable(found);
+            }
+
             /**
              * Whether the registry has a version at all.
              *
@@ -497,6 +555,52 @@ public record Release(
                 }
                 return date(field(latest, "published_at"), api);
             }
+
+            // The newest release alone says nothing about the ones before it, so the list beside it
+            // is read: drafts and pre-releases are not releases.
+            @Override
+            public Optional<Standing> standing(
+                    Web web, @Nullable String channel, Map<String, String> env, Instant by)
+                    throws Stop {
+                if (channel != null) {
+                    throw Stop.unanswered(
+                            "the newest release has no channels, and was asked for '"
+                                    + channel
+                                    + "'");
+                }
+                final String text = api.toString();
+                if (!text.endsWith("/latest")) {
+                    throw Stop.unanswered(
+                            api
+                                    + " is not the address of a newest release, so no list is beside it");
+                }
+                final URI list =
+                        URI.create(
+                                text.substring(0, text.length() - "/latest".length())
+                                        + "?per_page=100");
+                final Object listed = parse(read(web, list, githubHeaders(list, env)), list);
+                if (!(listed instanceof java.util.List<?> all)) {
+                    throw Stop.unanswered(list + " did not answer with a list of releases");
+                }
+                Standing found = null;
+                for (final Object each : all) {
+                    if (each instanceof Map<?, ?> release
+                            && release.get("tag_name") instanceof String tag
+                            && !Boolean.TRUE.equals(release.get("draft"))
+                            && !Boolean.TRUE.equals(release.get("prerelease"))) {
+                        final String version = tag.startsWith("v") ? tag.substring(1) : tag;
+                        if (Versions.isRelease(version)) {
+                            final Instant published = date(release.get("published_at"), list);
+                            if (!published.isAfter(by)
+                                    && (found == null
+                                            || Versions.compare(version, found.version()) > 0)) {
+                                found = new Standing(version, published);
+                            }
+                        }
+                    }
+                }
+                return Optional.ofNullable(found);
+            }
         }
 
         /**
@@ -551,6 +655,25 @@ public record Release(
                     throw Stop.unanswered(api + " no longer lists " + prefix + version);
                 }
                 return date(release.get("published_at"), api);
+            }
+
+            @Override
+            public Optional<Standing> standing(
+                    Web web, @Nullable String channel, Map<String, String> env, Instant by)
+                    throws Stop {
+                Standing found = null;
+                for (final Map.Entry<String, Map<?, ?>> release : releases(web, env).entrySet()) {
+                    final String version = release.getKey();
+                    if ((channel == null || version.startsWith(channel + "."))) {
+                        final Instant published = date(release.getValue().get("published_at"), api);
+                        if (!published.isAfter(by)
+                                && (found == null
+                                        || Versions.compare(version, found.version()) > 0)) {
+                            found = new Standing(version, published);
+                        }
+                    }
+                }
+                return Optional.ofNullable(found);
             }
 
             private Map<String, Map<?, ?>> releases(Web web, Map<String, String> env) throws Stop {
@@ -617,6 +740,25 @@ public record Release(
                     throw Stop.unanswered(index + " no longer lists v" + version);
                 }
                 return date(release.get("date"), index);
+            }
+
+            @Override
+            public Optional<Standing> standing(
+                    Web web, @Nullable String channel, Map<String, String> env, Instant by)
+                    throws Stop {
+                Standing found = null;
+                for (final Map.Entry<String, Map<?, ?>> release : releases(web).entrySet()) {
+                    final String version = release.getKey();
+                    if (onLine(version, release.getValue(), channel)) {
+                        final Instant published = date(release.getValue().get("date"), index);
+                        if (!published.isAfter(by)
+                                && (found == null
+                                        || Versions.compare(version, found.version()) > 0)) {
+                            found = new Standing(version, published);
+                        }
+                    }
+                }
+                return Optional.ofNullable(found);
             }
 
             private static boolean onLine(

@@ -352,11 +352,86 @@ class UpstreamVersionTest {
                                 new FakeWeb()
                                         .serve(
                                                 AgentRepository.OMP_LATEST,
-                                                "{\"tag_name\":\"v18.1.16\",\"published_at\":\"2026-09-27T12:00:00Z\"}"),
+                                                "{\"tag_name\":\"v18.1.16\",\"published_at\":\"2026-09-27T12:00:00Z\"}")
+                                        .serve(
+                                                AgentRepository.OMP_RELEASES,
+                                                "[{\"tag_name\":\"v18.1.16\",\"published_at\":\"2026-09-27T12:00:00Z\"}]"),
                                 "3d"))
                 .as(report())
                 .isEqualTo(0);
         assertThat(stdout()).contains("update=no\n").contains("waiting=2026-09-30T12:00:00Z");
+    }
+
+    @Test
+    void takesTheNewestReleaseOldEnoughWhenNewerOnesAreTooYoung() {
+
+        // Oh My Pi releases several times a day, so its newest release was never three days old and
+        // the pin stood at 18.4.1 for three weeks (2026-10-18): the newest release that has stood
+        // that long is what is taken, even when newer ones exist.
+        final AgentRepository omp = AgentRepository.omp(directory, "18.4.1");
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                AgentRepository.OMP_LATEST,
+                                "{\"tag_name\":\"v18.12.1\",\"published_at\":\"2026-09-28T09:00:00Z\"}")
+                        .serve(
+                                AgentRepository.OMP_RELEASES,
+                                "[{\"tag_name\":\"v18.12.1\",\"published_at\":\"2026-09-28T09:00:00Z\"},"
+                                        + "{\"tag_name\":\"v18.13.0-rc.1\",\"prerelease\":true,"
+                                        + "\"published_at\":\"2026-09-20T09:00:00Z\"},"
+                                        + "{\"tag_name\":\"v18.11.3\",\"published_at\":\"2026-09-26T09:00:00Z\"},"
+                                        + "{\"tag_name\":\"v18.10.4\",\"published_at\":\"2026-09-24T09:00:00Z\"},"
+                                        + "{\"tag_name\":\"v18.9.0\",\"published_at\":\"2026-09-20T09:00:00Z\"}]");
+
+        assertThat(aged(omp, web, "3d")).as(report()).isEqualTo(0);
+        assertThat(stdout())
+                .as("the answer for a young newest release over an older one old enough")
+                .contains("upstream=18.10.4\n")
+                .contains("update=yes\n")
+                .contains("published=2026-09-24T09:00:00Z")
+                .contains("newest=18.12.1\n");
+    }
+
+    @Test
+    void takesTheNewestNpmVersionOldEnoughWhenTheDistTagIsTooYoung() {
+        final AgentRepository pi = AgentRepository.pi(directory, "0.85.0");
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                AgentRepository.NPM_REGISTRY,
+                                "{\"dist-tags\":{\"latest\":\"0.87.0\"},\"time\":{"
+                                        + "\"created\":\"2026-01-01T00:00:00Z\","
+                                        + "\"0.87.0\":\"2026-09-28T08:00:00Z\","
+                                        + "\"0.88.0-beta.1\":\"2026-09-01T08:00:00Z\","
+                                        + "\"0.86.0\":\"2026-09-22T08:00:00Z\","
+                                        + "\"0.85.0\":\"2026-09-10T08:00:00Z\"}}");
+
+        assertThat(aged(pi, web, "3d")).as(report()).isEqualTo(0);
+        assertThat(stdout())
+                .as("the answer for a young dist-tag over an older version old enough")
+                .contains("upstream=0.86.0\n")
+                .contains("update=yes\n")
+                .contains("newest=0.87.0\n");
+    }
+
+    @Test
+    void waitsWhenNoReleaseNewerThanThePinIsOldEnough() {
+        final AgentRepository omp = AgentRepository.omp(directory, "18.10.4");
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                AgentRepository.OMP_LATEST,
+                                "{\"tag_name\":\"v18.12.1\",\"published_at\":\"2026-09-28T09:00:00Z\"}")
+                        .serve(
+                                AgentRepository.OMP_RELEASES,
+                                "[{\"tag_name\":\"v18.12.1\",\"published_at\":\"2026-09-28T09:00:00Z\"},"
+                                        + "{\"tag_name\":\"v18.10.4\",\"published_at\":\"2026-09-24T09:00:00Z\"}]");
+
+        assertThat(aged(omp, web, "3d")).as(report()).isEqualTo(0);
+        assertThat(stdout())
+                .as("the answer when nothing newer than the pin has stood long enough")
+                .contains("update=no\n")
+                .contains("waiting=2026-10-01T09:00:00Z");
     }
 
     @Test

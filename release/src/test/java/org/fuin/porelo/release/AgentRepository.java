@@ -19,6 +19,9 @@ final class AgentRepository {
 
     static final String OMP_LATEST = "https://api.github.com/repos/omp/releases/latest";
 
+    /** The list GitHub serves beside the newest release, which the age rule reads. */
+    static final String OMP_RELEASES = "https://api.github.com/repos/omp/releases?per_page=100";
+
     static final String NPM_REGISTRY =
             "https://registry.npm.example/@earendil-works%2Fpi-coding-agent";
 
