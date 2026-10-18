@@ -1,8 +1,9 @@
 # BT17 — Commit Messages Checked Before And On A Push
 
 **Status:** Backlog.
-**Size:** M - one check in `porelo-release` with its tests (S on its own), and then every repository takes it into its
-pre-push routine and its Build, which is what makes it M.
+**Size:** M - one check in `porelo-release` with its tests, the sign-off of an outside pull request among them (S on
+its own), and then every repository takes it into its pre-push routine, its Build and its pull-request check, which is
+what makes it M.
 
 **What must be true.** A commit message that breaks the shared rule is found by a command before the push, and by the
 Build after one. The rule: one line, at most 72 characters with any `[skip ci]`, saying in words what changed, never by
@@ -26,12 +27,19 @@ Rewording by hand before a push catches some of these. A check that runs every t
   pushed range, `github.event.before..github.sha`. It prints each breaking commit with what it breaks, and exits `1` on
   any.
 - **What it holds each commit to:**
-  - **one line:** no body;
+  - **one line,** and below a blank line only trailers (`Assisted-by:`, `Signed-off-by:`, and the `Co-authored-by:`
+    GitHub writes): no prose body;
   - **at most 72 characters**, counting `[skip ci]`;
   - **no requirement number:** a word made of an issue prefix and digits (`B102`, `BT15`, `MX22`). The prefixes are
     read from the `issues/` indexes `check-citations` already reads. So `IPv4`, `UTF8` or `x86_64` are not caught, and a
     new repository's prefix is known once its index is published;
-  - **no who:** see below.
+  - **no who:** see below;
+  - **on a pull request from outside, its author's `Signed-off-by:`** on every commit, the Developer Certificate of
+    Origin ([PJ27](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj27)'s step 3, decided
+    2026-10-18). An agent never writes one: the operator vouches for the project's own
+    commits by pushing them, and each carries `Assisted-by: <tool>, <model>` instead. "From outside" is a pull request
+    whose head repository is not the base, or whose author is not the operator; the bots' commits and GitHub's merges
+    are exempt as below.
 - **Exempt:** commits GitHub makes or Dependabot authors. Only their author and committer, as the commit records them,
   are taken as the sign: author `dependabot[bot]`, or committer `GitHub` with the commit made by a merge in the web
   interface. A subject saying it was merged is never trusted.
@@ -64,4 +72,6 @@ is refused ("the operator's hand merge" among them), and each clean subject from
   failing test is watched first. It passes their clean subjects and GitHub's and Dependabot's merges.
 - [ ] Over `origin/main..HEAD` it runs as one command, and it exits `0` on a range with nothing in it.
 - [ ] In this repository's Build, a pushed range with a breaking subject turns the step red, seen once on a branch.
+- [ ] A pull request from outside whose commit lacks `Signed-off-by:` is refused, seen to pass against today's tooling
+  first; one with it passes, and an agent's commit with `Assisted-by:` and no sign-off passes on a push.
 - [ ] Every repository has taken it; the agents name their commits.
