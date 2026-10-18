@@ -126,6 +126,21 @@
                             </arguments>
                         </configuration>
                     </execution>
+                    <!-- Every workflow step pinned, for the light check of a pull request that moves only workflows:
+                         '-pl release exec:java@check-actions' after the module is built. -->
+                    <execution>
+                        <id>check-actions</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.porelo.release.Main</mainClass>
+                            <arguments>
+                                <argument>check-actions</argument>
+                                <argument>${maven.multiModuleProjectDirectory}/.github</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                     <!-- The deploy dry run of every push, read: '-pl release exec:java@check-deploy' after the dry run
                          wrote target/deploy-dry-run.log. -->
                     <execution>

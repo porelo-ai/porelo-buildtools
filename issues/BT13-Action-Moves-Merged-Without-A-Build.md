@@ -1,6 +1,7 @@
 # BT13 — Action Moves Merged Without A Build
 
-**Status:** Backlog.
+**Status:** Implementing. Built in porelo-buildtools; the other repositories take the template, and a real
+Dependabot pull request is its proof.
 **Size:** S - one light workflow every repository takes (the push filter is already in everywhere), first in this
 repository, then taken over by each agent, and the operator's required-check setting listed.
 
@@ -38,6 +39,23 @@ saying "nothing merges it automatically" stay true.
 - **What the operator sets per repository**, written into
   [PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28)'s list: the light check required
   on `main`, and nothing else widened.
+
+## Built here, 2026-10-18
+
+- **`.github/workflows/workflows.yml`, "Workflow check":** on a pull request whose paths are `.github/**` only. It
+  checks out without credentials, takes the pinned GraalVM, runs `check-actions` (here `-pl release
+  exec:java@check-actions`, a new execution of `release/pom.xml`), and loads every workflow with PyYAML, which the
+  runner image carries, refusing one that does not load or names no trigger or no job. `contents: read` only; no
+  secret, no rented machine, nothing published; ten minutes at most.
+- **The Build** ignores `.github/**` on a pull request too, so such a pull request runs the Workflow check alone.
+- **Seen to refuse:** the YAML step against a file cut off mid-list and one with no `jobs:`, both named, exit 1; the
+  step's text was run here as the workflow runs it. `check-actions` refuses an unpinned step, as `CheckActionsTest`
+  holds.
+- **For every other repository, the template:** the same file, with its own `check-actions` call in place of the
+  `release` one (`./mvnw -B -q -s settings.xml -N exec:exec@check-actions` where the root pom has that execution, as
+  `porelo`'s does), and `.github/**` added to its Build's `pull_request` `paths-ignore`.
+- **The operator's setting:** "Workflow check" required on `main` in each repository's ruleset, beside what it asks
+  today; nothing else widened.
 
 ## Acceptance
 
