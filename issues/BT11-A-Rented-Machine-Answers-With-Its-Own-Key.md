@@ -1,7 +1,7 @@
 # BT11 — A Rented Machine Answers With Its Own Key
 
-**Status:** Implementing. Built in porelo-buildtools; porelo's legs and kit, and a rented run of each leg kind, are
-left.
+**Status:** Implementing. Built in porelo-buildtools and in porelo's legs and kit; proven on rented machines on
+2026-10-18, to Review once pushed and published.
 **Size:** M - a host key made per run and passed in the server's `user_data`, `Ssh` taking the one key it may accept
 instead of `PromiscuousVerifier`, every caller handing it on (`Lease`, `AgentLeg`, `porelo`'s legs and kit), the key in
 `lease`'s file, a written risk for the local VMs, and a run of each leg kind on a rented machine.
@@ -44,6 +44,23 @@ Decided by the operator, 2026-10-18:
 - For a host that is not rented (the local VMs, `deploy`), the caller says so explicitly. That is the case written down
   as an accepted risk.
 
+## Proven, 2026-10-18
+
+Two `ccx13` rented from here, one from each CI snapshot, each running porelo's whole leg (`--acceptance`, one account)
+on porelo `ddcaaed2` with this repository's `1896c71`, kept for a reading, then deleted by name:
+- **ubuntu:** 233 scenarios, 0 failures, 0 skipped; `/etc/ssh` held `ssh_host_ed25519_key.pub` alone,
+  `SHA256:li445Ol/0ujFznWiTcnA7yoNRmK1cu3Q7T9/bKJCueM`;
+- **fedora:** 233 scenarios, 0 failures, 0 skipped; `ssh_host_ed25519_key.pub` alone,
+  `SHA256:5+2S79eJtbjIpdIvqFM58Vdx0F/jTK//9pBF8HufmVU`.
+
+So a server made from either CI snapshot runs cloud-init's `ssh_keys` again and shows the run's key and no other;
+Fedora's sshd makes no RSA or ECDSA key after cloud-init deleted them. `Lease`, `Ssh` and the kit, given
+`porelo.acceptance.hostkey`, connected only with the pinned key. A first try the same day ran the legs without
+`--acceptance` and proved the same for `Lease` and `Ssh` alone. Not yet run with the check on: the agent legs, which
+take `porelo.acceptance.hostkey` once each adapter adds its line. The ssh in `porelo`'s `machine.feature` goes from
+the machine to its own `localhost` with a key made for the scenario, so it reaches no host a lease made and needs
+nothing here.
+
 ## Acceptance
 
 - [ ] A rented machine is created with the run's host key in its `user_data`. On it, `/etc/ssh/ssh_host_*_key.pub`
@@ -58,12 +75,3 @@ Decided by the operator, 2026-10-18:
   from it lets OpenSSH connect with `StrictHostKeyChecking=yes`.
 - [ ] Accepting any host key for the local VMs and `porelo`'s `deploy` is written into `doc/decisions.md`, with the
   reason above. Each call that accepts any key says so in its code, not by default.
-
-## To be checked
-
-- Whether the CI snapshots built by `machines.yml` still run cloud-init at first boot of a server made from them, and
-  read `user_data` there. A snapshot taken after cloud-init ran once may consider itself already initialised.
-- Whether Fedora's own key generation at sshd's start makes keys of other types once cloud-init has deleted them, so
-  that `/etc/ssh` holds more than the one key; the client asks for the pinned key's type first either way.
-- Whether the machine scenario in `porelo`'s `machine.feature` that runs `ssh -o StrictHostKeyChecking=no` to a local
-  account counts as one of the written risk's cases, or connects to `localhost` and needs nothing.
