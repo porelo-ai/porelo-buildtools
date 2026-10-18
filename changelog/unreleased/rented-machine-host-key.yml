@@ -1,0 +1,2 @@
+title: porelo-machines creates a rented machine with a host key made for it and connects only when the machine shows that key, every caller of Ssh naming the host key it accepts; lease --write records it as hostkey=, and an agent leg hands it to its suite as porelo.acceptance.hostkey
+type: security

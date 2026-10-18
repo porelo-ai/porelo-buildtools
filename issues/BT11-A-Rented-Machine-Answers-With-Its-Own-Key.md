@@ -1,6 +1,7 @@
 # BT11 — A Rented Machine Answers With Its Own Key
 
-**Status:** Backlog.
+**Status:** Implementing. Built in porelo-buildtools; porelo's legs and kit, and a rented run of each leg kind, are
+left.
 **Size:** M - a host key made per run and passed in the server's `user_data`, `Ssh` taking the one key it may accept
 instead of `PromiscuousVerifier`, every caller handing it on (`Lease`, `AgentLeg`, `porelo`'s legs and kit), the key in
 `lease`'s file, a written risk for the local VMs, and a run of each leg kind on a rented machine.
@@ -62,7 +63,7 @@ Decided by the operator, 2026-10-18:
 
 - Whether the CI snapshots built by `machines.yml` still run cloud-init at first boot of a server made from them, and
   read `user_data` there. A snapshot taken after cloud-init ran once may consider itself already initialised.
-- Which `doc/decisions.md` takes the written risk: `porelo`'s, since `deploy` and the local VMs are its, or this
-  repository's, since `Ssh` lives here.
+- Whether Fedora's own key generation at sshd's start makes keys of other types once cloud-init has deleted them, so
+  that `/etc/ssh` holds more than the one key; the client asks for the pinned key's type first either way.
 - Whether the machine scenario in `porelo`'s `machine.feature` that runs `ssh -o StrictHostKeyChecking=no` to a local
   account counts as one of the written risk's cases, or connects to `localhost` and needs nothing.

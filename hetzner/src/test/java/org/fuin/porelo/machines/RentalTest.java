@@ -16,6 +16,7 @@ class RentalTest {
     @Test
     void namesTheRentedMachineInItsRecordEvenWhenItNeverAcceptsSsh(@TempDir Path directory) {
         final Path record = directory.resolve("lease.properties");
+        final String hostKey = HostKeyPair.generate().publicLine();
         // A name that never resolves, and no patience: the machine is rented and never answers.
         final Machines rented =
                 new Machines() {
@@ -33,6 +34,7 @@ class RentalTest {
                                 spec.name(),
                                 "porelo-test.invalid",
                                 spec,
+                                HostKey.pinned(hostKey),
                                 () -> {},
                                 Duration.ZERO);
                     }
@@ -68,5 +70,11 @@ class RentalTest {
                 .contains("server=77")
                 .contains("address=porelo-test.invalid")
                 .contains("run=run-1");
+        // A leg that reaches the machine with OpenSSH puts this line into known_hosts rather than
+        // taking the first key ssh-keyscan returns, which is whatever answers at the address.
+        assertThat(record)
+                .as("the record names the one host key the machine may show")
+                .content()
+                .contains("\nhostkey=" + hostKey + "\n");
     }
 }

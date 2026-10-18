@@ -96,6 +96,9 @@ public final class LocalVms implements Machines {
                 domain,
                 address,
                 spec,
+                HostKey.any(
+                        "a virtual machine on this host's own libvirt bridge, which only its"
+                                + " operator uses: the risk accepted in doc/decisions.md"),
                 () ->
                         System.out.println(
                                 "leaving  "

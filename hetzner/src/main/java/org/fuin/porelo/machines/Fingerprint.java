@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.Base64;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.common.Buffer;
 
@@ -16,7 +17,8 @@ import net.schmizz.sshj.common.Buffer;
  * instead of a dependency.
  *
  * <p>MD5 rather than SHA-256 because that is what the API returns; it is an identifier here, not a
- * security claim.
+ * security claim. A host key refused is named by its SHA-256, which is what {@code ssh-keygen -l}
+ * and an sshd's log show a person.
  */
 final class Fingerprint {
 
@@ -56,6 +58,23 @@ final class Fingerprint {
             throw new IOException("no MD5 available to fingerprint the key with", ex);
         }
         return hex(md5.digest(blob));
+    }
+
+    /**
+     * Returns the SHA-256 fingerprint of a public key, as {@code ssh-keygen -l} prints it.
+     *
+     * @param blob The key's SSH wire encoding.
+     * @return {@code SHA256:} and the digest in base64 without padding.
+     */
+    static String sha256(byte[] blob) {
+        try {
+            return "SHA256:"
+                    + Base64.getEncoder()
+                            .withoutPadding()
+                            .encodeToString(MessageDigest.getInstance("SHA-256").digest(blob));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("no SHA-256, which every JDK must have", ex);
+        }
     }
 
     private static String hex(byte[] digest) {

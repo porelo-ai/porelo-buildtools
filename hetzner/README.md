@@ -52,6 +52,8 @@ than exist and then reports that it cleaned up.
 `Ssh` is the other half, and the acceptance kit's `Machine` is built on it. Connecting,
 authenticating and running a command are the same problem whether the caller is renting the machine
 or testing on it; the kit adds what only a scenario needs.
+Every caller says which host key `Ssh` accepts: the one a rented machine was created with, or any
+key with a reason, for a local virtual machine ([the decision](../doc/decisions.md)).
 
 ## Tests
 

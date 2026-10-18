@@ -164,7 +164,7 @@ public final class AgentLeg {
                 run(lease, Snapshots.mirror(Snapshots.Contents.pinned().registry()));
                 for (final String extra : users.subList(1, users.size())) {
                     run(lease, account(extra));
-                    try (Ssh as = Ssh.to(lease.address(), extra, credential)) {
+                    try (Ssh as = Ssh.to(lease.address(), extra, credential, lease.hostKey())) {
                         run(as, "porelo setup", null);
                     }
                 }
@@ -174,7 +174,7 @@ public final class AgentLeg {
             // runs in - rootless podman, one operator's own directories - and root has neither:
             // podman is rootful there and /run/user/0 does not exist.
             if (options.script() != null) {
-                try (Ssh user = Ssh.to(lease.address(), USER, credential)) {
+                try (Ssh user = Ssh.to(lease.address(), USER, credential, lease.hostKey())) {
                     System.out.println("\n-- sending the suite --");
                     run(
                             user,
@@ -197,7 +197,7 @@ public final class AgentLeg {
                 // exists, so a failure lands as an annotation on the feature file.
                 System.out.println("\n-- acceptance, as a person at a terminal --");
                 if (users.size() == 1) {
-                    cucumber(options.cucumber(), lease.address(), credential, List.of());
+                    cucumber(options.cucumber(), lease, credential, List.of());
                 } else {
                     // Scenarios beside each other, one account each, and then what touches the
                     // whole machine, alone and afterwards: a restart takes every account's daemon
@@ -205,7 +205,7 @@ public final class AgentLeg {
                     // a failure.
                     cucumber(
                             options.cucumber(),
-                            lease.address(),
+                            lease,
                             credential,
                             List.of(
                                     "-Dporelo.acceptance.users=" + String.join(",", users),
@@ -215,7 +215,7 @@ public final class AgentLeg {
                     System.out.println("\n-- what touches the whole machine, alone --");
                     cucumber(
                             options.cucumber(),
-                            lease.address(),
+                            lease,
                             credential,
                             List.of("-Dcucumber.filter.tags=" + MACHINE_WIDE));
                 }
@@ -229,27 +229,18 @@ public final class AgentLeg {
      * Runs the agent's own Cucumber suite from here against the machine.
      *
      * @param repository Where to run Maven.
-     * @param address The machine.
+     * @param lease The machine.
      * @param credential The key the suite connects with, as material rather than a path.
      * @param options What this pass adds to the command line.
      * @throws IOException If the suite fails.
      */
     private static void cucumber(
-            Path repository, String address, Credential credential, List<String> options)
+            Path repository, Lease lease, Credential credential, List<String> options)
             throws IOException {
-        final List<String> command =
-                new ArrayList<>(
-                        List.of(
-                                "./mvnw",
-                                "-B",
-                                "-s",
-                                "settings.xml",
-                                "verify",
-                                "-Dporelo.acceptance.host=" + address,
-                                "-Dporelo.acceptance.user=" + USER));
-        command.addAll(options);
         final ProcessBuilder maven =
-                new ProcessBuilder(command).directory(repository.toFile()).inheritIO();
+                new ProcessBuilder(suite(lease.address(), lease.hostKey(), options))
+                        .directory(repository.toFile())
+                        .inheritIO();
         maven.environment().put("PORELO_ACCEPTANCE_KEY", credential.material());
         final int status;
         try {
@@ -261,6 +252,37 @@ public final class AgentLeg {
         if (status != 0) {
             throw new IOException("the Cucumber suite failed");
         }
+    }
+
+    /**
+     * Returns the command that runs the suite against a machine.
+     *
+     * <p>The host key is public and rides on the command line; the key the suite authenticates with
+     * does not, and goes in the environment.
+     *
+     * @param address The machine.
+     * @param hostKey Which host key it may show.
+     * @param options What this pass adds to the command line.
+     * @return The command.
+     */
+    static List<String> suite(String address, HostKey hostKey, List<String> options) {
+        final List<String> command =
+                new ArrayList<>(
+                        List.of(
+                                "./mvnw",
+                                "-B",
+                                "-s",
+                                "settings.xml",
+                                "verify",
+                                "-Dporelo.acceptance.host=" + address,
+                                "-Dporelo.acceptance.user=" + USER));
+        // A machine nobody made a key for gets no property, and the kit accepts what it shows
+        // there as it always has: the risk written for the local virtual machines.
+        if (hostKey instanceof HostKey.Pinned pinned) {
+            command.add("-Dporelo.acceptance.hostkey=" + pinned.line());
+        }
+        command.addAll(options);
+        return List.copyOf(command);
     }
 
     /**

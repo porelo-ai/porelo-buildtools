@@ -97,6 +97,12 @@ public final class Rental {
         leased.put("server", String.valueOf(lease.id()));
         leased.put("address", lease.address());
         leased.put("user", USER);
+        // The one host key the machine may show, for a caller that reaches it with OpenSSH: a line
+        // for known_hosts instead of the first key ssh-keyscan returns. A machine nobody made a key
+        // for has none to name.
+        if (lease.hostKey() instanceof HostKey.Pinned pinned) {
+            leased.put("hostkey", pinned.line());
+        }
         // The id the sweep matches on. In CI both steps derive the same one from the environment;
         // locally it is a timestamp, and this file is the only way a second process learns it.
         leased.put("run", hetzner.runId());

@@ -199,4 +199,28 @@ class AgentLegTest {
                 .hasMessageContaining("porelo-agent-pi; reboot")
                 .hasMessageContaining("--package");
     }
+
+    @Test
+    void handsTheSuiteTheHostKeyARentedMachineWasMadeWith() {
+        // Without it the suite's own connections accept whatever answers at the address.
+        final String line = HostKeyPair.generate().publicLine();
+
+        assertThat(AgentLeg.suite("192.0.2.7", HostKey.pinned(line), List.of()))
+                .as("the suite's command")
+                .contains(
+                        "-Dporelo.acceptance.host=192.0.2.7",
+                        "-Dporelo.acceptance.hostkey=" + line);
+    }
+
+    @Test
+    void namesNoHostKeyForAMachineNobodyMadeOneFor() {
+        // The kit then connects to the local virtual machines as it always has: the written risk.
+        assertThat(
+                        AgentLeg.suite(
+                                "192.168.122.10",
+                                HostKey.any("a local virtual machine"),
+                                List.of()))
+                .as("the suite's command")
+                .noneMatch(argument -> argument.startsWith("-Dporelo.acceptance.hostkey"));
+    }
 }

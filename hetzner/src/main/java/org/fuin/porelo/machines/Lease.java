@@ -41,6 +41,9 @@ public final class Lease implements AutoCloseable {
 
     private final Spec spec;
 
+    /** Which host key the machine may show: made with it when rented, any where it was not. */
+    private final HostKey hostKey;
+
     private final Release release;
 
     /**
@@ -66,10 +69,12 @@ public final class Lease implements AutoCloseable {
      * @param name What the machine is called, for messages.
      * @param address Where it is.
      * @param spec What was asked for.
+     * @param hostKey Which host key the machine may show.
      * @param release What giving it back means.
      */
-    public Lease(long id, String name, String address, Spec spec, Release release) {
-        this(id, name, address, spec, release, SSH_PATIENCE);
+    public Lease(
+            long id, String name, String address, Spec spec, HostKey hostKey, Release release) {
+        this(id, name, address, spec, hostKey, release, SSH_PATIENCE);
     }
 
     /**
@@ -79,14 +84,23 @@ public final class Lease implements AutoCloseable {
      * @param name What the machine is called, for messages.
      * @param address Where it is.
      * @param spec What was asked for.
+     * @param hostKey Which host key the machine may show.
      * @param release What giving it back means.
      * @param sshPatience How long to wait for sshd.
      */
-    Lease(long id, String name, String address, Spec spec, Release release, Duration sshPatience) {
+    Lease(
+            long id,
+            String name,
+            String address,
+            Spec spec,
+            HostKey hostKey,
+            Release release,
+            Duration sshPatience) {
         this.id = id;
         this.name = name;
         this.address = address;
         this.spec = spec;
+        this.hostKey = hostKey;
         this.release = release;
         this.sshPatience = sshPatience;
     }
@@ -119,13 +133,22 @@ public final class Lease implements AutoCloseable {
     }
 
     /**
+     * Returns which host key the machine may show, for every connection to it.
+     *
+     * @return The key it was made with, or the reason any key is accepted.
+     */
+    public HostKey hostKey() {
+        return hostKey;
+    }
+
+    /**
      * Waits until the machine answers ssh and accepts the key.
      *
-     * @throws IOException If it never does.
+     * @throws IOException If it never does, or it shows another host key than its own.
      */
     public void awaitSsh() throws IOException {
         final Instant deadline = Instant.now().plus(sshPatience);
-        while (!Ssh.reachable(address, spec.user(), spec.credential())) {
+        while (!Ssh.reachable(address, spec.user(), spec.credential(), hostKey)) {
             if (Instant.now().isAfter(deadline)) {
                 throw new IOException(
                         address
@@ -177,6 +200,8 @@ public final class Lease implements AutoCloseable {
                         ssh().run("cat /proc/sys/kernel/random/boot_id").out().strip())) {
                     return;
                 }
+            } catch (HostKey.Refused ex) {
+                throw ex;
             } catch (IOException ex) {
                 // Still down, or not up yet.
             }
@@ -191,7 +216,7 @@ public final class Lease implements AutoCloseable {
      */
     public Ssh ssh() throws IOException {
         if (ssh == null) {
-            ssh = Ssh.to(address, spec.user(), spec.credential());
+            ssh = Ssh.to(address, spec.user(), spec.credential(), hostKey);
         }
         return ssh;
     }

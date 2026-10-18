@@ -5,16 +5,18 @@ import java.nio.charset.StandardCharsets;
 import net.schmizz.keepalive.KeepAliveProvider;
 import net.schmizz.sshj.DefaultConfig;
 import net.schmizz.sshj.SSHClient;
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import org.jspecify.annotations.Nullable;
 
 /**
  * A connection to a machine.
  *
- * <p><strong>Host keys are not verified, deliberately.</strong> These machines are created and
- * destroyed per run - a rented server booted from a snapshot has a key nobody has seen before, and
- * pinning one would mean refusing to talk to the machine we were just given. What is protected here
- * is not the channel; it is what runs at the far end of it.
+ * <p><strong>Every caller says which host key it accepts.</strong> A rented machine is created with
+ * a host key made for it in the same run, and a connection to it accepts that key alone, compared
+ * on its wire encoding; any other is refused, naming the host and the fingerprint it showed.
+ * Somebody on the path to the provider could otherwise pose as the machine: never reach it, since
+ * key authentication cannot be relayed, but take what a leg sends and answer it as passed. A
+ * machine nobody made a key for - a local virtual machine - accepts any key only where its caller
+ * says so with a reason, the risk written in {@code doc/decisions.md}.
  *
  * <p><strong>One connection, many channels.</strong> A connection per command meant one TCP
  * handshake and one key exchange each - around eighty in two minutes - and CI's sshd answered
@@ -51,12 +53,16 @@ public final class Ssh implements AutoCloseable {
 
     private final Credential credential;
 
+    private final HostKey hostKey;
+
     private SSHClient client;
 
-    private Ssh(String host, String user, Credential credential) throws IOException {
+    private Ssh(String host, String user, Credential credential, HostKey hostKey)
+            throws IOException {
         this.host = host;
         this.user = user;
         this.credential = credential;
+        this.hostKey = hostKey;
         this.client = connected();
     }
 
@@ -66,11 +72,14 @@ public final class Ssh implements AutoCloseable {
      * @param host Where to connect.
      * @param user Who to connect as.
      * @param credential The key to authenticate with.
+     * @param hostKey Which host key to accept.
      * @return The open connection.
-     * @throws IOException If the machine cannot be reached or the key is refused.
+     * @throws IOException If the machine cannot be reached, the key is refused, or the machine
+     *     shows another host key than the one pinned ({@link HostKey.Refused}).
      */
-    public static Ssh to(String host, String user, Credential credential) throws IOException {
-        return new Ssh(host, user, credential);
+    public static Ssh to(String host, String user, Credential credential, HostKey hostKey)
+            throws IOException {
+        return new Ssh(host, user, credential, hostKey);
     }
 
     /**
@@ -83,17 +92,23 @@ public final class Ssh implements AutoCloseable {
      * @param host Where to connect.
      * @param user Who to connect as.
      * @param credential The key to authenticate with.
+     * @param hostKey Which host key to accept.
      * @return {@code true} if it is up and the key works.
+     * @throws HostKey.Refused If it showed another host key than the one pinned: not a machine
+     *     still booting, so not a reason to keep asking.
      */
-    public static boolean reachable(String host, String user, Credential credential) {
+    public static boolean reachable(
+            String host, String user, Credential credential, HostKey hostKey)
+            throws HostKey.Refused {
         final SSHClient probe = new SSHClient();
-        probe.addHostKeyVerifier(new PromiscuousVerifier());
         probe.setConnectTimeout(PROBE_TIMEOUT);
         probe.setTimeout(PROBE_TIMEOUT);
         try {
-            probe.connect(host);
+            connect(probe, host, hostKey);
             authenticate(probe, user, credential);
             return true;
+        } catch (HostKey.Refused ex) {
+            throw ex;
         } catch (IOException | RuntimeException ex) {
             // Down, or not up yet. Both are "no" here and the caller knows which it is waiting for.
             return false;
@@ -110,8 +125,7 @@ public final class Ssh implements AutoCloseable {
         final DefaultConfig config = new DefaultConfig();
         config.setKeepAliveProvider(KeepAliveProvider.HEARTBEAT);
         final SSHClient fresh = new SSHClient(config);
-        fresh.addHostKeyVerifier(new PromiscuousVerifier());
-        fresh.connect(host);
+        connect(fresh, host, hostKey);
         authenticate(fresh, user, credential);
         // After connecting, because the keepalive belongs to the connection rather than the client.
         // Started by hand, which sshj's own example omits: setting the interval only sets a field
@@ -123,6 +137,29 @@ public final class Ssh implements AutoCloseable {
         heartbeat.setKeepAliveInterval(HEARTBEAT_INTERVAL);
         heartbeat.start();
         return fresh;
+    }
+
+    /**
+     * Connects with the one verifier the caller chose, and throws its refusal rather than sshj's.
+     *
+     * @param client The client to connect.
+     * @param host Where to.
+     * @param hostKey Which host key to accept.
+     * @throws IOException If it cannot connect, or the host showed another key.
+     */
+    private static void connect(SSHClient client, String host, HostKey hostKey) throws IOException {
+        final HostKeyCheck check = new HostKeyCheck(host, hostKey);
+        client.addHostKeyVerifier(check);
+        try {
+            client.connect(host);
+        } catch (IOException ex) {
+            final HostKey.Refused refused = check.refusal();
+            if (refused != null) {
+                refused.addSuppressed(ex);
+                throw refused;
+            }
+            throw ex;
+        }
     }
 
     private static void authenticate(SSHClient client, String user, Credential credential)

@@ -159,6 +159,9 @@ public final class Hetzner implements Machines {
     private Lease acquire(Spec spec, Object image, String describedAs) throws IOException {
         final List<Placement> candidates = placements(spec.serverTypes());
         final long key = keyMatching(spec.credential());
+        // One per machine, made before it exists: its public half is then known before the first
+        // connection, which is what makes that connection proof of anything.
+        final HostKeyPair hostKey = HostKeyPair.generate();
 
         Map<String, Object> created = null;
         Placement placement = null;
@@ -174,7 +177,7 @@ public final class Hetzner implements Machines {
                             + ", "
                             + candidate.location());
             try {
-                created = createWhenThereIsRoom(spec, image, candidate, key);
+                created = createWhenThereIsRoom(spec, image, candidate, key, hostKey);
                 placement = candidate;
                 break;
             } catch (Api.ApiException ex) {
@@ -234,7 +237,13 @@ public final class Hetzner implements Machines {
             throw ex;
         }
         System.out.println("created  " + spec.name() + " at " + address);
-        return new Lease(id, spec.name(), address, spec, () -> destroy(spec, id, address));
+        return new Lease(
+                id,
+                spec.name(),
+                address,
+                spec,
+                HostKey.pinned(hostKey.publicLine()),
+                () -> destroy(spec, id, address));
     }
 
     /**
@@ -281,7 +290,8 @@ public final class Hetzner implements Machines {
     }
 
     private Map<String, Object> createWhenThereIsRoom(
-            Spec spec, Object image, Placement placement, long key) throws IOException {
+            Spec spec, Object image, Placement placement, long key, HostKeyPair hostKey)
+            throws IOException {
         final Map<String, Object> labels = new LinkedHashMap<>();
         labels.put("porelo", "ci");
         labels.put(RUN_LABEL, runId);
@@ -300,6 +310,7 @@ public final class Hetzner implements Machines {
         net.put("enable_ipv6", Boolean.FALSE);
         body.put("public_net", net);
         body.put("start_after_create", Boolean.TRUE);
+        body.put("user_data", userData(hostKey));
 
         for (int attempt = 1; attempt <= LIMIT_ATTEMPTS; attempt++) {
             try {
@@ -334,6 +345,32 @@ public final class Hetzner implements Machines {
             }
         }
         throw new IOException("unreachable");
+    }
+
+    /**
+     * Returns the cloud-config that gives a machine the host key made for it, and no other.
+     *
+     * <p>{@code ssh_deletekeys} removes the keys the image came with - a snapshot carries those of
+     * the machine it was taken from - and {@code ssh_genkeytypes: []} has cloud-init make none of
+     * its own, so the key here is the only one it leaves. Nothing else is configured: whatever the
+     * image does at first boot stays as it was.
+     *
+     * @param hostKey The machine's key.
+     * @return The {@code user_data}, which holds the private half and is never printed.
+     */
+    static String userData(HostKeyPair hostKey) {
+        final StringBuilder config =
+                new StringBuilder(
+                        "#cloud-config\n"
+                                + "ssh_deletekeys: true\n"
+                                + "ssh_genkeytypes: []\n"
+                                + "ssh_keys:\n"
+                                + "  ed25519_private: |\n");
+        hostKey.privateKey()
+                .lines()
+                .forEach(line -> config.append("    ").append(line).append('\n'));
+        config.append("  ed25519_public: ").append(hostKey.publicLine()).append('\n');
+        return config.toString();
     }
 
     /**

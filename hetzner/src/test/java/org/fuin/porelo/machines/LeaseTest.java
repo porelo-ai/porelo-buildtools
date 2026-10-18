@@ -127,6 +127,52 @@ class LeaseTest {
     }
 
     @Test
+    void createsTheServerWithAHostKeyMadeForItAndPinsThatKey() throws IOException {
+        // Without it a connection accepts whatever answers at the address, and somebody on the path
+        // to the provider can take what a leg sends and answer it as passed.
+        final Credential credential = Keys.generated();
+        final AtomicReference<String> sent = new AtomicReference<>();
+        final HostKey pinned;
+        try (StubApi stub =
+                lookups()
+                        .answering(
+                                "/ssh_keys?page=1&per_page=50", keys(Fingerprint.md5(credential)))
+                        .answering(
+                                "/servers",
+                                exchange -> {
+                                    try {
+                                        sent.set(
+                                                new String(
+                                                        exchange.getRequestBody().readAllBytes(),
+                                                        StandardCharsets.UTF_8));
+                                    } catch (IOException ex) {
+                                        throw new java.io.UncheckedIOException(ex);
+                                    }
+                                    return new StubApi.Answer(201, created());
+                                })
+                        .answering(
+                                "/servers/77",
+                                exchange ->
+                                        new StubApi.Answer(
+                                                200,
+                                                "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
+            try (Lease rental =
+                    Hetzner.against(stub.base(), "run-1", NO_WAIT).acquire(spec(credential))) {
+                pinned = rental.hostKey();
+            }
+        }
+        final String userData = Values.text(Values.object(Json.parse(sent.get())), "user_data");
+        final String block =
+                userData.lines()
+                        .filter(line -> line.startsWith("    "))
+                        .map(String::strip)
+                        .collect(java.util.stream.Collectors.joining("\n", "", "\n"));
+        assertThat(pinned)
+                .as("the lease pins the key whose private half the server was created with")
+                .isEqualTo(HostKey.pinned(HostKeyPairTest.publicLineOf(block)));
+    }
+
+    @Test
     void givesUpOnAFullProjectOnlyAfterAnHour() throws IOException {
         final Credential credential = Keys.generated();
         final AtomicInteger attempts = new AtomicInteger();
@@ -490,6 +536,7 @@ class LeaseTest {
                                 "root",
                                 Keys.generated(),
                                 false),
+                        HostKey.any("no machine is connected to"),
                         releases::incrementAndGet);
 
         lease.close();
@@ -513,6 +560,7 @@ class LeaseTest {
                                 "root",
                                 Keys.generated(),
                                 false),
+                        HostKey.any("no machine is connected to"),
                         () -> {
                             if (tries.incrementAndGet() == 1) {
                                 throw new IOException("interrupted calling DELETE /servers/7");
