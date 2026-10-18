@@ -31,12 +31,22 @@ without a list of names to keep in step with reality.
 ## Sweeping
 
 ```
-java -jar porelo-machines.jar sweep [--mine | --now | --older-than <minutes>]
+java -jar porelo-machines.jar sweep [--mine | --from <file>] [--now] [--including-in-use]
 ```
 
-With no option it lists what would go and deletes nothing. `--mine` deletes what this run created
-and only that: deleting by age instead would catch another run's server whenever that run is slower
-than the window, and ssh dying part way through somebody else's build is close to undebuggable.
+Every server a lease creates is labelled `porelo-expires` with the end of the time it was made for: its creation, plus
+the job's time limit (`--for <minutes>` on `snapshot`, `acceptance` and `lease`, 60 by default, at most 360), plus 15
+minutes for the clean-up after the step and the clocks. The value is the UTC minute as `20261018T0528Z`, since a label
+value cannot hold an ISO instant's `:`.
+
+With no option `sweep` lists what would go and deletes nothing; `--now` deletes it. It deletes a server whose
+`porelo-expires` has passed, and a `porelo=ci` server with no such label, which nobody can attribute; it keeps one
+still within its time, however old, and says so with its expiry. Only `--including-in-use` deletes those as well. A
+label it cannot read keeps the server and fails the sweep, naming it. `--older-than` is refused: the expiry decides,
+not the age ([the decision](../doc/decisions.md#a-sweep-deletes-by-expiry-not-by-age)).
+
+`--mine` deletes what this run created, and `--from <file>` what the run a `lease --write` file names, whatever their
+expiry: a job clearing up after itself does so while its servers are still within their time.
 
 `HETZNER_API` carries the API token and is read from the environment, never from an argument —
 `/proc/<pid>/cmdline` is world readable and neither supported distribution mounts `/proc` with

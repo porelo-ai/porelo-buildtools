@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.time.Duration;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,16 @@ class HetznerTest {
     private static final String NOW = "2999-01-01T00:00:00+00:00";
 
     private static final String LONG_AGO = "2000-01-01T00:00:00+00:00";
+
+    /** The sweep's now, so an expiry a minute either side of it decides the same on every run. */
+    private static final Clock SWEEP_TIME =
+            Clock.fixed(Instant.parse("2026-10-18T04:13:00Z"), ZoneOffset.UTC);
+
+    /** A minute before {@link #SWEEP_TIME}. */
+    private static final String JUST_EXPIRED = "20261018T0412Z";
+
+    /** A minute after {@link #SWEEP_TIME}. */
+    private static final String STILL_IN_USE = "20261018T0414Z";
 
     @Test
     void picksTheNewestSnapshotThatIsActuallyAvailable() throws IOException {
@@ -199,7 +211,7 @@ class HetznerTest {
         try (StubApi stub = twoServersTheFirstRefusing(LONG_AGO, "gone")) {
             final Hetzner hetzner = Hetzner.against(stub.base(), "run-1");
 
-            assertThatThrownBy(() -> hetzner.sweep(Duration.ofHours(2), false))
+            assertThatThrownBy(() -> hetzner.sweep(false, false))
                     .as("the sweep fails, naming the server it could not delete")
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("refused one");
@@ -230,7 +242,8 @@ class HetznerTest {
     }
 
     @Test
-    void sweepsWhatIsOldWhoeverLeftItAndSaysWhatItWouldDoFirst() throws IOException {
+    void sweepsWhatIsPastItsExpiryWhoeverLeftItAndSaysWhatItWouldDoFirst() throws IOException {
+        // What a process killed between two statements leaves behind bills until it is swept.
         final AtomicInteger deleted = new AtomicInteger();
         try (StubApi stub =
                 new StubApi()
@@ -238,10 +251,12 @@ class HetznerTest {
                                 "/servers?label_selector=porelo=ci&page=1&per_page=50",
                                 """
                     {"servers":[
-                      {"id":1,"name":"left behind","labels":{"run":"gone"},"created":"%s"},
-                      {"id":2,"name":"in use","labels":{"run":"live"},"created":"%s"}],
+                      {"id":1,"name":"left behind","labels":{"run":"gone","porelo-expires":"%s"},
+                       "created":"%s"},
+                      {"id":2,"name":"in use","labels":{"run":"live","porelo-expires":"%s"},
+                       "created":"%s"}],
                      "meta":{"pagination":{"next_page":null}}}"""
-                                        .formatted(LONG_AGO, NOW))
+                                        .formatted(JUST_EXPIRED, NOW, STILL_IN_USE, LONG_AGO))
                         .answering(
                                 "/servers/1",
                                 exchange -> {
@@ -249,11 +264,105 @@ class HetznerTest {
                                     return new StubApi.Answer(
                                             200, "{\"action\":{\"id\":5,\"status\":\"success\"}}");
                                 })) {
-            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1");
-            assertThat(hetzner.sweep(Duration.ofHours(2), true)).isEqualTo(1);
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME);
+            assertThat(hetzner.sweep(false, true)).isEqualTo(1);
             assertThat(deleted.get()).as("a dry run must not delete").isZero();
-            assertThat(hetzner.sweep(Duration.ofHours(2), false)).isEqualTo(1);
-            assertThat(deleted.get()).isEqualTo(1);
+            assertThat(hetzner.sweep(false, false)).isEqualTo(1);
+            assertThat(deleted.get())
+                    .as("the server a minute past its expiry is deleted")
+                    .isEqualTo(1);
+            assertThat(stub.asked())
+                    .as("the server a minute within its time is not")
+                    .doesNotContain("DELETE /v1/servers/2");
+        }
+    }
+
+    @Test
+    void sweepsAServerThatSaysNothingOfItsTimeHoweverYoung() throws IOException {
+        // A porelo=ci server with no expiry was made by nothing that writes one: nobody can say
+        // whose it is or how long it was meant for, so it bills until it is swept.
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                "/servers?label_selector=porelo=ci&page=1&per_page=50",
+                                """
+                    {"servers":[{"id":1,"name":"unattributed","labels":{"porelo":"ci"},"created":"%s"}],
+                     "meta":{"pagination":{"next_page":null}}}"""
+                                        .formatted(NOW))
+                        .answering(
+                                "/servers/1", "{\"action\":{\"id\":5,\"status\":\"success\"}}")) {
+            assertThat(Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME).sweep(false, false))
+                    .isEqualTo(1);
+            assertThat(stub.asked())
+                    .as("a server created after the sweep's now but with no expiry is deleted")
+                    .contains("DELETE /v1/servers/1");
+        }
+    }
+
+    @Test
+    void sweepsAServerWithinItsTimeOnlyWhenToldToIncludeThoseInUse() throws IOException {
+        // Deleting a server in use ends somebody's run, so it takes a word of its own.
+        try (StubApi stub = oneServerExpiring(STILL_IN_USE)) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME);
+            assertThat(hetzner.sweep(false, false)).isZero();
+            assertThat(stub.asked())
+                    .as("without --including-in-use a server within its time is kept")
+                    .doesNotContain("DELETE /v1/servers/1");
+
+            assertThat(hetzner.sweep(true, false)).isEqualTo(1);
+            assertThat(stub.asked()).as("with it, it is deleted").contains("DELETE /v1/servers/1");
+        }
+    }
+
+    @Test
+    void keepsAServerWhoseExpiryItCannotReadAndFailsNamingIt() throws IOException {
+        // An expiry in a form this does not read was written by something newer or broken, not
+        // left out; deleting the server may end a run in flight, and keeping it quietly bills.
+        try (StubApi stub = oneServerExpiring("1760760780")) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME);
+            assertThatThrownBy(() -> hetzner.sweep(false, false))
+                    .as("the sweep fails, naming the server and what its label held")
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("expiring")
+                    .hasMessageContaining("porelo-expires=1760760780");
+            assertThat(stub.asked())
+                    .as("the server is kept")
+                    .doesNotContain("DELETE /v1/servers/1");
+        }
+    }
+
+    private static StubApi oneServerExpiring(String expires) throws IOException {
+        return new StubApi()
+                .answering(
+                        "/servers?label_selector=porelo=ci&page=1&per_page=50",
+                        """
+                    {"servers":[{"id":1,"name":"expiring","labels":{"porelo":"ci","run":"live",
+                      "porelo-expires":"%s"},"created":"%s"}],
+                     "meta":{"pagination":{"next_page":null}}}"""
+                                .formatted(expires, LONG_AGO))
+                .answering("/servers/1", "{\"action\":{\"id\":5,\"status\":\"success\"}}");
+    }
+
+    @Test
+    void keepsAServerWithinItsTimeHoweverOldItIs() throws IOException {
+        // A test that runs longer than an hour lost its machine to the hourly sweep while it was
+        // still running; the time it was made for is what decides, not its age.
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                "/servers?label_selector=porelo=ci&page=1&per_page=50",
+                                """
+                    {"servers":[{"id":1,"name":"long test","labels":{"porelo":"ci","run":"live",
+                      "porelo-expires":"29990101T0000Z"},"created":"%s"}],
+                     "meta":{"pagination":{"next_page":null}}}"""
+                                        .formatted(LONG_AGO))
+                        .answering(
+                                "/servers/1", "{\"action\":{\"id\":5,\"status\":\"success\"}}")) {
+            Hetzner.against(stub.base(), "run-1").sweep(false, false);
+
+            assertThat(stub.asked())
+                    .as("a server older than an hour whose expiry lies ahead is kept")
+                    .doesNotContain("DELETE /v1/servers/1");
         }
     }
 
@@ -269,13 +378,14 @@ class HetznerTest {
                         .answering(
                                 "/servers?label_selector=porelo=ci&page=1&per_page=50",
                                 """
-                    {"servers":[{"id":2,"name":"in use","labels":{},"created":"%s"}],
+                    {"servers":[{"id":2,"name":"in use","labels":{"porelo-expires":"%s"},
+                      "created":"%s"}],
                      "meta":{"pagination":{"next_page":null}}}"""
-                                        .formatted(NOW))) {
+                                        .formatted(STILL_IN_USE, NOW))) {
             System.setOut(
                     new java.io.PrintStream(said, true, java.nio.charset.StandardCharsets.UTF_8));
             try {
-                assertThat(Hetzner.against(stub.base(), "run-1").sweep(Duration.ofHours(2), true))
+                assertThat(Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME).sweep(false, true))
                         .isZero();
             } finally {
                 System.setOut(was);

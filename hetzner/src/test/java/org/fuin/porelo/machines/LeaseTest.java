@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -124,6 +127,58 @@ class LeaseTest {
         assertThat(Values.object(Values.object(Json.parse(sent.get())), "public_net"))
                 .as("the server create's public network, in %s", sent.get())
                 .isEqualTo(Map.of("enable_ipv4", Boolean.TRUE, "enable_ipv6", Boolean.FALSE));
+    }
+
+    @Test
+    void labelsTheServerWithTheEndOfTheTimeItsJobMayHoldIt() throws IOException {
+        // Without it the sweep of everyone's servers cannot tell one in use from one forgotten,
+        // and either takes a long test's machine or leaves a leaked one billing.
+        final Clock created = Clock.fixed(Instant.parse("2026-10-18T04:13:27Z"), ZoneOffset.UTC);
+        assertThat(labelsSent(hetzner -> hetzner.at(created)))
+                .as("by default an hour's job plus the margin, the seconds dropped")
+                .isEqualTo(
+                        Map.of("porelo", "ci", "run", "run-1", "porelo-expires", "20261018T0528Z"));
+        assertThat(labelsSent(hetzner -> hetzner.at(created).forJobsOf(Duration.ofMinutes(90))))
+                .as("a job of 90 minutes, plus the margin")
+                .isEqualTo(
+                        Map.of("porelo", "ci", "run", "run-1", "porelo-expires", "20261018T0558Z"));
+    }
+
+    private static Map<String, Object> labelsSent(
+            java.util.function.UnaryOperator<Hetzner> configured) throws IOException {
+        final Credential credential = Keys.generated();
+        final AtomicReference<String> sent = new AtomicReference<>();
+        try (StubApi stub =
+                lookups()
+                        .answering(
+                                "/ssh_keys?page=1&per_page=50", keys(Fingerprint.md5(credential)))
+                        .answering(
+                                "/servers",
+                                exchange -> {
+                                    try {
+                                        sent.set(
+                                                new String(
+                                                        exchange.getRequestBody().readAllBytes(),
+                                                        StandardCharsets.UTF_8));
+                                    } catch (IOException ex) {
+                                        throw new java.io.UncheckedIOException(ex);
+                                    }
+                                    return new StubApi.Answer(201, created());
+                                })
+                        .answering(
+                                "/servers/77",
+                                exchange ->
+                                        new StubApi.Answer(
+                                                200,
+                                                "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
+            try (Lease rental =
+                    configured
+                            .apply(Hetzner.against(stub.base(), "run-1", NO_WAIT))
+                            .acquire(spec(credential))) {
+                assertThat(rental.address()).isEqualTo("1.2.3.4");
+            }
+        }
+        return Values.object(Values.object(Json.parse(sent.get())), "labels");
     }
 
     @Test

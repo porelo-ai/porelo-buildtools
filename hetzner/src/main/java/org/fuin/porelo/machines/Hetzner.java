@@ -1,14 +1,20 @@
 package org.fuin.porelo.machines;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Renting test machines, and making sure none is left behind.
@@ -20,7 +26,8 @@ import java.util.TreeSet;
  * up after itself.
  *
  * <p>Everything created here is labelled {@code porelo=ci} so the sweep can find it without a list
- * of names to keep in step with reality.
+ * of names to keep in step with reality, and {@code porelo-expires} with the end of the time it was
+ * made for, so the sweep can tell a forgotten server from one still in use without guessing by age.
  */
 public final class Hetzner implements Machines {
 
@@ -29,6 +36,37 @@ public final class Hetzner implements Machines {
 
     /** Identifies the run that created a server, so a run can delete its own and only its own. */
     static final String RUN_LABEL = "run";
+
+    /** When a server's time ends: before it, no sweep of everyone's servers deletes it. */
+    static final String EXPIRES_LABEL = "porelo-expires";
+
+    /**
+     * How an expiry is written in its label.
+     *
+     * <p>A label value takes only letters, digits, {@code -}, {@code _} and {@code .}, so an ISO
+     * instant with its {@code :} does not fit. This form rather than epoch seconds: a person
+     * reading the console's labels sees when a server's time ends without converting, and minutes
+     * are fine enough against {@link #EXPIRY_MARGIN}.
+     */
+    private static final DateTimeFormatter EXPIRY_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmm'Z'").withZone(ZoneOffset.UTC);
+
+    /**
+     * How long a job holds a server unless it says otherwise.
+     *
+     * <p>The longest job that rents today: {@code porelo}'s legs and the snapshot step both stop at
+     * 60 minutes.
+     */
+    public static final Duration DEFAULT_TIME_LIMIT = Duration.ofMinutes(60);
+
+    /**
+     * Added to a job's time limit to make a server's expiry.
+     *
+     * <p>The limit a caller names is its step's, and the clean-up after it runs past that - the
+     * snapshot job gives its 60-minute step 75 minutes. It also absorbs the minute the label drops
+     * and a runner's clock that differs from the sweeping one.
+     */
+    static final Duration EXPIRY_MARGIN = Duration.ofMinutes(15);
 
     /**
      * Where a CI server may be created.
@@ -70,10 +108,18 @@ public final class Hetzner implements Machines {
     /** How long to wait between attempts at a full project. Shortened by tests, never in use. */
     private final Duration limitWait;
 
-    private Hetzner(Api api, String runId, Duration limitWait) {
+    /** How long the job that rents may hold a server, which its expiry is made from. */
+    private final Duration timeLimit;
+
+    /** What a server's creation and the sweep's now are read from. Fixed by tests, never in use. */
+    private final Clock clock;
+
+    private Hetzner(Api api, String runId, Duration limitWait, Duration timeLimit, Clock clock) {
         this.api = api;
         this.runId = runId;
         this.limitWait = limitWait;
+        this.timeLimit = timeLimit;
+        this.clock = clock;
     }
 
     /**
@@ -84,7 +130,35 @@ public final class Hetzner implements Machines {
      * @return The API.
      */
     public static Hetzner with(String token, String runId) {
-        return new Hetzner(new Api(token), runId, LIMIT_WAIT);
+        return new Hetzner(
+                new Api(token), runId, LIMIT_WAIT, DEFAULT_TIME_LIMIT, Clock.systemUTC());
+    }
+
+    /**
+     * Returns the same connection for a job that may hold a server for another time.
+     *
+     * <p>The connection is shared, so closing either closes both.
+     *
+     * @param limit How long the job may hold a server: every server it creates expires that long
+     *     after its creation, plus a margin.
+     * @return The API, for that job.
+     * @throws IllegalArgumentException If the limit is not positive.
+     */
+    public Hetzner forJobsOf(Duration limit) {
+        if (limit.isNegative() || limit.isZero()) {
+            throw new IllegalArgumentException("a time limit must be positive, not " + limit);
+        }
+        return new Hetzner(api, runId, limitWait, limit, clock);
+    }
+
+    /**
+     * Returns the same connection reading the time from another clock, for a test.
+     *
+     * @param fixed The clock.
+     * @return The API.
+     */
+    Hetzner at(Clock fixed) {
+        return new Hetzner(api, runId, limitWait, timeLimit, fixed);
     }
 
     /**
@@ -107,7 +181,12 @@ public final class Hetzner implements Machines {
      * @return The API.
      */
     static Hetzner against(String base, String runId, Duration limitWait) {
-        return new Hetzner(new Api("test-token", base), runId, limitWait);
+        return new Hetzner(
+                new Api("test-token", base),
+                runId,
+                limitWait,
+                DEFAULT_TIME_LIMIT,
+                Clock.systemUTC());
     }
 
     /**
@@ -295,6 +374,8 @@ public final class Hetzner implements Machines {
         final Map<String, Object> labels = new LinkedHashMap<>();
         labels.put("porelo", "ci");
         labels.put(RUN_LABEL, runId);
+        // Read here, at the request that starts the billing, so the time counts from creation.
+        labels.put(EXPIRES_LABEL, expiry(clock.instant().plus(timeLimit).plus(EXPIRY_MARGIN)));
         final Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", spec.name());
         body.put("server_type", placement.type());
@@ -345,6 +426,30 @@ public final class Hetzner implements Machines {
             }
         }
         throw new IOException("unreachable");
+    }
+
+    /**
+     * Returns an instant as a label value.
+     *
+     * @param instant When a server's time ends.
+     * @return It in {@link #EXPIRY_FORMAT}, the seconds dropped.
+     */
+    static String expiry(Instant instant) {
+        return EXPIRY_FORMAT.format(instant.truncatedTo(ChronoUnit.MINUTES));
+    }
+
+    /**
+     * Reads an expiry label.
+     *
+     * @param label What the label holds.
+     * @return The instant, or {@code null} when it is not in {@link #EXPIRY_FORMAT}.
+     */
+    static @Nullable Instant expiryOf(String label) {
+        try {
+            return EXPIRY_FORMAT.parse(label, Instant::from);
+        } catch (DateTimeParseException ex) {
+            return null;
+        }
     }
 
     /**
@@ -647,12 +752,14 @@ public final class Hetzner implements Machines {
         final List<Server> found = new ArrayList<>();
         for (final Map<String, Object> body :
                 api.all("/servers?label_selector=" + LABEL_SELECTOR, "servers")) {
+            final Map<String, String> labels = Values.labels(body);
             found.add(
                     new Server(
                             Values.id(body.get("id")),
                             Values.text(body, "name"),
-                            Values.labels(body).getOrDefault(RUN_LABEL, ""),
+                            labels.getOrDefault(RUN_LABEL, ""),
                             Values.created(body),
+                            labels.getOrDefault(EXPIRES_LABEL, ""),
                             Values.text(
                                     Values.object(Values.object(body, "public_net"), "ipv4"),
                                     "ip")));
@@ -663,8 +770,10 @@ public final class Hetzner implements Machines {
     /**
      * Deletes the servers this run created, and only those.
      *
-     * <p>Deleting by age instead would catch another run's server whenever that run is slower than
-     * the window, and the symptom - ssh dying part way through a build - is close to undebuggable.
+     * <p>Whatever their expiry: they are still within their time when the run clears up, and that
+     * clean-up is what they exist for. Deleting by age instead would catch another run's server
+     * whenever that run is slower than the window, and the symptom - ssh dying part way through a
+     * build - is close to undebuggable.
      *
      * @return How many were deleted.
      * @throws IOException If the API refuses.
@@ -738,26 +847,54 @@ public final class Hetzner implements Machines {
     }
 
     /**
-     * Deletes servers older than a window, whoever created them.
+     * Deletes the servers whose time has ended, whoever created them.
      *
      * <p>This is the net under everything else: a process killed between two statements cannot
-     * clean up after itself, and what it leaves behind bills until somebody notices.
+     * clean up after itself, and what it leaves behind bills until somebody notices. A server goes
+     * once its {@code porelo-expires} has passed, or when it has none - nobody can say whose it is
+     * or how long it was meant for. Its age does not come into it: a test that runs longer than an
+     * hour keeps its machine as long as the time it was made for.
      *
-     * @param olderThan How old a server must be to count as left behind.
+     * <p>A label that cannot be read keeps its server and fails the sweep, naming it: that is not a
+     * server without an expiry but one written by something this does not understand, and deleting
+     * it may end a run in flight.
+     *
+     * @param includingInUse Whether to delete the servers still within their time as well.
      * @param dryRun Whether to only say what would go.
      * @return How many were deleted, or would have been.
-     * @throws IOException If the API refuses.
+     * @throws IOException If the API refuses, or an expiry cannot be read.
      */
-    public int sweep(Duration olderThan, boolean dryRun) throws IOException {
-        final Instant cutoff = Instant.now().minus(olderThan);
+    public int sweep(boolean includingInUse, boolean dryRun) throws IOException {
+        final Instant now = clock.instant();
         int swept = 0;
         final List<IOException> refused = new ArrayList<>();
         for (final Server server : servers()) {
-            if (server.created().isAfter(cutoff)) {
+            final Instant expires = server.expires().isEmpty() ? null : expiryOf(server.expires());
+            if (!server.expires().isEmpty() && expires == null) {
+                System.out.println("keeping " + server.name() + ", expiry not readable");
+                refused.add(
+                        new IOException(
+                                "could not read the expiry of "
+                                        + server.name()
+                                        + " ("
+                                        + server.id()
+                                        + "): "
+                                        + EXPIRES_LABEL
+                                        + "="
+                                        + server.expires()));
+                continue;
+            }
+            if (expires != null && expires.isAfter(now) && !includingInUse) {
                 // Said out loud, because "0 to delete" otherwise covers two different worlds: a
                 // project holding three machines that are all in use, and a project holding none.
                 // Only one of those means the sweep is looking at what it thinks it is.
-                System.out.println("keeping " + server.name() + ", created " + server.created());
+                System.out.println(
+                        "keeping "
+                                + server.name()
+                                + ", created "
+                                + server.created()
+                                + ", expires "
+                                + expires);
                 continue;
             }
             System.out.println(
@@ -765,6 +902,10 @@ public final class Hetzner implements Machines {
                             + server.name()
                             + ", created "
                             + server.created()
+                            + (expires == null
+                                    ? ", no expiry"
+                                    : (expires.isAfter(now) ? ", in use until " : ", expired ")
+                                            + expires)
                             + " (run "
                             + server.run()
                             + ")");
@@ -798,7 +939,9 @@ public final class Hetzner implements Machines {
      * @param name Its name.
      * @param run The run that created it, or an empty string.
      * @param created When it was created.
+     * @param expires Its {@code porelo-expires} label as written, or an empty string.
      * @param address Its address.
      */
-    public record Server(long id, String name, String run, Instant created, String address) {}
+    public record Server(
+            long id, String name, String run, Instant created, String expires, String address) {}
 }

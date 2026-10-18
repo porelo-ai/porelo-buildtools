@@ -17,13 +17,12 @@ import java.util.function.Supplier;
 public final class Main {
 
     /**
-     * How old a server must be before a sweep counts it as forgotten.
+     * The longest time limit {@code --for} takes, in minutes.
      *
-     * <p>Minutes, and the same default as the script this replaces. A unit that differs between the
-     * two would have been read straight off a workflow line - {@code --older-than 60} means an hour
-     * there and would have meant sixty hours here.
+     * <p>The longest a GitHub-hosted job may run. More can only be a slip of the keyboard, and it
+     * would keep a forgotten server from the sweep for as long.
      */
-    private static final Duration DEFAULT_AGE = Duration.ofMinutes(60);
+    private static final int LONGEST_TIME_LIMIT = 360;
 
     private Main() {
         throw new UnsupportedOperationException("Utility class");
@@ -38,8 +37,8 @@ public final class Main {
     /**
      * Runs a sweep.
      *
-     * @param args {@code sweep} with {@code --mine}, {@code --now}, {@code --older-than <minutes>}
-     *     or nothing, which lists what would go.
+     * @param args {@code sweep} with {@code --mine}, {@code --from <file>}, {@code --now}, {@code
+     *     --including-in-use} or nothing, which lists what would go; or another command.
      */
     public static void main(String[] args) {
         try {
@@ -94,15 +93,16 @@ public final class Main {
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println(
                     """
-                Usage: sweep [--mine | --from <file>] [--now] [--older-than <minutes>]
+                Usage: sweep [--mine | --from <file>] [--now] [--including-in-use]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
-                                [--unless-current]
+                                [--unless-current] [--for <minutes>]
                        acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
                                 [--os <o>] [--type <t,t...>] [--keep] [--accounts <n>]
+                                [--for <minutes>]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
-                                [--type <t>] - rents a machine, installs Porelo, starts the
-                                daemon as an unprivileged user, and leaves it running. What
-                                deletes it is 'sweep --mine'.
+                                [--type <t>] [--for <minutes>] - rents a machine, installs Porelo,
+                                starts the daemon as an unprivileged user, and leaves it running.
+                                What deletes it is 'sweep --mine'.
                        jdk      [--into <dir>] [--github] - installs the GraalVM the CI snapshots
                                 pin, checked against its digest, into <dir> (default: a directory
                                 under RUNNER_TEMP). --github makes it JAVA_HOME and puts it on the
@@ -111,12 +111,19 @@ public final class Main {
                                 hooks link against, both checked against their digests, under
                                 MUSL_PREFIX (default ~/.local/opt).
 
-                  --mine                 delete what this run created, whatever its age. What a
+                  --mine                 delete what this run created, whatever its expiry. What a
                                          job uses to clean up after itself - deleting by age
                                          catches another run's server when that run is slow
                   --now                  delete, rather than saying what would be deleted
-                  --older-than <minutes> age at which a server counts as forgotten (default 60)
+                  --including-in-use     delete the servers still within their time as well;
+                                         without it a sweep deletes only servers whose
+                                         porelo-expires has passed, or that have none
                   (none)                 say what would be deleted, and delete nothing
+
+                  --for <minutes>        how long the job may hold the machine (default 60, at
+                                         most 360): it is labelled porelo-expires with its
+                                         creation plus that plus 15 minutes, and no sweep of
+                                         everyone's servers deletes it before then
 
                   --candidate <dir>      install the packages built in this run instead of
                                          published ones, from a directory holding one build of
@@ -134,24 +141,23 @@ public final class Main {
         boolean mine = false;
         String from = null;
         boolean delete = false;
-        Duration olderThan = DEFAULT_AGE;
+        boolean includingInUse = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--mine" -> mine = true;
                 case "--from" -> from = value(args, ++at);
                 case "--now" -> delete = true;
+                case "--including-in-use" -> includingInUse = true;
                 case "--older-than" -> {
-                    if (at + 1 >= args.length) {
-                        complain.accept("--older-than needs a number of minutes");
-                        return 2;
-                    }
-                    try {
-                        olderThan = Duration.ofMinutes(Long.parseLong(args[++at]));
-                    } catch (NumberFormatException ex) {
-                        complain.accept(
-                                "--older-than needs a number of minutes, not '" + args[at] + "'");
-                        return 2;
-                    }
+                    // Refused whatever its value, so a caller still sweeping by age fails rather
+                    // than going on under a rule it did not ask for; 0 deleted every server in use.
+                    complain.accept(
+                            "--older-than is gone: a sweep deletes a server once its "
+                                    + Hetzner.EXPIRES_LABEL
+                                    + " has passed, or when it has none, whatever its age."
+                                    + " To delete the servers still within their time as well,"
+                                    + " pass --including-in-use.");
+                    return 2;
                 }
                 default -> {
                     complain.accept("unknown option: " + args[at]);
@@ -191,7 +197,7 @@ public final class Main {
                 }
                 return 0;
             }
-            final int swept = hetzner.sweep(olderThan, !delete);
+            final int swept = hetzner.sweep(includingInUse, !delete);
             System.out.println((delete ? "deleted " : "would delete ") + swept + " server(s)");
             if (swept > 0 && !delete) {
                 // The same exit the script uses, so a scheduled run that finds something without
@@ -218,6 +224,7 @@ public final class Main {
         String repo = null;
         String type = null;
         boolean unlessCurrent = false;
+        Duration limit = Hetzner.DEFAULT_TIME_LIMIT;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
@@ -225,6 +232,13 @@ public final class Main {
                 case "--repo" -> repo = value(args, ++at);
                 case "--type" -> type = value(args, ++at);
                 case "--unless-current" -> unlessCurrent = true;
+                case "--for" -> {
+                    final Duration given = timeLimit(value(args, ++at), complain);
+                    if (given == null) {
+                        return 2;
+                    }
+                    limit = given;
+                }
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -243,7 +257,7 @@ public final class Main {
         final String musl = Snapshots.muslInstaller();
         final java.nio.file.Path archive =
                 repo == null ? null : archiveOf(java.nio.file.Path.of(repo));
-        try (Hetzner hetzner = open.get()) {
+        try (Hetzner hetzner = open.get().forJobsOf(limit)) {
             // Asked before anything is rented: a snapshot already made from what this one would be
             // made from is the image a leg boots, and building it again only bills.
             final String inputs = Snapshots.inputs(os);
@@ -291,9 +305,17 @@ public final class Main {
         String artifactory = "https://fuinorg.jfrog.io/artifactory";
         boolean keep = false;
         int accounts = 1;
+        Duration limit = Hetzner.DEFAULT_TIME_LIMIT;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
+                case "--for" -> {
+                    final Duration given = timeLimit(value(args, ++at), complain);
+                    if (given == null) {
+                        return 2;
+                    }
+                    limit = given;
+                }
                 case "--key" -> key = value(args, ++at);
                 // Scenarios beside each other, one account each; 1 runs them in order, as always.
                 case "--accounts" -> {
@@ -349,7 +371,7 @@ public final class Main {
                         keep,
                         cucumber == null ? null : java.nio.file.Path.of(cucumber),
                         accounts);
-        try (Hetzner hetzner = open.get()) {
+        try (Hetzner hetzner = open.get().forJobsOf(limit)) {
             AgentLeg.run(
                     hetzner,
                     options,
@@ -489,7 +511,7 @@ public final class Main {
      * Rents a machine and leaves it running, recording what it took.
      *
      * @param args {@code lease --os <os> [--key <file>] [--write <file>] [--type <t>] [--candidate
-     *     <dir>]}.
+     *     <dir>] [--for <minutes>]}.
      * @param complain Where a refusal goes.
      * @param open How to reach the provider.
      * @return Exit code.
@@ -503,10 +525,18 @@ public final class Main {
         String type = "cpx12";
         String artifactory = "https://fuinorg.jfrog.io/artifactory";
         String candidate = null;
+        Duration limit = Hetzner.DEFAULT_TIME_LIMIT;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
                 case "--key" -> key = value(args, ++at);
+                case "--for" -> {
+                    final Duration given = timeLimit(value(args, ++at), complain);
+                    if (given == null) {
+                        return 2;
+                    }
+                    limit = given;
+                }
                 case "--write" -> write = value(args, ++at);
                 case "--type" -> type = value(args, ++at);
                 case "--artifactory" -> artifactory = value(args, ++at);
@@ -524,7 +554,7 @@ public final class Main {
                         artifactory,
                         write == null ? null : java.nio.file.Path.of(write),
                         candidate == null ? null : java.nio.file.Path.of(candidate));
-        try (Hetzner hetzner = open.get()) {
+        try (Hetzner hetzner = open.get().forJobsOf(limit)) {
             Rental.run(
                     hetzner,
                     options,
@@ -533,6 +563,30 @@ public final class Main {
                             key == null ? null : java.nio.file.Path.of(key)));
         }
         return 0;
+    }
+
+    /**
+     * Reads how long a job may hold its machine.
+     *
+     * <p>Minutes, as a workflow's {@code timeout-minutes} beside it says them, so the two can be
+     * read against each other on one screen.
+     *
+     * @param minutes What {@code --for} was given.
+     * @param complain Where a refusal goes.
+     * @return The limit, or {@code null} when it was refused.
+     */
+    static @org.jspecify.annotations.Nullable Duration timeLimit(
+            String minutes, Consumer<String> complain) {
+        if (!minutes.matches("[1-9]\\d{0,2}") || Integer.parseInt(minutes) > LONGEST_TIME_LIMIT) {
+            complain.accept(
+                    "--for needs a number of minutes from 1 to "
+                            + LONGEST_TIME_LIMIT
+                            + ", not '"
+                            + minutes
+                            + "'");
+            return null;
+        }
+        return Duration.ofMinutes(Integer.parseInt(minutes));
     }
 
     /**

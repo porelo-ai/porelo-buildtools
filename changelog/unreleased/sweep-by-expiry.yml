@@ -1,0 +1,2 @@
+title: porelo-machines labels every server it creates porelo-expires with the end of its job's time (--for <minutes> on snapshot, acceptance and lease, 60 by default, plus 15), and sweep deletes only servers past it or without one, deletes those within it only with --including-in-use, and refuses --older-than
+type: changed

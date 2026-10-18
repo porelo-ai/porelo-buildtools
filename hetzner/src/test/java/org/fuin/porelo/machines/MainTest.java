@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.time.OffsetDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,10 @@ class MainTest {
 
     /** A sink a test can read, so nothing reaches a job's annotations. */
     private static final Consumer<String> QUIET = message -> {};
+
+    /** The sweep's now, so the servers' expiries decide the same on every run. */
+    private static final Clock SWEEP_TIME =
+            Clock.fixed(Instant.parse("2026-10-18T04:13:00Z"), ZoneOffset.UTC);
 
     /** Fails the test rather than opening anything, so a parsing test cannot become a sweep. */
     private static final Supplier<Hetzner> NEVER =
@@ -57,23 +62,32 @@ class MainTest {
     }
 
     @Test
-    void refusesAnAgeWithNoNumberAfterIt() throws IOException {
-        assertThat(Main.run(new String[] {"sweep", "--older-than"}, QUIET, NEVER)).isEqualTo(2);
-        assertThat(Main.run(new String[] {"sweep", "--older-than", "soon"}, QUIET, NEVER))
+    void refusesToSweepByAgeAndNamesWhatDeletesServersInUse() throws IOException {
+        // '--older-than 0 --now' deleted every server in use. Refused whatever the number, so a
+        // caller still sweeping by age fails rather than going on under a rule it did not ask for.
+        final List<String> said = new ArrayList<>();
+        assertThat(Main.run(new String[] {"sweep", "--older-than", "0", "--now"}, said::add, NEVER))
+                .isEqualTo(2);
+        assertThat(said)
+                .as("the refusal names the option that deletes servers within their time")
+                .singleElement()
+                .asString()
+                .contains("--including-in-use");
+        assertThat(Main.run(new String[] {"sweep", "--older-than", "60", "--now"}, QUIET, NEVER))
+                .as("the hourly sweep's old line is refused too, before anything connects")
                 .isEqualTo(2);
     }
 
     @Test
-    void readsAnAgeInTheSameUnitTheScriptItReplacesUsed() throws IOException {
-        // 'sweep.py --older-than 60' means an hour and the workflow line says exactly that. Read as
-        // hours it would mean sixty, and a forgotten server would bill for two and a half days
-        // before anything swept it.
-        try (StubApi stub = twoServers()) {
+    void keepsAServerWithinItsTimeWhenAskedToActuallyDelete() throws IOException {
+        // '--now' means "delete rather than say", not "delete everything". Ignoring the expiry here
+        // would take out the servers of every run in flight.
+        try (StubApi stub = twoServers("live")) {
             assertThat(
                             Main.run(
-                                    new String[] {"sweep", "--older-than", "60", "--now"},
+                                    new String[] {"sweep", "--now"},
                                     QUIET,
-                                    () -> Hetzner.against(stub.base(), "run-1")))
+                                    () -> Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME)))
                     .isZero();
             assertThat(stub.asked()).contains("DELETE /v1/servers/1");
             assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/2");
@@ -81,51 +95,106 @@ class MainTest {
     }
 
     @Test
-    void keepsTheAgeWhenAskedToActuallyDelete() throws IOException {
-        // '--now' means "delete rather than say", not "delete everything whatever its age".
-        // Ignoring the age here would take out the servers of every run in flight.
-        try (StubApi stub = twoServers()) {
-            Main.run(
-                    new String[] {"sweep", "--now"},
-                    QUIET,
-                    () -> Hetzner.against(stub.base(), "run-1"));
-            assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/2");
+    void deletesServersInUseOnlyWhenToldTo() throws IOException {
+        try (StubApi stub = twoServers("live")) {
+            assertThat(
+                            Main.run(
+                                    new String[] {"sweep", "--including-in-use", "--now"},
+                                    QUIET,
+                                    () -> Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME)))
+                    .isZero();
+            assertThat(stub.asked())
+                    .as("--including-in-use deletes the server within its time too")
+                    .contains("DELETE /v1/servers/1", "DELETE /v1/servers/2");
         }
+    }
+
+    @Test
+    void deletesTheRunsOwnServersWithinTheirTime() throws IOException {
+        // A job clearing up after itself does so while its servers are still within their time;
+        // keeping them until they expire would bill for the margin on every run.
+        try (StubApi stub = twoServers("run-1")) {
+            assertThat(
+                            Main.run(
+                                    new String[] {"sweep", "--mine"},
+                                    QUIET,
+                                    () -> Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME)))
+                    .isZero();
+            assertThat(stub.asked())
+                    .as("--mine deletes the run's server whose expiry lies ahead")
+                    .contains("DELETE /v1/servers/2");
+        }
+    }
+
+    @Test
+    void refusesATimeLimitThatIsNoneOrLongerThanAJobMayRun() throws IOException {
+        // Too long keeps a forgotten server from the sweep for as long; none would have the sweep
+        // take the machine while its job is still running.
+        for (final String command : List.of("lease", "acceptance", "snapshot")) {
+            for (final String minutes : List.of("0", "361", "soon", "-5")) {
+                final List<String> said = new ArrayList<>();
+                assertThat(
+                                Main.run(
+                                        new String[] {command, "--os", "ubuntu", "--for", minutes},
+                                        said::add,
+                                        NEVER))
+                        .as("%s --for %s", command, minutes)
+                        .isEqualTo(2);
+                assertThat(said).as("%s --for %s", command, minutes).isNotEmpty();
+            }
+        }
+    }
+
+    @Test
+    void takesATimeLimitAndGoesOnToRent() {
+        // Accepted means it went on to rent a machine - which NEVER refuses, so the test ends
+        // there.
+        assertThatThrownBy(
+                        () ->
+                                Main.run(
+                                        new String[] {"lease", "--os", "ubuntu", "--for", "360"},
+                                        QUIET,
+                                        NEVER))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("tried to connect");
     }
 
     @Test
     void deletesNothingUnlessToldTo() throws IOException {
         // Dry by default, and a non-zero exit so a scheduled run that found something it was not
         // allowed to remove is visible rather than quietly green.
-        try (StubApi stub = twoServers()) {
+        try (StubApi stub = twoServers("live")) {
             assertThat(
                             Main.run(
                                     new String[] {"sweep"},
                                     QUIET,
-                                    () -> Hetzner.against(stub.base(), "run-1")))
+                                    () -> Hetzner.against(stub.base(), "run-1").at(SWEEP_TIME)))
                     .isEqualTo(1);
             assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/1", "DELETE /v1/servers/2");
         }
     }
 
     /**
-     * One server old enough to sweep and one too young, an hour apart either side.
+     * One server a minute past its expiry and one a minute within its time at {@link #SWEEP_TIME},
+     * both ninety minutes old.
      *
+     * @param run The run the one within its time belongs to.
      * @return The stub.
      * @throws IOException If it cannot be started.
      */
-    private static StubApi twoServers() throws IOException {
-        final String old = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(90).toString();
-        final String fresh = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10).toString();
+    private static StubApi twoServers(String run) throws IOException {
+        final String old = "2026-10-18T02:43:00+00:00";
         return new StubApi()
                 .answering(
                         "/servers?label_selector=porelo=ci&page=1&per_page=50",
                         """
                     {"servers":[
-                      {"id":1,"name":"forgotten","labels":{},"created":"%s"},
-                      {"id":2,"name":"in use","labels":{},"created":"%s"}],
+                      {"id":1,"name":"forgotten","labels":{"run":"gone",
+                        "porelo-expires":"20261018T0412Z"},"created":"%s"},
+                      {"id":2,"name":"in use","labels":{"run":"%s",
+                        "porelo-expires":"20261018T0414Z"},"created":"%s"}],
                      "meta":{"pagination":{"next_page":null}}}"""
-                                .formatted(old, fresh))
+                                .formatted(old, run, old))
                 .answering(
                         "/servers/1",
                         exchange ->
