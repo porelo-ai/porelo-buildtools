@@ -28,6 +28,7 @@ left out.
 
 | # | Size | Blocked by | What it covers | Open questions |
 |---|---|---|---|---|
+| <a id="bt20"></a>[BT20](BT20-Bills-Read-With-A-Current-CycloneDX-Library.md) | S | - | porelo-release on a `cyclonedx-core-java` and `commons-lang3` without known advisories, adapted here first, then the parent's versions moved in one wave. | 0 |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. | - |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. | - |
 
