@@ -85,10 +85,10 @@ Each fixed finding names the harm and the test, which was run red before the fix
   `CheckDeployTest.refusesAnUploadToAHostWhoseNameOnlyEndsLikeApachesOwn`.
 - **Fixed without a test, no harm:** `CheckReleases` left the effective pom's stream open; `NoOldNameTest` ran git
   without `GIT_CONFIG_GLOBAL=/dev/null`; a Javadoc in `CheckActions` sat above the wrong field.
-- **Not fixed, waits on a decision: `check-citations` passes when another repository's index cannot be read for a
+- **Kept as it is, decided 2026-10-18: `check-citations` passes when another repository's index cannot be read for a
   failure**, not only when it is not published: an unreachable host or an HTTP 500 becomes a `NOTE` and exit 0, and the
-  links into it go unchecked. The shared rule says fail closed; making it exit 2 changes what a command every
-  repository runs answers, and touches what [BT04](README.md#bt04) builds.
+  links into it go unchecked. Failing closed would turn every repository's workflow red while GitHub cannot be reached;
+  the `NOTE` names the index and how many links were not checked.
 - **Declined:**
   - `update` writes its files one after another, not as one: a failure in between leaves a working tree that git
     restores, and a move is a pull request a person reviews.
@@ -189,8 +189,6 @@ Each fixed finding names the harm and the test, which was run red before the fix
 
 ## Open questions
 
-- `check-citations`: should an index that cannot be read for a failure, rather than one not published, make it exit 2
-  instead of passing with a note? Every repository's workflow would then go red while GitHub cannot be reached.
 - `Ssh`'s host key: accept it for rented machines as a written risk, and pin the local VMs' keys, which changes
   `porelo`'s legs and kit, or accept both?
 - `sweep` by age: keep it as the net it is, or hold it to the shared rule, which changes options workflows call?
