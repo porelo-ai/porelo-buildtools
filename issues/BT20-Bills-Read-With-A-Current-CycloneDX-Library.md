@@ -35,4 +35,6 @@ advisory, and `commons-lang3` beside it likewise, without a red build in between
   9.0.5 and with 11.0.1 wrote byte-equal bills apart from timestamp and serial: `merge-tree-bill` (280 components),
   `add-component` (Node recorded), and `compare-bills` ("the same 142 components, unchanged licenses") said the same.
 - [ ] After the parent manages both and this repository drops its two entries, its Build and Publish green against
-  the parent's snapshot.
+  the parent's snapshot. The parent's `2b0b8dc` is published; without the two entries `dependency:tree` resolves
+  `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0 from it, and `clean verify` and `-Pdocuments test` are
+  green here; the Build follows the next push.
