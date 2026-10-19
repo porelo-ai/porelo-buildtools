@@ -1,6 +1,6 @@
 # BT21 — Jackson Without Its Known Advisories
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** XS - one version property and the check that the tools still read and write as before.
 
 **What must be true.** porelo-release runs with a Jackson that OSV lists no advisory against.
@@ -26,3 +26,5 @@
   the dataformats alone left core and databind at the fuin BOM's 2.21.2.
 - [x] The whole check green: `clean verify` (546 tests, none skipped), the deploy dry run with `check-deploy`,
   `-Pdocuments test` and `check-citations`.
+- [x] Build 39204393221 on `bb8ab59` green with Publish, 2026-10-19 05:24Z; porelo-host's tools resolve Jackson
+  2.22.3 from the published snapshot.
