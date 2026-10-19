@@ -1,0 +1,30 @@
+# What a Porelo task on this repository is built from: Ubuntu 26.04 by digest, with what the Build's pinned-jdk step
+# gives a job - the pinned GraalVM as JAVA_HOME and the pinned shfmt - and git, curl and unzip for the Maven Wrapper.
+# A draft of the file a repository chooses its task image by, whose reader in porelo does not exist yet, so nothing
+# reads it today. Tools only: the rules a task runs under are the project's.
+#
+# The snapshots and Publish jobs are not here: they rent machines and hold the release keys, which no task does.
+image:
+    base_image: "ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
+    snippet: |
+        RUN apt-get update \
+            && apt-get install -y --no-install-recommends ca-certificates=20260601~26.04.1 \
+                curl=8.18.0-1ubuntu2.8 git=1:2.53.0-1ubuntu1 unzip=6.0-29ubuntu1 \
+            && rm -rf /var/lib/apt/lists/*
+        # The GraalVM hetzner/pom.xml pins, by its digest, as the pinned-jdk step installs it.
+        RUN set -eu \
+            && release=https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.4.4.1.1 \
+            && curl -fsSL -o /tmp/graalvm.tar.gz "$release/graalvm-community-jdk-25i4-25.0.4.1.1_linux-x64_bin.tar.gz" \
+            && echo "05ccbbe783210b6886ff7b08fcd0b061c5dce4852b05db87284fc0e24abb08e2  /tmp/graalvm.tar.gz" \
+                | sha256sum -c - \
+            && mkdir -p /opt/graalvm && tar -xzf /tmp/graalvm.tar.gz -C /opt/graalvm --strip-components=1 \
+            && rm /tmp/graalvm.tar.gz
+        # The shfmt the pinned-jdk step puts on the PATH, by its digest.
+        RUN set -eu \
+            && curl -fsSL -o /usr/local/bin/shfmt \
+                https://github.com/mvdan/sh/releases/download/v3.12.0/shfmt_v3.12.0_linux_amd64 \
+            && echo "d9fbb2a9c33d13f47e7618cf362a914d029d02a6df124064fff04fd688a745ea  /usr/local/bin/shfmt" \
+                | sha256sum -c - \
+            && chmod 0755 /usr/local/bin/shfmt
+    env:
+        JAVA_HOME: /opt/graalvm
