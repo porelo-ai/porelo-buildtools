@@ -1,0 +1,2 @@
+title: porelo-release reads its YAML and XML through Jackson 2.22.3, past the advisories published against 2.21.2 and 2.22.1
+type: security

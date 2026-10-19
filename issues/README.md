@@ -18,6 +18,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt21"></a>[BT21](BT21-Jackson-Without-Its-Known-Advisories.md) | XS | - | porelo-release on Jackson 2.22.3, past the advisories against 2.21.2. |
 | <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that the operator requires on `main` before merging an action move by hand; no auto-merge, decided 2026-10-18. |
 | <a id="bt15"></a>[BT15](BT15-Legs-Taken-From-A-Proven-Run.md) | M | - | A Build on `main` takes its legs from a run of the same tree, from a trusted event, at most 24 h old, with its leg jobs green: `porelo-release proven-legs`, built; each Build adopts it. |
