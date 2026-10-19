@@ -1,6 +1,6 @@
 # BT20 — Bills Read With A Current CycloneDX Library
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - the `release` module's use of one library across major versions, with its tests and a run on real
 bills; porelo-parent's two version lines are Agent Core's.
 
@@ -34,7 +34,7 @@ advisory, and `commons-lang3` beside it likewise, without a red build in between
 - [x] On real bills, porelo-pi's tree and package bills and porelo-message-matrix's, the same release code with
   9.0.5 and with 11.0.1 wrote byte-equal bills apart from timestamp and serial: `merge-tree-bill` (280 components),
   `add-component` (Node recorded), and `compare-bills` ("the same 142 components, unchanged licenses") said the same.
-- [ ] After the parent manages both and this repository drops its two entries, its Build and Publish green against
-  the parent's snapshot. The parent's `2b0b8dc` is published; without the two entries `dependency:tree` resolves
-  `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0 from it, and `clean verify` and `-Pdocuments test` are
-  green here; the Build follows the next push.
+- [x] After the parent manages both and this repository drops its two entries, its Build and Publish green against
+  the parent's snapshot: Build 39256224660 on `aec3879` (with `558f7d7`), 2026-10-19, Build and unit tests, both
+  snapshots and Publish green; `dependency:tree` resolves `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0
+  from the parent `2b0b8dc`.
