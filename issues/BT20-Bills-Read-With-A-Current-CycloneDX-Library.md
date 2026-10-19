@@ -1,6 +1,6 @@
 # BT20 — Bills Read With A Current CycloneDX Library
 
-**Status:** Analyzed.
+**Status:** Implementing.
 **Size:** S - the `release` module's use of one library across major versions, with its tests and a run on real
 bills; porelo-parent's two version lines are Agent Core's.
 
@@ -26,11 +26,13 @@ advisory, and `commons-lang3` beside it likewise, without a red build in between
 
 ## Acceptance
 
-- [ ] OSV lists no advisory for the two versions taken.
-- [ ] The whole check green on the adapted tree, and the three commands' output on real bills the same as before, or
-  each difference named.
-- [ ] After the wave, this repository's Build and Publish green against the parent's snapshot.
-
-## To be checked
-
-- Which release of each is the newest that has stood the minimum age, and what `porelo.release.min-age` is set to.
+- [x] OSV lists no advisory for any of porelo-release's 39 dependency coordinates with `cyclonedx-core-java` 11.0.1
+  and `commons-lang3` 3.18.0 (the operator's choice of version); the fuin BOM this pom imports held `commons-lang3` at
+  3.17.0, so the root pom names 3.18.0 beside the override until the parent manages both.
+- [x] No code needed adapting across the two major versions. The whole check green: `clean verify` (546 tests, none
+  skipped), the deploy dry run with `check-deploy`, `-Pdocuments test`.
+- [x] On real bills, porelo-pi's tree and package bills and porelo-message-matrix's, the same release code with
+  9.0.5 and with 11.0.1 wrote byte-equal bills apart from timestamp and serial: `merge-tree-bill` (280 components),
+  `add-component` (Node recorded), and `compare-bills` ("the same 142 components, unchanged licenses") said the same.
+- [ ] After the parent manages both and this repository drops its two entries, its Build and Publish green against
+  the parent's snapshot.

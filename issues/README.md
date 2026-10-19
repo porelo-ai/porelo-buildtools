@@ -18,6 +18,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt20"></a>[BT20](BT20-Bills-Read-With-A-Current-CycloneDX-Library.md) | S | - | porelo-release on `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0, held here until the parent manages both; built, proven on real bills. |
 | <a id="bt21"></a>[BT21](BT21-Jackson-Without-Its-Known-Advisories.md) | XS | - | porelo-release on Jackson 2.22.3, past the advisories against 2.21.2. |
 | <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that the operator requires on `main` before merging an action move by hand; no auto-merge, decided 2026-10-18. |
@@ -29,7 +30,6 @@ left out.
 
 | # | Size | Blocked by | What it covers | Open questions |
 |---|---|---|---|---|
-| <a id="bt20"></a>[BT20](BT20-Bills-Read-With-A-Current-CycloneDX-Library.md) | S | - | porelo-release on a `cyclonedx-core-java` and `commons-lang3` without known advisories, adapted here first, then the parent's versions moved in one wave. | 0 |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. | - |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. | - |
 

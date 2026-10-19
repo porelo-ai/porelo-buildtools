@@ -61,6 +61,8 @@
              sshj brings bcpkix and bcutil 1.80 beside bcprov, CycloneDX the Jackson dataformats 2.17 beside the
              Jackson the rest resolves. bcpkix and bcutil have no 1.85.2, so 1.85, bcprov's line. -->
         <bouncycastle.pkix.version>1.85</bouncycastle.pkix.version>
+        <!-- Above the parent's 9.0.5 until the parent manages it: 9.0.5 carries GHSA-6fhj-vr9j-g45r. -->
+        <cyclonedx-core-java.version>11.0.1</cyclonedx-core-java.version>
         <jackson.version>2.22.3</jackson.version>
         <!-- Jackson's annotations carry a release of their own, the one its bom names beside 2.22.3. -->
         <jackson.annotations.version>2.22</jackson.annotations.version>
@@ -113,6 +115,12 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcutil-jdk18on</artifactId>
                 <version>${bouncycastle.pkix.version}</version>
+            </dependency>
+            <!-- Above the fuin BOM's 3.17.0 until the parent manages it: 3.17.0 carries GHSA-j288-q9x7-2f5v. -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.18.0</version>
             </dependency>
             <!-- Every Jackson module the tools load, named here: the fuin BOM imported above manages core and databind
                  at an older release, and an entry of this pom's own wins over what an import manages. -->
