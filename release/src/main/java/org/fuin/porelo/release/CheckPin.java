@@ -5,6 +5,7 @@ import java.io.PrintStream;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -55,15 +56,48 @@ public final class CheckPin {
      *     it could not be checked
      */
     public int check(Path pomFile, @Nullable Path definition, boolean offline) {
+        return check(pomFile, definition, offline, null);
+    }
+
+    /**
+     * Checks one artifact of several: the one whose digest the named pin's {@code sha256} property
+     * holds, against that pin's version and its own published digest.
+     *
+     * @param pomFile the module's pom
+     * @param definition the filtered definition, or null for where the build puts it
+     * @param offline whether to skip the published digest
+     * @param pinName the pin, as {@code porelo.release.pin.<name>} declares it, or null for a
+     *     definition with one artifact
+     * @return {@link #AGREE}, {@link Stop#REFUSED} when they disagree, {@link Stop#UNANSWERED} when
+     *     it could not be checked
+     */
+    public int check(
+            Path pomFile, @Nullable Path definition, boolean offline, @Nullable String pinName) {
         final Report report = new Report(out);
-        final Release release;
+        // With a named pin, only that pin and where the definition lies are read: an agent's own
+        // release configuration set only to satisfy the reader would weaken the check beside it.
+        final Pom pom;
+        final @Nullable Release release;
+        final String label;
+        final Path filtered;
+        final Release.@Nullable LicenseSource licenses;
         try {
-            release = Release.of(Pom.read(pomFile));
+            pom = Pom.read(pomFile);
+            if (pinName == null) {
+                release = Release.of(pom);
+                label = release.agent();
+                filtered = definition != null ? definition : release.filteredDefinition();
+                licenses = release.licenses();
+            } else {
+                release = null;
+                label = Pin.of(pom, pinName).label();
+                filtered = definition != null ? definition : namedDefinition(pom);
+                licenses = Release.licenseSource(pom);
+            }
         } catch (Stop stop) {
             err.println(stop.getMessage());
             return stop.code();
         }
-        final Path filtered = definition != null ? definition : release.filteredDefinition();
         if (!Files.isRegularFile(filtered)) {
             err.println(
                     filtered + " does not exist - build first, this reads what the build produced");
@@ -77,9 +111,14 @@ public final class CheckPin {
             return report.summary();
         }
         final String version = agent.version();
-        if (version == null
-                || agent.artifacts().size() != 1
-                || agent.artifacts().getFirst().sha256() == null) {
+        final Selected selected;
+        try {
+            selected = select(release, pom, agent, filtered, pinName);
+        } catch (Stop stop) {
+            report.bad(Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
+            return report.summary();
+        }
+        if (version == null || selected.artifact().sha256() == null) {
             report.bad(
                     filtered
                             + " has no complete pinned artifact - version="
@@ -88,7 +127,7 @@ public final class CheckPin {
                             + agent.artifacts().size());
             return report.summary();
         }
-        final Pinned.Artifact artifact = agent.artifacts().getFirst();
+        final Pinned.Artifact artifact = selected.artifact();
         out.println("== the pin, as " + filtered + " carries it ==");
 
         if (version.contains("${") || artifact.url().contains("${")) {
@@ -98,21 +137,22 @@ public final class CheckPin {
                             + "'");
             return report.summary();
         }
-        report.ok("the definition installs " + release.agent() + " " + version);
+        report.ok("the definition installs " + label + " " + version);
 
-        final String pinned = release.pom().optional(Pom.PIN);
+        final String pinned = pom.optional(selected.property());
         if (pinned == null) {
-            report.bad("pom.xml declares no " + Pom.PIN);
+            report.bad("pom.xml declares no " + selected.property());
         } else if (!pinned.equals(version)) {
             report.bad("pom.xml pins " + pinned + ", the definition installs " + version);
         } else {
             report.ok("pom.xml pins the same version");
         }
 
-        // A tag may carry a leading 'v', so '/18.1.13/' is not in the address and '/v18.1.13/' is.
-        if (artifact.url().contains("/" + version + "/")
-                || artifact.url().contains("/v" + version + "/")) {
-            report.ok("the download URL names it");
+        // A tag may carry a leading 'v', or the prefix the pin's tagged releases name ('rust-v'),
+        // so '/18.1.13/' is not in the address and '/v18.1.13/' is.
+        if (selected.tagPrefixes().stream()
+                .anyMatch(prefix -> artifact.url().contains("/" + prefix + version + "/"))) {
+            report.ok("the download URL names it: " + artifact.url());
         } else {
             report.bad("the download URL does not name " + version + ": " + artifact.url());
         }
@@ -122,7 +162,7 @@ public final class CheckPin {
         } else {
             final Optional<String> published;
             try {
-                published = release.digests().digest(web, version);
+                published = selected.published().read(web, version, env);
             } catch (Stop stop) {
                 if (stop.code() == Stop.UNANSWERED) {
                     out.println("  UNKNOWN  " + stop.getMessage());
@@ -144,10 +184,9 @@ public final class CheckPin {
                                 + "\n          published  "
                                 + published.get());
             } else {
-                report.ok("the digest is the published one (" + release.digests().describe() + ")");
+                report.ok("the digest is the published one (" + selected.source() + ")");
             }
         }
-        final Release.LicenseSource licenses = release.licenses();
         if (licenses != null && !offline) {
             final String declared;
             try {
@@ -189,6 +228,107 @@ public final class CheckPin {
             }
         }
         return report.summary();
+    }
+
+    /** Where the published digest of the selected artifact is read. */
+    @FunctionalInterface
+    private interface Published {
+
+        Optional<String> read(Web web, String version, Map<String, String> env) throws Stop;
+    }
+
+    /**
+     * The artifact checked, the pom property holding its version, and where its digest is read.
+     *
+     * @param artifact the artifact
+     * @param property the version's property
+     * @param published where the published digest is read
+     * @param source what the report calls that
+     * @param tagPrefixes what a release's tag may carry before its version in the address
+     */
+    private record Selected(
+            Pinned.Artifact artifact,
+            String property,
+            Published published,
+            String source,
+            List<String> tagPrefixes) {}
+
+    // One artifact is the agent's own pin; of several, the named pin's sha256 property says which.
+    // Without porelo.release.definition, a module of named pins alone names its definition itself.
+    private static Path namedDefinition(Pom pom) throws Stop {
+        final String declared = pom.optional(Release.PREFIX + "definition");
+        if (declared == null) {
+            throw Stop.refused(
+                    pom.file()
+                            + " declares no "
+                            + Release.PREFIX
+                            + "definition; name the filtered definition with --definition");
+        }
+        return Release.filtered(pom, pom.root().resolve(declared));
+    }
+
+    private static Selected select(
+            @Nullable Release release,
+            Pom pom,
+            Pinned agent,
+            Path filtered,
+            @Nullable String pinName)
+            throws Stop {
+        if (pinName == null) {
+            if (release == null) {
+                throw new IllegalStateException("an agent's own pin is read through its release");
+            }
+            if (agent.artifacts().size() > 1) {
+                throw Stop.refused(
+                        filtered
+                                + " pins "
+                                + agent.artifacts().size()
+                                + " artifacts; name the one to check with --pin, one of: "
+                                + String.join(", ", pins(pom)));
+            }
+            if (agent.artifacts().isEmpty()) {
+                throw Stop.refused(filtered + " pins no artifact");
+            }
+            return new Selected(
+                    agent.artifacts().getFirst(),
+                    Pom.PIN,
+                    (web, version, env) -> release.digests().digest(web, version),
+                    release.digests().describe(),
+                    List.of("", "v"));
+        }
+        final Pin pin = Pin.of(pom, pinName);
+        final String digest = pin.heldDigest();
+        final List<Pinned.Artifact> named = agent.withDigest(digest);
+        if (named.size() != 1) {
+            throw Stop.refused(
+                    filtered
+                            + " pins "
+                            + named.size()
+                            + " artifacts with the pin "
+                            + pinName
+                            + "'s digest "
+                            + digest
+                            + "; exactly one must carry it");
+        }
+        return new Selected(
+                named.getFirst(),
+                pin.property(),
+                (web, version, env) ->
+                        pin.digests().artifact(web, version, env).map(Pin.Artifact::sha256),
+                "the pin " + pinName + "'s published digest",
+                pin.upstream() instanceof Release.Upstream.GithubReleases releases
+                        ? List.of("", "v", releases.prefix())
+                        : List.of("", "v"));
+    }
+
+    // The pins the pom declares, by name, for a refusal to offer.
+    private static List<String> pins(Pom pom) {
+        return pom.properties().keySet().stream()
+                .map(String::valueOf)
+                .filter(key -> key.startsWith(Pin.PREFIX) && key.endsWith(".property"))
+                .map(key -> key.substring(Pin.PREFIX.length(), key.length() - ".property".length()))
+                .sorted()
+                .toList();
     }
 
     /** What one check found, so a checker holds no state between calls. */

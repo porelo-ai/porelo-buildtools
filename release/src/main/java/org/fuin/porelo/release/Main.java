@@ -128,13 +128,7 @@ public final class Main {
                 args.length > 0 ? Arrays.asList(args).subList(1, args.length) : List.of();
         return switch (command) {
             case "compare-bills" -> compareBills(rest, out, err, web);
-            case "add-fetched-cli" ->
-                    rest.size() != 3
-                            ? usage(
-                                    err,
-                                    "add-fetched-cli <package.cdx.json> <filtered agent.yaml> <component name>")
-                            : new AddFetchedCli(out, err)
-                                    .add(Path.of(rest.get(0)), Path.of(rest.get(1)), rest.get(2));
+            case "add-fetched-cli" -> addFetchedCli(rest, out, err);
             case "add-component" -> {
                 final Options options =
                         Options.parse(
@@ -237,15 +231,21 @@ public final class Main {
             }
             case "check-pin" -> {
                 final Options options =
-                        Options.parse(rest, Set.of("--definition", "--pom"), Set.of("--offline"));
+                        Options.parse(
+                                rest,
+                                Set.of("--definition", "--pom", "--pin"),
+                                Set.of("--offline"));
                 final String definition = options == null ? null : options.value("--definition");
                 yield options == null || !options.positional().isEmpty()
-                        ? usage(err, "check-pin [--definition FILE] [--offline] [--pom FILE]")
+                        ? usage(
+                                err,
+                                "check-pin [--definition FILE] [--offline] [--pom FILE] [--pin NAME]")
                         : new CheckPin(out, err, web, env)
                                 .check(
                                         options.pom(),
                                         definition == null ? null : Path.of(definition),
-                                        options.flag("--offline"));
+                                        options.flag("--offline"),
+                                        options.value("--pin"));
             }
             case "check-actions" ->
                     rest.size() > 1
@@ -407,6 +407,34 @@ public final class Main {
                 "usage: compare-bills <built.cdx.json> <published-url> [--expect-moved NAME]...");
         err.println("exit 0 publish, 1 a person must look, 2 the comparison could not be made");
         return CompareBills.UNANSWERED;
+    }
+
+    // With --pin, the artifact recorded is the one whose digest that pin's sha256 property holds.
+    private static int addFetchedCli(List<String> rest, PrintStream out, PrintStream err) {
+        final Options options = Options.parse(rest, Set.of("--pin", "--pom"), Set.of());
+        if (options == null
+                || options.positional().size() != 3
+                || (options.value("--pom") != null && options.value("--pin") == null)) {
+            return usage(
+                    err,
+                    "add-fetched-cli <package.cdx.json> <filtered agent.yaml> <component name>"
+                            + " [--pin NAME [--pom FILE]] - --pom only reads the pin --pin names");
+        }
+        final List<String> positional = options.positional();
+        final String pinName = options.value("--pin");
+        final String sha256;
+        try {
+            sha256 = pinName == null ? null : Pin.of(Pom.read(options.pom()), pinName).heldDigest();
+        } catch (Stop stop) {
+            err.println("add-fetched-cli: " + stop.getMessage());
+            return AddFetchedCli.FAILED;
+        }
+        return new AddFetchedCli(out, err)
+                .add(
+                        Path.of(positional.get(0)),
+                        Path.of(positional.get(1)),
+                        positional.get(2),
+                        sha256);
     }
 
     private static int usage(PrintStream err, String expected) {

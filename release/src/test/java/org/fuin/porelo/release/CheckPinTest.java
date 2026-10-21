@@ -74,6 +74,95 @@ class CheckPinTest {
     }
 
     @Test
+    void checksEachOfSeveralArtifactsAgainstItsOwnPin() {
+        final AgentRepository codex = codex(DIGEST, "e".repeat(64));
+
+        assertThat(check(codex, codexSums(DIGEST, "e".repeat(64)), "codex"))
+                .as(report())
+                .isEqualTo(0);
+        assertThat(stdout()).contains("codex-x86_64.tar.gz");
+        assertThat(check(codex, codexSums(DIGEST, "e".repeat(64)), "helper"))
+                .as(report())
+                .isEqualTo(0);
+        assertThat(stdout()).contains("helper-x86_64.tar.gz");
+    }
+
+    @Test
+    void theSecondArtifactsDigestIsCheckedAgainstWhatIsPublishedForIt() {
+        final AgentRepository codex = codex(DIGEST, "e".repeat(64));
+
+        assertThat(check(codex, codexSums(DIGEST, "f".repeat(64)), "helper"))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stdout()).contains("FAIL  the digest is not the one published for 1.2.3");
+    }
+
+    @Test
+    void severalArtifactsWithoutAPinAreRefusedNamingThePins() {
+        final AgentRepository codex = codex(DIGEST, "e".repeat(64));
+
+        assertThat(check(codex, FakeWeb.untouchable(), null, false))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stdout()).contains("--pin").contains("codex, helper");
+    }
+
+    @Test
+    void aPinWhoseDigestNoArtifactCarriesIsRefused() {
+        final AgentRepository codex = codex(DIGEST, "e".repeat(64));
+        codex.filteredTwo("1.2.3", DIGEST, "0".repeat(64));
+
+        assertThat(check(codex, FakeWeb.untouchable(), "helper"))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stdout()).contains("e".repeat(64));
+    }
+
+    @Test
+    void aPomDeclaringOnlyNamedPinsIsCheckedByThePinAlone() {
+        final AgentRepository codex =
+                AgentRepository.codex(directory, "1.2.3", DIGEST, "e".repeat(64), false);
+        final Path definition = codex.filteredTwo("1.2.3", DIGEST, "e".repeat(64));
+
+        assertThat(check(codex, codexSums(DIGEST, "e".repeat(64)), definition, "helper"))
+                .as(report())
+                .isEqualTo(0);
+        assertThat(stdout()).contains("OK    the digest is the published one");
+        assertThat(check(codex, codexSums(DIGEST, "f".repeat(64)), definition, "helper"))
+                .as("the pin's own digest is still checked: " + report())
+                .isEqualTo(Stop.REFUSED);
+    }
+
+    @Test
+    void aPomDeclaringOnlyNamedPinsNeedsTheDefinitionNamed() {
+        final AgentRepository codex =
+                AgentRepository.codex(directory, "1.2.3", DIGEST, "e".repeat(64), false);
+        codex.filteredTwo("1.2.3", DIGEST, "e".repeat(64));
+
+        assertThat(check(codex, FakeWeb.untouchable(), null, "helper"))
+                .as(report())
+                .isNotEqualTo(0);
+        assertThat(stdout() + stderr()).contains("--definition");
+    }
+
+    private AgentRepository codex(String cliDigest, String helperDigest) {
+        final AgentRepository codex =
+                AgentRepository.codex(directory, "1.2.3", cliDigest, helperDigest);
+        codex.filteredTwo("1.2.3", cliDigest, helperDigest);
+        return codex;
+    }
+
+    private static FakeWeb codexSums(String cliDigest, String helperDigest) {
+        return new FakeWeb()
+                .serve(
+                        AgentRepository.CODEX_SUMS.replace("{version}", "1.2.3"),
+                        cliDigest
+                                + "  codex-x86_64.tar.gz\n"
+                                + helperDigest
+                                + "  helper-x86_64.tar.gz\n");
+    }
+
+    @Test
     void aTagWithALeadingVNamesTheVersion() {
         final AgentRepository omp = AgentRepository.omp(directory, "18.1.16");
         omp.filtered(
@@ -161,6 +250,20 @@ class CheckPinTest {
                 .serve(
                         MANIFEST,
                         "{\"platforms\":{\"linux-x64\":{\"checksum\":\"" + digest + "\"}}}");
+    }
+
+    private int check(AgentRepository repository, Web web, String pin) {
+        return check(repository, web, null, pin);
+    }
+
+    private int check(AgentRepository repository, Web web, @Nullable Path definition, String pin) {
+        out.reset();
+        return new CheckPin(
+                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                        new PrintStream(err, true, StandardCharsets.UTF_8),
+                        web,
+                        java.util.Map.of())
+                .check(repository.pom(), definition, false, pin);
     }
 
     private int check(

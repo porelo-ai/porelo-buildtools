@@ -81,7 +81,7 @@ public record Release(
         return agent;
     }
 
-    private static @Nullable LicenseSource licenseSource(Pom pom) throws Stop {
+    static @Nullable LicenseSource licenseSource(Pom pom) throws Stop {
         final String declared = pom.optional(PREFIX + "license");
         if (declared == null) {
             return null;
@@ -217,6 +217,17 @@ public record Release(
      * @return the source definition's place under {@code target/classes}
      */
     public Path filteredDefinition() {
+        return filtered(pom, definition);
+    }
+
+    /**
+     * Where the build puts the filtered copy of a definition under {@code src/main/resources}.
+     *
+     * @param pom the module's pom
+     * @param definition the source definition
+     * @return its place under {@code target/classes}
+     */
+    static Path filtered(Pom pom, Path definition) {
         final Path resources = pom.root().resolve("src/main/resources");
         return pom.root().resolve("target/classes").resolve(resources.relativize(definition));
     }

@@ -182,6 +182,24 @@ public record Pin(
                 followed);
     }
 
+    /**
+     * The digest this pin's {@code sha256} property holds, which tells its artifact apart from the
+     * others of a definition that pins several.
+     *
+     * @return the digest
+     * @throws Stop refused when the pin names no {@code sha256} property, or it is empty
+     */
+    public String heldDigest() throws Stop {
+        final String digest = sha256 == null ? null : pom.optional(sha256);
+        if (digest == null || digest.isBlank()) {
+            throw Stop.refused(
+                    "the pin "
+                            + name
+                            + " holds no digest in a sha256 property, so no artifact is its own");
+        }
+        return digest;
+    }
+
     // A pin naming a property the pom does not have would move nothing and say it moved.
     private static @Nullable String declared(Pom pom, String key) throws Stop {
         final String property = pom.optional(key);

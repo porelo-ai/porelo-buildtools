@@ -34,6 +34,16 @@ record Pinned(@Nullable String version, List<Artifact> artifacts) {
      */
     record Artifact(String url, @Nullable String sha256, @Nullable String license) {}
 
+    /**
+     * The artifacts with this digest, as a named pin's {@code sha256} property holds it.
+     *
+     * @param sha256 The digest.
+     * @return Every artifact carrying it, so a caller can refuse none and two alike.
+     */
+    List<Artifact> withDigest(String sha256) {
+        return artifacts.stream().filter(artifact -> sha256.equals(artifact.sha256())).toList();
+    }
+
     /** A definition whose pin cannot be read. */
     static final class Unreadable extends RuntimeException {
 

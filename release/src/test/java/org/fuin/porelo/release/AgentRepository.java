@@ -22,6 +22,14 @@ final class AgentRepository {
     /** The list GitHub serves beside the newest release, which the age rule reads. */
     static final String OMP_RELEASES = "https://api.github.com/repos/omp/releases?per_page=100";
 
+    static final String CODEX_SUMS =
+            "https://github.example/codex/releases/download/rust-v{version}/SHA256SUMS.txt";
+
+    static final String CODEX_LATEST = "https://api.github.com/repos/codex/releases/latest";
+
+    /** Codex tags its releases {@code rust-v<version>}, so its pins follow the tagged releases. */
+    static final String CODEX_RELEASES = "https://api.github.com/repos/codex/releases?per_page=100";
+
     static final String NPM_REGISTRY =
             "https://registry.npm.example/@earendil-works%2Fpi-coding-agent";
 
@@ -70,6 +78,62 @@ final class AgentRepository {
                         "https://github.example/omp/releases/download/v${agent.cli.version}/omp-linux-x64"));
         repository.write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n");
         return repository;
+    }
+
+    /**
+     * An agent whose CLI is downloaded as two artifacts at one version, each a named pin with its
+     * own digest property, as porelo-codex declares them.
+     */
+    static AgentRepository codex(Path root, String pinned, String cliDigest, String helperDigest) {
+        return codex(root, pinned, cliDigest, helperDigest, true);
+    }
+
+    /**
+     * The same, its pom declaring the agent's own release configuration or, without it, only the
+     * two named pins, as porelo-codex's does.
+     */
+    static AgentRepository codex(
+            Path root, String pinned, String cliDigest, String helperDigest, boolean release) {
+        final Map<String, String> properties = new LinkedHashMap<>();
+        if (release) {
+            properties.put("porelo.release.agent", "Codex");
+            properties.put("porelo.release.definition", "src/main/resources/agent/codex.yaml");
+            properties.put("porelo.release.upstream", "github-latest " + CODEX_LATEST);
+            properties.put("porelo.release.digest", "none");
+        }
+        properties.put("agent.cli.sha256", cliDigest);
+        properties.put("agent.helper.sha256", helperDigest);
+        for (final String[] pin :
+                new String[][] {
+                    {"codex", "codex-x86_64.tar.gz", "agent.cli.sha256"},
+                    {"helper", "helper-x86_64.tar.gz", "agent.helper.sha256"}
+                }) {
+            final String prefix = "porelo.release.pin." + pin[0] + ".";
+            properties.put(prefix + "property", "agent.cli.version");
+            properties.put(prefix + "upstream", "github-releases " + CODEX_RELEASES + " rust-v");
+            properties.put(prefix + "digest", "sums " + CODEX_SUMS + " " + pin[1]);
+            properties.put(prefix + "sha256", pin[2]);
+        }
+        final AgentRepository repository = new AgentRepository(root, "Codex", "codex.yaml");
+        repository.write(
+                "pom.xml", pom("porelo-agent-codex", "1.0.0-SNAPSHOT", pinned, properties));
+        repository.write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n");
+        return repository;
+    }
+
+    /** Writes a filtered definition pinning the codex fixture's two artifacts. */
+    Path filteredTwo(String version, String cliDigest, String helperDigest) {
+        final String base = "https://github.example/codex/releases/download/rust-v" + version + "/";
+        return write(
+                "target/classes/agent/" + definitionName,
+                definition(version, base + "codex-x86_64.tar.gz", cliDigest)
+                        + "    - url: "
+                        + base
+                        + "helper-x86_64.tar.gz\n"
+                        + "      sha256: \""
+                        + helperDigest
+                        + "\"\n"
+                        + "      target: /usr/local/bin/helper\n");
     }
 
     static AgentRepository pi(Path root, String pinned) {

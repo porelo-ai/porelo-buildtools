@@ -5,8 +5,10 @@ import java.io.PrintStream;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import org.cyclonedx.model.Bom;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Adds the CLI an agent's image build fetches to the package's bill.
@@ -48,6 +50,21 @@ public final class AddFetchedCli {
      * @return {@link #DONE} or {@link #FAILED}
      */
     public int add(Path bill, Path definition, String name) {
+        return add(bill, definition, name, null);
+    }
+
+    /**
+     * Records one of the pinned artifacts in the bill, in place: the one whose digest is given, as
+     * a named pin's {@code sha256} property holds it, so a CLI downloaded as several artifacts is
+     * recorded one call per artifact.
+     *
+     * @param bill the package's bill, rewritten with the artifact added
+     * @param definition the filtered agent definition
+     * @param name the component name - what {@code compare-bills --expect-moved} must be given
+     * @param sha256 the digest of the artifact to record, or null when the definition pins one
+     * @return {@link #DONE} or {@link #FAILED}
+     */
+    public int add(Path bill, Path definition, String name, @Nullable String sha256) {
         final Pinned agent;
         try (Reader reader = Files.newBufferedReader(definition)) {
             agent = Pinned.read(reader, definition.toString());
@@ -60,17 +77,32 @@ public final class AddFetchedCli {
                     "add-fetched-cli: no pinned artifact in " + definition + ", nothing to add");
             return DONE;
         }
-        if (agent.artifacts().size() > 1) {
+        final Pinned.Artifact artifact;
+        if (sha256 != null) {
+            final List<Pinned.Artifact> named = agent.withDigest(sha256);
+            if (named.size() != 1) {
+                return failed(
+                        definition
+                                + " pins "
+                                + named.size()
+                                + " artifacts with the digest "
+                                + sha256
+                                + "; exactly one must carry it");
+            }
+            artifact = named.getFirst();
+        } else if (agent.artifacts().size() > 1) {
             return failed(
                     definition
                             + " pins "
                             + agent.artifacts().size()
-                            + " artifacts, and which one is the CLI is not something to guess");
+                            + " artifacts, and which one is the CLI is not something to guess:"
+                            + " name it with --pin");
+        } else {
+            artifact = agent.artifacts().getFirst();
         }
         final boolean replaced;
         try {
             final Bom bom = Bill.parse(Files.readAllBytes(bill));
-            final Pinned.Artifact artifact = agent.artifacts().getFirst();
             replaced =
                     Recorded.into(
                             bom,

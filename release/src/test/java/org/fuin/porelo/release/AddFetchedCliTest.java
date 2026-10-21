@@ -107,6 +107,39 @@ class AddFetchedCliTest {
     }
 
     @Test
+    void recordsTheOneOfSeveralArtifactsItsPinsDigestNames() throws IOException {
+        final Path bill = bill(CompareBillsTest.bill(lib()));
+        final String helper = "https://downloads.example/cli/2.1.267/helper";
+        final String two = artifact(URL, DIGEST) + artifact(helper, "b".repeat(64));
+
+        assertThat(add(bill, definition("2.1.267", two), "cli-helper", "b".repeat(64)))
+                .as(report())
+                .isEqualTo(AddFetchedCli.DONE);
+
+        final Component recorded = component(bill, "cli-helper");
+        assertThat(recorded.getPurl())
+                .as("the artifact the digest names, not the first one")
+                .isEqualTo("pkg:generic/cli-helper@2.1.267?download_url=" + helper);
+        assertThat(recorded.getHashes())
+                .singleElement()
+                .satisfies(hash -> assertThat(hash.getValue()).isEqualTo("b".repeat(64)));
+    }
+
+    @Test
+    void refusesADigestNoArtifactCarries() throws IOException {
+        final String before = CompareBillsTest.bill(lib());
+        final Path bill = bill(before);
+        final String two =
+                artifact(URL, DIGEST) + artifact("https://downloads.example/rg", "b".repeat(64));
+
+        assertThat(add(bill, definition("2.1.267", two), "cli-helper", "c".repeat(64)))
+                .as(report())
+                .isEqualTo(AddFetchedCli.FAILED);
+        assertThat(Files.readString(bill)).as("a refusal writes nothing").isEqualTo(before);
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains("c".repeat(64));
+    }
+
+    @Test
     void readsTheVersionFromTheInstallSectionNotTheFirstVersionInTheFile() throws IOException {
         final Path bill = bill(CompareBillsTest.bill(lib()));
         final Path definition = definition("2.1.267", artifact(URL, DIGEST));
@@ -153,6 +186,10 @@ class AddFetchedCliTest {
 
     private int add(Path bill, Path definition, String name) {
         return new AddFetchedCli(stream(out), stream(err)).add(bill, definition, name);
+    }
+
+    private int add(Path bill, Path definition, String name, String sha256) {
+        return new AddFetchedCli(stream(out), stream(err)).add(bill, definition, name, sha256);
     }
 
     private Path bill(String json) throws IOException {

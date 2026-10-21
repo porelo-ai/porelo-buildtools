@@ -1,0 +1,2 @@
+title: '`check-pin` and `add-fetched-cli` take `--pin <name>` and pick the artifact whose digest that pin''s `sha256` property holds, so a CLI downloaded as several artifacts is checked and recorded one artifact at a time'
+type: added

@@ -147,6 +147,82 @@ class MainTest {
                 .contains("--dry-run: nothing written");
     }
 
+    @Test
+    void addFetchedCliRecordsTheArtifactTheNamedPinsDigestNames() throws IOException {
+        final String helper = "e".repeat(64);
+        final AgentRepository codex =
+                AgentRepository.codex(directory.resolve("codex"), "1.2.3", "d".repeat(64), helper);
+        final String definition = codex.filteredTwo("1.2.3", "d".repeat(64), helper).toString();
+        final String bill = built();
+
+        assertThat(
+                        run(
+                                "add-fetched-cli",
+                                bill,
+                                definition,
+                                "codex-code-mode-host",
+                                "--pin",
+                                "helper",
+                                "--pom",
+                                codex.pom().toString()))
+                .as(stderr())
+                .isEqualTo(0);
+        assertThat(Files.readString(Path.of(bill)))
+                .as("the helper's artifact, chosen by agent.helper.sha256")
+                .contains("helper-x86_64.tar.gz")
+                .contains(helper)
+                .doesNotContain("codex-x86_64.tar.gz");
+        assertThat(
+                        run(
+                                "add-fetched-cli",
+                                bill,
+                                definition,
+                                "codex-code-mode-host",
+                                "--pin",
+                                "nope",
+                                "--pom",
+                                codex.pom().toString()))
+                .as("a pin the pom does not declare is refused")
+                .isEqualTo(1);
+        assertThat(stderr()).contains("porelo.release.pin.nope.property");
+    }
+
+    @Test
+    void addFetchedCliRefusesAPinItWasNotToldAboutAndChangesNothing() throws IOException {
+        final AgentRepository codex =
+                AgentRepository.codex(
+                        directory.resolve("codex"), "1.2.3", "d".repeat(64), "e".repeat(64));
+        final String definition =
+                codex.filteredTwo("1.2.3", "d".repeat(64), "e".repeat(64)).toString();
+        final String bill = built();
+        final String before = Files.readString(Path.of(bill));
+
+        assertThat(
+                        run(
+                                "add-fetched-cli",
+                                bill,
+                                definition,
+                                "codex",
+                                "--pin",
+                                "nope",
+                                "--pom",
+                                codex.pom().toString()))
+                .isEqualTo(1);
+        assertThat(Files.readString(Path.of(bill)))
+                .as("a refused pin writes nothing")
+                .isEqualTo(before);
+    }
+
+    @Test
+    void addFetchedCliRefusesAPomWithoutAPinRatherThanIgnoringIt() throws IOException {
+        final String bill = built();
+
+        assertThat(run("add-fetched-cli", bill, "agent.yaml", "codex", "--pom", "pom.xml"))
+                .as("--pom alone would be read as if it chose an artifact")
+                .isEqualTo(2);
+        assertThat(stderr()).contains("--pom").contains("--pin");
+    }
+
     private String built() throws IOException {
         return Files.writeString(directory.resolve("built.json"), CompareBillsTest.bill())
                 .toString();
