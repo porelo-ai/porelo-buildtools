@@ -32,7 +32,7 @@ jobs:
     # Every push and every pull request, including from a fork.
     build:
         name: Build and unit tests
-        runs-on: ubuntu-24.04
+        runs-on: ubuntu-26.04
         # Every job stops after a limit: GitHub's default is six hours, and a slow runner once took 14 times as long.
         timeout-minutes: 20
         permissions:
@@ -67,7 +67,7 @@ jobs:
     # this is where they are rebuilt: here, where the pins are.
     snapshots:
         name: Snapshot - ${{ matrix.os }}
-        runs-on: ubuntu-24.04
+        runs-on: ubuntu-26.04
         # The step that rents the machine stops sooner, so the clean-up still runs inside this limit.
         timeout-minutes: 75
         if: >-
@@ -128,7 +128,7 @@ jobs:
     # The tools, published for the Porelo repositories to resolve.
     deploy:
         name: Publish
-        runs-on: ubuntu-24.04
+        runs-on: ubuntu-26.04
         timeout-minutes: 20
         needs: [build]
         if: >-
