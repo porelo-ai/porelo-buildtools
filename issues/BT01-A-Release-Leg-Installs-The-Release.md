@@ -1,6 +1,6 @@
 # BT01 — A Release Leg Installs The Release
 
-**Status:** Analyzed.
+**Status:** Estimated.
 **Size:** S - one module (`hetzner`): the channel into `AgentLeg.install`, the name check moved behind `--candidate`, two
 unit tests; no contract another repository reads beyond one new option.
 
