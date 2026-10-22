@@ -15,6 +15,7 @@ left out.
 | <a id="bt11"></a>[BT11](BT11-A-Rented-Machine-Answers-With-Its-Own-Key.md) | M | - | A rented machine gets a host key made per run in its `user_data`, and `Ssh` accepts only that key for `porelo`'s legs, the agent legs and the kit; the local VMs and `deploy` accepting any key is a written risk; built here, left: `porelo`'s legs and kit, and a rented run of each leg kind. |
 | <a id="bt16"></a>[BT16](BT16-A-Snapshot-Built-Only-From-New-Inputs.md) | S | - | A CI snapshot is built only when the newest one was made from other inputs - the recipe with its pins, the toolchain, the code - named as a label on the image; a dispatch always builds. |
 | <a id="bt14"></a>[BT14](BT14-The-Newest-Release-That-Has-Stood.md) | S | - | A release tool takes the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; every upstream source reads its history for it. |
+| <a id="bt22"></a>[BT22](BT22-A-Pin-With-Several-Artifacts.md) | S | - | `check-pin` and `add-fetched-cli` take `--pin <name>` and pick the artifact by that pin's digest, so the Codex CLI's two artifacts are checked and recorded without a bridge. |
 
 ## Implementing
 
@@ -25,7 +26,6 @@ left out.
 | <a id="bt15"></a>[BT15](BT15-Legs-Taken-From-A-Proven-Run.md) | M | - | A Build on `main` takes its legs from a run of the same tree, from a trusted event, at most 24 h old, with its leg jobs green: `porelo-release proven-legs`, built; each Build adopts it. |
 | <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | Every server is created with an IPv4 address and no IPv6 one, one primary IP instead of two; built with its test seen red, the full-quota answer read from the API's reference; left: the leg kinds green on such servers in the Builds after the push. |
 | <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
-| <a id="bt22"></a>[BT22](BT22-A-Pin-With-Several-Artifacts.md) | S | - | `check-pin` and `add-fetched-cli` take `--pin <name>` and pick the artifact by that pin's digest, so the Codex CLI's two artifacts are checked and recorded without a bridge. |
 
 ## Accepted
 

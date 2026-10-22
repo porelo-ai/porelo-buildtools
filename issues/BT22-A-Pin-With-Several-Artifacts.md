@@ -1,6 +1,6 @@
 # BT22 — A Pin With Several Artifacts
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - two commands in `porelo-release` learn one option each, read through the named pins that exist; no
 contract another repository reads changes, since every call without it works as before.
 
