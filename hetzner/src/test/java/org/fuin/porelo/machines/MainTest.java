@@ -4,14 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests for {@link Main}'s arguments and refusals.
@@ -261,6 +266,147 @@ class MainTest {
                                         NEVER))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("tried to connect");
+    }
+
+    @Test
+    void acceptanceOnThePoolAsksNoProviderAndStopsWithoutItsFile() {
+        // NEVER fails the test if a server is asked for: --pool must not rent one.
+        assertThatThrownBy(
+                        () ->
+                                Main.run(
+                                        new String[] {
+                                            "acceptance",
+                                            "--candidate",
+                                            "packages",
+                                            "--cucumber",
+                                            ".",
+                                            "--key",
+                                            "key",
+                                            "--pool",
+                                            "/nonexistent/pool.json"
+                                        },
+                                        QUIET,
+                                        NEVER))
+                .as("a run asked for the pool goes to the pool, never to a provider")
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("No pool file");
+    }
+
+    @Test
+    void acceptanceRefusesAccountsOnThePool() throws IOException {
+        final List<String> said = new ArrayList<>();
+        assertThat(
+                        Main.run(
+                                new String[] {
+                                    "acceptance",
+                                    "--candidate",
+                                    "packages",
+                                    "--cucumber",
+                                    ".",
+                                    "--accounts",
+                                    "2",
+                                    "--pool",
+                                    "pool.json"
+                                },
+                                said::add,
+                                NEVER))
+                .as("accounts made on a pool VM would outlive the run")
+                .isEqualTo(2);
+        assertThat(said).singleElement().asString().contains("--pool");
+    }
+
+    @Test
+    void keepsThePoolsLocksWhereEveryRunOfTheAccountFindsThem() {
+        assertThat(Main.poolState(java.util.Map.of("HOME", "/home/runner")))
+                .isEqualTo(java.nio.file.Path.of("/home/runner/.local/state/porelo-machines/pool"));
+        assertThat(Main.poolState(java.util.Map.of("HOME", "/h", "XDG_STATE_HOME", "/s")))
+                .isEqualTo(java.nio.file.Path.of("/s/porelo-machines/pool"));
+    }
+
+    @Test
+    void acceptanceOnThePoolWithoutAKeyFailsBeforeConnectingNamingBothWaysToGiveIt(
+            @TempDir Path dir) throws IOException {
+        final Path pool = writePool(dir);
+        assertThatThrownBy(
+                        () ->
+                                Main.acceptance(
+                                        new String[] {
+                                            "acceptance",
+                                            "--candidate",
+                                            "packages",
+                                            "--cucumber",
+                                            ".",
+                                            "--pool",
+                                            pool.toString()
+                                        },
+                                        QUIET,
+                                        Map.of(),
+                                        NEVER,
+                                        (machines, options, credential) -> {
+                                            throw new AssertionError(
+                                                    "a run without a key must stop before any connection");
+                                        }))
+                .as("without a run key there is nothing to authenticate to the pool VM with")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(Main.POOL_SSH)
+                .hasMessageContaining("--key");
+    }
+
+    @Test
+    void acceptanceOnThePoolHandsLocalPoolTheKeyFromTheEnvironmentWhenBothAreSet(@TempDir Path dir)
+            throws IOException {
+        final Path pool = writePool(dir);
+        final Path keyFile = dir.resolve("key");
+        Files.writeString(keyFile, "from-a-file");
+        Files.setPosixFilePermissions(keyFile, PosixFilePermissions.fromString("rw-------"));
+        final List<Credential> handed = new ArrayList<>();
+
+        Main.acceptance(
+                new String[] {
+                    "acceptance",
+                    "--candidate",
+                    "packages",
+                    "--cucumber",
+                    ".",
+                    "--pool",
+                    pool.toString(),
+                    "--key",
+                    keyFile.toString()
+                },
+                QUIET,
+                Map.of(
+                        Main.POOL_SSH,
+                        "from-env",
+                        "XDG_STATE_HOME",
+                        dir.resolve("state").toString()),
+                NEVER,
+                (machines, options, credential) -> handed.add(((LocalPool) machines).credential()));
+
+        assertThat(handed)
+                .as("CI sets the environment and a checkout on it may also pass --key")
+                .singleElement()
+                .extracting(
+                        each -> {
+                            try {
+                                return each.material();
+                            } catch (IOException ex) {
+                                throw new AssertionError(ex);
+                            }
+                        })
+                .isEqualTo("from-env\n");
+    }
+
+    private static Path writePool(Path dir) throws IOException {
+        final Path file = dir.resolve("pool.json");
+        Files.writeString(
+                file,
+                """
+                {"format": "porelo-machines-pool/1",
+                 "vms": [{"name": "pool-ubuntu", "os": "ubuntu", "address": "192.0.2.20",
+                          "hostKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMTK44JZFt9K/uBv2nRMfOf9qu3wDOBjfHRIj7MRTPl9",
+                          "accounts": ["run1"]}]}
+                """);
+        return file;
     }
 
     @Test

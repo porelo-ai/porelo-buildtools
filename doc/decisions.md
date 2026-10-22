@@ -8,6 +8,7 @@ and what would change the answer.
 | **Machines** | | |
 | A rented machine answers with its own key; a local one with any | a host key made per machine in its `user_data`, pinned by every connection to it; a local virtual machine accepts any key, its caller saying why | [entry](#a-rented-machine-answers-with-its-own-key-a-local-one-with-any) |
 | A sweep deletes by expiry, not by age | every server a lease creates is labelled `porelo-expires` from its job's time limit plus 15 minutes; `sweep` deletes only servers past it or without one, `--including-in-use` alone those within it, and `--older-than` is refused | [entry](#a-sweep-deletes-by-expiry-not-by-age) |
+| A pool VM goes back to its snapshot after each run | each pool VM holds one run account; given back with `sudo porelo-pool-give-back`, it is reverted to its base snapshot on the host before anyone rents it again | [entry](#a-pool-vm-goes-back-to-its-snapshot-after-each-run) |
 
 ## A rented machine answers with its own key; a local one with any
 
@@ -41,3 +42,17 @@ differ; minutes are fine enough against it, and that form is readable in the con
 **What would change the answer:** a provider that ends a server at a time it is given, which would make the label the
 provider's own; or jobs whose length cannot be known before they start, which would need a lease that renews its
 label while it runs.
+
+## A pool VM goes back to its snapshot after each run
+
+`porelo-machines acceptance --pool` holds one run account of the host's local VM pool per run, and each pool VM holds
+one run account. When the run gives it back, or a run that died left it, `porelo-machines` connects as that account and
+runs `sudo porelo-pool-give-back`, the one root-owned command the account may run; the VM writes `resetting` and powers
+off, and porelo-host's role on the host, outside every job, reverts it to its base snapshot and starts it, which says
+`ready` again. A run account installs packages through sudo and is therefore root on its VM; only the revert makes sure
+that nothing a run did reaches the next. No key that reaches the host or another VM is in a job, since the builds that
+rent from the pool include task branches nobody reviewed. One account per VM costs a small VM for each account the pool
+offers, and a revert per run.
+
+The run key reaches a job as a forge Actions secret in `PORELO_POOL_SSH` (or `--key <file>` on a developer's machine),
+never as a file in CI, and the pool file holds nothing secret.

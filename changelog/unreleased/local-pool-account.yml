@@ -1,0 +1,2 @@
+title: '`porelo-machines acceptance --pool <file>` runs a leg in a run account of the host''s local VM pool, as porelo-host''s up writes it, instead of renting a server: one account per run, held by a file lock, the run key taken from `PORELO_POOL_SSH` or `--key <file>`, a run beyond the pool''s size waits then is refused, and the account, giving itself back with the one root-owned command it may run, has its VM go back to its base snapshot before anyone gets it again'
+type: added

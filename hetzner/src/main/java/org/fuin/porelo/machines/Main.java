@@ -3,8 +3,10 @@ package org.fuin.porelo.machines;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The command line, for the parts of this a workflow calls directly.
@@ -33,6 +35,9 @@ public final class Main {
 
     /** Where the private key is read from, as material rather than a path. */
     static final String SSH_KEY = "HETZNER_SSH";
+
+    /** Where the local pool's run key is read from, as material rather than a path. */
+    static final String POOL_SSH = "PORELO_POOL_SSH";
 
     /**
      * Runs a sweep.
@@ -67,7 +72,7 @@ public final class Main {
             return snapshot(args, complain, open);
         }
         if (args.length > 0 && "acceptance".equals(args[0])) {
-            return acceptance(args, complain, open);
+            return acceptance(args, complain, System.getenv(), open, AgentLeg::run);
         }
         if (args.length > 0 && "lease".equals(args[0])) {
             return lease(args, complain, open);
@@ -97,8 +102,8 @@ public final class Main {
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                                 [--unless-current] [--for <minutes>]
                        acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
-                                [--os <o>] [--type <t,t...>] [--keep] [--accounts <n>]
-                                [--for <minutes>]
+                                [--os <o>] [--key <file>] [--type <t,t...>] [--keep] [--accounts <n>]
+                                [--for <minutes>] [--pool <file>]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
                                 [--type <t>] [--for <minutes>] - rents a machine, installs Porelo,
                                 starts the daemon as an unprivileged user, and leaves it running.
@@ -124,6 +129,11 @@ public final class Main {
                                          most 360): it is labelled porelo-expires with its
                                          creation plus that plus 15 minutes, and no sweep of
                                          everyone's servers deletes it before then
+
+                  --pool <file>          take a run account of the host's local VM pool, as
+                                         porelo-host's up wrote it, instead of renting a server;
+                                         takes the run key from PORELO_POOL_SSH or --key, and the
+                                         account is made anew when given back
 
                   --candidate <dir>      install the packages built in this run instead of
                                          published ones, from a directory holding one build of
@@ -284,16 +294,39 @@ public final class Main {
         return 0;
     }
 
+    /** Runs an acceptance leg against a source of machines. */
+    @FunctionalInterface
+    interface Leg {
+
+        /**
+         * Runs the leg.
+         *
+         * @param machines Where the machine comes from.
+         * @param options What to do.
+         * @param credential The key to connect with.
+         * @throws IOException If the leg fails.
+         */
+        void run(Machines machines, AgentLeg.Options options, Credential credential)
+                throws IOException;
+    }
+
     /**
      * Runs an agent's acceptance leg.
      *
      * @param args The command line.
      * @param complain Where a refusal goes.
+     * @param env The environment: {@link #POOL_SSH}, {@link #SSH_KEY}, {@code XDG_STATE_HOME}.
      * @param open Where to rent the machine.
+     * @param leg Runs the leg against the chosen machines.
      * @return An exit code.
      * @throws IOException If the leg fails.
      */
-    private static int acceptance(String[] args, Consumer<String> complain, Supplier<Hetzner> open)
+    static int acceptance(
+            String[] args,
+            Consumer<String> complain,
+            Map<String, String> env,
+            Supplier<Hetzner> open,
+            Leg leg)
             throws IOException {
         String os = "ubuntu";
         String key = null;
@@ -305,10 +338,12 @@ public final class Main {
         String artifactory = "https://fuinorg.jfrog.io/artifactory";
         boolean keep = false;
         int accounts = 1;
+        String pool = null;
         Duration limit = Hetzner.DEFAULT_TIME_LIMIT;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
+                case "--pool" -> pool = value(args, ++at);
                 case "--for" -> {
                     final Duration given = timeLimit(value(args, ++at), complain);
                     if (given == null) {
@@ -352,6 +387,14 @@ public final class Main {
             complain.accept("--accounts runs scenarios beside each other, so it needs --cucumber");
             return 2;
         }
+        if (accounts > 1 && pool != null) {
+            // Further accounts are made on the machine with sudo, and a pool account's reset
+            // removes only itself: they would outlive the run on a VM others rent next.
+            complain.accept(
+                    "--accounts makes accounts on the machine, which a pool account's reset leaves"
+                            + " behind; run one scenario at a time with --pool");
+            return 2;
+        }
         // One core and 2 GB holds one task at a time and nothing more: several accounts rent what a
         // leg rents, which has room for four.
         final List<String> types =
@@ -371,15 +414,49 @@ public final class Main {
                         keep,
                         cucumber == null ? null : java.nio.file.Path.of(cucumber),
                         accounts);
+        if (pool != null) {
+            // The host's own pool: nothing is rented and no provider is asked, so no token either.
+            final Credential credential = poolCredential(env.get(POOL_SSH), key);
+            final Pool read = Pool.read(java.nio.file.Path.of(pool));
+            try (Machines local = LocalPool.onThisHost(read, credential, poolState(env), limit)) {
+                leg.run(local, options, credential);
+            }
+            return 0;
+        }
         try (Hetzner hetzner = open.get().forJobsOf(limit)) {
-            AgentLeg.run(
+            leg.run(
                     hetzner,
                     options,
                     Credential.of(
-                            System.getenv(SSH_KEY),
-                            key == null ? null : java.nio.file.Path.of(key)));
+                            env.get(SSH_KEY), key == null ? null : java.nio.file.Path.of(key)));
         }
         return 0;
+    }
+
+    private static Credential poolCredential(
+            @Nullable String fromEnvironment, @Nullable String key) {
+        if ((fromEnvironment == null || fromEnvironment.isBlank()) && key == null) {
+            throw new IllegalArgumentException(
+                    "No private key for the pool: set "
+                            + POOL_SSH
+                            + " in the environment or pass --key <file>.");
+        }
+        return Credential.of(fromEnvironment, key == null ? null : java.nio.file.Path.of(key));
+    }
+
+    /**
+     * Returns where the pool's locks are kept, which every run of this account must share.
+     *
+     * @param env The environment, for {@code XDG_STATE_HOME} and {@code HOME}.
+     * @return The directory.
+     */
+    static java.nio.file.Path poolState(Map<String, String> env) {
+        final String state = env.get("XDG_STATE_HOME");
+        final java.nio.file.Path base =
+                state != null && !state.isBlank()
+                        ? java.nio.file.Path.of(state)
+                        : java.nio.file.Path.of(env.getOrDefault("HOME", "."), ".local", "state");
+        return base.resolve("porelo-machines").resolve("pool");
     }
 
     /**
@@ -395,7 +472,7 @@ public final class Main {
     static int jdk(
             String[] args,
             Consumer<String> complain,
-            java.util.Map<String, String> env,
+            Map<String, String> env,
             PinnedJdk.Download download)
             throws IOException {
         String into = null;
@@ -575,8 +652,7 @@ public final class Main {
      * @param complain Where a refusal goes.
      * @return The limit, or {@code null} when it was refused.
      */
-    static @org.jspecify.annotations.Nullable Duration timeLimit(
-            String minutes, Consumer<String> complain) {
+    static @Nullable Duration timeLimit(String minutes, Consumer<String> complain) {
         if (!minutes.matches("[1-9]\\d{0,2}") || Integer.parseInt(minutes) > LONGEST_TIME_LIMIT) {
             complain.accept(
                     "--for needs a number of minutes from 1 to "
