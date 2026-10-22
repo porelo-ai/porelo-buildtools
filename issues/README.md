@@ -27,6 +27,13 @@ left out.
 | <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | Every server is created with an IPv4 address and no IPv6 one, one primary IP instead of two; built with its test seen red, the full-quota answer read from the API's reference; left: the leg kinds green on such servers in the Builds after the push. |
 | <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
 
+## Backlog
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
+| <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
+
 ## Accepted
 
 | # | Size | Blocked by | What it covers |
@@ -40,13 +47,6 @@ left out.
 |---|---|---|---|
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
 | <a id="bt23"></a>[BT23](BT23-One-Upload-Helper-For-Every-Publish.md) | - | - | One upload helper for Artifactory, published here and taken by digest in every Publish job, in place of the five copies of `.github/scripts/artifactory.sh` (porelo, porelo-pi, porelo-omp, porelo-claude-code, porelo-message-matrix) and the own curl calls of porelo-message-sluice, porelo-intellij and porelo-frontend. |
-
-## Estimated
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
-| <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 
 ## Finished
 

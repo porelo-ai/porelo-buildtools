@@ -1,6 +1,6 @@
 # BT03 — A Rebuilt Snapshot Removes Its Predecessors
 
-**Status:** Estimated.
+**Status:** Backlog.
 **Size:** S - one module (`hetzner`): a listing and a delete after `snapshot`, a stand-in API test; no contract.
 
 **What must be true.** After `porelo-machines snapshot` has taken a new CI snapshot for an `os` and seen it available,
