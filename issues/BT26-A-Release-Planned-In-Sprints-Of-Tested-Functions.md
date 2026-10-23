@@ -1,6 +1,6 @@
 # BT26 — A Release Planned In Sprints Of Tested Functions
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - two verbs of `release`, a renderer and a file format porelo-frontend will read; like porelo-host
 [HO18](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho18) at 51 minutes, about three times
 that.
