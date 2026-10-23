@@ -35,27 +35,15 @@ porelo-project
   nothing. Both destinations are checked before writing against all read local inputs, including aliases; the
   default Markdown destination must resolve inside the plan directory, while HTML may name another directory.
 - **`PlanCheck`** also refuses an issue repeated within one function, naming that function separately from an
-  assignment to two functions. It runs the five checks above, each in a test seen red first; the fifth refuses only a function
-  with no issue, no note and no `tested` date. The real `0.6.yml` fixture passes with its fixture indexes, and a
+  assignment to two functions. It runs the five checks above, each in a test seen red first; the fifth refuses only a
+  function with no issue, no note and no `tested` date. The real `0.6.yml` fixture passes with its fixture indexes, and a
   separate test guards that notes never count as done in the bars. `Main` gains `plan render` and `plan check`;
   `doc/` gains the command and the file's form.
 
 ## Acceptance
 
 - `plan render` on porelo-project's plan writes the page, and a second run changes nothing.
-- `plan check` passes on that plan and fails for each of the five faults, naming the issue or the function.
-- Regression inputs cover output collisions with the project definition, own and neighboring indexes, subgroup
-  indexes, issue files, symbolic links, hard links, and a default page escaping through a symlink (including a
-  dangling target and a chain); every refused write preserves the input bytes.
-- State closing hashes, trailing spaces, both fence characters, reordered table headers with an open-question
-  column, three heading dashes, fragmented subgroup links, multiple YAML documents, and an issue repeated within
-  one function have command tests. The release-level missing-row guard and both pages' test instructions are
-  tested with their implementation deliberately removed and restored.
-- A missing-row refusal names the neighboring checkout's index file in a regression seen to fail before the fix.
-- Local verification: all 68 plan-command tests pass, as do all seven document tests, including the shared,
-  citation, README, and documentation-site checks; the separate action check passes for all 14 steps. The release suite runs 440 tests with no assertion
-  failures or skips, but 20 `CompareBillsTest` and two `WebTest` cases cannot open sockets in the sandbox. The
-  requested Maven invocation cannot write to the default local repository; the suite uses a writable cache
-  instead. VM and rented-machine tests have not run.
-- The changed code is read against `graal` 2026.910.3 and `java-code-review`, `test-quality`, `security-audit`,
-  `concurrency-review`, `clean-code`, and `solid-principles` 2026.906.3.
+- `plan check` passes on that plan and fails for each of the five faults, naming the issue or the function, and the
+  index it read.
+- Every text the HTML page takes from the plan file or an index is escaped.
+- `plan render` never writes onto an input it read, nor out of the plan's directory through a link.
