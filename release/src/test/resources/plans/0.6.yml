@@ -1,0 +1,123 @@
+# The plan of release 0.6. Issue states are not written here: they are read from each repository's index.
+release: "0.6"
+goal: "Porelo is built in Porelo tasks"
+issue: porelo-project#PJ39
+sprints:
+  - id: "1"
+    title: "An agent works on the rented host"
+    goal: "No local forge, pool or room yet; the task follows the central forge as today."
+    functions:
+      - title: "The host rented and given back at one command"
+        test: "`porelo-host up porelo` rents from Scaleway and sets it up; the operator reaches it only through the VPN with the drive mounted; `down` leaves nothing at the provider."
+        tested: "2026-10-23"
+        issues: [porelo-frontend#F131, porelo-frontend#F132, porelo-frontend#F134, porelo-host#HO09, porelo-host#HO05, porelo-host#HO06, porelo-host#HO02]
+      - title: "Claude works in a task, signed in with the operator's subscription"
+        test: "Signed in by hand at the stop; the task holds only a short-lived token and no memory of the agent's own; Sluice answers a read-only question in its task."
+        tested: "2026-10-23"
+        issues: [porelo-claude-code#CC30, porelo-claude-code#CC24, porelo#B255, porelo-message-sluice#SL29]
+      - title: "Each repository brings its image, and each task its values"
+        test: "The task starts with `issue` and `phase`; its image is made from the repository's `porelo.yml`; `pruefung-b189-b192.sh` passes."
+        tested: "2026-10-23"
+        issues: [porelo#B189, porelo#B192]
+  - id: "2"
+    title: "The host from the interface, the agents in the room"
+    goal: "The operator works the host without a terminal, and the agents talk in the project's room."
+    functions:
+      - title: "The host up and down from the interface, then a task started there"
+        test: "*Put on a server* shows the steps and asks at the stop for the drive's login and the vault's passphrase; it writes the machine file and the host's VPN key into the drive and offers the tunnel as a file; a task started on the host signs its agent in on the way."
+        issues: [porelo-frontend#F135, porelo-frontend#F140, porelo-frontend#F141, porelo-host#HO19, porelo-host#HO10, porelo#B258, porelo#B261, porelo-host#HO18, porelo-frontend#F151]
+      - title: "Two agents talk in the room, and a message wakes the resting one"
+        test: "Two tasks on the host write to each other in the project's room; the operator reads along through the VPN; a message naming a resting agent wakes it."
+        issues: [porelo-host#HO11, porelo-message-matrix#MX12, porelo-message-matrix#MX31, porelo-message-matrix#MX32, porelo-message-matrix#MX33, porelo#B259]
+  - id: "2b"
+    title: "The release plan as a page"
+    goal: "This page, made from a checked-in plan file and readable on the central forge."
+    functions:
+      - title: "The plan page made from the plan file"
+        test: "`plan/0.6.md` shows the same sprints, functions, states and marks as the local page; `plan check` finds a planted fault."
+        issues: [porelo-project#PJ63, porelo-buildtools#BT26]
+  - id: "3"
+    title: "The build servers read"
+    goal: "A build server asked from the command line, GitHub and Forgejo alike."
+    functions:
+      - title: "A build server asked from the command line"
+        test: "`porelo build status --project=<project> --repository=<repository> --branch=main` shows the commit, the verdict, the jobs and a red job's log, on GitHub."
+        issues: [porelo#B256]
+      - title: "The same command reads Forgejo"
+        test: "Against a Forgejo run in podman, the same answer in the same shape."
+        notes: ["the forgejo adapter in porelo-forge"]
+      - title: "Both adapters pass one contract suite"
+        test: "Every case from recorded answers; an adapter broken on purpose fails it."
+        issues: [porelo-project#PJ62, porelo#B253]
+  - id: "4"
+    title: "The local forge builds as the central one"
+    goal: "Forgejo, its registry and the test machines on the host; one repository builds there unchanged."
+    functions:
+      - title: "Forgejo with its registry, a task fetching a snapshot by name"
+        test: "The operator opens Forgejo through the VPN; a task reaches its registry by a declared name on 443 and fetches a snapshot, and reaches nothing else on the host."
+        issues: [porelo-host#HO08, porelo-host#HO17, porelo#B233, porelo#B234]
+      - title: "Test machines by kind from the VM pool"
+        test: "A run asks for the kind `ubuntu` and gets an account of the pool, reset afterwards; no workflow names a provider."
+        issues: [porelo-host#HO12, porelo-buildtools#BT24, porelo-buildtools#BT25]
+      - title: "Sluice green on both forges on the same commit"
+        test: "The same `build.yml` of porelo-message-sluice runs green on Forgejo and on the central forge."
+        issues: [porelo-project#PJ60]
+        notes: ["PJ60 issue for porelo-message-sluice"]
+  - id: "5"
+    title: "From the task's push to the central forge, after approval"
+    goal: "The whole way of a piece of work, shown on porelo-message-sluice."
+    functions:
+      - title: "The task hears its build from Forgejo"
+        test: "The task pushes through its gate to `porelo/<task>` on Forgejo, which builds it; the verdict and a red job's log are in the task's `/porelo/files`."
+        issues: [porelo-project#PJ61]
+      - title: "Only the operator's approval brings the work to the central forge"
+        test: "Nothing is there before the approval, the mirror reaches it after; with the project `offline` the push reaches no forge."
+        issues: [porelo-buildtools#BT06, porelo-project#PJ37]
+  - id: "6"
+    title: "The move, first wave"
+    goal: "Each agent works its own move issue inside its new task to Review; the others work as today."
+    functions:
+      - title: "Sluice works wholly in its task"
+        test: "Its move issue reaches Review inside the task with Forgejo's build green; it is reached in the room."
+        issues: [porelo-project#PJ59, porelo-frontend#F148]
+        notes: ["Sluice's move issue"]
+      - title: "Smith in its task, with snapshots of porelo from the registry"
+        test: "Smith's three repositories build on Forgejo and take porelo from the local registry."
+        notes: ["Smith's move issue", "PJ60 issues for the three repositories"]
+      - title: "AGY and Codex in their tasks, their sub-agents signed in"
+        test: "Antigravity with the operator's Google subscription and Codex CLI with its sign-in, both from the vault."
+        issues: [porelo#P12, porelo-codex#CX01, porelo-codex#CX02]
+        notes: ["AGY's move issue", "Codex's move issue"]
+  - id: "7"
+    title: "The move, second wave: the other toolchains"
+    goal: "Gradle and Flutter move."
+    functions:
+      - title: "Matrix in its task"
+        test: "Its move issue reaches Review inside the task with Forgejo's build green."
+        notes: ["Matrix's move issue", "PJ60 issue for porelo-message-matrix"]
+      - title: "IntelliJ and Frontend in their tasks"
+        test: "Gradle and Flutter build on Forgejo; the Windows job runs centrally only, named by a variable."
+        notes: ["IntelliJ's move issue", "Frontend's move issue", "PJ60 issues for the three repositories"]
+  - id: "8"
+    title: "The move, last wave"
+    goal: "Core with a way back, then the coordinator."
+    functions:
+      - title: "Core in its task, with a way back"
+        test: "Core builds porelo in a task, and works on the host again if a fault in Porelo stops it."
+        notes: ["Core's move issue", "PJ60 issue for porelo"]
+      - title: "The coordinator reads everything and changes only porelo-project"
+        test: "In `porelo-all` every repository is there; a change outside `porelo-project/` is refused."
+        issues: [porelo-project#PJ58]
+  - id: "9"
+    title: "Clearing up and counting"
+    goal: "What the move leaves behind, and what it makes measurable."
+    functions:
+      - title: "No channel file and no hand-over directory any more"
+        test: "Every `AGENTS.md` describes Matrix, Forgejo and the gate; the channel file, the hand-over directory and the agents' own VM accounts are gone."
+        notes: ["every repository's AGENTS.md rewritten"]
+      - title: "The room and the usage records outlive the host"
+        test: "After `down` and a new `up` the room is there with its messages, and so are the records."
+        issues: [porelo-project#PJ45, porelo-message-matrix#MX24, porelo-host#HO07, porelo#B231]
+      - title: "The tokens counted per task, the dependencies shared"
+        test: "Each issue shows what its tasks spent; a second Maven build downloads nothing again."
+        issues: [porelo#B148, porelo-project#PJ38, porelo#B193]

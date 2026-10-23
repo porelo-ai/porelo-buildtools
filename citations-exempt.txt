@@ -1,3 +1,21 @@
 # The tests of check-citations and check-commits feed them issue numbers on purpose, to watch each rule refuse them.
 release/src/test/java/org/fuin/porelo/release/CheckCitationsTest.java
 release/src/test/java/org/fuin/porelo/release/CheckCommitsTest.java
+
+# Release-plan fixtures preserve real issue references and exercise reference validation.
+release/src/test/java/org/fuin/porelo/release/PlanCommandsTest.java
+release/src/test/resources/plans/0.6.yml
+release/src/test/resources/plans/checkouts/porelo/issues/README.md
+release/src/test/resources/plans/checkouts/porelo/issues/base/README.md
+release/src/test/resources/plans/checkouts/porelo/issues/providers/README.md
+release/src/test/resources/plans/checkouts/porelo-buildtools/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-claude-code/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-codex/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-frontend/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-host/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-message-matrix/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-message-sluice/issues/README.md
+release/src/test/resources/plans/checkouts/porelo-project/issues/README.md
+release/src/test/resources/plans/minimal/porelo-sample/issues/README.md
+release/src/test/resources/plans/minimal/porelo-sample/issues/SA01-A-Function.md
+release/src/test/resources/plans/project.yml

@@ -1,0 +1,117 @@
+# The Porelo project. Every key is documented in the core repository, doc/project-file.md.
+
+project:
+
+    name: "porelo"
+
+    description: "A hardened box an agent works in, and a gate its work leaves through"
+
+    security_class: "guarded"
+
+    # The project's own repository: this one, holding the planning and the issues. A task can be
+    # started for it, which is how an agent gets a task for planning.
+    upstream: "git@github.com:porelo-ai/porelo-project.git"
+
+# The repositories the work happens in. A task works on exactly one, named at
+# 'porelo task start --repository <name>'; these names are what a person types.
+#
+# 'porelo' is not among them: that name belongs to the project's own repository, above.
+repositories:
+
+    core:
+        upstream: "git@github.com:porelo-ai/porelo.git"
+        description: "The CLI, the daemon, the gate and the guarantees they make"
+        issues: ["B", "P"]
+
+    frontend:
+        upstream: "git@github.com:porelo-ai/porelo-frontend.git"
+        description: "The interface, which reaches the daemon over the socket and never the filesystem"
+        issues: ["F"]
+
+    sluice:
+        upstream: "git@github.com:porelo-ai/porelo-message-sluice.git"
+        description: "The message filter: what may pass between tasks"
+        issues: ["SL"]
+
+    matrix:
+        upstream: "git@github.com:porelo-ai/porelo-message-matrix.git"
+        description: "The Matrix transport: a project's room, where tasks talk"
+        issues: ["MX"]
+
+    claude:
+        upstream: "git@github.com:porelo-ai/porelo-claude-code.git"
+        description: "The packaged agent: Claude Code, as Porelo installs and drives it"
+        issues: ["CC"]
+
+    pi:
+        upstream: "git@github.com:porelo-ai/porelo-pi.git"
+        description: "The packaged agent: pi"
+        issues: ["PI"]
+
+    omp:
+        upstream: "git@github.com:porelo-ai/porelo-omp.git"
+        description: "The packaged agent: oh-my-pi"
+        issues: ["OM"]
+
+    codex:
+        upstream: "git@github.com:porelo-ai/porelo-codex.git"
+        description: "The packaged agent: Codex CLI"
+        issues: ["CX"]
+
+    agy:
+        upstream: "git@github.com:porelo-ai/porelo-agy.git"
+        description: "The packaged agent: Antigravity CLI"
+        issues: ["AG"]
+
+    buildtools:
+        upstream: "git@github.com:porelo-ai/porelo-buildtools.git"
+        description: "Build and test tooling for the Porelo repositories: rented test machines, release checks and package checks"
+        issues: ["BT"]
+
+    parent:
+        upstream: "git@github.com:porelo-ai/porelo-parent.git"
+        description: "The parent pom every Porelo Maven repository takes: shared build settings, plugin and tool versions"
+        issues: ["PA"]
+
+    github:
+        upstream: "git@github.com:porelo-ai/porelo-build-github.git"
+        description: "The build-server adapter for GitHub Actions: the verdict and the failing job's log of a task's build"
+        issues: ["GH"]
+
+    intellij:
+        upstream: "git@github.com:porelo-ai/porelo-intellij.git"
+        description: "The IntelliJ plugin: an agent's waiting work reviewed, approved or rejected in the IDE"
+        issues: ["IJ"]
+
+    host:
+        upstream: "git@github.com:porelo-ai/porelo-host.git"
+        description: "Brings a Porelo project up on a server and takes it down again, owned or rented by the hour: an Ansible collection"
+        issues: ["HO"]
+
+    site:
+        upstream: "git@github.com:porelo-ai/porelo-ai.github.io.git"
+        description: "The documentation site: collects every repository's doc/ into one site on GitHub Pages"
+        issues: ["SI"]
+
+image:
+
+    base_image: "ubuntu:24.04@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60"
+
+# Nothing that is not named here resolves at all. The builds are Java and Maven, and the Maven
+# Wrapper fetches Maven from the same host.
+#
+# No 'git-hosting' on purpose: a guarded task reaches the gate on loopback, never a forge, and
+# granting it would leave the gate resting on the container holding no credential instead of on
+# both. The frontend is Flutter and will want more - measure it with --clearance prompt.
+egress:
+    sets: [maven]
+
+# The project's conversation: its tasks and the people in it talk in the project's Matrix room.
+# '{}' is this account's own homeserver on loopback, set up by the first task start; nothing
+# leaves the machine. A project's own tasks are each other's peers without being listed here;
+# the one 'matrix:' peer is what gives the project its conversation.
+mail:
+    transports:
+        matrix: {}
+    peers:
+        michi: { address: "matrix:", trust: external }

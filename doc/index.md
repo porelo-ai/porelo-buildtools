@@ -225,3 +225,63 @@ Both must carry the project's version as the packaging promises: `0.4.2-SNAPSHOT
 `1`, so the two say the same. Refused, each named: a deb of another name or version, and an rpm whose name, version
 or release differs, such as the timestamp release the rpm plugin gives a snapshot unless told not to.
 
+
+## Release plans
+
+```
+porelo-release plan render plan/0.6.yml
+porelo-release plan render plan/0.6.yml --html plan/0.6.html
+porelo-release plan check plan/0.6.yml
+```
+
+A plan belongs below the project's `project.yml`. Repository names are the last component of each declared
+`upstream`, with `.git` removed; each repository's `issues` lists its permitted prefixes. The project's own
+upstream is included, with its prefixes read from its issue index. Indexes come from that tree, a checkout beside
+it, or `main` on GitHub. Linked subindexes are followed. An unavailable index ends the command with exit 2.
+
+```yaml
+release: "0.6"
+goal: "A release people can try"
+sprints:
+  - id: "1"
+    title: "A usable function"
+    goal: "A person can complete the first task"
+    functions:
+      - title: "The first task works"
+        test: "Try the task and observe its result"
+        tested: "2026-10-23"
+        issues: []
+        notes: ["An improvement still to file"]
+```
+
+`release`, `goal`, and `sprints` are required. Every sprint requires string `id`, `title`, `goal`, and `functions`;
+its function titles are unique. Every function requires `title` and `test`; `tested` is an optional valid date
+string in `yyyy-MM-dd` form, and `issues` and `notes` are optional lists of strings. Issue references, including the
+optional release-level `issue`, use `<repository>#<number>`. Unknown fields, repositories, mismatched prefixes,
+duplicate sprint IDs or function titles, and invalid dates are refused with their location.
+
+Rendering writes `<release>.md` beside the YAML file. The page keeps the file's sprint and function order, counts
+each sprint's distinct issues by index state, and shows each function's test date, test instructions, issue links
+with state, size and title, and notes labeled “not filed yet.” A function with notes is planned and passes the
+fifth check; notes never count as done in any bar or count. A readable issue heading supplies the title;
+otherwise the index row supplies it. Finished and Rejected rows retain their title after the issue file is gone.
+The HTML option also writes the same content with inline CSS and no script or external resources. Unchanged
+inputs produce identical bytes. A plan contains exactly one YAML document. Index states come from Markdown
+headings, fenced examples are ignored, and table headers identify the title column. Issue headings accept an em
+dash, an en dash, or a hyphen between the number and title; subgroup index links may include a fragment.
+
+The Markdown destination must resolve inside the plan file's directory, including through symlinks. The HTML
+option may name a file elsewhere. Both destinations must differ from every local input read (the plan,
+`project.yml`, indexes, and issue files), including aliases; all destinations are checked before either is written.
+Repeating an issue within one function is refused as a duplicate in that function.
+
+`plan check` refuses these five faults, naming the issue or the sprint and function:
+
+- An issue has no row in its repository's index, including the release-level issue.
+- An issue belongs to more than one function.
+- The Markdown page is missing or differs from a fresh render, including after an index changes.
+- An issue is Finished but its function has no `tested` date.
+- A function has no issue, no note and no `tested` date.
+
+Exit 0 means the command succeeded, 1 means the plan or page was refused, and 2 means the command was malformed or
+its inputs or outputs could not be read or written. Checking never rewrites the page.

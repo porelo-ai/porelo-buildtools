@@ -34,6 +34,7 @@ public final class Main {
                     "check-actions",
                     "check-shared",
                     "check-citations",
+                    "plan",
                     "check-commits",
                     "check-doc-site",
                     "check-releases",
@@ -61,6 +62,48 @@ public final class Main {
         }
         return new CheckCitations(out, err, Web.overHttp(), checkouts)
                 .check(Path.of(roots.isEmpty() ? "." : roots.getFirst()));
+    }
+
+    private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
+        final String expected = "plan render <file> [--html <out>] | plan check <file>";
+        if (rest.size() < 2
+                || (!rest.getFirst().equals("render") && !rest.getFirst().equals("check"))) {
+            return usage(err, expected);
+        }
+        final Options options =
+                Options.parse(
+                        rest.subList(1, rest.size()),
+                        rest.getFirst().equals("render") ? Set.of("--html") : Set.of(),
+                        Set.of());
+        if (options == null || options.positional().size() != 1) {
+            return usage(err, expected);
+        }
+        final Path file = Path.of(options.positional().getFirst());
+        try {
+            final IssueLinks links = new IssueLinks(web, null);
+            final Plan.Project project = Plan.project(file, links);
+            final Plan plan = Plan.read(file, project);
+            final Map<String, IssueIndex> issues = PlanRender.indexes(plan, project, links);
+            final PlanRender.Pages pages = PlanRender.render(plan, issues);
+            if (rest.getFirst().equals("check")) {
+                PlanCheck.check(file, plan, issues, pages, links);
+                out.println("plan checked: " + file);
+            } else {
+                final String html = options.value("--html");
+                final Set<Path> inputs = new java.util.HashSet<>(links.inputs());
+                inputs.add(file.toRealPath());
+                inputs.add(project.root().resolve("project.yml").toRealPath());
+                PlanRender.write(file, plan, pages, html == null ? null : Path.of(html), inputs);
+                out.println("plan rendered: " + PlanRender.page(file, plan));
+            }
+            return 0;
+        } catch (Stop stop) {
+            err.println("plan: " + stop.getMessage());
+            return stop.code();
+        } catch (java.io.IOException | java.io.UncheckedIOException ex) {
+            err.println("plan: could not read or write " + file + ": " + ex.getMessage());
+            return Stop.UNANSWERED;
+        }
     }
 
     private static int checkCommits(List<String> rest, PrintStream out, PrintStream err, Web web) {
@@ -258,6 +301,7 @@ public final class Main {
                                     (rest.isEmpty() ? List.of("AGENTS.md") : rest)
                                             .stream().map(Path::of).toList());
             case "check-citations" -> checkCitations(rest, out, err);
+            case "plan" -> plan(rest, out, err, web);
             case "check-commits" -> checkCommits(rest, out, err, web);
             case "check-doc-site" ->
                     rest.size() > 2

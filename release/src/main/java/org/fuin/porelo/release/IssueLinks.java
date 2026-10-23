@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -67,6 +68,21 @@ final class IssueLinks {
     /** Names of an issue number's shape that are something else. */
     private static final Set<String> NOT_ISSUES = Set.of("S256");
 
+    private static final Set<String> STATES =
+            Set.of(
+                    "Idea",
+                    "Accepted",
+                    "Analyzed",
+                    "Estimated",
+                    "Backlog",
+                    "Implementing",
+                    "Review",
+                    "Rework",
+                    "Finished",
+                    "Rejected");
+    private static final Pattern STATE_HEADING = Pattern.compile("^ {0,3}#{2,6}\\s+(.+)$");
+    private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
+
     private final Web web;
 
     @Nullable private final Path checkouts;
@@ -75,6 +91,41 @@ final class IssueLinks {
      * Another repository's index, by repository and path: its anchors, or why it could not be read.
      */
     private final Map<String, Index> elsewhere = new LinkedHashMap<>();
+
+    private final Map<String, Path> trees = new HashMap<>();
+
+    private final Set<Path> inputs = new HashSet<>();
+
+    /** Local files actually read while resolving the plan's issue metadata. */
+    Set<Path> inputs() {
+        return Set.copyOf(inputs);
+    }
+
+    private final Map<String, Map<String, IssueIndex>> planIndexes = new HashMap<>();
+
+    private final Map<String, List<String>> planIndexSources = new HashMap<>();
+
+    /** Names the read indexes with matching prefixes, or all read indexes when none match. */
+    String issueIndexSource(String named) {
+        final String[] parts = named.split("#", 2);
+        final List<String> matching =
+                Objects.requireNonNull(planIndexes.get(parts[0])).values().stream()
+                        .filter(row -> prefixOf(row.number()).equals(prefixOf(parts[1])))
+                        .map(IssueIndex::source)
+                        .distinct()
+                        .sorted()
+                        .toList();
+        return String.join(
+                ", ",
+                matching.isEmpty()
+                        ? Objects.requireNonNull(planIndexSources.get(parts[0]))
+                        : matching);
+    }
+
+    /** Registers the owning tree even when its worktree directory has another name. */
+    void tree(String repository, Path root) {
+        trees.put(repository, root);
+    }
 
     /** The links into an index that could not be read, by that index. */
     private final Map<String, Integer> unchecked = new LinkedHashMap<>();
@@ -169,15 +220,10 @@ final class IssueLinks {
     }
 
     private void readRows(Path root, Path page, String text) {
-        final String[] lines = text.split("\n", -1);
-        for (int i = 0; i < lines.length; i++) {
-            final Matcher row = ROW.matcher(lines[i]);
-            if (row.find()) {
-                final String number = row.group(2);
-                rows.add(number);
-                if (!number.toLowerCase(java.util.Locale.ROOT).equals(row.group(1))) {
-                    unanchored.add(relative(root, page) + ":" + (i + 1) + " -> " + number);
-                }
+        for (final Row row : indexRows(text)) {
+            rows.add(row.number());
+            if (!row.number().toLowerCase(java.util.Locale.ROOT).equals(row.anchor())) {
+                unanchored.add(relative(root, page) + ":" + row.line() + " -> " + row.number());
             }
         }
     }
@@ -295,37 +341,231 @@ final class IssueLinks {
 
     private Index load(String repository, String path) {
         try {
-            final Optional<String> text;
-            if (checkouts != null) {
-                final Path file = checkouts.resolve(repository).resolve(path);
-                text =
-                        Files.isRegularFile(file)
-                                ? Optional.of(Files.readString(file, StandardCharsets.UTF_8))
-                                : Optional.empty();
-            } else {
-                text =
-                        web.text(
-                                URI.create(
-                                        "https://raw.githubusercontent.com/porelo-ai/"
-                                                + repository
-                                                + "/main/"
-                                                + path));
-            }
+            final Optional<String> text = source(null, repository, path);
             if (text.isEmpty()) {
                 return new Index(Set.of(), Set.of(), "not published");
             }
             final Set<String> numbers = new HashSet<>();
-            for (final String line : text.get().split("\n")) {
-                final Matcher row = ROW.matcher(line);
-                if (row.find()) {
-                    numbers.add(row.group(2));
-                }
-            }
+            indexRows(text.get()).forEach(row -> numbers.add(row.number()));
             return new Index(anchorsIn(text.get()), numbers, null);
         } catch (IOException | UncheckedIOException ex) {
             return new Index(Set.of(), Set.of(), ex.getMessage());
         }
     }
+
+    /** Reads a plan's indexes through the same tree, neighboring checkout, and web sources. */
+    Map<String, IssueIndex> issueIndex(Path root, String repository) throws IOException, Stop {
+        final Map<String, IssueIndex> cached = planIndexes.get(repository);
+        if (cached != null) {
+            return cached;
+        }
+        final Map<String, IssueIndex> result = new LinkedHashMap<>();
+        issueIndex(root, repository, "issues/README.md", new HashSet<>(), result);
+        final Map<String, IssueIndex> snapshot = Map.copyOf(result);
+        planIndexes.put(repository, snapshot);
+        return snapshot;
+    }
+
+    private void issueIndex(
+            Path root,
+            String repository,
+            String path,
+            Set<String> visited,
+            Map<String, IssueIndex> result)
+            throws IOException, Stop {
+        if (!visited.add(path)) {
+            return;
+        }
+        final URI location = sourceLocation(root, repository, path);
+        final String source =
+                location.getScheme().equals("file")
+                        ? Path.of(location).toString()
+                        : location.toString();
+        final String text;
+        try {
+            text = source(location).orElseThrow(() -> new IOException("not found"));
+        } catch (IOException | UncheckedIOException ex) {
+            throw new IOException(source + ": index not readable: " + ex.getMessage(), ex);
+        }
+        planIndexSources.computeIfAbsent(repository, key -> new ArrayList<>()).add(source);
+        for (final Row row : indexRows(text)) {
+            if (!STATES.contains(row.state())) {
+                throw Stop.refused(source + ": unknown state heading: " + row.state());
+            }
+            String title = row.title();
+            if (row.file() != null) {
+                final String issuePath = indexPath(path, row.file());
+                if (issuePath != null) {
+                    final Optional<String> issue = issueSource(root, repository, issuePath);
+                    if (issue.isPresent()) {
+                        final Pattern heading =
+                                Pattern.compile(
+                                        "^#\\s+" + row.number() + "\\s+[—–-]\\s+(.+?)\\s*$");
+                        title =
+                                issue.get()
+                                        .lines()
+                                        .map(heading::matcher)
+                                        .filter(Matcher::matches)
+                                        .map(match -> match.group(1))
+                                        .findFirst()
+                                        .orElse(title);
+                    }
+                }
+            }
+            final IssueIndex previous =
+                    result.put(
+                            row.number(),
+                            new IssueIndex(
+                                    row.number(), row.state(), row.size(), title, path, source));
+            if (previous != null) {
+                throw new IOException(
+                        source
+                                + ": duplicate index row "
+                                + row.number()
+                                + "; also in "
+                                + previous.source());
+            }
+        }
+        final Matcher link = LINK.matcher(unfenced(text));
+        while (link.find()) {
+            final String child = indexPath(path, link.group(2));
+            if (child != null && child.endsWith("/README.md")) {
+                issueIndex(root, repository, child, visited, result);
+            }
+        }
+    }
+
+    private Optional<String> issueSource(Path root, String repository, String path) {
+        try {
+            return source(root, repository, path);
+        } catch (IOException | UncheckedIOException ex) {
+            // A readable row remains useful when its optional issue file cannot be read.
+            return Optional.empty();
+        }
+    }
+
+    private Optional<String> source(@Nullable Path root, String repository, String path)
+            throws IOException {
+        return source(sourceLocation(root, repository, path));
+    }
+
+    private Optional<String> source(URI location) throws IOException {
+        return location.getScheme().equals("file")
+                ? localSource(Path.of(location))
+                : web.text(location);
+    }
+
+    private URI sourceLocation(@Nullable Path root, String repository, String path) {
+        final Path tree = trees.get(repository);
+        if (tree != null) {
+            return tree.resolve(path).toUri();
+        }
+        if (root != null && root.getFileName().toString().equals(repository)) {
+            return root.resolve(path).toUri();
+        }
+        final Path beside = root == null ? null : root.resolveSibling(repository).resolve(path);
+        if (root != null && beside != null && Files.isDirectory(root.resolveSibling(repository))) {
+            return beside.toUri();
+        }
+        if (checkouts != null) {
+            return checkouts.resolve(repository).resolve(path).toUri();
+        }
+        return URI.create(
+                "https://raw.githubusercontent.com/porelo-ai/" + repository + "/main/" + path);
+    }
+
+    private Optional<String> localSource(Path file) throws IOException {
+        if (!Files.isRegularFile(file)) {
+            return Optional.empty();
+        }
+        final String text = Files.readString(file, StandardCharsets.UTF_8);
+        inputs.add(file.toRealPath());
+        return Optional.of(text);
+    }
+
+    private static @Nullable String indexPath(String index, String target) {
+        target = target.split("#", 2)[0];
+        if (target.isEmpty() || target.contains(":") || target.startsWith("/")) {
+            return null;
+        }
+        final Path path = Path.of(index).resolveSibling(target).normalize();
+        return path.startsWith("issues") ? path.toString().replace('\\', '/') : null;
+    }
+
+    /** The citation check and plan reader share one interpretation of an index row. */
+    private static List<Row> indexRows(String text) {
+        final List<Row> result = new ArrayList<>();
+        String state = "Unknown";
+        Map<String, Integer> columns = Map.of();
+        final String[] lines = unfenced(text).split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            final String line = lines[i];
+            final Matcher heading = STATE_HEADING.matcher(line);
+            if (heading.matches()) {
+                state = heading.group(1).strip().replaceFirst("\\s+#+$", "").stripTrailing();
+                columns = Map.of();
+            }
+            final String[] cells = line.split("(?<!\\\\)\\|", -1);
+            if (line.startsWith("|")
+                    && java.util.Arrays.stream(cells).anyMatch(cell -> cell.strip().equals("#"))) {
+                final Map<String, Integer> header = new HashMap<>();
+                for (int column = 1; column < cells.length - 1; column++) {
+                    header.put(cells[column].strip().toLowerCase(java.util.Locale.ROOT), column);
+                }
+                columns = header;
+            }
+            final Matcher row = ROW.matcher(line);
+            if (!row.find()) {
+                continue;
+            }
+            final Matcher link = LINK.matcher(cells[1]);
+            final String file = link.find() ? link.group(2) : null;
+            final boolean closed = state.equals("Finished") || state.equals("Rejected");
+            final String size = closed ? "-" : cell(cells, columns.getOrDefault("size", 2));
+            final String title =
+                    cell(
+                            cells,
+                            columns.getOrDefault(
+                                    closed ? "title" : "what it covers", closed ? 2 : 4));
+            result.add(new Row(row.group(2), row.group(1), state, size, title, file, i + 1));
+        }
+        return result;
+    }
+
+    private static String cell(String[] cells, int column) {
+        return column < cells.length - 1 ? cells[column].strip() : "";
+    }
+
+    private static String unfenced(String text) {
+        final StringBuilder result = new StringBuilder();
+        String fence = "";
+        for (final String line : text.split("\n", -1)) {
+            final Matcher marker = FENCE.matcher(line);
+            if (marker.matches()) {
+                final String run = marker.group(1);
+                if (fence.isEmpty()) {
+                    fence = run;
+                } else if (run.charAt(0) == fence.charAt(0)
+                        && run.length() >= fence.length()
+                        && marker.group(2).isBlank()) {
+                    fence = "";
+                }
+                result.append('\n');
+            } else {
+                result.append(fence.isEmpty() ? line : "").append('\n');
+            }
+        }
+        return result.toString();
+    }
+
+    private record Row(
+            String number,
+            @Nullable String anchor,
+            String state,
+            String size,
+            String title,
+            @Nullable String file,
+            int line) {}
 
     private static Set<String> anchorsIn(String text) {
         final Set<String> anchors = new HashSet<>();
