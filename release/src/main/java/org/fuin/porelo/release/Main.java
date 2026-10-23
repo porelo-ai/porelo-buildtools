@@ -96,7 +96,8 @@ public final class Main {
             final Plan.Project project = Plan.project(file, links);
             final Plan plan = Plan.read(file, project);
             final Map<String, IssueIndex> issues = PlanRender.indexes(plan, project, links);
-            final PlanRender.Pages pages = PlanRender.render(plan, issues);
+            final PlanRender.Pages pages =
+                    PlanRender.render(plan, issues, PlanStand.read(file, links.planSources(), web));
             if (rest.getFirst().equals("check")) {
                 PlanCheck.check(file, plan, issues, pages, links);
                 out.println("plan checked: " + file);

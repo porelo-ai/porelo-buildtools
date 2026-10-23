@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -102,6 +103,12 @@ final class IssueLinks {
     private final Map<String, Path> trees = new HashMap<>();
 
     private final Set<Path> inputs = new HashSet<>();
+    private final Set<URI> planSources = new LinkedHashSet<>();
+
+    /** All successfully read sources that supply the plan's issue metadata. */
+    Set<URI> planSources() {
+        return Set.copyOf(planSources);
+    }
 
     /** Local files actually read while resolving the plan's issue metadata. */
     Set<Path> inputs() {
@@ -462,9 +469,12 @@ final class IssueLinks {
     }
 
     private Optional<String> source(URI location) throws IOException {
-        return location.getScheme().equals("file")
-                ? localSource(Path.of(location))
-                : web.text(location);
+        final Optional<String> text =
+                location.getScheme().equals("file")
+                        ? localSource(Path.of(location))
+                        : web.text(location);
+        if (text.isPresent()) planSources.add(location);
+        return text;
     }
 
     private URI sourceLocation(@Nullable Path root, String repository, String path) {

@@ -21,10 +21,6 @@ final class PlanCheck {
             throws IOException, Stop {
         final List<String> faults = new ArrayList<>();
         final Map<String, String> assigned = new HashMap<>();
-        if (plan.issue() != null && !issues.containsKey(plan.issue())) {
-            faults.add(
-                    plan.issue() + ": no row in its index " + links.issueIndexSource(plan.issue()));
-        }
         for (final Plan.Sprint sprint : plan.sprints()) {
             for (final Plan.Function function : sprint.functions()) {
                 final String where = "sprint " + sprint.id() + " function " + function.title();
@@ -57,11 +53,19 @@ final class PlanCheck {
                 }
             }
         }
-        final Path page = PlanRender.page(file, plan);
-        if (!Files.isRegularFile(page)) {
-            faults.add(page + ": page missing; run plan render " + file);
-        } else if (!Files.readString(page).equals(pages.markdown())) {
-            faults.add(page + ": page differs from plan render " + file);
+        final Map<Path, String> expected = new java.util.LinkedHashMap<>();
+        expected.put(PlanRender.page(file, plan), pages.markdown());
+        pages.images()
+                .forEach(
+                        (name, svg) ->
+                                expected.put(file.toAbsolutePath().resolveSibling(name), svg));
+        for (final var entry : expected.entrySet()) {
+            final Path page = entry.getKey();
+            if (!Files.isRegularFile(page)) {
+                faults.add(page + ": page missing; run plan render " + file);
+            } else if (!Files.readString(page).equals(entry.getValue())) {
+                faults.add(page + ": page differs from plan render " + file);
+            }
         }
         if (!faults.isEmpty()) {
             throw Stop.refused(String.join("\n", faults));

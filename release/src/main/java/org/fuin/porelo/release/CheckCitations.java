@@ -146,12 +146,15 @@ final class CheckCitations {
     int check(Path root) {
         final List<Path> files;
         final Set<String> exempt;
+        int generatedFiles = 0;
         try {
-            files =
-                    committed(root).stream()
-                            .filter(path -> !generated(root, path))
-                            .sorted()
-                            .toList();
+            final List<Path> handwritten = new ArrayList<>();
+            for (final Path path : committed(root)) {
+                if (generated(root, path)) continue;
+                if (generatedPlan(path)) generatedFiles++;
+                else handwritten.add(path);
+            }
+            files = handwritten.stream().sorted().toList();
             exempt = exempt(root);
         } catch (IOException | UncheckedIOException ex) {
             err.println("could not list the files under " + root + ": " + ex.getMessage());
@@ -193,7 +196,6 @@ final class CheckCitations {
         final IssueLinks issueLinks = new IssueLinks(web, checkouts);
         int read = 0;
         int binary = 0;
-        int generatedFiles = 0;
         try {
             issueLinks.read(
                     root, pages.stream().filter(page -> isIssue(root, page)).toList(), prefixes);
@@ -506,6 +508,30 @@ final class CheckCitations {
     private static boolean isIssue(Path root, Path path) {
         final String name = relative(root, path);
         return name.startsWith("issues/") || name.contains("/issues/");
+    }
+
+    private static boolean generatedPlan(Path path) throws IOException {
+        final String name = path.getFileName().toString();
+        if (!name.endsWith(".md")) return false;
+        final Path plan = path.resolveSibling(name.substring(0, name.length() - 3) + ".yml");
+        if (!Files.isRegularFile(plan)) return false;
+        // Only a plan beside it makes the page a rendered one: a YAML mapping naming its release
+        // and sprints.
+        try {
+            final var tree =
+                    new com.fasterxml.jackson.databind.ObjectMapper(
+                                    new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                            .readTree(plan.toFile());
+            if (tree == null || !tree.isObject() || !tree.has("release") || !tree.has("sprints"))
+                return false;
+        } catch (IOException ex) {
+            return false;
+        }
+        try (var reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            return PlanRender.GENERATED_MARKER.equals(reader.readLine());
+        } catch (CharacterCodingException ex) {
+            return false;
+        }
     }
 
     private static boolean generated(Path root, Path path) {

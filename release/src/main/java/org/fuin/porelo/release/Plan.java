@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /** A release's ordered sprints and the functions a person can test. */
-record Plan(String release, String goal, @Nullable String issue, List<Sprint> sprints) {
+record Plan(String release, String goal, List<Sprint> sprints) {
     private static final ObjectMapper YAML =
             new ObjectMapper(
                     new YAMLFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
@@ -82,21 +82,20 @@ record Plan(String release, String goal, @Nullable String issue, List<Sprint> sp
 
     static Plan read(Path file, Project project) throws IOException, Stop {
         final JsonNode data = yaml(file);
-        keys(data, Set.of("release", "goal", "issue", "sprints"), file.toString());
+        keys(data, Set.of("release", "goal", "sprints"), file.toString());
         final String release = string(data, "release", file.toString());
         if (!release.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
             throw Stop.refused(file + ": release is not a file name: " + release);
         }
         final String goal = string(data, "goal", file.toString());
-        final String issue = optional(data, "issue", file.toString());
-        if (issue != null) {
-            reference(issue, project, file + " issue");
-        }
         final List<Sprint> sprints = new ArrayList<>();
         final Set<String> ids = new HashSet<>();
         for (final JsonNode sprint : array(data, "sprints", file.toString())) {
             final String id = string(sprint, "id", file + " sprint");
             final String where = file + " sprint " + id;
+            if (!id.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+                throw Stop.refused(where + ": sprint id is not a file name");
+            }
             keys(sprint, Set.of("id", "title", "goal", "functions"), where);
             if (!ids.add(id)) {
                 throw Stop.refused(where + ": duplicate sprint id");
@@ -131,7 +130,7 @@ record Plan(String release, String goal, @Nullable String issue, List<Sprint> sp
             }
             sprints.add(new Sprint(id, title, sprintGoal, List.copyOf(functions)));
         }
-        return new Plan(release, goal, issue, List.copyOf(sprints));
+        return new Plan(release, goal, List.copyOf(sprints));
     }
 
     private static JsonNode yaml(Path file) throws IOException, Stop {

@@ -1,0 +1,2 @@
+title: porelo-release plan render draws the HTML page from precompiled jte templates and writes a Markdown page built like it, with one progress image of each sprint's states and tested functions and each sprint in a box, marks the page as generated so check-citations skips it beside its plan, and plan check compares the image too
+type: added

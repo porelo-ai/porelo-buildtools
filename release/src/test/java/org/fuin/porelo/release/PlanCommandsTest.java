@@ -43,6 +43,150 @@ class PlanCommandsTest {
     }
 
     @Test
+    void imageAltCountsFollowTheLegendAndOmitEmptyStates() throws IOException {
+        plan(
+                function(
+                        "One",
+                        "issues: [porelo-sample#SA01, porelo-sample#SA02, porelo-sample#SA03, porelo-sample#SA04, porelo-sample#SA05]"));
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                """
+                ## Backlog
+                | <a id="sa01"></a>SA01 | S | - | One |
+                ## Finished
+                | <a id="sa02"></a>SA02 | S | - | Two |
+                ## Implementing
+                | <a id="sa03"></a>SA03 | S | - | Three |
+                ## Review
+                | <a id="sa04"></a>SA04 | S | - | Four |
+                ## Accepted
+                | <a id="sa05"></a>SA05 | S | - | Five |
+                """);
+        assertThat(run("render")).as("mixed states render: %s", errors).isZero();
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("the image carries the same progress as the SVG and legend")
+                .contains(
+                        "![Sprint s: Finished 1, Review 1, Implementing 1, Accepted 1, Backlog 1](next/progress.svg)")
+                .doesNotContain("Not filed yet / Missing 0", "█", "░");
+    }
+
+    @Test
+    void markdownFollowsTheHtmlSectionsAndKeepsChipsTogether() throws IOException {
+        plan(
+                function("One", "issues: [porelo-sample#SA01]\n        notes: [unfiled]")
+                        + function("Two", "tested: '2026-02-03'"));
+        assertThat(run("render")).as("the shared page structure renders").isZero();
+        final String page = Files.readString(file.resolveSibling("next.md"));
+        assertThat(page)
+                .as("Markdown follows the accepted HTML reading order")
+                .containsSubsequence(
+                        PlanRender.GENERATED_MARKER + "\n",
+                        "# Release next\n\n",
+                        "A release\n\n",
+                        "*Stand: ",
+                        "## Sprint progress\n\n",
+                        "](next/progress.svg)",
+                        PlanTemplate.INTRODUCTION,
+                        "## Issues Details\n\n",
+                        // A sprint stands in a box of its own, as on the HTML page: one table cell,
+                        // Markdown inside.
+                        "<table><tr><td>\n\n### Sprint s: Sprint\n\n",
+                        "A goal\n\n",
+                        "**One ⚪ Not tested**\n\n",
+                        "Test: Try it\n\n",
+                        "🟧 [SA01](https://github.com/porelo-ai/porelo-sample/blob/main/issues/README.md#sa01 \"porelo-sample#SA01 · Backlog · S · A function from its heading\") ◻️ unfiled",
+                        "**Two ✅ Tested 2026-02-03**",
+                        "</td></tr></table>\n\n");
+        assertThat(page.lines().filter(line -> line.startsWith("![")).count())
+                .as("only one progress image is linked")
+                .isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "Finished:🟩",
+                "Rejected:🟩",
+                "Review:🟦",
+                "Implementing:🟨",
+                "Rework:🟨",
+                "Accepted:⬜",
+                "Estimated:⬜",
+                "Analyzed:⬜",
+                "Idea:🟧",
+                "Backlog:🟧"
+            })
+    void chipsUseTheLegendColorForEveryState(String example) throws IOException {
+        final String[] parts = example.split(":");
+        plan(
+                function(
+                        "One",
+                        "tested: '2026-02-03'\n        issues: [porelo-sample#SA02, porelo-sample#SA99]\n        notes: [unfiled]"));
+        final boolean closed = parts[0].equals("Finished") || parts[0].equals("Rejected");
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                "## "
+                        + parts[0]
+                        + (closed
+                                ? "\n| # | Title | What was built |\n|---|---|---|\n| <a id=\"sa02\"></a>SA02 | Indexed title | Built |\n"
+                                : "\n| # | Size | Blocked by | What it covers |\n|---|---|---|---|\n| <a id=\"sa02\"></a>SA02 | S | - | Indexed title |\n"));
+        assertThat(run("render")).as("every known state renders").isZero();
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("the chip's color, label, tooltip and index target match HTML")
+                .contains(
+                        parts[1]
+                                + " [SA02](https://github.com/porelo-ai/porelo-sample/blob/main/issues/README.md#sa02 \"porelo-sample#SA02 · "
+                                + parts[0]
+                                + " · "
+                                + (closed ? "-" : "S")
+                                + " · Indexed title\") ◻️ porelo-sample#SA99 ◻️ unfiled");
+    }
+
+    @Test
+    void altCountsKeepStatesWithTheSameColorSeparateForEachSprint() throws IOException {
+        plan(
+                function(
+                        "One",
+                        "tested: '2026-02-03'\n        issues: [porelo-sample#SA01, porelo-sample#SA02, porelo-sample#SA03, porelo-sample#SA04]"));
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                "## Finished\n| <a id=\"sa01\"></a>SA01 | S | - | Done |\n"
+                        + "## Rejected\n| <a id=\"sa02\"></a>SA02 | S | - | Declined |\n"
+                        + "## Review\n| <a id=\"sa03\"></a>SA03 | S | - | Reviewed |\n"
+                        + "## Rework\n| <a id=\"sa04\"></a>SA04 | S | - | Returned |\n");
+        Files.writeString(
+                file,
+                Files.readString(file)
+                        + "  - id: other\n    title: 'A [title] <tag>'\n    goal: Another goal\n    functions:\n"
+                        + function("Two", "notes: [pending]"));
+        assertThat(run("render")).as("two sprints render").isZero();
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("alt text reports each sprint and each nonzero state in legend order")
+                .contains(
+                        "![Sprint s: Finished 1, Rejected 1, Review 1, Rework 1; Sprint other: Not filed yet 1](next/progress.svg)");
+    }
+
+    @Test
+    void markdownLinkTitlesCannotCloseTheChipLink() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        write(
+                directory.resolve("porelo-sample/issues/SA01-A-Function.md"),
+                "# SA01 — Detail \"quoted\") [escape](https://invalid) & <script>\\tail\n");
+        assertThat(run("render")).as("hostile issue details render").isZero();
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("quotes, parentheses, entities and backslashes stay inside the title")
+                .contains(
+                        "[SA01](https://github.com/porelo-ai/porelo-sample/blob/main/issues/README.md#sa01 \"porelo-sample#SA01 · Backlog · S · Detail &quot;quoted&quot;&#41; [escape]&#40;https://invalid&#41; &amp; &lt;script&gt;&#92;tail\")");
+    }
+
+    @Test
+    void imageAltEscapesMarkdownDelimiters() {
+        assertThat(PlanRender.alt("[state]\\<tag>\nnext"))
+                .as("alt text cannot close the image or inject markup")
+                .isEqualTo("\\[state\\]\\\\&lt;tag&gt; next");
+    }
+
+    @Test
     void markdownKeepsInlineFormatting() throws IOException {
         plan(function("One", "issues: [porelo-sample#SA01, porelo-sample#SA02]"));
         Files.writeString(
@@ -57,21 +201,20 @@ class PlanCommandsTest {
                 .contains("Test: Try `code`, *bold*, _text_ and [labels]");
     }
 
-    @Test
-    void barsNeedNoMarkdownEscapes() throws IOException {
-        plan(function("One", "issues: [porelo-sample#SA01, porelo-sample#SA02]"));
-        assertThat(run("render")).as("both issue states render").isZero();
-        final String page = Files.readString(file.resolveSibling("next.md"));
-        assertThat(page.lines().filter(line -> line.startsWith("Issues: ")).toList())
-                .as("bars use solid done and shaded pending blocks without escapes")
-                .singleElement()
-                .asString()
-                .contains("Backlog 1 ░", "Finished 1 █")
-                .doesNotContain("\\");
-    }
-
     @ParameterizedTest
-    @ValueSource(strings = {"# Heading", "- Item", "* Item", "+ Item", "1. Item"})
+    @ValueSource(
+            strings = {
+                "# Heading",
+                "- Item",
+                "* Item",
+                "+ Item",
+                "1. Item",
+                "![t](https://x/p)",
+                "```",
+                "~~~",
+                "````",
+                "~~~~"
+            })
     void markdownProtectsBlockStartsAndTableSeparators(String title) throws IOException {
         plan(function(title + " | <tag>", "notes: [planned]"));
         Files.writeString(
@@ -80,8 +223,24 @@ class PlanCommandsTest {
         final String page = Files.readString(file.resolveSibling("next.md"));
         final String safe = title.startsWith("1.") ? "1\\. Item" : "\\" + title;
         assertThat(page)
-                .as("text cannot introduce headings, lists or table columns")
-                .contains("\n\n" + safe + "\n\n", "### " + safe + " \\| &lt;tag&gt;");
+                .as("text cannot introduce images, fences, headings, lists or table columns")
+                .contains("\n\n" + safe + "\n\n", "**" + safe + " \\| &lt;tag&gt; ⚪ Not tested**");
+    }
+
+    @Test
+    void aBackslashOfThePlansOwnCannotFreeAnImage() throws IOException {
+        plan(function("One", "notes: [planned]"));
+        Files.writeString(
+                file,
+                Files.readString(file).replace("goal: A release", "goal: '\\![t](https://x/p)'"));
+        assertThat(run("render")).as("the text renders").isZero();
+        // The text's backslash is written escaped, and the image's start after it once more, so
+        // CommonMark reads a
+        // backslash and an exclamation mark as text rather than an escaped backslash before an
+        // image.
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("a backslash before an image's start does not free the image")
+                .contains("\n\n\\\\\\![t](https://x/p)\n\n");
     }
 
     @ParameterizedTest
@@ -135,6 +294,9 @@ class PlanCommandsTest {
         realPlan();
         assertThat(run("render")).as("the real file must render without a network").isZero();
         final String page = Files.readString(file.resolveSibling("0.6.md"));
+        assertThat(page.lines().findFirst().orElseThrow())
+                .as("generated pages must identify themselves to citation checks")
+                .isEqualTo("<!-- Generated by porelo-release plan render; do not edit. -->");
         final var titles =
                 java.util.regex.Pattern.compile("(?m)^      - title: \"(.*)\"$")
                         .matcher(Files.readString(file))
@@ -144,15 +306,21 @@ class PlanCommandsTest {
         assertThat(titles).as("the real fixture's full function reference set").hasSize(24);
         assertThat(
                         page.lines()
-                                .filter(line -> line.startsWith("### "))
-                                .map(line -> line.substring(4))
+                                .filter(line -> line.startsWith("**"))
+                                .map(
+                                        line ->
+                                                line.substring(
+                                                        2,
+                                                        line.indexOf(" ✅") > 0
+                                                                ? line.indexOf(" ✅")
+                                                                : line.indexOf(" ⚪")))
                                 .toList())
                 .as("rendering must preserve every function in file order")
                 .containsExactlyElementsOf(titles);
         assertThat(
                         page.lines()
-                                .filter(line -> line.startsWith("## Sprint "))
-                                .map(line -> line.split(" ")[2])
+                                .filter(line -> line.startsWith("### Sprint "))
+                                .map(line -> line.split(" ")[2].replace(":", ""))
                                 .toList())
                 .as("rendering must preserve every sprint's string ID in file order")
                 .containsExactly("1", "2", "2b", "3", "4", "5", "6", "7", "8", "9");
@@ -164,7 +332,7 @@ class PlanCommandsTest {
                         "Sprint 9",
                         "2026-10-23",
                         "issues/base/README.md#b189",
-                        "not filed yet",
+                        "◻️",
                         "No channel file and no hand-over directory any more");
     }
 
@@ -187,9 +355,9 @@ class PlanCommandsTest {
         assertThat(Files.readString(file.resolveSibling("next.md")))
                 .as("issue metadata must come from the heading and state table")
                 .contains(
-                        "— Backlog · S · A function from its heading",
+                        "Backlog · S · A function from its heading",
                         "README.md#sa01",
-                        "Issues: Backlog 1");
+                        "![Sprint s: Backlog 1](next/progress.svg)");
     }
 
     @Test
@@ -236,6 +404,26 @@ class PlanCommandsTest {
     }
 
     @Test
+    void theProgressImageHasItsColoursWithoutAPagesStylesheet() throws IOException {
+        plan(function("One", "tested: '2026-02-03'\n        issues: [porelo-sample#SA01]"));
+        assertThat(run("render")).isZero();
+        final String svg = Files.readString(file.resolveSibling("next/progress.svg"));
+        // An SVG shown as an image, in a browser or an editor's Markdown view, resolves no CSS
+        // variable in an
+        // attribute: a fill of var(--done) is drawn black.
+        assertThat(svg).as("no colour may rest on a CSS variable").doesNotContain("var(");
+        assertThat(
+                        java.util.regex.Pattern.compile("fill=\"([^\"]*)\"")
+                                .matcher(svg)
+                                .results()
+                                .map(match -> match.group(1))
+                                .toList())
+                .as("every fill is a colour of its own")
+                .isNotEmpty()
+                .allMatch(fill -> fill.matches("#[0-9a-f]{6}"));
+    }
+
+    @Test
     void notesNeverCountAsDoneInTheBars() throws IOException {
         plan(
                 function("One", "notes: [unfiled work, another step]")
@@ -245,19 +433,21 @@ class PlanCommandsTest {
                                         + "        notes: [a further improvement]"));
         assertThat(run("render")).as("planned notes must be visible").isZero();
         final String page = Files.readString(file.resolveSibling("next.md"));
-        assertThat(page.lines().filter(line -> line.startsWith("Issues: ")).toList())
-                .as("only the one indexed Finished issue contributes to the bar")
-                .containsExactly("Issues: Finished 1 █");
-        assertThat(page.lines().filter(line -> line.startsWith("[x] Tested ")).count())
+        assertThat(Files.readString(file.resolveSibling("next/progress.svg")))
+                .as("only the indexed Finished issue is done; three unfiled steps remain pending")
+                .contains("1 of 4 done", "Not filed yet / Missing: 3");
+        assertThat(page.lines().filter(line -> line.contains("✅ Tested ")).count())
                 .as("only the explicitly tested function counts as tested")
                 .isEqualTo(1);
         assertThat(page)
                 .as("unfiled steps remain visible and the notes-only function remains untested")
                 .contains(
-                        "[ ] Not tested",
-                        "not filed yet: unfiled work",
-                        "not filed yet: another step",
-                        "not filed yet: a further improvement");
+                        "⚪ Not tested",
+                        "◻️ unfiled work",
+                        "◻️ another step",
+                        "◻️ a further improvement",
+                        "![Sprint s: Finished 1, Not filed yet 3](next/progress.svg)")
+                .doesNotContain("█", "░");
     }
 
     @Test
@@ -681,11 +871,10 @@ class PlanCommandsTest {
     }
 
     @Test
-    void aReleaseIssueWithoutAnIndexRowIsRefused() throws IOException {
+    void aReleaseIssueIsAnUnknownField() throws IOException {
         plan(function("One", "issues: [porelo-sample#SA01]"));
         Files.writeString(file, "issue: porelo-sample#SA99\n" + Files.readString(file));
-        assertThat(run("render")).as("the page exists so only membership can fail").isZero();
-        refused("porelo-sample#SA99", "no row in its index");
+        refused("unknown field issue");
     }
 
     @ParameterizedTest
@@ -748,6 +937,24 @@ class PlanCommandsTest {
                 .as("untrusted plan and index text must render safely: %s", errors)
                 .isZero();
         final String page = Files.readString(html);
+        final String svg = Files.readString(file.resolveSibling("next/progress.svg"));
+        assertThat(svg)
+                .as("sprint titles cannot inject executable SVG")
+                .contains("Sprint title &lt;script&gt;alert(1)&lt;/script&gt; &amp; \" '")
+                .doesNotContain("<script");
+        for (final String field :
+                java.util.List.of(
+                        "Sprint title",
+                        "Function title",
+                        "Note",
+                        "Issue heading",
+                        "Index coverage")) {
+            assertThat(svg)
+                    .as("%s remains escaped in the progress image", field)
+                    .doesNotContain(field + " " + payload)
+                    .contains(field + " &lt;script&gt;alert(1)&lt;/script&gt; &amp; \" '");
+        }
+        assertThat(page).as("the HTML is entirely static").doesNotContain("<script");
         for (final String field :
                 java.util.List.of(
                         "Sprint title",
@@ -761,8 +968,255 @@ class PlanCommandsTest {
             assertThat(page)
                     .as("%s must remain visible without injecting HTML or quotes", field)
                     .doesNotContain(field + " " + payload)
-                    .contains(field + " &lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot; &#39;");
+                    .contains(field + " &lt;script&gt;alert(1)&lt;/script&gt; &amp; \" '");
         }
+    }
+
+    @Test
+    void progressSegmentsOccupyTheirCountedShareInLegendOrder() throws Exception {
+        plan(
+                function(
+                        "One",
+                        "issues: [porelo-sample#SA01, porelo-sample#SA02, porelo-sample#SA03, porelo-sample#SA04, porelo-sample#SA05, porelo-sample#SA06]\n        notes: [unfiled]"));
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                "## Finished\n| <a id=\"sa01\"></a>SA01 | S | - | Done |\n"
+                        + "## Review\n| <a id=\"sa02\"></a>SA02 | S | - | Review |\n"
+                        + "| <a id=\"sa03\"></a>SA03 | S | - | Review again |\n"
+                        + "## Implementing\n| <a id=\"sa04\"></a>SA04 | S | - | Work |\n"
+                        + "## Accepted\n| <a id=\"sa05\"></a>SA05 | S | - | Open |\n"
+                        + "## Backlog\n| <a id=\"sa06\"></a>SA06 | S | - | Planned |\n");
+        assertThat(run("render")).as("known state counts render: %s", errors).isZero();
+        final var document =
+                javax.xml.parsers.DocumentBuilderFactory.newInstance()
+                        .newDocumentBuilder()
+                        .parse(file.resolveSibling("next/progress.svg").toFile());
+        final var rectangles = document.getElementsByTagName("rect");
+        final var segments = new java.util.ArrayList<org.w3c.dom.Element>();
+        for (int i = 0; i < rectangles.getLength(); i++) {
+            final var rectangle = (org.w3c.dom.Element) rectangles.item(i);
+            if (rectangle.getElementsByTagName("title").getLength() > 0) segments.add(rectangle);
+        }
+        assertThat(segments).as("all six legend colors have counted segments").hasSize(6);
+        final String[] colors = {"done", "review", "impl", "open", "dec", "new"};
+        final int[] counts = {1, 2, 1, 1, 1, 1};
+        int offset = 0;
+        for (int i = 0; i < counts.length; i++) {
+            final var segment = segments.get(i);
+            assertThat(segment.getAttribute("class"))
+                    .as("segment %s follows legend order", i)
+                    .isEqualTo("c-" + colors[i]);
+            assertThat(Double.parseDouble(segment.getAttribute("x")))
+                    .as("%s starts after preceding counts", colors[i])
+                    .isCloseTo(400.0 * offset / 7, org.assertj.core.data.Offset.offset(0.000001));
+            assertThat(Double.parseDouble(segment.getAttribute("width")))
+                    .as("%s occupies its share of seven counted items", colors[i])
+                    .isCloseTo(
+                            400.0 * counts[i] / 7, org.assertj.core.data.Offset.offset(0.000001));
+            offset += counts[i];
+        }
+        final Path html = root.resolve("geometry.html");
+        assertThat(run("render", "--html", html.toString()))
+                .as("HTML renders: %s", errors)
+                .isZero();
+        final String page = Files.readString(html);
+        for (final var segment : segments) {
+            assertThat(page)
+                    .as("the HTML page's inline bar has the image's segment geometry")
+                    .contains(
+                            "x=\""
+                                    + segment.getAttribute("x")
+                                    + "\" width=\""
+                                    + segment.getAttribute("width")
+                                    + "\"");
+        }
+    }
+
+    @Test
+    void theProgressImageIsLinkedAndCheckedForStaleness() throws IOException {
+        plan(
+                function("One", "issues: [porelo-sample#SA01]")
+                        + function("Two", "tested: '2026-02-03'"));
+        final Path html = root.resolve("page.html");
+        assertThat(run("render", "--html", html.toString()))
+                .as("images render: %s", errors)
+                .isZero();
+        final Path image = file.resolveSibling("next/progress.svg");
+        assertThat(Files.isRegularFile(image))
+                .as("Markdown needs a standalone progress image")
+                .isTrue();
+        final String svg = Files.readString(image);
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("the image travels with the Markdown page")
+                .contains("![Sprint s: Backlog 1](next/progress.svg)");
+        assertThat(Files.readString(html))
+                .as("HTML retains its inline bars and function marks")
+                .contains("0 of 1 done")
+                .contains("prefers-color-scheme:dark", "⚪")
+                .doesNotContain("<script");
+        assertThat(Files.readString(html).split(":root\\s*\\{", -1))
+                .as(
+                        "inline bars inherit the page palette without resetting its dark-mode variables")
+                .hasSize(3);
+        assertThat(svg)
+                .as("an image has counts and no executable or external content")
+                .contains(
+                        "0 of 1 done",
+                        "Backlog: 1",
+                        "s. Sprint",
+                        "⚪",
+                        "✅",
+                        "Finished / Rejected",
+                        "Review",
+                        "Implementing / Rework",
+                        "Accepted / Estimated / Analyzed",
+                        "Idea / Backlog",
+                        "Not filed yet / Missing",
+                        "fill=\"#0ca30c\" class=\"c-done\"",
+                        "fill=\"#2a78d6\" class=\"c-review\"",
+                        "fill=\"#fab219\" class=\"c-impl\"",
+                        "fill=\"#b9b8b2\" class=\"c-open\"",
+                        "fill=\"#eb6834\" class=\"c-dec\"",
+                        "fill=\"#ffffff\" class=\"c-new\"")
+                .doesNotContain("<script", "href=", "<foreignObject", "<image");
+        assertThat(run("check")).as("fresh Markdown and image pass: %s", errors).isZero();
+        Files.writeString(image, svg.replace("0 of 1 done", "1 of 1 done"));
+        refused("progress.svg", "differs");
+        Files.delete(image);
+        refused("progress.svg", "missing");
+    }
+
+    @Test
+    void everyRenderedFileIsDeterministic() throws IOException {
+        realPlan();
+        final Path html = root.resolve("page.html");
+        assertThat(run("render", "--html", html.toString()))
+                .as("first render: %s", errors)
+                .isZero();
+        final Map<Path, byte[]> first = new java.util.LinkedHashMap<>();
+        try (var paths = Files.walk(file.getParent())) {
+            for (final Path path : paths.filter(Files::isRegularFile).toList()) {
+                if (!path.equals(file)) first.put(path, Files.readAllBytes(path));
+            }
+        }
+        first.put(html, Files.readAllBytes(html));
+        assertThat(first)
+                .as("one progress SVG, Markdown and HTML are the full output set")
+                .hasSize(3);
+        assertThat(run("render", "--html", html.toString()))
+                .as("second render: %s", errors)
+                .isZero();
+        for (final var entry : first.entrySet()) {
+            assertThat(Files.readAllBytes(entry.getKey()))
+                    .as("stable bytes for %s", entry.getKey())
+                    .isEqualTo(entry.getValue());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"directory", "file", "dangling", "hardlink", "html", "html-link"})
+    void imagesCannotOverwriteInputsOrEscapeThePlanDirectory(String kind) throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        final Path folder = file.resolveSibling("next");
+        final Path image = folder.resolve("progress.svg");
+        final Path input = root.resolve("project.yml");
+        final byte[] before = Files.readAllBytes(input);
+        final Path outside = root.resolve("outside");
+        Files.createDirectories(outside);
+        if (kind.equals("directory")) {
+            Files.createSymbolicLink(folder, outside);
+        } else {
+            Files.createDirectories(folder);
+            if (kind.equals("hardlink")) Files.createLink(image, input);
+            else if (!kind.startsWith("html"))
+                Files.createSymbolicLink(
+                        image, kind.equals("dangling") ? outside.resolve("absent.svg") : input);
+        }
+        final Path html = root.resolve("alias.html");
+        if (kind.equals("html-link")) Files.createSymbolicLink(html, image);
+        final int result =
+                kind.startsWith("html")
+                        ? run("render", "--html", (kind.equals("html") ? image : html).toString())
+                        : run("render");
+        assertThat(result)
+                .as("all outputs must be validated before writing: %s", errors)
+                .isEqualTo(Stop.REFUSED);
+        assertThat(Files.readAllBytes(input)).as("input survives image alias").isEqualTo(before);
+        assertThat(Files.exists(file.resolveSibling("next.md")))
+                .as("refusal makes no partial page")
+                .isFalse();
+        try (var paths = Files.list(outside)) {
+            assertThat(paths.toList()).as("no output escapes").isEmpty();
+        }
+    }
+
+    @Test
+    void sprintIdsCannotBecomePaths() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        Files.writeString(file, Files.readString(file).replace("id: s", "id: ../escape"));
+        assertThat(run("render"))
+                .as("a sprint ID cannot choose an output path: %s", errors)
+                .isEqualTo(Stop.REFUSED);
+    }
+
+    @Test
+    void standUsesTheLatestForgeInputCommitAndNamesUndatedSources() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        final FakeWeb web = new FakeWeb();
+        for (final String repository : java.util.List.of("porelo-project", "porelo-sample")) {
+            web.serve(
+                    "https://raw.githubusercontent.com/porelo-ai/"
+                            + repository
+                            + "/main/issues/README.md",
+                    Files.readString(directory.resolve(repository + "/issues/README.md")));
+        }
+        final String commits =
+                "https://api.github.com/repos/porelo-ai/%s/commits?sha=main&path=issues&per_page=1";
+        final String response =
+                "[{\"sha\":\"52967194d092c9e5b7053cc731c02240fd84a619\",\"commit\":{\"author\":{\"date\":\"2026-10-22T10:00:00Z\"},\"committer\":{\"date\":\"%s\"}}}]";
+        web.serve(commits.formatted("porelo-project"), response.formatted("2026-10-23T09:00:00Z"));
+        web.serve(commits.formatted("porelo-sample"), response.formatted("2026-10-23T11:00:00Z"));
+        final Path html = root.resolve("page.html");
+        assertThat(runWith(web, "render", "--html", html.toString()))
+                .as("forge input dates render: %s", errors)
+                .isZero();
+        for (final Path output : java.util.List.of(html, file.resolveSibling("next.md"))) {
+            assertThat(Files.readString(output))
+                    .as("Stand dates the inputs, including missing local history")
+                    .contains(
+                            "Stand: 2026-10-23T11:00:00Z",
+                            "no commit time for next.yml",
+                            "no file-time fallback")
+                    .doesNotContain("Stand: 2026-10-23T09:00:00Z");
+        }
+        web.serve(commits.formatted("porelo-project"), response.formatted("2026-10-23T12:00:00Z"));
+        assertThat(runWith(web, "check"))
+                .as("a newer input commit makes the page stale: %s", errors)
+                .isEqualTo(Stop.REFUSED);
+    }
+
+    @Test
+    void aMalformedForgeCommitCannotInventAStandDate() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        final FakeWeb web = new FakeWeb();
+        for (final String repository : java.util.List.of("porelo-project", "porelo-sample")) {
+            web.serve(
+                    "https://raw.githubusercontent.com/porelo-ai/"
+                            + repository
+                            + "/main/issues/README.md",
+                    Files.readString(directory.resolve(repository + "/issues/README.md")));
+            web.serve(
+                    "https://api.github.com/repos/porelo-ai/"
+                            + repository
+                            + "/commits?sha=main&path=issues&per_page=1",
+                    "[{\"commit\":{}}]");
+        }
+        assertThat(runWith(web, "render"))
+                .as("missing commit dates cannot be accepted: %s", errors)
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(Files.exists(file.resolveSibling("next.md")))
+                .as("no page with invented metadata is written")
+                .isFalse();
     }
 
     private void realPlan() throws IOException {

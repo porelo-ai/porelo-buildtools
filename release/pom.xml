@@ -25,6 +25,11 @@
 
     <dependencies>
 
+        <dependency>
+            <groupId>gg.jte</groupId>
+            <artifactId>jte-runtime</artifactId>
+        </dependency>
+
         <!-- Not porelo-machines: that brings an SSH stack, and these commands run in every
              package build, offline ones included. -->
 
@@ -85,6 +90,22 @@
             </resource>
         </resources>
         <plugins>
+            <!-- Generated Java is compiled into the JAR; rendering never invokes a compiler. -->
+            <plugin>
+                <groupId>gg.jte</groupId>
+                <artifactId>jte-maven-plugin</artifactId>
+                <version>${jte.version}</version>
+                <configuration>
+                    <sourceDirectory>${project.basedir}/src/main/jte</sourceDirectory>
+                    <contentType>Html</contentType>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals><goal>generate</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>

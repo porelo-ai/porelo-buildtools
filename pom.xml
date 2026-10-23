@@ -61,6 +61,7 @@
              sshj brings bcpkix and bcutil 1.80 beside bcprov, CycloneDX the Jackson dataformats 2.17 beside the
              Jackson the rest resolves. bcpkix and bcutil have no 1.85.2, so 1.85, bcprov's line. -->
         <bouncycastle.pkix.version>1.85</bouncycastle.pkix.version>
+        <jte.version>3.2.4</jte.version>
         <jackson.version>2.22.3</jackson.version>
         <!-- Jackson's annotations carry a release of their own, the one its bom names beside 2.22.3. -->
         <jackson.annotations.version>2.22</jackson.annotations.version>
@@ -98,6 +99,12 @@
             </dependency>
 
             <!-- Third party not covered by the BOM -->
+
+            <dependency>
+                <groupId>gg.jte</groupId>
+                <artifactId>jte-runtime</artifactId>
+                <version>${jte.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.bouncycastle</groupId>

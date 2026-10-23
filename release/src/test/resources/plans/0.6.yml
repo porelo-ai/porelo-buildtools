@@ -1,7 +1,6 @@
 # The plan of release 0.6. Issue states are not written here: they are read from each repository's index.
 release: "0.6"
 goal: "Porelo is built in Porelo tasks"
-issue: porelo-project#PJ39
 sprints:
   - id: "1"
     title: "An agent works on the rented host"
