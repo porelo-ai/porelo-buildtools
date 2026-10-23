@@ -1,6 +1,6 @@
 # BT27 — The Release Plan Page Drawn From Templates
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - jte templates, one progress image, the Markdown page rebuilt like the HTML page, and the Stand line;
 like [BT26](README.md#bt26), in the `release` module alone.
 
