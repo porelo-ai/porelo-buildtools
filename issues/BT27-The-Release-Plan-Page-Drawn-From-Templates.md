@@ -12,9 +12,10 @@ hand.
 
 - Comes after [BT26](README.md#bt26), whose escaping test of every text taken from the plan file and the indexes
   stays the guard: it must pass unchanged against the templates.
-- To be read once BT26 is out: jte's precompiled templates in the `release` module, the dependency it adds, and how the
-  native and the FFM checks take it.
+- To be read once [BT26](README.md#bt26) is out: jte's precompiled templates in the `release` module, the dependency
+  it adds, and how the native and the FFM checks take it.
 
 ## Acceptance
 
-- The HTML page shows the bars, chips and marks above, and BT26's escaping test passes unchanged against it.
+- The HTML page shows the bars, chips and marks above, and [BT26](README.md#bt26)'s escaping test passes unchanged
+  against it.
