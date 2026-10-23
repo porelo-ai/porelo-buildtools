@@ -232,12 +232,17 @@ or release differs, such as the timestamp release the rpm plugin gives a snapsho
 porelo-release plan render plan/0.6.yml
 porelo-release plan render plan/0.6.yml --html plan/0.6.html
 porelo-release plan check plan/0.6.yml
+porelo-release plan render plan/0.6.yml --indexes=beside
+porelo-release plan check plan/0.6.yml --indexes=beside
 ```
 
 A plan belongs below the project's `project.yml`. Repository names are the last component of each declared
 `upstream`, with `.git` removed; each repository's `issues` lists its permitted prefixes. The project's own
-upstream is included, with its prefixes read from its issue index. Indexes come from that tree, a checkout beside
-it, or `main` on GitHub. Linked subindexes are followed. An unavailable index ends the command with exit 2.
+upstream is included, with its prefixes read from its issue index. Both verbs read every index from `main` on
+GitHub by default, including the project's own index, so the page reflects the central forge. With
+`--indexes=beside`, indexes come from the owning tree or a checkout beside it, falling back to `main` when no
+checkout exists. Linked subindexes and readable issue headings use the same source. Refusals identify the index
+file or URL read; an unavailable index ends the command with exit 2.
 
 ```yaml
 release: "0.6"

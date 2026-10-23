@@ -65,7 +65,8 @@ public final class Main {
     }
 
     private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
-        final String expected = "plan render <file> [--html <out>] | plan check <file>";
+        final String expected =
+                "plan render <file> [--html <out>] [--indexes=beside] | plan check <file> [--indexes=beside]";
         if (rest.size() < 2
                 || (!rest.getFirst().equals("render") && !rest.getFirst().equals("check"))) {
             return usage(err, expected);
@@ -73,14 +74,25 @@ public final class Main {
         final Options options =
                 Options.parse(
                         rest.subList(1, rest.size()),
-                        rest.getFirst().equals("render") ? Set.of("--html") : Set.of(),
+                        rest.getFirst().equals("render")
+                                ? Set.of("--html", "--indexes")
+                                : Set.of("--indexes"),
                         Set.of());
-        if (options == null || options.positional().size() != 1) {
+        if (options == null
+                || options.positional().size() != 1
+                || (options.value("--indexes") != null
+                        && !"beside".equals(options.value("--indexes")))) {
             return usage(err, expected);
         }
         final Path file = Path.of(options.positional().getFirst());
         try {
-            final IssueLinks links = new IssueLinks(web, null);
+            final IssueLinks links =
+                    new IssueLinks(
+                            web,
+                            null,
+                            "beside".equals(options.value("--indexes"))
+                                    ? IssueLinks.Sources.LOCAL_FIRST
+                                    : IssueLinks.Sources.FORGE);
             final Plan.Project project = Plan.project(file, links);
             final Plan plan = Plan.read(file, project);
             final Map<String, IssueIndex> issues = PlanRender.indexes(plan, project, links);

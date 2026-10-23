@@ -83,7 +83,14 @@ final class IssueLinks {
     private static final Pattern STATE_HEADING = Pattern.compile("^ {0,3}#{2,6}\\s+(.+)$");
     private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
+    /** Source policy selected by plan commands; citation checks keep local precedence. */
+    enum Sources {
+        LOCAL_FIRST,
+        FORGE
+    }
+
     private final Web web;
+    private final Sources sources;
 
     @Nullable private final Path checkouts;
 
@@ -155,8 +162,13 @@ final class IssueLinks {
      *     web; or null
      */
     IssueLinks(Web web, @Nullable Path checkouts) {
+        this(web, checkouts, Sources.LOCAL_FIRST);
+    }
+
+    IssueLinks(Web web, @Nullable Path checkouts, Sources sources) {
         this.web = web;
         this.checkouts = checkouts;
+        this.sources = sources;
     }
 
     /**
@@ -353,7 +365,7 @@ final class IssueLinks {
         }
     }
 
-    /** Reads a plan's indexes through the same tree, neighboring checkout, and web sources. */
+    /** Reads a plan's indexes through the selected source policy. */
     Map<String, IssueIndex> issueIndex(Path root, String repository) throws IOException, Stop {
         final Map<String, IssueIndex> cached = planIndexes.get(repository);
         if (cached != null) {
@@ -456,6 +468,9 @@ final class IssueLinks {
     }
 
     private URI sourceLocation(@Nullable Path root, String repository, String path) {
+        if (sources == Sources.FORGE) {
+            return forgeLocation(repository, path);
+        }
         final Path tree = trees.get(repository);
         if (tree != null) {
             return tree.resolve(path).toUri();
@@ -470,6 +485,10 @@ final class IssueLinks {
         if (checkouts != null) {
             return checkouts.resolve(repository).resolve(path).toUri();
         }
+        return forgeLocation(repository, path);
+    }
+
+    private static URI forgeLocation(String repository, String path) {
         return URI.create(
                 "https://raw.githubusercontent.com/porelo-ai/" + repository + "/main/" + path);
     }

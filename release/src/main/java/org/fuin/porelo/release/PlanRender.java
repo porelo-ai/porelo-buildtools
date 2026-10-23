@@ -110,9 +110,9 @@ final class PlanRender {
                             bar.append(state)
                                     .append(' ')
                                     .append(count)
-                                    .append(" [")
-                                    .append("#".repeat(count))
-                                    .append("] "));
+                                    .append(' ')
+                                    .append((state.equals("Finished") ? "█" : "░").repeat(count))
+                                    .append(' '));
             page.text(counts.isEmpty() ? "Issues: none" : bar.toString().stripTrailing());
             for (final Plan.Function function : sprint.functions()) {
                 page.heading(3, function.title());
@@ -141,18 +141,13 @@ final class PlanRender {
     }
 
     private static String markdown(String text) {
-        return text.replace("&", "&amp;")
-                .replace("\\", "\\\\")
-                .replace("<", "&lt;")
+        return text.replace("<", "&lt;")
                 .replace(">", "&gt;")
-                .replace("[", "\\[")
-                .replace("]", "\\]")
-                .replace("*", "\\*")
-                .replace("_", "\\_")
-                .replace("`", "\\`")
-                .replace("#", "\\#")
+                .replace("|", "\\|")
                 .replace("\n", " ")
-                .replace("\r", " ");
+                .replace("\r", " ")
+                .replaceFirst("^( {0,3})(#|[*+\\-](?=\\s|$))", "$1\\\\$2")
+                .replaceFirst("^( {0,3}\\d{1,9})\\.(?=\\s|$)", "$1\\\\.");
     }
 
     private static final class Page {

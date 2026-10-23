@@ -43,6 +43,94 @@ class PlanCommandsTest {
     }
 
     @Test
+    void markdownKeepsInlineFormatting() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01, porelo-sample#SA02]"));
+        Files.writeString(
+                file,
+                Files.readString(file)
+                        .replace(
+                                "test: Try it", "test: 'Try `code`, *bold*, _text_ and [labels]'"));
+        assertThat(run("render")).as("formatted instructions render").isZero();
+        final String page = Files.readString(file.resolveSibling("next.md"));
+        assertThat(page)
+                .as("Markdown instructions keep their inline syntax")
+                .contains("Test: Try `code`, *bold*, _text_ and [labels]");
+    }
+
+    @Test
+    void barsNeedNoMarkdownEscapes() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01, porelo-sample#SA02]"));
+        assertThat(run("render")).as("both issue states render").isZero();
+        final String page = Files.readString(file.resolveSibling("next.md"));
+        assertThat(page.lines().filter(line -> line.startsWith("Issues: ")).toList())
+                .as("bars use solid done and shaded pending blocks without escapes")
+                .singleElement()
+                .asString()
+                .contains("Backlog 1 ░", "Finished 1 █")
+                .doesNotContain("\\");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"# Heading", "- Item", "* Item", "+ Item", "1. Item"})
+    void markdownProtectsBlockStartsAndTableSeparators(String title) throws IOException {
+        plan(function(title + " | <tag>", "notes: [planned]"));
+        Files.writeString(
+                file, Files.readString(file).replace("goal: A release", "goal: '" + title + "'"));
+        assertThat(run("render")).as("block-like text renders").isZero();
+        final String page = Files.readString(file.resolveSibling("next.md"));
+        final String safe = title.startsWith("1.") ? "1\\. Item" : "\\" + title;
+        assertThat(page)
+                .as("text cannot introduce headings, lists or table columns")
+                .contains("\n\n" + safe + "\n\n", "### " + safe + " \\| &lt;tag&gt;");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"render", "check"})
+    void planDefaultsToForgeEvenWithStaleLocalIndexes(String verb) throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        final FakeWeb web = new FakeWeb();
+        for (final String repository : java.util.List.of("porelo-project", "porelo-sample")) {
+            final Path index = directory.resolve(repository + "/issues/README.md");
+            web.serve(
+                    "https://raw.githubusercontent.com/porelo-ai/"
+                            + repository
+                            + "/main/issues/README.md",
+                    Files.readString(index));
+            Files.writeString(
+                    index, "## Stale local state\n| <a id=\"sa01\"></a>SA01 | S | - | Stale |\n");
+        }
+        assertThat(runWith(web, "render"))
+                .as("forge indexes render despite stale local files: %s", errors)
+                .isZero();
+        assertThat(runWith(web, verb)).as("both verbs use forge main: %s", errors).isZero();
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("the page uses the published state and row fallback, not a local issue heading")
+                .contains("Backlog", "Row fallback")
+                .doesNotContain("Stale", "A function from its heading");
+        assertThat(web.asked.stream().map(Object::toString).toList())
+                .as("the owning index and sibling index are both fetched from main")
+                .contains(
+                        "https://raw.githubusercontent.com/porelo-ai/porelo-project/main/issues/README.md",
+                        "https://raw.githubusercontent.com/porelo-ai/porelo-sample/main/issues/README.md");
+    }
+
+    @Test
+    void besideIndexesReadTheSiblingAndNameItInTheRefusal() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA99]"));
+        assertThat(runWith(FakeWeb.untouchable(), "render", "--indexes=beside"))
+                .as("beside rendering needs no forge")
+                .isZero();
+        assertThat(runWith(FakeWeb.untouchable(), "check", "--indexes=beside"))
+                .as("the sibling's missing row is refused")
+                .isEqualTo(Stop.REFUSED);
+        assertThat(errors.toString(StandardCharsets.UTF_8))
+                .as("the refusal identifies the sibling file")
+                .contains(
+                        "SA99 has no row in its index "
+                                + directory.resolve("porelo-sample/issues/README.md"));
+    }
+
+    @Test
     void aRealPlanRendersEverySprintAndFunction() throws IOException {
         realPlan();
         assertThat(run("render")).as("the real file must render without a network").isZero();
@@ -159,14 +247,14 @@ class PlanCommandsTest {
         final String page = Files.readString(file.resolveSibling("next.md"));
         assertThat(page.lines().filter(line -> line.startsWith("Issues: ")).toList())
                 .as("only the one indexed Finished issue contributes to the bar")
-                .containsExactly("Issues: Finished 1 \\[\\#\\]");
-        assertThat(page.lines().filter(line -> line.startsWith("\\[x\\] Tested ")).count())
+                .containsExactly("Issues: Finished 1 █");
+        assertThat(page.lines().filter(line -> line.startsWith("[x] Tested ")).count())
                 .as("only the explicitly tested function counts as tested")
                 .isEqualTo(1);
         assertThat(page)
                 .as("unfiled steps remain visible and the notes-only function remains untested")
                 .contains(
-                        "\\[ \\] Not tested",
+                        "[ ] Not tested",
                         "not filed yet: unfiled work",
                         "not filed yet: another step",
                         "not filed yet: a further improvement");
@@ -375,7 +463,10 @@ class PlanCommandsTest {
                     {"plan", "other", "file"},
                     {"plan", "render"},
                     {"plan", "check", "file", "--html", "out"},
-                    {"plan", "render", "file", "--html"}
+                    {"plan", "render", "file", "--html"},
+                    {"plan", "render", "file", "--indexes=unknown"},
+                    {"plan", "check", "file", "--indexes=unknown"},
+                    {"plan", "check", "file", "--indexes"}
                 }) {
             assertThat(
                             Main.run(
@@ -706,6 +797,12 @@ class PlanCommandsTest {
     }
 
     private int run(String verb, String... options) {
+        final var beside = new java.util.ArrayList<>(java.util.List.of(options));
+        beside.add("--indexes=beside");
+        return runWith(FakeWeb.untouchable(), verb, beside.toArray(String[]::new));
+    }
+
+    private int runWith(Web web, String verb, String... options) {
         final java.util.List<String> args =
                 new java.util.ArrayList<>(java.util.List.of("plan", verb, file.toString()));
         args.addAll(java.util.List.of(options));
@@ -713,7 +810,7 @@ class PlanCommandsTest {
                 args.toArray(String[]::new),
                 new PrintStream(new ByteArrayOutputStream()),
                 new PrintStream(errors, true, StandardCharsets.UTF_8),
-                FakeWeb.untouchable(),
+                web,
                 Map.of(),
                 (tree, manifest, lockfile, work) -> lockfile);
     }

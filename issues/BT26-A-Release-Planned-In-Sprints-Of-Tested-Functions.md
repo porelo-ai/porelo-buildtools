@@ -26,14 +26,19 @@ porelo-project
   from the Markdown state heading it stands under, its size, and its title, taken from the issue file's
   `# <NUMBER> — <Title>` heading (also accepting an en dash or hyphen) where the file can be read, else from the
   table's named title column. Markdown closing hashes and trailing spaces are stripped from state headings;
-  unknown states are refused and fenced examples are ignored. Indexes are read as
-  `IssueLinks` reads them: from the tree, a checkout beside it, or `main` on the central forge; subgroup links may
-  include a fragment. Rows retain their source file path or GitHub URL; missing-row, unreadable-index, and
-  unknown-heading refusals name the source read, so a neighboring checkout can be distinguished from `main`.
+  unknown states are refused and fenced examples are ignored. Both plan verbs read every index and optional issue
+  heading from `main` on the central forge by default, including the owning project's index. `--indexes=beside`
+  selects the tree, a checkout beside it, then the forge; `check-citations` keeps its existing source order.
+  Subgroup links may include a fragment. Rows retain their source file path or GitHub URL; missing-row,
+  unreadable-index, and unknown-heading refusals name the source read. Tests use the web fake to prove that stale
+  local indexes are ignored by default and that an explicit beside read names the sibling file in a refusal.
 - **`PlanRender`** writes `plan/<release>.md`: a text bar per sprint by its issues' states, a mark per function tested
   or not, each issue linked to its index row; with `--html <file>`, the same as a local page. A second render changes
   nothing. Both destinations are checked before writing against all read local inputs, including aliases; the
   default Markdown destination must resolve inside the plan directory, while HTML may name another directory.
+  Markdown preserves inline backticks, emphasis and brackets, escapes block-leading heading and list markers,
+  table separators and angle brackets, and draws bars with `█` for Finished and `░` for other states. Tests first
+  reproduce escaped code spans, escaped bars and unsafe heading or table text before verifying the correction.
 - **`PlanCheck`** also refuses an issue repeated within one function, naming that function separately from an
   assignment to two functions. It runs the five checks above, each in a test seen red first; the fifth refuses only a
   function with no issue, no note and no `tested` date. The real `0.6.yml` fixture passes with its fixture indexes, and a
