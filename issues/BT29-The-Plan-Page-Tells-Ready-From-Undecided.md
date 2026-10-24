@@ -1,6 +1,6 @@
 # BT29 — The Plan Page Tells Ready From Undecided
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - the legend's groups and colours in `PlanTemplate` and `plan.jte`, and the progress image's reference in
 `PlanRender`; in the `release` module alone.
 

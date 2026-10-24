@@ -1,6 +1,6 @@
 # BT28 — A Release's Publish Job May Write Its Contents
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - one entry in `check-actions`' list of writing jobs, and an allowlist, read from the parsed YAML, of what
 such a job may hold; grown from XS through four review rounds, each finding a way past a narrower rule. In the
 `release` module alone.
