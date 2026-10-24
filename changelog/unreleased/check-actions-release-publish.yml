@@ -1,0 +1,2 @@
+title: "porelo-release check-actions lets the job publish of release.yml write contents, so porelo-host's release can attach its tarball and digest, and holds that job to runner commands alone: no fetched action, image or shell template, only its listed env names, and expressions only in env values and if"
+type: changed

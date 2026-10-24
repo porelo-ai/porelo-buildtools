@@ -21,6 +21,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt28"></a>[BT28](BT28-A-Releases-Publish-Job-May-Write-Its-Contents.md) | M | - | `check-actions` lets `release.yml`'s job `publish` write `contents`, for porelo-host's release, and refuses that job when it runs a fetched action or a checkout. |
 | <a id="bt24"></a>[BT24](BT24-An-Account-Rented-From-The-Local-Pool.md) | M | - | `porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back. |
 | <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that the operator requires on `main` before merging an action move by hand; no auto-merge, decided 2026-10-18. |

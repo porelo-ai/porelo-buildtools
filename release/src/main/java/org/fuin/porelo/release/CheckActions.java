@@ -1,12 +1,24 @@
 package org.fuin.porelo.release;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonPointer;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -88,9 +100,48 @@ final class CheckActions {
                     "update.yml/update", java.util.Set.of("contents", "pull-requests"),
                     // Publishes the documentation site to GitHub Pages.
                     "site.yml/publish", java.util.Set.of("pages", "id-token"),
+                    // Creates porelo-host's release with the runner's gh; no checkout or fetched
+                    // action runs in that job.
+                    "release.yml/publish", java.util.Set.of("contents"),
                     // The Build's Windows job attests that the interface's ZIP was built here, by
                     // this workflow.
                     "build.yml/windows", java.util.Set.of("id-token", "attestations"));
+
+    /** A name a program reads changes what runs, and no list of such names is complete. */
+    private static final Map<String, Set<String>> NO_FETCHED_CODE =
+            Map.of("release.yml/publish", Set.of("GH_TOKEN", "TAG", "VERSION", "ARTIFACT"));
+
+    /** Runner features grow and defaults replace shells, so only known job keys pass. */
+    private static final Set<String> RUNNER_JOB_KEYS =
+            Set.of(
+                    "name",
+                    "runs-on",
+                    "timeout-minutes",
+                    "needs",
+                    "if",
+                    "permissions",
+                    "env",
+                    "concurrency",
+                    "outputs",
+                    "continue-on-error",
+                    "steps");
+
+    /** Shell templates can run other programs, so only known command-step keys pass. */
+    private static final Set<String> RUNNER_STEP_KEYS =
+            Set.of(
+                    "name",
+                    "id",
+                    "if",
+                    "run",
+                    "env",
+                    "working-directory",
+                    "timeout-minutes",
+                    "continue-on-error");
+
+    /** Duplicate keys must not hide code from the protected jobs' structural check. */
+    private static final ObjectMapper YAML =
+            new ObjectMapper(
+                    new YAMLFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
 
     /** The key every workflow's jobs stand under, once its comment is taken off. */
     private static final Pattern JOBS = Pattern.compile("^jobs:\\s*$");
@@ -150,6 +201,7 @@ final class CheckActions {
         int forkFaults = 0;
         int permissionFaults = 0;
         int checkoutFaults = 0;
+        int writingJobFaults = 0;
         try (Stream<Path> files = Files.walk(directory)) {
             for (final Path file : files.filter(CheckActions::isYaml).sorted().toList()) {
                 final List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
@@ -162,6 +214,11 @@ final class CheckActions {
                             permissions(file.getFileName().toString(), lines)) {
                         faults.add(directory.relativize(file) + ":" + permission);
                         permissionFaults++;
+                    }
+                    for (final String fetched :
+                            fetchedByWritingJobs(file.getFileName().toString(), lines)) {
+                        faults.add(directory.relativize(file) + ":" + fetched);
+                        writingJobFaults++;
                     }
                 }
                 for (int at = 0; at < lines.size(); at++) {
@@ -191,6 +248,12 @@ final class CheckActions {
         }
         if (!faults.isEmpty()) {
             faults.forEach(err::println);
+            if (writingJobFaults == faults.size()) {
+                err.println(
+                        faults.size()
+                                + " fault(s) in jobs with a writing token; keep these jobs to known runner commands.");
+                return Stop.REFUSED;
+            }
             if (forkFaults == faults.size()) {
                 err.println(
                         faults.size()
@@ -388,6 +451,256 @@ final class CheckActions {
                             + " which may be write; add 'permissions:' with 'contents: read', or '{}'");
         }
         return faults;
+    }
+
+    /**
+     * Refuses job and step keys outside the known runner commands beside a writing token.
+     *
+     * @param file The workflow's file name.
+     * @param lines Its lines.
+     * @return Each fault with its line or {@code line unknown}, possibly none.
+     * @throws IOException If the YAML parser cannot read the input.
+     */
+    static List<String> fetchedByWritingJobs(String file, List<String> lines) throws IOException {
+        final List<String> jobs =
+                NO_FETCHED_CODE.keySet().stream()
+                        .filter(job -> job.startsWith(file + "/"))
+                        .map(job -> job.substring(file.length() + 1))
+                        .toList();
+        if (jobs.isEmpty()) {
+            return List.of();
+        }
+        final List<String> faults = new ArrayList<>();
+        try {
+            final Workflow workflow = workflow(String.join("\n", lines), jobs);
+            faults.addAll(workflow.faults());
+            for (final var entry : workflow.data().path("jobs").properties()) {
+                final String job = entry.getKey();
+                final Set<String> allowedEnv = NO_FETCHED_CODE.get(file + "/" + job);
+                if (allowedEnv == null) {
+                    continue;
+                }
+                final JsonPointer path = JsonPointer.compile("/jobs").appendProperty(job);
+                final JsonNode definition = entry.getValue();
+                final String reason =
+                        ": job '" + job + "' writes and so may hold only runner commands";
+                if (workflow.data().has("defaults")) {
+                    faults.add(
+                            workflow.where(JsonPointer.compile("/defaults"), path)
+                                    + reason
+                                    + "; 'defaults' is not one");
+                }
+                if (workflow.data().has("env")) {
+                    faults.add(
+                            workflow.where(JsonPointer.compile("/env"), path)
+                                    + ": job '"
+                                    + job
+                                    + "' writes and so may inherit no workflow env");
+                }
+                faults.addAll(workflow.environment(definition, path, job, allowedEnv));
+                faults.addAll(workflow.expressions(definition, path, job, job, false));
+                for (final var property : definition.properties()) {
+                    final String key = property.getKey();
+                    if (!RUNNER_JOB_KEYS.contains(key)) {
+                        faults.add(
+                                workflow.where(path.appendProperty(key), path)
+                                        + reason
+                                        + "; '"
+                                        + key
+                                        + "' is not one");
+                    }
+                }
+                final JsonNode steps = definition.path("steps");
+                final JsonPointer stepsPath = path.appendProperty("steps");
+                boolean mappings = steps.isArray();
+                if (steps.isArray()) {
+                    for (int at = 0; at < steps.size(); at++) {
+                        final JsonNode step = steps.path(at);
+                        mappings &= step.isObject();
+                        if (!step.isObject()) {
+                            continue;
+                        }
+                        final String where =
+                                workflow.where(stepsPath.appendIndex(at), path) + reason;
+                        faults.addAll(runnerKeys(step, where));
+                        faults.addAll(
+                                workflow.environment(
+                                        step, stepsPath.appendIndex(at), job, allowedEnv));
+                    }
+                }
+                if (!mappings) {
+                    faults.add(
+                            workflow.where(stepsPath, path)
+                                    + ": job '"
+                                    + job
+                                    + "' writes and so its steps must be a sequence of mappings");
+                }
+            }
+        } catch (JsonProcessingException ex) {
+            faults.add(
+                    line(ex.getLocation() == null ? -1 : ex.getLocation().getLineNr())
+                            + ": invalid YAML: "
+                            + ex.getOriginalMessage());
+        }
+        return faults;
+    }
+
+    /** Requires a command string and refuses every step key outside the execution allowlist. */
+    private static List<String> runnerKeys(JsonNode step, String where) {
+        final List<String> faults = new ArrayList<>();
+        for (final var property : step.properties()) {
+            final String key = property.getKey();
+            if (!RUNNER_STEP_KEYS.contains(key)) {
+                faults.add(where + "; '" + key + "' is not one");
+            }
+        }
+        if (!step.path("run").isTextual()) {
+            faults.add(where + "; step 'run' must be a string");
+        }
+        return faults;
+    }
+
+    /** A workflow tree, its source lines, and faults for protected jobs' YAML indirection. */
+    private record Workflow(JsonNode data, Map<JsonPointer, Integer> lines, List<String> faults) {
+        /** Falls back to the job's token location when a child token has no source location. */
+        String where(JsonPointer path, JsonPointer job) {
+            final int at = lines.getOrDefault(path, -1);
+            return line(at > 0 ? at : lines.getOrDefault(job, -1));
+        }
+
+        /** Allows only the environment names explicitly assigned to this protected job. */
+        List<String> environment(
+                JsonNode scope, JsonPointer scopePath, String job, Set<String> allowed) {
+            if (!scope.has("env")) {
+                return List.of();
+            }
+            final JsonNode env = scope.path("env");
+            final JsonPointer path = scopePath.appendProperty("env");
+            final JsonPointer jobPath = JsonPointer.compile("/jobs").appendProperty(job);
+            if (!env.isObject()) {
+                return List.of(
+                        where(path, jobPath)
+                                + ": job '"
+                                + job
+                                + "' writes and so its env must be a mapping");
+            }
+            final List<String> found = new ArrayList<>();
+            for (final var entry : env.properties()) {
+                final String name = entry.getKey();
+                if (!allowed.contains(name)) {
+                    found.add(
+                            where(path.appendProperty(name), jobPath)
+                                    + ": job '"
+                                    + job
+                                    + "' writes and so may set only "
+                                    + String.join(", ", new java.util.TreeSet<>(allowed))
+                                    + " in env, not '"
+                                    + name
+                                    + "'");
+                }
+            }
+            return found;
+        }
+
+        /** Keeps expression data out of command settings while allowing env and if values. */
+        List<String> expressions(
+                JsonNode node, JsonPointer path, String job, String key, boolean allowValue) {
+            final List<String> found = new ArrayList<>();
+            if (node.isObject()) {
+                for (final var entry : node.properties()) {
+                    final String name = entry.getKey();
+                    final JsonPointer child = path.appendProperty(name);
+                    if (name.contains("${{")) {
+                        found.add(expression(child, job, name));
+                    }
+                    found.addAll(
+                            expressions(
+                                    entry.getValue(),
+                                    child,
+                                    job,
+                                    name,
+                                    allowValue || name.equals("env") || name.equals("if")));
+                }
+            } else if (node.isArray()) {
+                for (int at = 0; at < node.size(); at++) {
+                    found.addAll(
+                            expressions(node.path(at), path.appendIndex(at), job, key, allowValue));
+                }
+            } else if (!allowValue && node.isTextual() && node.asText().contains("${{")) {
+                found.add(expression(path, job, key));
+            }
+            return found;
+        }
+
+        /** Names the expression's owning key and source location. */
+        private String expression(JsonPointer path, String job, String key) {
+            return where(path, JsonPointer.compile("/jobs").appendProperty(job))
+                    + ": job '"
+                    + job
+                    + "' writes and so may take no expression in '"
+                    + key
+                    + "'; pass it through env";
+        }
+    }
+
+    /** Names missing source locations explicitly instead of inventing a line number. */
+    private static String line(int number) {
+        return number > 0 ? Integer.toString(number) : "line unknown";
+    }
+
+    /**
+     * Reads one mapping, retaining locations and refusing indirection in protected job paths.
+     *
+     * @param text The workflow's YAML.
+     * @param jobs The job ids that may run no fetched code.
+     * @return Its tree, token locations, and alias or merge-key faults.
+     * @throws IOException If parsing fails.
+     */
+    private static Workflow workflow(String text, List<String> jobs) throws IOException {
+        final JsonNode data;
+        try (var parser = YAML.createParser(text)) {
+            data = YAML.readTree(parser);
+            if (parser.nextToken() != null) {
+                throw new JsonParseException(parser, "expected exactly one YAML document");
+            }
+            if (data == null || !data.isObject()) {
+                throw new JsonParseException(parser, "expected a YAML mapping");
+            }
+        }
+        final Map<JsonPointer, Integer> lines = new HashMap<>();
+        final List<String> faults = new ArrayList<>();
+        try (var parser = (YAMLParser) YAML.createParser(text)) {
+            JsonToken token;
+            while ((token = parser.nextToken()) != null) {
+                if (token.isStructEnd()) {
+                    continue;
+                }
+                final JsonPointer path = parser.getParsingContext().pathAsPointer();
+                lines.putIfAbsent(path, parser.currentTokenLocation().getLineNr());
+                final boolean alias = parser.isCurrentAlias();
+                final boolean merge =
+                        token == JsonToken.FIELD_NAME && "<<".equals(parser.currentName());
+                if (!alias && !merge) {
+                    continue;
+                }
+                for (final String job : jobs) {
+                    final JsonPointer jobPath = JsonPointer.compile("/jobs").appendProperty(job);
+                    if (path.equals(jobPath)
+                            || path.toString().startsWith(jobPath + "/")
+                            || (alias && path.equals(JsonPointer.compile("/jobs")))) {
+                        faults.add(
+                                line(parser.currentTokenLocation().getLineNr())
+                                        + ": job '"
+                                        + job
+                                        + "' writes and so may use no YAML "
+                                        + (alias
+                                                ? "alias ('*" + parser.getText() + "')"
+                                                : "merge key"));
+                    }
+                }
+            }
+        }
+        return new Workflow(data, lines, faults);
     }
 
     /**
