@@ -9,6 +9,9 @@ and what would change the answer.
 | A rented machine answers with its own key; a local one with any | a host key made per machine in its `user_data`, pinned by every connection to it; a local virtual machine accepts any key, its caller saying why | [entry](#a-rented-machine-answers-with-its-own-key-a-local-one-with-any) |
 | A sweep deletes by expiry, not by age | every server a lease creates is labelled `porelo-expires` from its job's time limit plus 15 minutes; `sweep` deletes only servers past it or without one, `--including-in-use` alone those within it, and `--older-than` is refused | [entry](#a-sweep-deletes-by-expiry-not-by-age) |
 | A pool VM goes back to its snapshot after each run | each pool VM holds one run account; given back with `sudo porelo-pool-give-back`, it is reverted to its base snapshot on the host before anyone rents it again | [entry](#a-pool-vm-goes-back-to-its-snapshot-after-each-run) |
+| A snapshot is built only from new inputs | a push builds a system's image only when the newest snapshot's `inputs` label, a hash of its pinned recipe, installer and code, differs; a dispatch always builds | [Why](#a-snapshot-is-built-only-from-new-inputs) |
+| **Releases** | | |
+| A tool takes the newest release that has stood | the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; prereleases stay out | [Why](#a-tool-takes-the-newest-release-that-has-stood) |
 
 ## A rented machine answers with its own key; a local one with any
 
@@ -56,3 +59,20 @@ offers, and a revert per run.
 
 The run key reaches a job as a forge Actions secret in `PORELO_POOL_SSH` (or `--key <file>` on a developer's machine),
 never as a file in CI, and the pool file holds nothing secret.
+
+## A snapshot is built only from new inputs
+
+What a system's image is made from is one hash, `Snapshots.inputs(os)`: 16 hex digits of a SHA-256 over the recipe
+with every pin filled in, the toolchain's installer and the code that runs them. Each snapshot carries it as its label
+`inputs`. On a push, `porelo-machines snapshot --unless-current` asks before anything is rented whether the newest
+snapshot of the system carries the same hash, and if so says so and builds none; a dispatch always builds. A diff of
+the push said what the push changed, not what the newest snapshot was made from, so a push after a failed snapshot
+built nothing, and a moved line that kept its pin's value built again.
+
+## A tool takes the newest release that has stood
+
+A tool that picks an upstream version takes the newest release at least `porelo.release.min-age` old, even where
+newer releases exist that are younger; prereleases stay out, and a release public that long without being withdrawn
+counts as standing. Taking only the newest, and waiting while it is too young, never moved a pin for an upstream that
+releases several times a day. Where a source lists no history, a pointer or an image tag, the newest is taken once it
+is old enough, and none otherwise.

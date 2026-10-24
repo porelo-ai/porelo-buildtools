@@ -5,18 +5,6 @@ issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). *Open questio
 waits on the operator: the items under an issue's own *Open questions*. Its prefix is `BT`. A group with nothing in it is
 left out.
 
-## Review
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt20"></a>[BT20](BT20-Bills-Read-With-A-Current-CycloneDX-Library.md) | S | - | porelo-release on `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0, from the parent; built, proven on real bills. |
-| <a id="bt21"></a>[BT21](BT21-Jackson-Without-Its-Known-Advisories.md) | XS | - | porelo-release on Jackson 2.22.3, past the advisories against 2.21.2. |
-| <a id="bt12"></a>[BT12](BT12-A-Rented-Machine-Carries-Its-Expiry.md) | M | - | Every lease labels its server `porelo-expires`, from the job's time limit plus a margin; `sweep` deletes only servers past their expiry or without one, refuses `--older-than`, and deletes servers in use only with `--including-in-use`; `porelo`'s `sweep.yml` moves with it; built here, left: `porelo`'s `sweep.yml` and a run of the hourly sweep. |
-| <a id="bt11"></a>[BT11](BT11-A-Rented-Machine-Answers-With-Its-Own-Key.md) | M | - | A rented machine gets a host key made per run in its `user_data`, and `Ssh` accepts only that key for `porelo`'s legs, the agent legs and the kit; the local VMs and `deploy` accepting any key is a written risk; built here, left: `porelo`'s legs and kit, and a rented run of each leg kind. |
-| <a id="bt16"></a>[BT16](BT16-A-Snapshot-Built-Only-From-New-Inputs.md) | S | - | A CI snapshot is built only when the newest one was made from other inputs - the recipe with its pins, the toolchain, the code - named as a label on the image; a dispatch always builds. |
-| <a id="bt14"></a>[BT14](BT14-The-Newest-Release-That-Has-Stood.md) | S | - | A release tool takes the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; every upstream source reads its history for it. |
-| <a id="bt22"></a>[BT22](BT22-A-Pin-With-Several-Artifacts.md) | S | - | `check-pin` and `add-fetched-cli` take `--pin <name>` and pick the artifact by that pin's digest, so the Codex CLI's two artifacts are checked and recorded without a bridge. |
-
 ## Implementing
 
 | # | Size | Blocked by | What it covers |
@@ -57,6 +45,13 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt22"></a>BT22 | A Pin With Several Artifacts | `check-pin` and `add-fetched-cli` take `--pin <name>` and check and record one artifact of a CLI downloaded as several by the digest its own pin holds. |
+| <a id="bt21"></a>BT21 | Jackson Without Its Known Advisories | porelo-release reads its YAML and XML through Jackson 2.22.3, past the advisories published against the versions before. |
+| <a id="bt20"></a>BT20 | Bills Read With A Current CycloneDX Library | porelo-release reads and writes bills with `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0, past their known advisories. |
+| <a id="bt16"></a>BT16 | A Snapshot Built Only From New Inputs | A push builds a system's snapshot only when the newest one's `inputs` label, a hash of what it is made from, differs; a dispatch always builds. |
+| <a id="bt14"></a>BT14 | The Newest Release That Has Stood | A release tool takes the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist, so a pin moves for an upstream that releases daily. |
+| <a id="bt12"></a>BT12 | A Rented Machine Carries Its Expiry | Every lease labels its server `porelo-expires` from its job's time limit, and `sweep` deletes only servers past it or carrying none. |
+| <a id="bt11"></a>BT11 | A Rented Machine Answers With Its Own Key | A rented machine gets a host key made per run in its `user_data`, pinned by every connection to it; a local VM's any key is an accepted risk. |
 | <a id="bt27"></a>BT27 | The Release Plan Page Drawn From Templates | `plan render` draws the HTML page from precompiled jte templates and the Markdown page like it, with one self-contained progress image, sprints in boxes and the inputs' latest commit time as *Stand*; `plan check` compares both with a fresh render. |
 | <a id="bt26"></a>BT26 | A Release Planned In Sprints Of Tested Functions | `porelo-release plan render` and `plan check` read a release's plan file of sprints and tested functions against every repository's issue index, write its page and refuse five faults, naming the issue or the function. |
 | <a id="bt19"></a>BT19 | A Component Told Apart By Its Group | `add-component` matches a recorded component on group and name, so npm's `@types/node` and the Node runtime stand side by side in a tree's bill. |
