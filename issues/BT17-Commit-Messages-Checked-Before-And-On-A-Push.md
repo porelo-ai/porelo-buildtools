@@ -30,7 +30,7 @@ Rewording by hand before a push catches some of these. A check that runs every t
   - **one line,** and below a blank line only trailers (`Assisted-by:`, `Signed-off-by:`, and the `Co-authored-by:`
     GitHub writes): no prose body;
   - **at most 72 characters**, counting `[skip ci]`;
-  - **no requirement number:** a word made of an issue prefix and digits (`B102`, `BT15`, `MX22`). The prefixes are
+  - **no requirement number:** a word made of an issue prefix and digits (`B102`, `BT17`, `MX22`). The prefixes are
     read from the `issues/` indexes `check-citations` already reads. So `IPv4`, `UTF8` or `x86_64` are not caught, and a
     new repository's prefix is known once its index is published;
   - **no who:** see below;

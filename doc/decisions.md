@@ -10,6 +10,7 @@ and what would change the answer.
 | A sweep deletes by expiry, not by age | every server a lease creates is labelled `porelo-expires` from its job's time limit plus 15 minutes; `sweep` deletes only servers past it or without one, `--including-in-use` alone those within it, and `--older-than` is refused | [entry](#a-sweep-deletes-by-expiry-not-by-age) |
 | A pool VM goes back to its snapshot after each run | each pool VM holds one run account; given back with `sudo porelo-pool-give-back`, it is reverted to its base snapshot on the host before anyone rents it again | [entry](#a-pool-vm-goes-back-to-its-snapshot-after-each-run) |
 | A snapshot is built only from new inputs | a push builds a system's image only when the newest snapshot's `inputs` label, a hash of its pinned recipe, installer and code, differs; a dispatch always builds | [Why](#a-snapshot-is-built-only-from-new-inputs) |
+| A Build on `main` takes its legs from a run that proved the same tree | `proven-legs` answers yes only for this repository's own push, dispatch or schedule run, no older than its bound, of the same tree, with every job of a named group green; a tag always runs its own legs | [Why](#a-build-on-main-takes-its-legs-from-a-run-that-proved-the-same-tree) |
 | **Releases** | | |
 | A tool takes the newest release that has stood | the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; prereleases stay out | [Why](#a-tool-takes-the-newest-release-that-has-stood) |
 
@@ -68,6 +69,16 @@ with every pin filled in, the toolchain's installer and the code that runs them.
 snapshot of the system carries the same hash, and if so says so and builds none; a dispatch always builds. A diff of
 the push said what the push changed, not what the newest snapshot was made from, so a push after a failed snapshot
 built nothing, and a moved line that kept its pin's value built again.
+
+## A Build on `main` takes its legs from a run that proved the same tree
+
+A squash merge of a branch that is up to date with `main` gives `main` the tree the branch's run, or an agent's update
+run, has just proved on rented machines, so renting them again proves nothing new. `porelo-release proven-legs` takes
+a run as proof only when it is this repository's own, with its head here too, started by a push, a dispatch or a
+schedule and never by a pull request, of the same tree (or, for a dispatched or scheduled run, carrying the artifact
+`porelo-verified-tree-<tree>`, which only the run itself can make), no older than `--max-age`, not the asking run,
+and with every job of one named group green. A tag always runs its own legs, and a question that cannot be answered
+is no proof, so the legs run then too. Build, unit tests and Publish always run.
 
 ## A tool takes the newest release that has stood
 

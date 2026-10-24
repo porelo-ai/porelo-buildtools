@@ -13,9 +13,7 @@ left out.
 | <a id="bt24"></a>[BT24](BT24-An-Account-Rented-From-The-Local-Pool.md) | M | - | `porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back. |
 | <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that the operator requires on `main` before merging an action move by hand; no auto-merge, decided 2026-10-18. |
-| <a id="bt15"></a>[BT15](BT15-Legs-Taken-From-A-Proven-Run.md) | M | - | A Build on `main` takes its legs from a run of the same tree, from a trusted event, at most 24 h old, with its leg jobs green: `porelo-release proven-legs`, built; each Build adopts it. |
 | <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | Every server is created with an IPv4 address and no IPv6 one, one primary IP instead of two; built with its test seen red, the full-quota answer read from the API's reference; left: the leg kinds green on such servers in the Builds after the push. |
-| <a id="bt04"></a>[BT04](BT04-Issue-Numbers-Link-Their-Index-Row.md) | M | - | `check-citations` holds issue numbers under `issues/` to links to their index rows, every row to its anchor, every link to an anchor that is there; built, pushed after every repository's anchors. |
 
 ## Backlog
 
@@ -45,6 +43,8 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt15"></a>BT15 | Legs Taken From A Proven Run | `porelo-release proven-legs` lets a Build on `main` take its legs from a run of this repository that proved the same tree, so a squash merge rents no machine twice. |
+| <a id="bt04"></a>BT04 | Issue Numbers Link Their Index Row | `check-citations` holds every issue number in `issues/` to a link to its index row, in its own repository or another's, and refuses a link to a row that is not there. |
 | <a id="bt22"></a>BT22 | A Pin With Several Artifacts | `check-pin` and `add-fetched-cli` take `--pin <name>` and check and record one artifact of a CLI downloaded as several by the digest its own pin holds. |
 | <a id="bt21"></a>BT21 | Jackson Without Its Known Advisories | porelo-release reads its YAML and XML through Jackson 2.22.3, past the advisories published against the versions before. |
 | <a id="bt20"></a>BT20 | Bills Read With A Current CycloneDX Library | porelo-release reads and writes bills with `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0, past their known advisories. |
