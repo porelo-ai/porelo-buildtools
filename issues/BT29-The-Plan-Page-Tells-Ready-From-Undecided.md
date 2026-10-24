@@ -10,10 +10,13 @@ preview that showed the page once shows the new progress image after the next `p
 
 ## Plan
 
-- **The groups, in `PlanTemplate.STATES` and `chip`**, each with its own colour, in the legend's and the bars' order:
-  Finished / Rejected (green), Review (blue), Implementing / Rework (yellow), **Backlog** (light blue, ready to build),
-  **Estimated** (its own shade, decided by the operator), Accepted / Analyzed (gray), **Idea** (orange), Not filed yet
-  / Missing (outlined). Today Backlog shares Idea's orange and Estimated shares Accepted's gray.
+- **The groups, in `PlanTemplate.STATES` and `chip`**, follow the flow of the states, `AGENTS.md`'s Idea → Accepted
+  → Analyzed → Estimated → Backlog → Implementing (Rework) → Review → Finished. Each bar fills from the left with the
+  furthest state, and the legend reads in the same order, so a bar reads as progress from left to right: Finished /
+  Rejected (green), Review (blue), Implementing / Rework (yellow), **Backlog** (light blue, ready to build),
+  **Estimated** (its own shade, decided by the operator), **Analyzed**, **Accepted** (two grays, Analyzed the darker,
+  as the further one), **Idea** (orange), Not filed yet / Missing (outlined). Today Backlog shares Idea's orange, and
+  Estimated, Analyzed and Accepted share one gray, in an order that is not the flow's.
 - **The colours** go into `plan.jte`'s palette, its dark variant, the chip classes, `progress.jte`'s own attributes and
   `Chip.emoji()`'s Markdown squares, one square per group.
 - **The image reference** in the Markdown changes with the image's content, so a preview cannot keep an older one:
