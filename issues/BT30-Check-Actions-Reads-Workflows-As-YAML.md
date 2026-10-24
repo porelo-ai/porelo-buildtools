@@ -1,6 +1,6 @@
 # BT30 — Check Actions Reads Workflows As YAML
 
-**Status:** Idea.
+**Status:** Accepted.
 
 **What must be true.** `porelo-release check-actions` judges every workflow as GitHub reads it, as parsed YAML, so
 a write granted in quotes (`contents: 'write'`) or in flow style, and a step written in flow style
