@@ -29,8 +29,11 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
             case "done" -> "#0ca30c";
             case "review" -> "#2a78d6";
             case "impl" -> "#fab219";
-            case "open" -> "#b9b8b2";
-            case "dec" -> "#eb6834";
+            case "backlog" -> "#8ac8f0";
+            case "estimated" -> "#9575b5";
+            case "analyzed" -> "#77766f";
+            case "accepted" -> "#b9b8b2";
+            case "idea" -> "#eb6834";
             case "new" -> "#ffffff";
             default -> throw new IllegalArgumentException("no colour named " + color);
         };
@@ -42,20 +45,29 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
                     new State("done", "Finished / Rejected"),
                     new State("review", "Review"),
                     new State("impl", "Implementing / Rework"),
-                    new State("open", "Accepted / Estimated / Analyzed"),
-                    new State("dec", "Idea / Backlog"),
+                    new State("backlog", "Backlog"),
+                    new State("estimated", "Estimated"),
+                    new State("analyzed", "Analyzed"),
+                    new State("accepted", "Accepted"),
+                    new State("idea", "Idea"),
                     new State("new", "Not filed yet / Missing"));
 
     /** An issue link or a note that has not been filed. */
     public record Chip(String text, String detail, String color, String link) {
-        /** Fixed Markdown squares: green, blue, yellow, gray, orange, and outlined white. */
+        /**
+         * Fixed Markdown squares: green, blue, yellow, a square button for light blue, purple,
+         * black, white, orange, and outlined white.
+         */
         public String emoji() {
             return switch (color) {
                 case "done" -> "🟩";
                 case "review" -> "🟦";
                 case "impl" -> "🟨";
-                case "open" -> "⬜";
-                case "dec" -> "🟧";
+                case "backlog" -> "🔲";
+                case "estimated" -> "🟪";
+                case "analyzed" -> "⬛";
+                case "accepted" -> "⬜";
+                case "idea" -> "🟧";
                 case "new" -> "◻️";
                 default -> throw new IllegalArgumentException("Unknown chip color: " + color);
             };
@@ -172,8 +184,11 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
                     case "Finished", "Rejected" -> "done";
                     case "Review" -> "review";
                     case "Implementing", "Rework" -> "impl";
-                    case "Accepted", "Estimated", "Analyzed" -> "open";
-                    case "Idea", "Backlog" -> "dec";
+                    case "Backlog" -> "backlog";
+                    case "Estimated" -> "estimated";
+                    case "Analyzed" -> "analyzed";
+                    case "Accepted" -> "accepted";
+                    case "Idea" -> "idea";
                     default ->
                             throw new IllegalArgumentException(
                                     "Unknown issue state: " + row.state());

@@ -1,6 +1,6 @@
 # BT29 — The Plan Page Tells Ready From Undecided
 
-**Status:** Backlog.
+**Status:** Implementing.
 **Size:** S - the legend's groups and colours in `PlanTemplate` and `plan.jte`, and the progress image's reference in
 `PlanRender`; in the `release` module alone.
 
@@ -18,11 +18,13 @@ preview that showed the page once shows the new progress image after the next `p
   as the further one), **Idea** (orange), Not filed yet / Missing (outlined). Today Backlog shares Idea's orange, and
   Estimated, Analyzed and Accepted share one gray, in an order that is not the flow's.
 - **The colours** go into `plan.jte`'s palette, its dark variant, the chip classes, `progress.jte`'s own attributes and
-  `Chip.emoji()`'s Markdown squares, one square per group.
-- **The image reference** in the Markdown changes with the image's content, so a preview cannot keep an older one:
-  `<release>/progress.svg?v=<first 8 hex of its SHA-256>` where both GitHub and IntelliJ's Markdown preview show it;
-  otherwise the file itself is named by that hash and `plan render` removes the release's older progress images, only
-  those it wrote. `plan check` compares the reference with a fresh render, as it compares the page today.
+  `Chip.emoji()`'s Markdown squares, one per group: 🟩 🟦 🟨 🔲 🟪 ⬛ ⬜ 🟧 ◻️ in flow order (Unicode has no light blue
+  square, so Backlog's is the outlined one in Markdown and light blue in the HTML page and the image).
+- **The image is named by its content:** `<release>/progress-<first 8 hex of its SHA-256>.svg`, which the Markdown
+  links, and `plan render` removes the release's older `progress-*.svg` and `progress.svg`, only those, never outside
+  the plan's directory nor an input. A new name is fetched afresh by GitHub and by IntelliJ's preview alike, where a
+  query (`?v=`) could not be measured on GitHub without pushing a page. `plan check` compares the name and the image
+  with a fresh render, as it compares the page.
 - **Red first:** the Markdown's image reference carries the hash of the image written beside it, and a second render
   of a changed plan changes the reference. Colours and groups only read wrong, so they get no test of their own; the
   existing escaping and `plan check` tests stay green.
@@ -34,9 +36,3 @@ preview that showed the page once shows the new progress image after the next `p
   Estimated issue's apart from an Accepted one's, in the HTML page, the Markdown page and the image.
 - After a `plan render` that changes the image, IntelliJ's open Markdown preview of the page shows the new image, and
   so does the page on GitHub.
-
-## To be checked
-
-- Whether GitHub's rendering of a repository's Markdown keeps a query on a relative image link, and whether
-  IntelliJ's Markdown preview fetches the image again when only the query changes; measured on each before the
-  reference's form is chosen.

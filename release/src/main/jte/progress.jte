@@ -3,11 +3,11 @@
 !{int labelWidth = Math.max(230, page.sprints().stream().mapToInt(s -> (s.id() + ". " + s.title()).length() * 8).max().orElse(230));}
 !{int marksWidth = Math.max(100, page.sprints().stream().mapToInt(s -> s.functions().size() * 24).max().orElse(100));}
 !{int width = Math.max(980, labelWidth + 550 + marksWidth);}
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${80 + page.sprints().size() * 30}" role="img" aria-label="Sprint progress for release ${page.release()}">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${104 + page.sprints().size() * 30}" role="img" aria-label="Sprint progress for release ${page.release()}">
 <title>Sprint progress for release ${page.release()}</title>
 <style>
 text{fill:#0b0b0b;font:13px system-ui,sans-serif}.legend{fill:#52514e}
-@media (prefers-color-scheme:dark){text{fill:#f0efec}.legend{fill:#c3c2b7}.c-surface{fill:#1a1a19}.c-grid{fill:#383835}.c-open{fill:#5e5d58}.c-review{fill:#3987e5}.c-dec{fill:#d95926}.c-new{fill:#1a1a19}}
+@media (prefers-color-scheme:dark){text{fill:#f0efec}.legend{fill:#c3c2b7}.c-surface{fill:#1a1a19}.c-grid{fill:#383835}.c-backlog{fill:#80bee6}.c-estimated{fill:#b497cf}.c-analyzed{fill:#77766f}.c-accepted{fill:#aaa9a2}.c-review{fill:#3987e5}.c-idea{fill:#d95926}.c-new{fill:#1a1a19}}
 </style>
 <rect width="100%" height="100%" fill="#fcfcfb" class="c-surface"/>
 @for(int i = 0; i < PlanTemplate.STATES.size(); i++)
@@ -19,7 +19,7 @@ text{fill:#0b0b0b;font:13px system-ui,sans-serif}.legend{fill:#52514e}
 @endfor
 @for(int i = 0; i < page.sprints().size(); i++)
 !{var sprint = page.sprints().get(i);}
-<g transform="translate(0 ${70 + i * 30})">
+<g transform="translate(0 ${94 + i * 30})">
 <text x="0" y="17">${sprint.id()}. ${sprint.title()}</text>
 <desc>${sprint.counts()}. @for(var function : sprint.functions())@for(var chip : function.chips())${chip.text()}: ${chip.detail()}; @endfor@endfor</desc>
 <svg x="${labelWidth}" width="540" height="24" viewBox="0 0 540 24">

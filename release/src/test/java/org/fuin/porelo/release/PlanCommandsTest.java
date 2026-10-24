@@ -43,6 +43,33 @@ class PlanCommandsTest {
     }
 
     @Test
+    void imageReferencesFollowTheWrittenContentWhenThePlanChanges() throws Exception {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        String previous = "";
+        for (final String title : java.util.List.of("One", "Changed function")) {
+            plan(function(title, "issues: [porelo-sample#SA01]"));
+            assertThat(run("render")).as("the changed plan renders: %s", errors).isZero();
+            final String markdown = Files.readString(file.resolveSibling("next.md"));
+            final var reference =
+                    java.util.regex.Pattern.compile("!\\[[^\\n]*]\\(([^)]+)\\)").matcher(markdown);
+            assertThat(reference.find()).as("the page links its progress image").isTrue();
+            final String name = reference.group(1);
+            final byte[] bytes = Files.readAllBytes(file.resolveSibling(name));
+            final String hash =
+                    java.util.HexFormat.of()
+                            .formatHex(
+                                    java.security.MessageDigest.getInstance("SHA-256")
+                                            .digest(bytes))
+                            .substring(0, 8);
+            assertThat(name)
+                    .as("the reference prevents a cached image from hiding changed progress")
+                    .isEqualTo("next/progress-" + hash + ".svg")
+                    .isNotEqualTo(previous);
+            previous = name;
+        }
+    }
+
+    @Test
     void imageAltCountsFollowTheLegendAndOmitEmptyStates() throws IOException {
         plan(
                 function(
@@ -66,7 +93,9 @@ class PlanCommandsTest {
         assertThat(Files.readString(file.resolveSibling("next.md")))
                 .as("the image carries the same progress as the SVG and legend")
                 .contains(
-                        "![Sprint s: Finished 1, Review 1, Implementing 1, Accepted 1, Backlog 1](next/progress.svg)")
+                        "![Sprint s: Finished 1, Review 1, Implementing 1, Backlog 1, Accepted 1]("
+                                + progressReference()
+                                + ")")
                 .doesNotContain("Not filed yet / Missing 0", "█", "░");
     }
 
@@ -85,7 +114,7 @@ class PlanCommandsTest {
                         "A release\n\n",
                         "*Stand: ",
                         "## Sprint progress\n\n",
-                        "](next/progress.svg)",
+                        "](" + progressReference() + ")",
                         PlanTemplate.INTRODUCTION,
                         "## Issues Details\n\n",
                         // A sprint stands in a box of its own, as on the HTML page: one table cell,
@@ -94,7 +123,7 @@ class PlanCommandsTest {
                         "A goal\n\n",
                         "**One ⚪ Not tested**\n\n",
                         "Test: Try it\n\n",
-                        "🟧 [SA01](https://github.com/porelo-ai/porelo-sample/blob/main/issues/README.md#sa01 \"porelo-sample#SA01 · Backlog · S · A function from its heading\") ◻️ unfiled",
+                        "🔲 [SA01](https://github.com/porelo-ai/porelo-sample/blob/main/issues/README.md#sa01 \"porelo-sample#SA01 · Backlog · S · A function from its heading\") ◻️ unfiled",
                         "**Two ✅ Tested 2026-02-03**",
                         "</td></tr></table>\n\n");
         assertThat(page.lines().filter(line -> line.startsWith("![")).count())
@@ -111,10 +140,10 @@ class PlanCommandsTest {
                 "Implementing:🟨",
                 "Rework:🟨",
                 "Accepted:⬜",
-                "Estimated:⬜",
-                "Analyzed:⬜",
+                "Estimated:🟪",
+                "Analyzed:⬛",
                 "Idea:🟧",
-                "Backlog:🟧"
+                "Backlog:🔲"
             })
     void chipsUseTheLegendColorForEveryState(String example) throws IOException {
         final String[] parts = example.split(":");
@@ -163,7 +192,9 @@ class PlanCommandsTest {
         assertThat(Files.readString(file.resolveSibling("next.md")))
                 .as("alt text reports each sprint and each nonzero state in legend order")
                 .contains(
-                        "![Sprint s: Finished 1, Rejected 1, Review 1, Rework 1; Sprint other: Not filed yet 1](next/progress.svg)");
+                        "![Sprint s: Finished 1, Rejected 1, Review 1, Rework 1; Sprint other: Not filed yet 1]("
+                                + progressReference()
+                                + ")");
     }
 
     @Test
@@ -357,7 +388,7 @@ class PlanCommandsTest {
                 .contains(
                         "Backlog · S · A function from its heading",
                         "README.md#sa01",
-                        "![Sprint s: Backlog 1](next/progress.svg)");
+                        "![Sprint s: Backlog 1](" + progressReference() + ")");
     }
 
     @Test
@@ -407,7 +438,7 @@ class PlanCommandsTest {
     void theProgressImageHasItsColoursWithoutAPagesStylesheet() throws IOException {
         plan(function("One", "tested: '2026-02-03'\n        issues: [porelo-sample#SA01]"));
         assertThat(run("render")).isZero();
-        final String svg = Files.readString(file.resolveSibling("next/progress.svg"));
+        final String svg = Files.readString(progressImage());
         // An SVG shown as an image, in a browser or an editor's Markdown view, resolves no CSS
         // variable in an
         // attribute: a fill of var(--done) is drawn black.
@@ -433,7 +464,7 @@ class PlanCommandsTest {
                                         + "        notes: [a further improvement]"));
         assertThat(run("render")).as("planned notes must be visible").isZero();
         final String page = Files.readString(file.resolveSibling("next.md"));
-        assertThat(Files.readString(file.resolveSibling("next/progress.svg")))
+        assertThat(Files.readString(progressImage()))
                 .as("only the indexed Finished issue is done; three unfiled steps remain pending")
                 .contains("1 of 4 done", "Not filed yet / Missing: 3");
         assertThat(page.lines().filter(line -> line.contains("✅ Tested ")).count())
@@ -446,7 +477,7 @@ class PlanCommandsTest {
                         "◻️ unfiled work",
                         "◻️ another step",
                         "◻️ a further improvement",
-                        "![Sprint s: Finished 1, Not filed yet 3](next/progress.svg)")
+                        "![Sprint s: Finished 1, Not filed yet 3](" + progressReference() + ")")
                 .doesNotContain("█", "░");
     }
 
@@ -937,7 +968,7 @@ class PlanCommandsTest {
                 .as("untrusted plan and index text must render safely: %s", errors)
                 .isZero();
         final String page = Files.readString(html);
-        final String svg = Files.readString(file.resolveSibling("next/progress.svg"));
+        final String svg = Files.readString(progressImage());
         assertThat(svg)
                 .as("sprint titles cannot inject executable SVG")
                 .contains("Sprint title &lt;script&gt;alert(1)&lt;/script&gt; &amp; \" '")
@@ -990,7 +1021,7 @@ class PlanCommandsTest {
         final var document =
                 javax.xml.parsers.DocumentBuilderFactory.newInstance()
                         .newDocumentBuilder()
-                        .parse(file.resolveSibling("next/progress.svg").toFile());
+                        .parse(progressImage().toFile());
         final var rectangles = document.getElementsByTagName("rect");
         final var segments = new java.util.ArrayList<org.w3c.dom.Element>();
         for (int i = 0; i < rectangles.getLength(); i++) {
@@ -998,7 +1029,7 @@ class PlanCommandsTest {
             if (rectangle.getElementsByTagName("title").getLength() > 0) segments.add(rectangle);
         }
         assertThat(segments).as("all six legend colors have counted segments").hasSize(6);
-        final String[] colors = {"done", "review", "impl", "open", "dec", "new"};
+        final String[] colors = {"done", "review", "impl", "backlog", "accepted", "new"};
         final int[] counts = {1, 2, 1, 1, 1, 1};
         int offset = 0;
         for (int i = 0; i < counts.length; i++) {
@@ -1041,14 +1072,14 @@ class PlanCommandsTest {
         assertThat(run("render", "--html", html.toString()))
                 .as("images render: %s", errors)
                 .isZero();
-        final Path image = file.resolveSibling("next/progress.svg");
+        final Path image = progressImage();
         assertThat(Files.isRegularFile(image))
                 .as("Markdown needs a standalone progress image")
                 .isTrue();
         final String svg = Files.readString(image);
         assertThat(Files.readString(file.resolveSibling("next.md")))
                 .as("the image travels with the Markdown page")
-                .contains("![Sprint s: Backlog 1](next/progress.svg)");
+                .contains("![Sprint s: Backlog 1](" + progressReference() + ")");
         assertThat(Files.readString(html))
                 .as("HTML retains its inline bars and function marks")
                 .contains("0 of 1 done")
@@ -1069,21 +1100,27 @@ class PlanCommandsTest {
                         "Finished / Rejected",
                         "Review",
                         "Implementing / Rework",
-                        "Accepted / Estimated / Analyzed",
-                        "Idea / Backlog",
+                        "Backlog",
+                        "Estimated",
+                        "Analyzed",
+                        "Accepted",
+                        "Idea",
                         "Not filed yet / Missing",
                         "fill=\"#0ca30c\" class=\"c-done\"",
                         "fill=\"#2a78d6\" class=\"c-review\"",
                         "fill=\"#fab219\" class=\"c-impl\"",
-                        "fill=\"#b9b8b2\" class=\"c-open\"",
-                        "fill=\"#eb6834\" class=\"c-dec\"",
+                        "fill=\"#8ac8f0\" class=\"c-backlog\"",
+                        "fill=\"#9575b5\" class=\"c-estimated\"",
+                        "fill=\"#77766f\" class=\"c-analyzed\"",
+                        "fill=\"#b9b8b2\" class=\"c-accepted\"",
+                        "fill=\"#eb6834\" class=\"c-idea\"",
                         "fill=\"#ffffff\" class=\"c-new\"")
                 .doesNotContain("<script", "href=", "<foreignObject", "<image");
         assertThat(run("check")).as("fresh Markdown and image pass: %s", errors).isZero();
         Files.writeString(image, svg.replace("0 of 1 done", "1 of 1 done"));
-        refused("progress.svg", "differs");
+        refused(image.getFileName().toString(), "differs");
         Files.delete(image);
-        refused("progress.svg", "missing");
+        refused(image.getFileName().toString(), "missing");
     }
 
     @Test
@@ -1118,7 +1155,11 @@ class PlanCommandsTest {
     void imagesCannotOverwriteInputsOrEscapeThePlanDirectory(String kind) throws IOException {
         plan(function("One", "issues: [porelo-sample#SA01]"));
         final Path folder = file.resolveSibling("next");
-        final Path image = folder.resolve("progress.svg");
+        assertThat(run("render")).as("resolve the generated image name: %s", errors).isZero();
+        final Path image = progressImage();
+        Files.delete(image);
+        Files.delete(folder);
+        Files.delete(file.resolveSibling("next.md"));
         final Path input = root.resolve("project.yml");
         final byte[] before = Files.readAllBytes(input);
         final Path outside = root.resolve("outside");
@@ -1217,6 +1258,19 @@ class PlanCommandsTest {
         assertThat(Files.exists(file.resolveSibling("next.md")))
                 .as("no page with invented metadata is written")
                 .isFalse();
+    }
+
+    private String progressReference() throws IOException {
+        final String page = Files.readString(file.resolveSibling("next.md"));
+        final var reference =
+                java.util.regex.Pattern.compile("!\\[[^\\n]*]\\(([^)]+)\\)").matcher(page);
+        if (!reference.find())
+            throw new IOException("No progress image reference in generated page");
+        return reference.group(1);
+    }
+
+    private Path progressImage() throws IOException {
+        return file.resolveSibling(progressReference());
     }
 
     private void realPlan() throws IOException {

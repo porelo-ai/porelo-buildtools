@@ -267,9 +267,13 @@ mismatched prefixes, duplicate sprint IDs or function titles, and invalid dates 
 
 Rendering writes `<release>.md` beside the YAML file. Markdown follows the HTML page's section order: the
 release heading and goal, italic Stand line, Sprint progress, the introduction, and Issues Details. The progress
-section links one self-contained jte-generated image, `<release>/progress.svg`, with the HTML legend's colored
+section links one self-contained jte-generated image, `<release>/progress-<hash>.svg`, with the HTML legend's colored
 boxes, one labeled bar and done count per sprint, and a tested or untested mark per function. Its alt text names
-each sprint and lists each nonzero state separately in legend order, including states sharing a color.
+each sprint and lists each nonzero state separately in legend order. The nine groups, from left to right, are
+Finished / Rejected, Review, Implementing / Rework, Backlog, Estimated, Analyzed, Accepted, Idea, and
+Not filed yet / Missing. The hash is the first eight lowercase hex digits of the image bytes' SHA-256;
+rendering removes older `progress-<hash>.svg` files and the legacy `progress.svg` in that release's directory,
+leaving other names alone.
 
 Details keep sprint and function order, each sprint framed as on the HTML page by a one-cell table that holds its
 Markdown: a sprint heading and goal, a bold function title with ✅ Tested and its

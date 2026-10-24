@@ -1,8 +1,12 @@
 package org.fuin.porelo.release;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -81,11 +85,49 @@ final class PlanRender {
                 }
             }
         }
+        final Set<Path> obsolete = obsoleteImages(file, plan, directory, outputs.keySet(), inputs);
         for (final var output : outputs.entrySet()) {
             Files.createDirectories(
                     java.util.Objects.requireNonNull(output.getKey().toAbsolutePath().getParent()));
             Files.writeString(output.getKey(), output.getValue());
         }
+        for (final Path image : obsolete) Files.delete(image);
+    }
+
+    private static Set<Path> obsoleteImages(
+            Path file, Plan plan, Path directory, Set<Path> outputs, Set<Path> inputs)
+            throws IOException, Stop {
+        final Path folder = file.toAbsolutePath().resolveSibling(plan.release());
+        final Set<Path> obsolete = new LinkedHashSet<>();
+        if (!Files.exists(folder)) return obsolete;
+        if (!destination(folder).startsWith(directory)) {
+            throw Stop.refused("Image directory resolves outside plan directory: " + folder);
+        }
+        try (var paths = Files.list(folder)) {
+            for (final Path image : paths.toList()) {
+                final String name = image.getFileName().toString();
+                if (!(name.equals("progress.svg") || name.matches("progress-[0-9a-f]{8}\\.svg"))
+                        || outputs.contains(image)
+                        || Files.isDirectory(image, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                if (!destination(image).startsWith(directory)) {
+                    throw Stop.refused("Obsolete image resolves outside plan directory: " + image);
+                }
+                for (final Path input : inputs) {
+                    if (sameFile(input, image)) {
+                        throw Stop.refused("Obsolete image must differ from input: " + input);
+                    }
+                }
+                for (final Path output : outputs) {
+                    if (sameFile(output, image)) {
+                        throw Stop.refused("Obsolete image must differ from output: " + output);
+                    }
+                }
+                obsolete.add(image);
+            }
+        }
+        return obsolete;
     }
 
     private static Path destination(Path file) throws IOException {
@@ -113,7 +155,9 @@ final class PlanRender {
     static Pages render(Plan plan, Map<String, IssueIndex> issues, String stand) {
         final PlanTemplate model = PlanTemplate.from(plan, issues, stand);
         final Map<String, String> images = new LinkedHashMap<>();
-        images.put(plan.release() + "/progress.svg", template("progress.jte", model));
+        final String svg = template("progress.jte", model);
+        final String image = plan.release() + "/progress-" + imageHash(svg) + ".svg";
+        images.put(image, svg);
         final Page page = new Page();
         page.markdown.append(GENERATED_MARKER).append("\n");
         page.heading(1, "Release " + model.release());
@@ -124,12 +168,7 @@ final class PlanRender {
                 model.sprints().stream()
                         .map(sprint -> "Sprint " + sprint.id() + ": " + sprint.counts())
                         .collect(java.util.stream.Collectors.joining("; "));
-        page.markdown
-                .append("![")
-                .append(alt(counts))
-                .append("](")
-                .append(model.release())
-                .append("/progress.svg)\n\n");
+        page.markdown.append("![").append(alt(counts)).append("](").append(image).append(")\n\n");
         page.text(PlanTemplate.INTRODUCTION);
         page.heading(2, "Issues Details");
         for (final PlanTemplate.Sprint sprint : model.sprints()) {
@@ -163,6 +202,18 @@ final class PlanRender {
                 page.markdown.toString(),
                 template("plan.jte", model),
                 java.util.Collections.unmodifiableMap(images));
+    }
+
+    private static String imageHash(String svg) {
+        try {
+            return HexFormat.of()
+                    .formatHex(
+                            MessageDigest.getInstance("SHA-256")
+                                    .digest(svg.getBytes(StandardCharsets.UTF_8)))
+                    .substring(0, 8);
+        } catch (final NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is unavailable", ex);
+        }
     }
 
     static String template(String name, Object model) {
