@@ -9,7 +9,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt29"></a>[BT29](BT29-The-Plan-Page-Tells-Ready-From-Undecided.md) | S | - | The plan page gives Backlog, Estimated and Idea a colour each, and its progress image a reference that changes with its content, so a preview shows the new one. |
 | <a id="bt28"></a>[BT28](BT28-A-Releases-Publish-Job-May-Write-Its-Contents.md) | M | - | `check-actions` lets `release.yml`'s job `publish` write `contents`, for porelo-host's release, and refuses that job when it runs a fetched action or a checkout. |
 
 ## Implementing
@@ -48,6 +47,7 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt29"></a>BT29 | The Plan Page Tells Ready From Undecided | Nine colour groups in the states' flow order, Backlog, Estimated and Idea each its own; the progress image named `progress-<8 hex of its SHA-256>.svg`, the release's older ones removed, so a preview and GitHub show the new one. |
 | <a id="bt15"></a>BT15 | Legs Taken From A Proven Run | `porelo-release proven-legs` lets a Build on `main` take its legs from a run of this repository that proved the same tree, so a squash merge rents no machine twice. |
 | <a id="bt04"></a>BT04 | Issue Numbers Link Their Index Row | `check-citations` holds every issue number in `issues/` to a link to its index row, in its own repository or another's, and refuses a link to a row that is not there. |
 | <a id="bt22"></a>BT22 | A Pin With Several Artifacts | `check-pin` and `add-fetched-cli` take `--pin <name>` and check and record one artifact of a CLI downloaded as several by the digest its own pin holds. |
