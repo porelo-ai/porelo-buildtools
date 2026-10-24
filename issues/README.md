@@ -9,8 +9,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt27"></a>[BT27](BT27-The-Release-Plan-Page-Drawn-From-Templates.md) | M | - | The plan's HTML page from jte templates and its Markdown page built like it, with one progress image, sprints in boxes and the inputs' commit time as Stand. |
-| <a id="bt26"></a>[BT26](BT26-A-Release-Planned-In-Sprints-Of-Tested-Functions.md) | M | - | `porelo-release plan render` and `plan check`: a release's page from its plan file and every index, five faults refused; porelo-project [PJ63](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj63)'s build part. |
 | <a id="bt20"></a>[BT20](BT20-Bills-Read-With-A-Current-CycloneDX-Library.md) | S | - | porelo-release on `cyclonedx-core-java` 11.0.1 and `commons-lang3` 3.18.0, from the parent; built, proven on real bills. |
 | <a id="bt21"></a>[BT21](BT21-Jackson-Without-Its-Known-Advisories.md) | XS | - | porelo-release on Jackson 2.22.3, past the advisories against 2.21.2. |
 | <a id="bt12"></a>[BT12](BT12-A-Rented-Machine-Carries-Its-Expiry.md) | M | - | Every lease labels its server `porelo-expires`, from the job's time limit plus a margin; `sweep` deletes only servers past their expiry or without one, refuses `--older-than`, and deletes servers in use only with `--including-in-use`; `porelo`'s `sweep.yml` moves with it; built here, left: `porelo`'s `sweep.yml` and a run of the hourly sweep. |
@@ -56,6 +54,8 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt27"></a>BT27 | The Release Plan Page Drawn From Templates | `plan render` draws the HTML page from precompiled jte templates and the Markdown page like it, with one self-contained progress image, sprints in boxes and the inputs' latest commit time as *Stand*; `plan check` compares both with a fresh render. |
+| <a id="bt26"></a>BT26 | A Release Planned In Sprints Of Tested Functions | `porelo-release plan render` and `plan check` read a release's plan file of sprints and tested functions against every repository's issue index, write its page and refuse five faults, naming the issue or the function. |
 | <a id="bt19"></a>BT19 | A Component Told Apart By Its Group | `add-component` matches a recorded component on group and name, so npm's `@types/node` and the Node runtime stand side by side in a tree's bill. |
 | <a id="bt05"></a>BT05 | The Code Read Against The Skills It Names | Every module read against the seven skills `AGENTS.md` names, each finding fixed with a test seen red or declined, and its three questions decided. |
 | <a id="bt02"></a>BT02 | Check Actions Reads Permissions | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
