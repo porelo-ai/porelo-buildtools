@@ -37,6 +37,7 @@ record Plan(String release, String goal, List<Sprint> sprints) {
             String test,
             @Nullable String tested,
             List<String> issues,
+            List<String> covers,
             List<String> notes) {}
 
     /** The project that owns the plan and the prefixes its repositories declare. */
@@ -107,7 +108,10 @@ record Plan(String release, String goal, List<Sprint> sprints) {
             for (final JsonNode function : array(sprint, "functions", where)) {
                 final String functionTitle = string(function, "title", where + " function");
                 final String place = where + " function " + functionTitle;
-                keys(function, Set.of("title", "test", "tested", "issues", "notes"), place);
+                keys(
+                        function,
+                        Set.of("title", "test", "tested", "issues", "covers", "notes"),
+                        place);
                 if (!titles.add(functionTitle)) {
                     throw Stop.refused(place + ": duplicate function title");
                 }
@@ -120,12 +124,17 @@ record Plan(String release, String goal, List<Sprint> sprints) {
                 for (final String named : issues) {
                     reference(named, project, place);
                 }
+                final List<String> covers = strings(function, "covers", place);
+                for (final String named : covers) {
+                    reference(named, project, place);
+                }
                 functions.add(
                         new Function(
                                 functionTitle,
                                 test,
                                 tested,
                                 issues,
+                                covers,
                                 strings(function, "notes", place)));
             }
             sprints.add(new Sprint(id, title, sprintGoal, List.copyOf(functions)));

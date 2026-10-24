@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** Guards plans against losing references, accepting untested work, or publishing stale pages. */
@@ -403,6 +404,168 @@ class PlanCommandsTest {
         refused(
                 "porelo-sample#SA99 has no row in its index "
                         + directory.resolve("porelo-sample/issues/README.md"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "Accepted, Implementing",
+        "Backlog, Review",
+        "Idea, Rework",
+        "Analyzed, Finished",
+        "Estimated, Implementing"
+    })
+    void aCoveredParentCannotStayBeforeImplementingOnceAPartStarts(
+            String parentState, String partState) throws IOException {
+        plan(
+                function(
+                        "One",
+                        "tested: '2026-02-03'\n        issues: [porelo-sample#SA01]\n"
+                                + "        covers: [porelo-project#PJ01]"));
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                "## "
+                        + partState
+                        + "\n| <a id=\"sa01\"></a>SA01 | "
+                        + (partState.equals("Finished") ? "Part | Built" : "S | - | Part")
+                        + " |\n");
+        writeParent(parentState);
+        assertThat(run("render")).as("the refusal checks a fresh page: %s", errors).isZero();
+        refused("sprint s function One", "porelo-project#PJ01", parentState, "SA01", partState);
+
+        writeParent("Implementing");
+        assertThat(run("render")).as("the advanced parent renders: %s", errors).isZero();
+        assertThat(run("check"))
+                .as("a parent at Implementing keeps up with its active part: %s", errors)
+                .isZero();
+    }
+
+    @Test
+    void aCoveredParentWithoutAnIndexRowIsRefused() throws IOException {
+        plan(
+                function(
+                        "One",
+                        "issues: [porelo-sample#SA01]\n        covers: [porelo-project#PJ99]"));
+        final Path html = root.resolve("page.html");
+        assertThat(run("render", "--html", html.toString()))
+                .as("a missing parent stays visible before validation: %s", errors)
+                .isZero();
+        refused(
+                "sprint s function One",
+                "porelo-project#PJ99 has no row in its index " + root.resolve("issues/README.md"));
+        for (final Path page : java.util.List.of(html, file.resolveSibling("next.md"))) {
+            assertThat(Files.readString(page))
+                    .as("the missing parent is identified on %s", page)
+                    .contains("PJ99", "Missing index row");
+        }
+    }
+
+    @Test
+    void aParentRepeatedWithinOneFunctionsCoversIsRefused() throws IOException {
+        plan(
+                function(
+                        "One",
+                        "issues: [porelo-sample#SA01]\n"
+                                + "        covers: [porelo-project#PJ01, porelo-project#PJ01]"));
+        assertThat(run("render"))
+                .as("duplicate covers render before checking: %s", errors)
+                .isZero();
+        refused("sprint s function One", "duplicate", "porelo-project#PJ01");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void aCoveredParentCannotAlsoBeAnIssueInAnyFunction(boolean sameFunction) throws IOException {
+        plan(
+                function(
+                                "One",
+                                "issues: [porelo-sample#SA01"
+                                        + (sameFunction ? ", porelo-project#PJ01" : "")
+                                        + "]\n        covers: [porelo-project#PJ01]")
+                        + (sameFunction ? "" : function("Two", "issues: [porelo-project#PJ01]")));
+        assertThat(run("render")).as("overlapping references render: %s", errors).isZero();
+        refused("sprint s function One", "porelo-project#PJ01", "also listed under issues");
+    }
+
+    @Test
+    void severalFunctionsMayCoverTheSameParentBeforeTheirPartsStart() throws IOException {
+        plan(
+                function(
+                                "One",
+                                "issues: [porelo-sample#SA01]\n        covers: [porelo-project#PJ01]")
+                        + function(
+                                "Two", "notes: [pending]\n        covers: [porelo-project#PJ01]"));
+        writeParent("Accepted");
+        assertThat(run("render")).as("shared coverage renders: %s", errors).isZero();
+        assertThat(run("check"))
+                .as("a covered parent has no exclusive function assignment: %s", errors)
+                .isZero();
+    }
+
+    @Test
+    void coveredParentsAppearOnBothPagesWithoutChangingProgress() throws IOException {
+        final String fields =
+                "tested: '2026-02-03'\n        issues: [porelo-sample#SA01, porelo-sample#SA02]";
+        write(
+                root.resolve("issues/README.md"),
+                "## Accepted\n| <a id=\"pj01\"></a>PJ01 | S | - | Parent |\n"
+                        + "## Finished\n| <a id=\"pj02\"></a>PJ02 | Closed parent | Built |\n");
+        plan(function("One", fields));
+        final Path html = root.resolve("page.html");
+        assertThat(run("render", "--html", html.toString()))
+                .as("the plan without covered parents renders: %s", errors)
+                .isZero();
+        final String bar = sprintSvg(Files.readString(html));
+        final byte[] progress = Files.readAllBytes(progressImage());
+        final String reference = progressReference();
+        plan(
+                function(
+                        "One",
+                        fields + "\n        covers: [porelo-project#PJ01, porelo-project#PJ02]"));
+        assertThat(run("render", "--html", html.toString()))
+                .as("parents from a repository named only under covers render: %s", errors)
+                .isZero();
+        final String page = Files.readString(html);
+        assertThat(sprintSvg(page))
+                .as("covered parents change neither bar geometry, done count nor SVG description")
+                .isEqualTo(bar)
+                .contains("1 of 2 done");
+        assertThat(Files.readAllBytes(progressImage()))
+                .as("covered parents change no progress image bytes or counts")
+                .isEqualTo(progress);
+        assertThat(progressReference())
+                .as("the unchanged image retains its content hash")
+                .isEqualTo(reference);
+        final String link =
+                "https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj";
+        final String detail = "porelo-project#PJ01 · Accepted · S · Parent";
+        assertThat(page)
+                .as("HTML shows the linked parents with states together below the issue chips")
+                .containsSubsequence(
+                        "class=\"chip done\"",
+                        "covers <a href=\""
+                                + link
+                                + "01\" title=\""
+                                + detail
+                                + "\">PJ01</a> · Accepted, ",
+                        ">PJ02</a> · Finished");
+        assertThat(Files.readString(file.resolveSibling("next.md")))
+                .as("Markdown shows the same parent line without adding parents to alt counts")
+                .contains(
+                        "covers [PJ01]("
+                                + link
+                                + "01 \""
+                                + detail
+                                + "\") · Accepted, [PJ02]("
+                                + link
+                                + "02 \"porelo-project#PJ02 · Finished · - · Closed parent\") · Finished",
+                        "![Sprint s: Finished 1, Backlog 1](" + reference + ")");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"unknown#PJ01", "porelo-project#NO01", "PJ01"})
+    void coveredParentReferencesAreValidatedLikeIssueReferences(String parent) throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]\n        covers: ['" + parent + "']"));
+        refused("sprint s function One", parent);
     }
 
     @Test
@@ -1258,6 +1421,19 @@ class PlanCommandsTest {
         assertThat(Files.exists(file.resolveSibling("next.md")))
                 .as("no page with invented metadata is written")
                 .isFalse();
+    }
+
+    private void writeParent(String state) throws IOException {
+        write(
+                root.resolve("issues/README.md"),
+                "## " + state + "\n| <a id=\"pj01\"></a>PJ01 | S | - | Parent |\n");
+    }
+
+    private static String sprintSvg(String html) {
+        final var svg =
+                java.util.regex.Pattern.compile("(?s)<svg xmlns=.*?</svg>.*?</svg>").matcher(html);
+        assertThat(svg.find()).as("the HTML page contains an inline sprint SVG").isTrue();
+        return svg.group();
     }
 
     private String progressReference() throws IOException {

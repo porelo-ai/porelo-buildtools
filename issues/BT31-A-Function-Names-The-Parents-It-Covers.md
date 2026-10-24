@@ -1,6 +1,6 @@
 # BT31 — A Function Names The Parents It Covers
 
-**Status:** Backlog
+**Status:** Implementing
 **Size:** S - one module (`release`'s plan reading, page and check) and its tests, no contract another repository reads
 beyond the optional new field.
 
@@ -13,7 +13,7 @@ sprint's bar, and `plan check` refuses a parent that has fallen behind its parts
 - `Plan.Function` takes an optional `covers:` list beside `issues:`, each entry `<repository>#<number>` checked like
   an issue reference; `PlanRender.indexes` reads the indexes of the covered repositories too.
 - `PlanTemplate.Function` carries the covered parents with number, state and link; `plan.jte` shows one line
-  "covers PJ69 · Accepted" under the function's chips, and the Markdown page the same line, linked. They add nothing
+  "covers <number> · Accepted" under the function's chips, and the Markdown page the same line, linked. They add nothing
   to the bar's segments, the done count, the alt text's counts or the SVG's description.
 - `PlanCheck` refuses, naming sprint, function and parent:
   - a covered parent with no row in its index;

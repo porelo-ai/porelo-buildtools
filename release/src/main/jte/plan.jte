@@ -63,6 +63,9 @@ a.chip{text-decoration:none} .row>svg{width:100%;height:20px;display:block} .ic{
 @for(var chip : function.chips())
 @template.chip(chip)
 @endfor
+@if(!function.covers().isEmpty())
+<div class="how">covers @for(int i = 0; i < function.covers().size(); i++)!{var parent = function.covers().get(i);}@if(i > 0), @endif@if(parent.link().isEmpty())${parent.number()}@else<a href="${parent.link()}" title="${parent.detail()}">${parent.number()}</a>@endif · ${parent.state()}@endfor</div>
+@endif
 </div>
 @endfor
 </div>

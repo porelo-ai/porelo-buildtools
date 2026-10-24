@@ -74,8 +74,12 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
         }
     }
 
-    /** A function's instructions and the person's recorded test. */
-    public record Function(String title, String test, String tested, List<Chip> chips) {}
+    /** A covered parent is visible without contributing work to the sprint's progress. */
+    public record Parent(String number, String state, String link, String detail) {}
+
+    /** A function's instructions, covered parents and the person's recorded test. */
+    public record Function(
+            String title, String test, String tested, List<Chip> chips, List<Parent> covers) {}
 
     /** One counted state with its position in a 400-unit bar. */
     public record Segment(String color, String label, int count, double x, double width) {}
@@ -122,12 +126,24 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
                     counts.merge("new", 1, Integer::sum);
                     states.merge("Not filed yet", 1, Integer::sum);
                 }
+                final List<Parent> covers = new ArrayList<>();
+                for (final String named : function.covers()) {
+                    final IssueIndex row = issues.get(named);
+                    final Chip chip = chip(named, row);
+                    covers.add(
+                            new Parent(
+                                    named.split("#")[1],
+                                    row == null ? "Missing index row" : row.state(),
+                                    chip.link(),
+                                    chip.detail()));
+                }
                 functions.add(
                         new Function(
                                 function.title(),
                                 function.test(),
                                 function.tested() == null ? "" : function.tested(),
-                                List.copyOf(chips)));
+                                List.copyOf(chips),
+                                List.copyOf(covers)));
             }
             final int total = counts.values().stream().mapToInt(Integer::intValue).sum();
             final List<Segment> segments = new ArrayList<>();

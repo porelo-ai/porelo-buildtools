@@ -29,6 +29,7 @@ final class PlanRender {
         for (final Plan.Sprint sprint : plan.sprints()) {
             for (final Plan.Function function : sprint.functions()) {
                 function.issues().forEach(issue -> repositories.add(issue.split("#")[0]));
+                function.covers().forEach(parent -> repositories.add(parent.split("#")[0]));
             }
         }
         final Map<String, IssueIndex> issues = new LinkedHashMap<>();
@@ -195,6 +196,16 @@ final class PlanRender {
                     page.chip(function.chips().get(i));
                 }
                 if (!function.chips().isEmpty()) page.markdown.append("\n\n");
+                if (!function.covers().isEmpty()) {
+                    page.markdown.append("covers ");
+                    for (int i = 0; i < function.covers().size(); i++) {
+                        if (i > 0) page.markdown.append(", ");
+                        final PlanTemplate.Parent parent = function.covers().get(i);
+                        page.link(parent.number(), parent.link(), parent.detail());
+                        page.markdown.append(" · ").append(inline(parent.state()));
+                    }
+                    page.markdown.append("\n\n");
+                }
             }
             page.markdown.append("</td></tr></table>\n\n");
         }
@@ -262,15 +273,19 @@ final class PlanRender {
 
         void chip(PlanTemplate.Chip chip) {
             markdown.append(chip.emoji()).append(' ');
-            if (chip.link().isEmpty()) {
-                markdown.append(inline(chip.text()));
+            link(chip.text(), chip.link(), chip.detail());
+        }
+
+        void link(String text, String link, String detail) {
+            if (link.isEmpty()) {
+                markdown.append(inline(text));
             } else {
                 markdown.append('[')
-                        .append(inline(chip.text()))
+                        .append(inline(text))
                         .append("](")
-                        .append(chip.link())
+                        .append(link)
                         .append(" \"")
-                        .append(title(chip.detail()))
+                        .append(title(detail))
                         .append("\")");
             }
         }
