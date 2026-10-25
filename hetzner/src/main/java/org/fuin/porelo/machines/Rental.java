@@ -123,28 +123,7 @@ public final class Rental {
         run(lease, AgentLeg.install(options.os(), options.artifactory(), installs));
 
         System.out.println("\n-- creating the " + USER + " user --");
-        run(
-                lease,
-                "id -u "
-                        + USER
-                        + " >/dev/null 2>&1 || useradd -m -s /bin/bash "
-                        + USER
-                        + "; loginctl enable-linger "
-                        + USER
-                        + "; install -d -m 0700 -o "
-                        + USER
-                        + " -g "
-                        + USER
-                        + " /home/"
-                        + USER
-                        + "/.ssh"
-                        + " && install -m 0600 -o "
-                        + USER
-                        + " -g "
-                        + USER
-                        + " /root/.ssh/authorized_keys /home/"
-                        + USER
-                        + "/.ssh/authorized_keys");
+        run(lease, AgentLeg.account(USER, lease.authorizedKeys()));
 
         // The same grant a leg gets, for the same reason: a machine somebody leases by hand is the
         // one they reproduce a CI failure on, and one that cannot restart cannot reproduce the
@@ -173,7 +152,7 @@ public final class Rental {
         // Proved rather than hoped: a daemon that failed to start leaves no socket, and a test
         // suite meeting that would report it as its own failure to connect.
         if (lease.ssh()
-                .run("test -S " + socket + " && echo yes || echo no")
+                .run(lease.asRoot("test -S " + socket + " && echo yes || echo no"))
                 .out()
                 .strip()
                 .equals("no")) {
@@ -213,7 +192,7 @@ public final class Rental {
     }
 
     private static void run(Lease lease, String command) throws IOException {
-        final Ssh.Output out = lease.ssh().run(command, null);
+        final Ssh.Output out = lease.ssh().run(lease.asRoot(command), null);
         System.out.print(out.all());
         if (out.status() != 0) {
             throw new IOException("the lease failed at: " + command);

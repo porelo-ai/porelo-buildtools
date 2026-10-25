@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,12 +147,7 @@ public final class AgentLeg {
                 installs = sendCandidate(lease, options.os(), options.candidate());
             }
 
-            System.out.println(
-                    "\n-- installing from " + options.artifactory() + ", as an operator would --");
-            run(lease, install(options.os(), options.artifactory(), installs));
-
-            System.out.println("\n-- creating the " + USER + " user --");
-            run(lease, account(USER));
+            provision(lease, options, installs, lease.ssh()::run);
             final List<String> users = accounts(options.accounts());
             if (users.size() > 1) {
                 // Every account keeps its own image store, so without a cache each would pull every
@@ -163,7 +159,7 @@ public final class AgentLeg {
                                 + " more accounts to run scenarios beside each other --");
                 run(lease, Snapshots.mirror(Snapshots.Contents.pinned().registry()));
                 for (final String extra : users.subList(1, users.size())) {
-                    run(lease, account(extra));
+                    run(lease, account(extra, lease.authorizedKeys()));
                     try (Ssh as = Ssh.to(lease.address(), extra, credential, lease.hostKey())) {
                         run(as, "porelo setup", null);
                     }
@@ -223,6 +219,22 @@ public final class AgentLeg {
 
             System.out.println("\n-- the leg passed on " + options.os() + " at " + lease.address());
         }
+    }
+
+    /** Sends a command through SSH without requiring a machine in a unit test. */
+    @FunctionalInterface
+    interface Command {
+        Ssh.Output run(String command, @Nullable String stdin) throws IOException;
+    }
+
+    /** Installs the packages and creates the account before any unprivileged work starts. */
+    static void provision(Lease lease, Options options, String installs, Command ssh)
+            throws IOException {
+        System.out.println(
+                "\n-- installing from " + options.artifactory() + ", as an operator would --");
+        run(ssh, lease.asRoot(install(options.os(), options.artifactory(), installs)), null);
+        System.out.println("\n-- creating the " + USER + " user --");
+        run(ssh, lease.asRoot(account(USER, lease.authorizedKeys())), null);
     }
 
     /**
@@ -311,6 +323,11 @@ public final class AgentLeg {
      * @return The command.
      */
     static String account(String user) {
+        return account(user, "/root/.ssh/authorized_keys");
+    }
+
+    /** Creates an account using the authorized keys of the connection that provisioned it. */
+    static String account(String user, String authorizedKeys) {
         return "id -u "
                 + user
                 + " >/dev/null 2>&1 || useradd -m -s /bin/bash "
@@ -328,7 +345,9 @@ public final class AgentLeg {
                 + user
                 + " -g "
                 + user
-                + " /root/.ssh/authorized_keys /home/"
+                + " "
+                + authorizedKeys
+                + " /home/"
                 + user
                 + "/.ssh/authorized_keys";
     }
@@ -348,6 +367,22 @@ public final class AgentLeg {
      * @throws IOException If the directory holds no package, or two builds of one.
      */
     static String sendCandidate(Lease lease, String os, Path candidate) throws IOException {
+        return sendCandidate(
+                lease,
+                os,
+                candidate,
+                (command, stdin) -> lease.ssh().run(command, stdin),
+                (file, remote) -> lease.ssh().upload(file, remote));
+    }
+
+    /** Transfers a candidate through SSH, with a transport a test can supply. */
+    @FunctionalInterface
+    interface Upload {
+        void send(Path file, String remote) throws IOException;
+    }
+
+    static String sendCandidate(Lease lease, String os, Path candidate, Command ssh, Upload upload)
+            throws IOException {
         final String suffix = CANDIDATE.get(os);
         if (suffix == null) {
             throw new IOException(
@@ -397,9 +432,17 @@ public final class AgentLeg {
                                 .toList());
 
         System.out.println("\n-- sending the candidate: " + byName.keySet() + " --");
-        run(lease, "mkdir -p " + CANDIDATES + " && rm -f " + CANDIDATES + "*");
+        run(ssh, lease.asRoot("mkdir -p " + CANDIDATES + " && rm -f " + CANDIDATES + "*"), null);
         for (final Path each : byName.values()) {
-            lease.ssh().upload(each, CANDIDATES + each.getFileName());
+            final String destination = CANDIDATES + each.getFileName();
+            if (lease.isRoot()) {
+                upload.send(each, destination);
+            } else {
+                run(
+                        ssh,
+                        lease.asRoot("base64 -d > " + quote(destination)),
+                        Base64.getEncoder().encodeToString(Files.readAllBytes(each)));
+            }
         }
         return remote;
     }
@@ -598,15 +641,20 @@ public final class AgentLeg {
     }
 
     private static void run(Lease lease, String command) throws IOException {
-        run(lease.ssh(), command, null);
+        run(lease.ssh(), lease.asRoot(command), null);
     }
 
     private static void run(Lease lease, String command, @Nullable String stdin)
             throws IOException {
-        run(lease.ssh(), command, stdin);
+        run(lease.ssh(), lease.asRoot(command), stdin);
     }
 
     private static void run(Ssh ssh, String command, @Nullable String stdin) throws IOException {
+        run(ssh::run, command, stdin);
+    }
+
+    private static void run(Command ssh, String command, @Nullable String stdin)
+            throws IOException {
         final Ssh.Output out = ssh.run(command, stdin);
         System.out.print(out.all());
         if (out.status() != 0) {

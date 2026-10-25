@@ -280,7 +280,7 @@ public final class Snapshots {
         try (Lease lease = hetzner.acquireFromStock(spec, stock)) {
             lease.awaitSsh();
             System.out.println("preparing " + os);
-            final Ssh.Output prepared = lease.ssh().run(recipe(os));
+            final Ssh.Output prepared = lease.ssh().run(lease.asRoot(recipe(os)));
             if (prepared.status() != 0) {
                 throw new IOException("could not prepare " + os + ": " + prepared.all());
             }
@@ -366,7 +366,7 @@ public final class Snapshots {
      */
     private static void run(Lease lease, String command, @Nullable String stdin)
             throws IOException {
-        final Ssh.Output out = lease.ssh().run(command, stdin);
+        final Ssh.Output out = lease.ssh().run(lease.asRoot(command), stdin);
         if (out.status() != 0) {
             throw new IOException("preparing the image failed at: " + command + "\n" + out.all());
         }

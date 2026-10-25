@@ -141,6 +141,23 @@ public final class Lease implements AutoCloseable {
         return hostKey;
     }
 
+    /** Whether the SSH connection already has root privileges. */
+    boolean isRoot() {
+        return spec.user().equals("root");
+    }
+
+    /** Keeps a whole script, including its redirects, inside the privileged shell. */
+    String asRoot(String command) {
+        return isRoot() ? command : "sudo -n sh -c " + AgentLeg.quote(command);
+    }
+
+    /** The lease account's authorized keys, as a shell word. */
+    String authorizedKeys() {
+        return isRoot()
+                ? "/root/.ssh/authorized_keys"
+                : AgentLeg.quote("/home/" + spec.user() + "/.ssh/authorized_keys");
+    }
+
     /**
      * Waits until the machine answers ssh and accepts the key.
      *
@@ -179,7 +196,7 @@ public final class Lease implements AutoCloseable {
         // The command cannot answer - the connection dies with the machine - so its failure is
         // expected and says nothing.
         try {
-            ssh().run("systemctl reboot");
+            ssh().run(asRoot("systemctl reboot"));
         } catch (IOException ex) {
             // Going down is what was asked for.
         }
@@ -234,11 +251,11 @@ public final class Lease implements AutoCloseable {
      */
     public void onlyAgent(String agent) throws IOException {
         final Ssh open = ssh();
-        final Ssh.Output removed = open.run(REMOVE_AGENTS);
+        final Ssh.Output removed = open.run(asRoot(REMOVE_AGENTS));
         if (removed.status() != 0) {
             throw new IOException("could not remove the agents on " + name + ": " + removed.all());
         }
-        final Ssh.Output installed = open.run(install(agent));
+        final Ssh.Output installed = open.run(asRoot(install(agent)));
         if (installed.status() != 0) {
             throw new IOException(
                     "could not install " + agent + " on " + name + ": " + installed.all());

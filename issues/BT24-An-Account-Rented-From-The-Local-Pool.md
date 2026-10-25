@@ -36,6 +36,20 @@ when every account is held, and has the account's VM made clean when it is given
   accounts; a fifth on four waits and refuses; `close` runs the reset; a `dirty` account is reset before it is handed
   out; an account is not ready until its VM says `ready`; each malformed file is refused.
 
+## Measured
+
+- **Local VM, 2026-10-25 09:31Z-09:50Z:** porelo-host's Molecule scenario on its test VM with nested KVM uses
+  `porelo-machines` built from this branch's head to rent the pool's account `run`. A renter returns its lease
+  normally; another receives SIGKILL while holding its lease. Each leaves a file in the account's home and one
+  written as root in `/etc`; after each case, the next rental of the same account finds neither file.
+- **Acceptance in the pool:** `acceptance --pool` installs published Porelo, creates its `acceptance` account and
+  runs a leg in it; the next rental finds that account gone.
+- **Provisioning:** a pool lease whose account is not root runs provisioning as root through `sudo -n sh -c`
+  and creates the acceptance account with the lease account's own `authorized_keys`. A root lease's commands
+  are unchanged.
+- **Seen red, 2026-10-25 09:51Z-10:08Z:** with the reset of an account a killed renter leaves dirty omitted
+  from the build, the rental after SIGKILL finds both files, and the check fails.
+
 ## Acceptance
 
 - Two runs at once get two different accounts of the same VM; a fifth run on a pool of four waits, then refuses

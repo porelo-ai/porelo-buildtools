@@ -1,0 +1,2 @@
+title: 'Provision non-root pool leases with noninteractive sudo and copy the lease account’s authorized keys to acceptance accounts'
+type: fixed
