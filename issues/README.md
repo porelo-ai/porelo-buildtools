@@ -5,12 +5,6 @@ issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). *Open questio
 waits on the operator: the items under an issue's own *Open questions*. Its prefix is `BT`. A group with nothing in it is
 left out.
 
-## Review
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt28"></a>[BT28](BT28-A-Releases-Publish-Job-May-Write-Its-Contents.md) | M | - | `check-actions` lets `release.yml`'s job `publish` write `contents`, for porelo-host's release, and refuses that job when it runs a fetched action or a checkout. |
-
 ## Implementing
 
 | # | Size | Blocked by | What it covers |
@@ -47,6 +41,7 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt28"></a>BT28 | A Release's Publish Job May Write Its Contents | `porelo-release check-actions` lets the job `publish` of `release.yml` write `contents`, so porelo-host's release can attach its tarball and digest, and holds that job to runner commands alone: no fetched action, image or shell template, only its listed env names, and expressions only in env values and if. |
 | <a id="bt31"></a>BT31 | A Function Names The Parents It Covers | A plan function names under `covers:` the parent issues it covers with no work of their own; both pages show them as one line with their state, outside the sprint's bar and counts, and `plan check` refuses a parent missing from its index, named twice, or behind its parts. |
 | <a id="bt29"></a>BT29 | The Plan Page Tells Ready From Undecided | Nine colour groups in the states' flow order, Backlog, Estimated and Idea each its own; the progress image named `progress-<8 hex of its SHA-256>.svg`, the release's older ones removed, so a preview and GitHub show the new one. |
 | <a id="bt15"></a>BT15 | Legs Taken From A Proven Run | `porelo-release proven-legs` lets a Build on `main` take its legs from a run of this repository that proved the same tree, so a squash merge rents no machine twice. |
