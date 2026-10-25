@@ -67,7 +67,7 @@ jobs:
 
     # Only when the newest snapshot was made from other inputs than this commit names, or when a person
     # starts this workflow on main by hand. The legs of every Porelo repository boot the newest snapshot, so
-    # this is where they are rebuilt: here, where the pins are.
+    # this is where they are rebuilt: here, where the pins are. A forge that publishes nothing rebuilds none.
     snapshots:
         name: Snapshot - ${{ matrix.os }}
         runs-on: ubuntu-26.04
@@ -79,6 +79,7 @@ jobs:
         if: >-
             (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
             && github.ref == 'refs/heads/main'
+            && vars.PORELO_PUBLISH != 'false'
         permissions:
             contents: read
         strategy:
