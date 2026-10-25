@@ -1,6 +1,6 @@
 # BT24 — An Account Rented From The Local Pool
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - one new `Machines` beside `LocalVms` and `Hetzner`, a file format porelo-host writes, and the option
 that picks it; no provider is touched.
 
