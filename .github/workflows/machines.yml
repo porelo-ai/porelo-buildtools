@@ -27,6 +27,9 @@ jobs:
     refresh:
         name: Ask upstream
         runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         timeout-minutes: 20
         permissions:
             contents: write

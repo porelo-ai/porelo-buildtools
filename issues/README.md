@@ -15,6 +15,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt32"></a>[BT32](BT32-Snapshots-On-The-Forges-Own-Registry.md) | S | - | The same workflows resolve and publish snapshots through the forge's configured Maven registry, with Sonatype retained on GitHub and for every release tag. |
 | <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 | <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that the operator requires on `main` before merging an action move by hand; no auto-merge, decided 2026-10-18. |
 | <a id="bt10"></a>[BT10](BT10-A-Leg-Takes-No-IPv6-Address.md) | S | - | Every server is created with an IPv4 address and no IPv6 one, one primary IP instead of two; built with its test seen red, the full-quota answer read from the API's reference; left: the leg kinds green on such servers in the Builds after the push. |

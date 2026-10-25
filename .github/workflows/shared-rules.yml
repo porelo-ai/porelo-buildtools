@@ -17,6 +17,9 @@ permissions:
 jobs:
     check:
         runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         timeout-minutes: 10
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

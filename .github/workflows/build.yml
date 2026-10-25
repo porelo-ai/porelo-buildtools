@@ -33,6 +33,9 @@ jobs:
     build:
         name: Build and unit tests
         runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         # Every job stops after a limit: GitHub's default is six hours, and a slow runner once took 14 times as long.
         timeout-minutes: 20
         permissions:
@@ -68,6 +71,9 @@ jobs:
     snapshots:
         name: Snapshot - ${{ matrix.os }}
         runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         # The step that rents the machine stops sooner, so the clean-up still runs inside this limit.
         timeout-minutes: 75
         if: >-
@@ -129,6 +135,9 @@ jobs:
     deploy:
         name: Publish
         runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         timeout-minutes: 20
         needs: [build]
         if: >-
@@ -183,8 +192,20 @@ jobs:
             # to the runner's disk for a later step or action to read.
             - name: Deploy the jars
               env:
+                  PORELO_DEPLOY_PROFILE: ${{ vars.PORELO_DEPLOY_PROFILE }}
+                  PORELO_DEPLOY_CHANNEL: ${{ steps.channel.outputs.channel }}
                   OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
                   OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
                   MAVEN_GPG_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
                   MAVEN_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
-              run: ./mvnw -B deploy -Pcentral-sonatype-release -Dgpg.signer=bc -s settings.xml -DskipTests
+              run: |
+                  set -eu
+                  case "$PORELO_DEPLOY_PROFILE" in
+                      central-sonatype-release | forge-release) ;;
+                      *) echo "::error::unsupported PORELO_DEPLOY_PROFILE: $PORELO_DEPLOY_PROFILE"; exit 1 ;;
+                  esac
+                  if [ "$PORELO_DEPLOY_CHANNEL" = releases ] && [ "$PORELO_DEPLOY_PROFILE" != central-sonatype-release ]; then
+                      echo "::error::releases require central-sonatype-release, got $PORELO_DEPLOY_PROFILE"
+                      exit 1
+                  fi
+                  ./mvnw -B deploy -P"$PORELO_DEPLOY_PROFILE" -Dgpg.signer=bc -s settings.xml -DskipTests

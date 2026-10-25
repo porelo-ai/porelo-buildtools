@@ -1,6 +1,6 @@
 # The light check of a pull request that changes only workflows, Dependabot's action moves above all: every step pinned,
-# and every workflow a file GitHub can read. It builds nothing, rents nothing, publishes nothing and holds no secret, so
-# the operator can merge an action move on it alone. The Build leaves such a pull request to it.
+# and every workflow a file GitHub can read. It builds the check tooling, rents nothing and publishes nothing; the
+# registry token lets it resolve private snapshots. The Build leaves such a pull request to it.
 name: Workflow check
 
 on:
@@ -15,6 +15,9 @@ jobs:
     check:
         name: Workflow check
         runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         timeout-minutes: 10
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
