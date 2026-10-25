@@ -1,6 +1,6 @@
 # BT32 — Snapshots On The Forge's Own Registry
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - build settings, four workflows and document guards in one module; no published tool changes.
 
 **What must be true.** The same workflows run on GitHub and the local Forgejo, with only variables and secrets
