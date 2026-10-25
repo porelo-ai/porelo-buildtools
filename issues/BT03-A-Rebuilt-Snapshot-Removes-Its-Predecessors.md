@@ -26,7 +26,7 @@ per system.
 
 ## Plan
 
-- `hetzner/.../Hetzner.java`: a `pruneSnapshots(os)` beside `newestSnapshot`: list
+- `machines/.../Hetzner.java`: a `pruneSnapshots(os)` beside `newestSnapshot`: list
   `/images?type=snapshot&label_selector=porelo=ci,os=<os>`, sort by `created`, delete all but the two newest with
   `DELETE /images/<id>`, each said; a failed delete said and not thrown.
 - Called from the `snapshot` command (`Main`) after the new image's status is `available`; never from a leg.

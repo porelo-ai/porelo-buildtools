@@ -115,7 +115,7 @@ class CheckReleasesTest {
         refuses(
                 RELEASES.replace(
                         "</project>",
-                        "<profiles><profile><id>hetzner</id><build><plugins><plugin>"
+                        "<profiles><profile><id>machines</id><build><plugins><plugin>"
                                 + "<groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId><version>3.5.1</version>"
                                 + "<dependencies><dependency><groupId>org.fuin.porelo</groupId><artifactId>porelo-machines</artifactId>"
                                 + "<version>0.4.2-SNAPSHOT</version></dependency></dependencies></plugin></plugins></build></profile>"

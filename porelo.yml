@@ -11,7 +11,7 @@ image:
             && apt-get install -y --no-install-recommends ca-certificates=20260601~26.04.1 \
                 curl=8.18.0-1ubuntu2.8 git=1:2.53.0-1ubuntu1 unzip=6.0-29ubuntu1 \
             && rm -rf /var/lib/apt/lists/*
-        # The GraalVM hetzner/pom.xml pins, by its digest, as the pinned-jdk step installs it.
+        # The GraalVM machines/pom.xml pins, by its digest, as the pinned-jdk step installs it.
         RUN set -eu \
             && release=https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.4.4.1.1 \
             && curl -fsSL -o /tmp/graalvm.tar.gz "$release/graalvm-community-jdk-25i4-25.0.4.1.1_linux-x64_bin.tar.gz" \

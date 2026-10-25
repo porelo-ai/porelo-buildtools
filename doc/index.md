@@ -14,6 +14,8 @@ may publish, and checks the native images before they go out.
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
 
+See [test machines](machines.md) for requests by kind, credentials, and cleanup.
+
 ## Who uses which
 
 | Repository | Uses |

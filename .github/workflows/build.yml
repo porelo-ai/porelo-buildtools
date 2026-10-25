@@ -96,8 +96,8 @@ jobs:
             # This commit's own build, so the snapshot holds the pins this push moved.
             - name: Build the machine tooling
               run: |
-                  ./mvnw -B -q -s settings.xml -pl hetzner -am install -DskipTests
-                  ./mvnw -B -q -s settings.xml -pl hetzner dependency:build-classpath \
+                  ./mvnw -B -q -s settings.xml -pl machines -am install -DskipTests
+                  ./mvnw -B -q -s settings.xml -pl machines dependency:build-classpath \
                       -Dmdep.outputFile=target/cp.txt
 
             # The product the snapshot proves itself by building, and warms its ~/.m2 with.
@@ -114,21 +114,21 @@ jobs:
             - name: Build the ${{ matrix.os }} snapshot
               timeout-minutes: 60
               env:
-                  HETZNER_API: ${{ secrets.HETZNER_API }}
-                  HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
+                  PORELO_MACHINES_API: ${{ secrets.PORELO_MACHINES_API }}
+                  PORELO_MACHINES_SSH: ${{ secrets.PORELO_MACHINES_SSH }}
                   PORELO_CI_LEG: snapshot-${{ matrix.os }}
               run: |
-                  java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
+                  java -cp "machines/target/classes:$(cat machines/target/cp.txt)" \
                       org.fuin.porelo.machines.Main snapshot --os ${{ matrix.os }} --repo porelo \
                       ${{ github.event_name == 'workflow_dispatch' && ' ' || '--unless-current' }}
 
             - name: Delete what this run created
               if: always()
               env:
-                  HETZNER_API: ${{ secrets.HETZNER_API }}
+                  PORELO_MACHINES_API: ${{ secrets.PORELO_MACHINES_API }}
                   PORELO_CI_LEG: snapshot-${{ matrix.os }}
               run: |
-                  java -cp "hetzner/target/classes:$(cat hetzner/target/cp.txt)" \
+                  java -cp "machines/target/classes:$(cat machines/target/cp.txt)" \
                       org.fuin.porelo.machines.Main sweep --mine
 
     # The tools, published for the Porelo repositories to resolve.

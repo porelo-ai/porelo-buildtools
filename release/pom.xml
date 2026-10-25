@@ -134,6 +134,20 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <executions>
                     <execution>
+                        <id>check-providers</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.porelo.release.Main</mainClass>
+                            <blockSystemExit>true</blockSystemExit>
+                            <arguments>
+                                <argument>check-providers</argument>
+                                <argument>${maven.multiModuleProjectDirectory}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>check-releases</id>
                         <goals>
                             <goal>java</goal>

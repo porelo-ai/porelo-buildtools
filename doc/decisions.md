@@ -31,7 +31,7 @@ made the way a rented one's is.
 
 ## A sweep deletes by expiry, not by age
 
-Every server `Hetzner` creates carries `porelo-expires`, the UTC minute its time ends (`20261018T0528Z`): its
+Every server the central setup creates carries `porelo-expires`, the UTC minute its time ends (`20261018T0528Z`): its
 creation, plus the time limit the renting command was given (`--for <minutes>`, 60 by default, at most 360), plus 15
 minutes. The sweep of everyone's servers deletes a server past that minute and a `porelo=ci` server with no such label;
 it keeps one still within its time, whatever its age, and deletes it only with `--including-in-use`. `--older-than` is

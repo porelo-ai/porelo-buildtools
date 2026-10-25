@@ -1,5 +1,5 @@
 # The machines a CI leg boots from, kept current - for porelo's legs and every agent repository's,
-# which boot the same snapshots. The pins live in hetzner/pom.xml of this repository.
+# which boot the same snapshots. The pins live in machines/pom.xml of this repository.
 name: Machine images
 
 on:
@@ -72,7 +72,7 @@ jobs:
                   moved=""
                   answers=""
                   for pin in graalvm ubuntu-image alpine-image registry-image; do
-                      if ! answer=$(release upstream-version --pom hetzner/pom.xml --pin "$pin"); then
+                      if ! answer=$(release upstream-version --pom machines/pom.xml --pin "$pin"); then
                           echo "::error::could not tell whether $pin has moved"
                           failed=1
                           continue
@@ -84,9 +84,9 @@ jobs:
                           continue
                       fi
                       # A pin that cannot move is skipped, and leaves the others to go ahead.
-                      if ! release update "$upstream" --pin "$pin" --pom hetzner/pom.xml; then
+                      if ! release update "$upstream" --pin "$pin" --pom machines/pom.xml; then
                           echo "::error::could not move $pin to $upstream"
-                          git checkout -q -- hetzner/pom.xml
+                          git checkout -q -- machines/pom.xml
                           failed=1
                           continue
                       fi

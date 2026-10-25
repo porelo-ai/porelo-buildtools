@@ -357,7 +357,7 @@ class PinTest {
     void theMachinesPinsInThisRepositoryAreReadAsTheToolReadsThem() throws Stop {
         // The pins the machines workflow moves: a pin the tool cannot read would leave the job red
         // every day.
-        final Pom machines = Pom.read(Path.of("../hetzner/pom.xml"));
+        final Pom machines = Pom.read(Path.of("../machines/pom.xml"));
 
         assertThat(Pin.of(machines, "graalvm").pinned()).matches("\\d+(\\.\\d+)+");
         assertThat(Pin.of(machines, "graalvm").url()).isEqualTo("machines.graalvm.url");

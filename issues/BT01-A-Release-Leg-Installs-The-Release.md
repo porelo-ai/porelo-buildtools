@@ -17,7 +17,7 @@ looked at `--candidate`, so `--candidate` alone, which `acceptance` documents as
 
 ## Plan
 
-- `hetzner/.../AgentLeg.java`: `install(os, artifactory, installs)` gains a `channel` (`snapshots` or `releases`) that
+- `machines/.../AgentLeg.java`: `install(os, artifactory, installs)` gains a `channel` (`snapshots` or `releases`) that
   replaces the fixed `snapshots` in both the RPM `baseurl` and the Debian source line; `Rental.java:101` passes it too.
 - The channel comes from a new `--channel snapshots|releases` option of `acceptance` and `lease` (`Main`, `Options`),
   defaulting to `releases` when `GITHUB_REF_TYPE=tag` and `snapshots` otherwise.

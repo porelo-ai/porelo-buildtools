@@ -1,0 +1,757 @@
+package org.fuin.porelo.machines;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * An agent's acceptance leg: install the packages as an operator would, then see what a person
+ * gets.
+ *
+ * <p><strong>Here rather than in each agent's repository.</strong> Three repositories had three
+ * copies of this and of the API helpers under it, and they had already drifted - one grew a
+ * key-cleaning step the others lacked, so the same secret was cleaned in two places and passed
+ * through raw in the third.
+ *
+ * <p><strong>Installed from the repository, not unpacked.</strong> The package comes from
+ * Artifactory in the same command as {@code porelo}, so the repository, its signature, the index
+ * and {@code Depends: porelo} are all exercised. A candidate package - one built in this run and
+ * published nowhere - is installed by path in that same command for the same reason: neither {@code
+ * dpkg -i} nor {@code rpm -i} resolves a dependency, and installing {@code porelo} separately by
+ * hand would prove less than an operator's own package manager does.
+ */
+public final class AgentLeg {
+
+    /** Which stock image each operating system starts from: no snapshot, this installs its own. */
+    private static final Map<String, String> IMAGES =
+            Map.of("ubuntu", "ubuntu-26.04", "fedora", "fedora-44");
+
+    /** Which suffix a candidate package has, per operating system. */
+    private static final Map<String, String> CANDIDATE = Map.of("ubuntu", ".deb", "fedora", ".rpm");
+
+    /** What a package name or a package's file name is made of, in both formats. */
+    static final String NAME = "[A-Za-z0-9._+~-]+";
+
+    /** Where candidates are put on the machine. */
+    private static final String CANDIDATES = "/root/candidate/";
+
+    /** The unprivileged user a suite runs as: the shape a task runs in, rootless. */
+    private static final String USER = "acceptance";
+
+    /**
+     * What reaches the far shell on its standard input, and the suite as environment, rather than
+     * as arguments.
+     *
+     * <p>{@code argv} is readable by every process on that machine, and a failed step's command
+     * line is printed. {@code PORELO_E2E_EXPECT_CLI} is not a credential and rides here only
+     * because it goes to the same place.
+     */
+    private static final List<String> PASSED =
+            List.of("PORELO_E2E_OPENROUTER_API_KEY", "PORELO_E2E_MODEL", "PORELO_E2E_EXPECT_CLI");
+
+    private AgentLeg() {
+        throw new UnsupportedOperationException("Utility class");
+    }
+
+    /**
+     * What one leg needs to know.
+     *
+     * @param os Which operating system.
+     * @param kind The capacity and lifecycle needed.
+     * @param artifactory Where the packages are published.
+     * @param packageName The agent package, such as {@code porelo-agent-claude}.
+     * @param script The acceptance script to run on the machine, or {@code null} for scenarios
+     *     only.
+     * @param candidate A directory holding a package built in this run, or {@code null} to install
+     *     the published one.
+     * @param keep Whether to leave the machine running.
+     * @param cucumber The repository to run the Cucumber suite from, or {@code null} not to.
+     * @param accounts How many accounts run the scenarios beside each other; 1 runs them in order.
+     * @param providerOverride Previous explicit type order, or empty to select by kind.
+     */
+    public record Options(
+            String os,
+            Kind kind,
+            String artifactory,
+            String packageName,
+            @Nullable String script,
+            @Nullable Path candidate,
+            boolean keep,
+            @Nullable Path cucumber,
+            int accounts,
+            List<String> providerOverride) {
+
+        /**
+         * Options for a leg requested by kind.
+         *
+         * @param os The operating system.
+         * @param kind The capacity and lifecycle.
+         * @param artifactory The package repository.
+         * @param packageName The package to install.
+         * @param script The script, or null.
+         * @param candidate The candidate directory, or null.
+         * @param keep Whether to keep the machine.
+         * @param cucumber The scenarios, or null.
+         * @param accounts How many accounts run beside each other.
+         */
+        public Options(
+                String os,
+                Kind kind,
+                String artifactory,
+                String packageName,
+                @Nullable String script,
+                @Nullable Path candidate,
+                boolean keep,
+                @Nullable Path cucumber,
+                int accounts) {
+            this(
+                    os,
+                    kind,
+                    artifactory,
+                    packageName,
+                    script,
+                    candidate,
+                    keep,
+                    cucumber,
+                    accounts,
+                    List.of());
+        }
+
+        /**
+         * Options using a previous explicit type order.
+         *
+         * @param os The operating system.
+         * @param types The previous type order.
+         * @param artifactory The package repository.
+         * @param packageName The package to install.
+         * @param script The script, or null.
+         * @param candidate The candidate directory, or null.
+         * @param keep Whether to keep the machine.
+         * @param cucumber The scenarios, or null.
+         * @param accounts How many accounts run beside each other.
+         * @deprecated Use {@link #Options(String, Kind, String, String, String, Path, boolean,
+         *     Path, int)}.
+         */
+        @Deprecated(forRemoval = true)
+        public Options(
+                String os,
+                List<String> types,
+                String artifactory,
+                String packageName,
+                @Nullable String script,
+                @Nullable Path candidate,
+                boolean keep,
+                @Nullable Path cucumber,
+                int accounts) {
+            this(
+                    os,
+                    Spec.kindOf(types),
+                    artifactory,
+                    packageName,
+                    script,
+                    candidate,
+                    keep,
+                    cucumber,
+                    accounts,
+                    List.copyOf(types));
+        }
+
+        /**
+         * Returns the previous type order.
+         *
+         * @return The type order, empty for a request by kind.
+         * @deprecated Use {@link #kind()}.
+         */
+        @Deprecated(forRemoval = true)
+        public List<String> types() {
+            return providerOverride;
+        }
+
+        /**
+         * Options for one account, as before several could run beside each other.
+         *
+         * @param os Which operating system.
+         * @param types Server types to try, in order.
+         * @param artifactory Where the packages are published.
+         * @param packageName The agent package.
+         * @param script The acceptance script, or {@code null}.
+         * @param candidate A directory holding a package built in this run, or {@code null}.
+         * @param keep Whether to leave the machine running.
+         * @param cucumber The repository to run the Cucumber suite from, or {@code null}.
+         * @deprecated Use {@link #Options(String, Kind, String, String, String, Path, boolean,
+         *     Path, int)}.
+         */
+        @Deprecated(forRemoval = true)
+        public Options(
+                String os,
+                List<String> types,
+                String artifactory,
+                String packageName,
+                @Nullable String script,
+                @Nullable Path candidate,
+                boolean keep,
+                @Nullable Path cucumber) {
+            this(os, types, artifactory, packageName, script, candidate, keep, cucumber, 1);
+        }
+    }
+
+    /** What the accounts beside the first are called, numbered from 2. */
+    private static final String EXTRA = "acceptance";
+
+    /** The tag of a scenario that touches the whole machine - a restart - and so runs alone. */
+    private static final String MACHINE_WIDE = "@restart";
+
+    /**
+     * Runs one acceptance leg.
+     *
+     * @param machines Where the machine comes from - rented, or already here.
+     * @param options What to do.
+     * @param credential The key to connect with.
+     * @throws IOException If any step fails, saying which.
+     */
+    public static void run(Machines machines, Options options, Credential credential)
+            throws IOException {
+        final String image = IMAGES.get(options.os());
+        if (image == null) {
+            throw new IOException("No image for '" + options.os() + "'. Known: " + IMAGES.keySet());
+        }
+        final Spec spec =
+                new Spec(
+                        "porelo-acc-" + options.os() + "-" + machines.runId(),
+                        options.os(),
+                        options.kind(),
+                        "root",
+                        credential,
+                        options.keep(),
+                        options.accounts(),
+                        options.providerOverride());
+        try (Lease lease = machines.acquireFromStock(spec, image);
+                Stopping stopping = Stopping.on(lease)) {
+            lease.awaitSsh();
+
+            String installs = packageArgument(options.packageName());
+            if (options.candidate() != null) {
+                installs = sendCandidate(lease, options.os(), options.candidate());
+            }
+
+            provision(lease, options, installs, lease.ssh()::run);
+            final List<String> users = accounts(options.accounts());
+            if (users.size() > 1) {
+                // Every account keeps its own image store, so without a cache each would pull every
+                // base image from Docker Hub - several times the time, and several times its limit
+                // for one address.
+                System.out.println(
+                        "\n-- the image cache, and "
+                                + (users.size() - 1)
+                                + " more accounts to run scenarios beside each other --");
+                run(lease, Snapshots.mirror(Snapshots.Contents.pinned().registry()));
+                for (final String extra : users.subList(1, users.size())) {
+                    run(lease, account(extra, lease.authorizedKeys()));
+                    try (Ssh as = Ssh.to(lease.address(), extra, credential, lease.hostKey())) {
+                        run(as, "porelo setup", null);
+                    }
+                }
+            }
+
+            // As USER, not as the root connection above. The suite has to run in the shape a task
+            // runs in - rootless podman, one operator's own directories - and root has neither:
+            // podman is rootful there and /run/user/0 does not exist.
+            if (options.script() != null) {
+                try (Ssh user = Ssh.to(lease.address(), USER, credential, lease.hostKey())) {
+                    System.out.println("\n-- sending the suite --");
+                    run(
+                            user,
+                            "cat > /home/"
+                                    + USER
+                                    + "/acceptance.sh && chmod +x /home/"
+                                    + USER
+                                    + "/acceptance.sh",
+                            options.script());
+
+                    System.out.println("\n-- acceptance --");
+                    final Remote suite = acceptance(System.getenv());
+                    run(user, suite.command(), suite.stdin());
+                }
+            }
+
+            if (options.cucumber() != null) {
+                // From this end rather than on the server: it drives a terminal over ssh, so what
+                // is being simulated is somebody sitting here - and this is also where GITHUB_*
+                // exists, so a failure lands as an annotation on the feature file.
+                System.out.println("\n-- acceptance, as a person at a terminal --");
+                if (users.size() == 1) {
+                    cucumber(options.cucumber(), lease, credential, List.of());
+                } else {
+                    // Scenarios beside each other, one account each, and then what touches the
+                    // whole machine, alone and afterwards: a restart takes every account's daemon
+                    // with it. A suite that has none runs nothing in the second pass, which is not
+                    // a failure.
+                    cucumber(
+                            options.cucumber(),
+                            lease,
+                            credential,
+                            List.of(
+                                    "-Dporelo.acceptance.users=" + String.join(",", users),
+                                    "-Dporelo.acceptance.parallel=true",
+                                    "-Dporelo.acceptance.parallelism=" + users.size(),
+                                    "-Dcucumber.filter.tags=not " + MACHINE_WIDE));
+                    System.out.println("\n-- what touches the whole machine, alone --");
+                    cucumber(
+                            options.cucumber(),
+                            lease,
+                            credential,
+                            List.of("-Dcucumber.filter.tags=" + MACHINE_WIDE));
+                }
+            }
+
+            System.out.println("\n-- the leg passed on " + options.os() + " at " + lease.address());
+        }
+    }
+
+    /** Sends a command through SSH without requiring a machine in a unit test. */
+    @FunctionalInterface
+    interface Command {
+        Ssh.Output run(String command, @Nullable String stdin) throws IOException;
+    }
+
+    /** Installs the packages and creates the account before any unprivileged work starts. */
+    static void provision(Lease lease, Options options, String installs, Command ssh)
+            throws IOException {
+        System.out.println(
+                "\n-- installing from " + options.artifactory() + ", as an operator would --");
+        run(ssh, lease.asRoot(install(options.os(), options.artifactory(), installs)), null);
+        System.out.println("\n-- creating the " + USER + " user --");
+        run(ssh, lease.asRoot(account(USER, lease.authorizedKeys())), null);
+    }
+
+    /**
+     * Runs the agent's own Cucumber suite from here against the machine.
+     *
+     * @param repository Where to run Maven.
+     * @param lease The machine.
+     * @param credential The key the suite connects with, as material rather than a path.
+     * @param options What this pass adds to the command line.
+     * @throws IOException If the suite fails.
+     */
+    private static void cucumber(
+            Path repository, Lease lease, Credential credential, List<String> options)
+            throws IOException {
+        final ProcessBuilder maven =
+                new ProcessBuilder(suite(lease.address(), lease.hostKey(), options))
+                        .directory(repository.toFile())
+                        .inheritIO();
+        maven.environment().put("PORELO_ACCEPTANCE_KEY", credential.material());
+        final int status;
+        try {
+            status = maven.start().waitFor();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted running the Cucumber suite", ex);
+        }
+        if (status != 0) {
+            throw new IOException("the Cucumber suite failed");
+        }
+    }
+
+    /**
+     * Returns the command that runs the suite against a machine.
+     *
+     * <p>The host key is public and rides on the command line; the key the suite authenticates with
+     * does not, and goes in the environment.
+     *
+     * @param address The machine.
+     * @param hostKey Which host key it may show.
+     * @param options What this pass adds to the command line.
+     * @return The command.
+     */
+    static List<String> suite(String address, HostKey hostKey, List<String> options) {
+        final List<String> command =
+                new ArrayList<>(
+                        List.of(
+                                "./mvnw",
+                                "-B",
+                                "-s",
+                                "settings.xml",
+                                "verify",
+                                "-Dporelo.acceptance.host=" + address,
+                                "-Dporelo.acceptance.user=" + USER));
+        // A machine nobody made a key for gets no property, and the kit accepts what it shows
+        // there as it always has: the risk written for the local virtual machines.
+        if (hostKey instanceof HostKey.Pinned pinned) {
+            command.add("-Dporelo.acceptance.hostkey=" + pinned.line());
+        }
+        command.addAll(options);
+        return List.copyOf(command);
+    }
+
+    /**
+     * Names the accounts a leg runs its scenarios under: the first is the one it always had.
+     *
+     * @param count How many.
+     * @return The accounts, the first one first.
+     */
+    static List<String> accounts(int count) {
+        if (count < 1) {
+            throw new IllegalArgumentException("a leg needs at least one account, not " + count);
+        }
+        final List<String> users = new ArrayList<>(List.of(USER));
+        for (int at = 2; at <= count; at++) {
+            users.add(EXTRA + at);
+        }
+        return List.copyOf(users);
+    }
+
+    /**
+     * Makes one unprivileged account, as root: lingering, so its user manager and daemon survive
+     * between connections, and this run's key. Subordinate ranges for rootless podman come from
+     * {@code useradd}.
+     *
+     * @param user The account.
+     * @return The command.
+     */
+    static String account(String user) {
+        return account(user, "/root/.ssh/authorized_keys");
+    }
+
+    /** Creates an account using the authorized keys of the connection that provisioned it. */
+    static String account(String user, String authorizedKeys) {
+        return "id -u "
+                + user
+                + " >/dev/null 2>&1 || useradd -m -s /bin/bash "
+                + user
+                + "; loginctl enable-linger "
+                + user
+                + "; install -d -m 0700 -o "
+                + user
+                + " -g "
+                + user
+                + " /home/"
+                + user
+                + "/.ssh"
+                + " && install -m 0600 -o "
+                + user
+                + " -g "
+                + user
+                + " "
+                + authorizedKeys
+                + " /home/"
+                + user
+                + "/.ssh/authorized_keys";
+    }
+
+    /**
+     * Puts the packages built in this run on the machine, refusing anything ambiguous.
+     *
+     * <p><strong>Several packages are allowed; two builds of the same one are not.</strong> A
+     * repository may produce a set that only makes sense together - a filter and a transport, a
+     * tool and its agent - and installing them in one command is what proves their dependencies
+     * resolve. What is refused is two files naming the same package, because a working tree
+     * accumulates those and letting the package manager pick whichever it prefers proves nothing.
+     *
+     * @param lease The machine.
+     * @param options What to do.
+     * @return How the package manager should name them, space separated.
+     * @throws IOException If the directory holds no package, or two builds of one.
+     */
+    static String sendCandidate(Lease lease, String os, Path candidate) throws IOException {
+        return sendCandidate(
+                lease,
+                os,
+                candidate,
+                (command, stdin) -> lease.ssh().run(command, stdin),
+                (file, remote) -> lease.ssh().upload(file, remote));
+    }
+
+    /** Transfers a candidate through SSH, with a transport a test can supply. */
+    @FunctionalInterface
+    interface Upload {
+        void send(Path file, String remote) throws IOException;
+    }
+
+    static String sendCandidate(Lease lease, String os, Path candidate, Command ssh, Upload upload)
+            throws IOException {
+        final String suffix = CANDIDATE.get(os);
+        if (suffix == null) {
+            throw new IOException(
+                    "no candidate package is known for '" + os + "'. Known: " + CANDIDATE.keySet());
+        }
+        final List<Path> built = new ArrayList<>();
+        try (var found = Files.list(candidate)) {
+            found.filter(each -> each.getFileName().toString().endsWith(suffix))
+                    .sorted()
+                    .forEach(built::add);
+        }
+        if (built.isEmpty()) {
+            throw new IOException(
+                    "--candidate "
+                            + candidate
+                            + " holds no "
+                            + suffix
+                            + " package. Installing the published package instead would look exactly like"
+                            + " a passing run, which is why this stops.");
+        }
+        final Map<String, Path> byName = new LinkedHashMap<>();
+        for (final Path each : built) {
+            final String name = packageName(each.getFileName().toString(), suffix);
+            final Path already = byName.put(name, each);
+            if (already != null) {
+                throw new IOException(
+                        "--candidate "
+                                + candidate
+                                + " holds two builds of"
+                                + " '"
+                                + name
+                                + "': "
+                                + already.getFileName()
+                                + " and "
+                                + each.getFileName()
+                                + ". The package manager would take whichever it"
+                                + " prefers - clean the directory.");
+            }
+        }
+
+        // Before anything is sent: a name that would be refused is refused while the machine is
+        // still clean.
+        final String remote =
+                candidatePaths(
+                        byName.values().stream()
+                                .map(each -> each.getFileName().toString())
+                                .toList());
+
+        System.out.println("\n-- sending the candidate: " + byName.keySet() + " --");
+        run(ssh, lease.asRoot("mkdir -p " + CANDIDATES + " && rm -f " + CANDIDATES + "*"), null);
+        for (final Path each : byName.values()) {
+            final String destination = CANDIDATES + each.getFileName();
+            if (lease.isRoot()) {
+                upload.send(each, destination);
+            } else {
+                run(
+                        ssh,
+                        lease.asRoot("base64 -d > " + quote(destination)),
+                        Base64.getEncoder().encodeToString(Files.readAllBytes(each)));
+            }
+        }
+        return remote;
+    }
+
+    /**
+     * Returns where each candidate lands on the machine, as words a shell takes whole.
+     *
+     * <p>The names go into a command run as root, and a working tree is not trusted to hold only
+     * what a build made there: a name a shell reads as more than a name is refused rather than
+     * quoted around, because no package either format builds has one.
+     *
+     * @param files The candidates' file names.
+     * @return Their paths on the machine, each quoted, space separated.
+     * @throws IOException If a name holds anything but {@code [A-Za-z0-9._+~-]}, or begins with
+     *     {@code -}.
+     */
+    static String candidatePaths(List<String> files) throws IOException {
+        final StringBuilder remote = new StringBuilder();
+        for (final String each : files) {
+            if (!each.matches(NAME) || each.startsWith("-")) {
+                throw new IOException(
+                        "the candidate '"
+                                + each
+                                + "' is not a package file name a shell can be given:"
+                                + " only "
+                                + NAME
+                                + " is accepted, and no leading '-'. Rename it or clean the directory.");
+            }
+            remote.append(remote.isEmpty() ? "" : " ").append(quote(CANDIDATES + each));
+        }
+        return remote.toString();
+    }
+
+    /**
+     * Returns the operator's package as a word a shell takes whole.
+     *
+     * @param name What {@code --package} named.
+     * @return The name, quoted.
+     * @throws IOException If it holds anything but {@code [A-Za-z0-9._+~-]}, or begins with {@code
+     *     -}.
+     */
+    static String packageArgument(String name) throws IOException {
+        if (!name.matches(NAME) || name.startsWith("-")) {
+            throw new IOException(
+                    "--package '"
+                            + name
+                            + "' is not a package name: only "
+                            + NAME
+                            + " is accepted, and no leading '-'.");
+        }
+        return quote(name);
+    }
+
+    /**
+     * Returns the package a built file belongs to.
+     *
+     * <p>By the file name, which is the only thing available before the file is on a machine that
+     * has the tools to read it. Both formats put the name first and separate it from the version
+     * the same way every time: {@code name_version_arch.deb} and {@code
+     * name-version-release.arch.rpm}.
+     *
+     * @param file The file name.
+     * @param suffix {@code .deb} or {@code .rpm}.
+     * @return The package name, or the whole file name when it does not have that shape - which
+     *     makes such a file its own package rather than silently grouping it with another.
+     */
+    static String packageName(String file, String suffix) {
+        final String stem =
+                file.endsWith(suffix) ? file.substring(0, file.length() - suffix.length()) : file;
+        if (".deb".equals(suffix)) {
+            final int underscore = stem.indexOf('_');
+            return underscore > 0 ? stem.substring(0, underscore) : stem;
+        }
+        // name-version-release.arch: drop the last two dash-separated parts, and only those.
+        final int release = stem.lastIndexOf('-');
+        final int version = release > 0 ? stem.lastIndexOf('-', release - 1) : -1;
+        return version > 0 ? stem.substring(0, version) : stem;
+    }
+
+    /**
+     * A command to run on the machine and what it is fed.
+     *
+     * @param command The command line, which the far shell's arguments and a failure show.
+     * @param stdin Its standard input, or {@code null} for none.
+     */
+    record Remote(String command, @Nullable String stdin) {}
+
+    /**
+     * Returns how the suite is started, with what {@link #PASSED} names that is set here.
+     *
+     * @param env The environment of this end.
+     * @return The command and its input.
+     */
+    static Remote acceptance(Map<String, String> env) {
+        // The far shell exports what it reads from its input; the suite itself reads nothing.
+        return new Remote(
+                "cd /home/"
+                        + USER
+                        + " && set -a && . /dev/stdin && set +a"
+                        + " && XDG_RUNTIME_DIR=/run/user/$(id -u) ./acceptance.sh </dev/null",
+                exported(env));
+    }
+
+    /**
+     * Returns the environment a credential travels in.
+     *
+     * @param env The environment of this end.
+     * @return One shell assignment per line, empty when nothing is set here.
+     */
+    private static String exported(Map<String, String> env) {
+        final StringBuilder out = new StringBuilder();
+        for (final String name : PASSED) {
+            final String value = env.get(name);
+            if (value != null && !value.isBlank()) {
+                out.append(name).append('=').append(quote(value)).append('\n');
+            }
+        }
+        return out.toString();
+    }
+
+    /**
+     * Quotes a value so a shell takes it whole.
+     *
+     * @param value What to quote.
+     * @return The value, single quoted.
+     */
+    public static String quote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
+    /**
+     * What a prepared machine always has beside Porelo, as the setup script installs it: the
+     * message filter, without which nothing leaves a task. A transport is the machine's choice, and
+     * the local one is retired (2026-09-30), so none is installed by default.
+     */
+    static final List<String> ALWAYS = List.of("porelo-message-sluice-filter");
+
+    /**
+     * Returns how a distribution installs Porelo and the agent, in one command, and then what a
+     * prepared machine always has.
+     *
+     * <p><strong>After, and only where nothing brought it yet.</strong> A candidate may be the
+     * filter or the transport itself: installing the published one beside it would leave the
+     * package manager to choose between the two, and a leg meant to test the candidate could test
+     * the published one. And only where the repository offers it, as the setup script does, saying
+     * so when it does not.
+     *
+     * @param os Which operating system.
+     * @param artifactory Where the packages are published.
+     * @param installs The agent package, by name or by path.
+     * @return A script.
+     */
+    static String install(String os, String artifactory, String installs) {
+        if ("fedora".equals(os)) {
+            return """
+                set -eux
+                cat > /etc/yum.repos.d/porelo.repo <<'EOF'
+                [porelo]
+                name=Porelo
+                baseurl=@BASE@/porelo-dist-rpm/snapshots
+                enabled=1
+                gpgcheck=0
+                EOF
+                dnf install -y -q podman
+                dnf install -y -q porelo @PACKAGE@
+                for p in @ALWAYS@; do
+                    rpm -q "$p" >/dev/null 2>&1 && continue
+                    if dnf -q info "$p" >/dev/null 2>&1; then dnf install -y -q "$p"
+                    else echo "$p is not offered by the repository - this machine will pass no message"; fi
+                done
+                """
+                    .replace("@BASE@", artifactory)
+                    .replace("@PACKAGE@", installs)
+                    .replace("@ALWAYS@", String.join(" ", ALWAYS));
+        }
+        return """
+            set -eux
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq ca-certificates curl gnupg podman
+            curl -fsSL @KEY@ | gpg --dearmor > /usr/share/keyrings/porelo.gpg
+            echo "deb [signed-by=/usr/share/keyrings/porelo.gpg] @BASE@/porelo-dist-deb snapshots main" \\
+                > /etc/apt/sources.list.d/porelo.list
+            apt-get update
+            apt-get install -y -qq porelo @PACKAGE@
+            for p in @ALWAYS@; do
+                dpkg -s "$p" >/dev/null 2>&1 && continue
+                if apt-cache show "$p" >/dev/null 2>&1; then apt-get install -y -qq "$p"
+                else echo "$p is not offered by the repository - this machine will pass no message"; fi
+            done
+            """
+                .replace("@ALWAYS@", String.join(" ", ALWAYS))
+                .replace("@KEY@", artifactory + "/api/security/keypair/porelo-packages/public")
+                .replace("@BASE@", artifactory)
+                .replace("@PACKAGE@", installs);
+    }
+
+    private static void run(Lease lease, String command) throws IOException {
+        run(lease.ssh(), lease.asRoot(command), null);
+    }
+
+    private static void run(Lease lease, String command, @Nullable String stdin)
+            throws IOException {
+        run(lease.ssh(), lease.asRoot(command), stdin);
+    }
+
+    private static void run(Ssh ssh, String command, @Nullable String stdin) throws IOException {
+        run(ssh::run, command, stdin);
+    }
+
+    private static void run(Command ssh, String command, @Nullable String stdin)
+            throws IOException {
+        final Ssh.Output out = ssh.run(command, stdin);
+        System.out.print(out.all());
+        if (out.status() != 0) {
+            throw new IOException("the leg failed at: " + command);
+        }
+    }
+}

@@ -60,7 +60,10 @@ class DocumentTestsTaggedTest {
                 .extracting(path -> path.getFileName().toString())
                 .as("tests found reading this repository's documents")
                 .contains(
-                        "CheckSharedTest.java", "CheckCitationsTest.java", "CheckDocSiteTest.java");
+                        "CheckSharedTest.java",
+                        "CheckCitationsTest.java",
+                        "CheckDocSiteTest.java",
+                        "CheckProvidersTest.java");
         assertThat(found)
                 .filteredOn(path -> !read(path).contains(TAG))
                 .as("tests that read a document without %s", TAG)

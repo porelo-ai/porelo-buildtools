@@ -16,7 +16,7 @@ when every account is held, and has the account's VM made clean when it is given
   `"format": "porelo-machines-pool/1"`: per VM its `os`, its address, its host key and its run accounts, and nothing
   secret in the file. A format it does not know, a missing field, an account named twice or a file still carrying
   `runKey` stops the run with that said.
-- **`LocalPool implements Machines`** in `hetzner/`: `acquire(spec)` takes the first VM of `spec.os()` with a free
+- **`LocalPool implements Machines`** in `machines/`: `acquire(spec)` takes the first VM of `spec.os()` with a free
   account. Holding is a lock on `<state>/<vm>/<account>.lock` (`FileChannel.tryLock`), kept for the lease's life, so a
   process that dies gives it up by itself. While every account is held it waits, then refuses after its time, naming
   the pool's size. The `Lease` connects as the account with the run key taken from `PORELO_POOL_SSH` or `--key` and

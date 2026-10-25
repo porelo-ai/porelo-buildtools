@@ -11,6 +11,6 @@ reviewed, and what a commit carries. It is one page for every Porelo repository:
   `./mvnw -B -N logchange:lint` checks the changelog entries.
 - **A change to a tool is a change to every repository that uses it.** They take its published snapshot, so a change
   that alters a command or a class they call says which of them must move with it.
-- **Renting test machines** needs a Hetzner token and the CI's ssh key, which only CI and the operator hold. Unit tests
+- **Renting test machines** needs an API token and the CI's ssh key, which only CI and the operator hold. Unit tests
   use a stand-in for the API and rent nothing.
 - **Requirements** are in [issues/README.md](issues/README.md), and decisions in [doc/decisions.md](doc/decisions.md).

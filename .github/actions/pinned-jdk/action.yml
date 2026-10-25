@@ -1,6 +1,6 @@
 # The GraalVM the CI snapshots pin, installed on a GitHub runner and checked against its digest - so a
 # job compiles with the same JDK a leg builds with, and never with whatever release a moving name ('25')
-# resolved to that day. The pin lives in hetzner/pom.xml and is moved by the Machine images
+# resolved to that day. The pin lives in machines/pom.xml and is moved by the Machine images
 # workflow once a release is three days old.
 #
 # Bootstrapped from the runner's own Java 25 (JAVA_HOME_25_X64), which runs porelo-machines once to
@@ -42,8 +42,8 @@ runs:
                   exit 1
               fi
               export JAVA_HOME="$JAVA_HOME_25_X64"
-              ./mvnw -B -q -s settings.xml -pl hetzner -am install -DskipTests
-              ./mvnw -B -q -s settings.xml -pl hetzner dependency:build-classpath \
+              ./mvnw -B -q -s settings.xml -pl machines -am install -DskipTests
+              ./mvnw -B -q -s settings.xml -pl machines dependency:build-classpath \
                   -Dmdep.outputFile=target/jdk-cp.txt
-              "$JAVA_HOME/bin/java" -cp "hetzner/target/classes:$(cat hetzner/target/jdk-cp.txt)" \
+              "$JAVA_HOME/bin/java" -cp "machines/target/classes:$(cat machines/target/jdk-cp.txt)" \
                   org.fuin.porelo.machines.Main jdk --github

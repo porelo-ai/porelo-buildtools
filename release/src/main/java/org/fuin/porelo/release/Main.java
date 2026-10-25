@@ -34,6 +34,7 @@ public final class Main {
                     "check-actions",
                     "check-shared",
                     "check-citations",
+                    "check-providers",
                     "plan",
                     "check-commits",
                     "check-doc-site",
@@ -314,6 +315,11 @@ public final class Main {
                                     (rest.isEmpty() ? List.of("AGENTS.md") : rest)
                                             .stream().map(Path::of).toList());
             case "check-citations" -> checkCitations(rest, out, err);
+            case "check-providers" ->
+                    rest.size() > 1
+                            ? usage(err, "check-providers [REPOSITORY ROOT, default .]")
+                            : new CheckProviders(out, err)
+                                    .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
             case "check-commits" -> checkCommits(rest, out, err, web);
             case "check-doc-site" ->

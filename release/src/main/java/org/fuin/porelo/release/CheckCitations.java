@@ -358,7 +358,7 @@ final class CheckCitations {
      * beside the work is not read; in a tree exported from a commit, which holds nothing else,
      * every file.
      */
-    private static List<Path> committed(Path root) throws IOException {
+    static List<Path> committed(Path root) throws IOException {
         if (Files.exists(root.resolve(".git"))) {
             final Process git =
                     new ProcessBuilder("git", "-C", root.toString(), "ls-files", "-z")
