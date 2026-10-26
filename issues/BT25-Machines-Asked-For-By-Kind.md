@@ -1,6 +1,6 @@
 # BT25 — Machines Asked For By Kind
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** L - the module and `Spec` by kind (M), a provider-name check (S), and the old call routed onto the new one with its test (S); the callers move later, through their own issues.
 
 **What must be true.** A caller of `porelo-machines` asks for a machine by kind, operating system, and account count, never by a provider's name or server types; the setup decides whether the local VM pool ([BT24](README.md#bt24)) or a cloud provider meets that kind; and a check in `porelo-buildtools` fails whenever a repository outside the provider implementation names a provider or its server types.
@@ -59,5 +59,3 @@ Today the module directory is named `hetzner/` (`pom.xml:72`), `Spec` carries a 
 ## To be checked
 
 - **How `porelo`'s 4-account leg runs against the local pool.** `porelo`'s `leg` asks for `root` to set up the `build` user and `--accounts 4` (`porelo/.github/workflows/build.yml:162`, `porelo/acceptance/legs/src/main/java/org/fuin/porelo/legs/Leg.java:36-39,169-176`), whereas [BT24](README.md#bt24) rents unprivileged run accounts from `porelo-host` [HO12](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho12); how `Leg` maps its build and acceptance accounts onto rented pool accounts is not measured.
-
-- **Full reactor validation.** The API stub binds a loopback HTTP server; the current sandbox refuses that socket with `Operation not permitted`, so its provider integration tests need a runner that permits loopback sockets.
