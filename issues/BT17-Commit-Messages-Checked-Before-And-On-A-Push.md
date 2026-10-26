@@ -107,6 +107,12 @@ is refused ("the operator's hand merge" among them), and each clean subject from
 - **The template for every other repository:** the same checkout `fetch-depth: 0` and the same step after its own
   build, with its own way to put `porelo-release` on the classpath (its pull request's step already has one).
 
+## Decided
+
+- **No red proof on a branch:** a breaking subject pushed to a GitHub branch is not shown. `WorkflowCommitsTest` runs
+  the step's own script, its refusal included, and the step's script ran here with real git and Maven and refused
+  `dee5d67`.
+
 ## Acceptance
 
 - [ ] `check-commits` refuses each breaking subject measured on 2026-10-18 in porelo and porelo-buildtools, and the
@@ -114,7 +120,7 @@ is refused ("the operator's hand merge" among them), and each clean subject from
 - [x] Over `origin/main..HEAD` it runs as one command, and it exits `0` on a range with nothing in it
   (`CheckCommitsTest.passesARangeWithNothingInIt`).
 - [ ] In this repository's Build, a pushed range with a breaking subject turns the step red, seen once on a branch:
-  the operator's push of a branch, since agents cannot push to GitHub.
+  not shown, as decided above.
 - [ ] A pull request from outside whose commit lacks `Signed-off-by:` is refused, seen to pass against today's tooling
   first; one with it passes, and an agent's commit with `Assisted-by:` and no sign-off passes on a push.
 - [ ] Every repository has taken it; the agents name their commits.
