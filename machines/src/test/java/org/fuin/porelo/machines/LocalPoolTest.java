@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -80,14 +81,18 @@ class LocalPoolTest {
                     }
                 }
                 """);
-        final Process other =
+        final ProcessBuilder holding =
                 new ProcessBuilder(
                                 Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                                 holder.toString(),
                                 lock.toString())
                         // A JVM announces JAVA_TOOL_OPTIONS on stderr, never in the "held" read.
-                        .redirectError(ProcessBuilder.Redirect.INHERIT)
-                        .start();
+                        .redirectError(ProcessBuilder.Redirect.INHERIT);
+        // The machine's JVM options, -verbose:class say, could write to the stdout read here.
+        holding.environment()
+                .keySet()
+                .removeAll(Set.of("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS"));
+        final Process other = holding.start();
         try {
             final String said =
                     new String(other.getInputStream().readNBytes(5), StandardCharsets.UTF_8);

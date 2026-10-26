@@ -1,7 +1,8 @@
 # BT32 — Snapshots On The Forge's Own Registry
 
 **Status:** Review.
-**Size:** S - build settings, four workflows and document guards in one module; no published tool changes.
+**Size:** S - build settings, four workflows and document guards in one module, and one test in `machines`; no
+published tool changes.
 
 **What must be true.** The same workflows run on GitHub and the local Forgejo, with only variables and secrets
 selecting where snapshots are resolved and deployed: Sonatype on GitHub, the forge's Maven registry on Forgejo.
@@ -21,6 +22,9 @@ Release tags publish only to Sonatype, as required by porelo-project
   Sonatype dry run and signing configuration.
 - Use the `forge-release` profile supplied by `porelo-parent` `0.2.1-SNAPSHOT`; it deploys to
   `env.MAVEN_SNAPSHOTS_URL` under server id `porelo-forge`.
+- `LocalPoolTest.anAccountHeldByAnotherProcessIsNotHandedOut` starts its child JVM without `JAVA_TOOL_OPTIONS`,
+  `JDK_JAVA_OPTIONS` and `_JAVA_OPTIONS`, and with stderr apart from the stdout it reads; red first with
+  `JAVA_TOOL_OPTIONS` set to the trust store and to `-verbose:class`.
 
 ## Acceptance
 
@@ -35,9 +39,9 @@ Release tags publish only to Sonatype, as required by porelo-project
 
 ## Found on the forge
 
-- The forge's runner sets `JAVA_TOOL_OPTIONS` for every job, its trust store, so each JVM announces it on stderr.
-  `LocalPoolTest` read a child JVM's stderr together with the `held` it prints and failed there alone; it now leaves
-  stderr out of what it reads. With `JAVA_TOOL_OPTIONS` set, this was the only failure of the full suite.
+- The forge's runner sets `JAVA_TOOL_OPTIONS` for every job, its trust store, so each JVM a job starts announces it
+  on stderr. A test that reads a child JVM's output depends on the options the machine sets. With
+  `JAVA_TOOL_OPTIONS` set, `LocalPoolTest` is the one test of the full suite that does.
 
 ## To be checked
 
