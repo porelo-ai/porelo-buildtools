@@ -18,6 +18,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt34"></a>[BT34](BT34-The-Own-Update-Workflows-Pull-Request-Counts-As-Inside.md) | XS | - | A pull request the repository's own workflow opens as `github-actions[bot]` from its own branch is checked as from inside, needing no `Signed-off-by:`; one from elsewhere still needs it. |
 | <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 
 ## Backlog

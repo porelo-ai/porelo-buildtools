@@ -197,21 +197,95 @@ class WorkflowCommitsTest {
     // Prevents a second fetch, which a private forge copy refuses to a checkout without
     // credentials.
     @Test
-    void aPullRequestIsCheckedFromTheCheckoutAlone() throws IOException, InterruptedException {
-        final Run run =
-                execute(
-                        named(job(SHARED_RULES, "check"), "The pull request's commit messages"),
-                        Map.of(
-                                "PR_BASE", "6666666",
-                                "PR_HEAD", "7777777",
-                                "PR_REPOSITORY", "porelo-ai/porelo-buildtools",
-                                "GITHUB_REPOSITORY", "porelo-ai/porelo-buildtools",
-                                "PR_ASSOCIATION", "MEMBER"),
-                        0);
+    void aMembersPullRequestIsCheckedFromTheCheckoutAlone()
+            throws IOException, InterruptedException {
+        final Run run = pullRequest("porelo-ai/porelo-buildtools", "MEMBER", "someone");
         assertThat(run.exit).as("a member's pull request, nothing fetched: %s", run.log).isZero();
         assertThat(run.java)
-                .as("its own commits are read, as a member's")
-                .endsWith("check-commits", "6666666..7777777");
+                .as("its own commits are read, as a member's, with release and its classpath")
+                .containsExactly(
+                        "-cp",
+                        "release/target/classes:" + CLASSPATH,
+                        "org.fuin.porelo.release.Main",
+                        "check-commits",
+                        "6666666..7777777");
+        assertThat(run.maven)
+                .as(
+                        "release is installed and its classpath read, each with the repository's settings")
+                .containsExactly(
+                        "-B -q -s settings.xml -pl release -am install -DskipTests",
+                        "-B -q -s settings.xml -pl release dependency:build-classpath"
+                                + " -Dmdep.outputFile=target/cp.txt");
+    }
+
+    // Prevents the pull request's facts from reaching the script any way but its environment, where
+    // a
+    // workflow expression in the script would run what a pull request's title or branch carries.
+    @Test
+    void thePullRequestsFactsReachTheScriptThroughItsEnvironment() throws IOException {
+        final JsonNode step =
+                named(job(SHARED_RULES, "check"), "The pull request's commit messages");
+        assertThat(step.path("env").path("PR_AUTHOR").asText())
+                .as("the author is the pull request's own")
+                .isEqualTo("${{ github.event.pull_request.user.login }}");
+        assertThat(step.path("env").path("PR_REPOSITORY").asText())
+                .as("the repository is the pull request's head's")
+                .isEqualTo("${{ github.event.pull_request.head.repo.full_name }}");
+        assertThat(step.path("env").path("PR_ASSOCIATION").asText())
+                .as("the association is the pull request's author's")
+                .isEqualTo("${{ github.event.pull_request.author_association }}");
+        assertThat(step.path("run").asText())
+                .as("the script reads its environment alone")
+                .doesNotContain("${{");
+    }
+
+    // Prevents the repository's own update workflow's pull request from being refused for want of a
+    // sign-off, though GitHub names its author a contributor.
+    @Test
+    void theOwnWorkflowsPullRequestIsFromInside() throws IOException, InterruptedException {
+        final Run run =
+                pullRequest("porelo-ai/porelo-buildtools", "CONTRIBUTOR", "github-actions[bot]");
+        assertThat(run.exit).as("the own workflow's pull request: %s", run.log).isZero();
+        assertThat(run.java).as("its commits need no sign-off").endsWith("6666666..7777777");
+    }
+
+    // Prevents code from outside from passing without its author's sign-off.
+    @Test
+    void aPullRequestFromElsewhereStaysFromOutside() throws IOException, InterruptedException {
+        assertThat(
+                        pullRequest(
+                                        "someone/porelo-buildtools",
+                                        "CONTRIBUTOR",
+                                        "github-actions[bot]")
+                                .java)
+                .as("the bot's pull request from another repository")
+                .endsWith("6666666..7777777", "--outside");
+        assertThat(pullRequest("porelo-ai/porelo-buildtools", "CONTRIBUTOR", "someone").java)
+                .as("a contributor's pull request from this repository")
+                .endsWith("6666666..7777777", "--outside");
+        assertThat(pullRequest("someone/porelo-buildtools", "MEMBER", "someone").java)
+                .as("a member's pull request from another repository")
+                .endsWith("6666666..7777777", "--outside");
+    }
+
+    private Run pullRequest(final String repository, final String association, final String author)
+            throws IOException, InterruptedException {
+        return execute(
+                named(job(SHARED_RULES, "check"), "The pull request's commit messages"),
+                Map.of(
+                        "PR_BASE",
+                        "6666666",
+                        "PR_HEAD",
+                        "7777777",
+                        "PR_REPOSITORY",
+                        repository,
+                        "GITHUB_REPOSITORY",
+                        "porelo-ai/porelo-buildtools",
+                        "PR_ASSOCIATION",
+                        association,
+                        "PR_AUTHOR",
+                        author),
+                0);
     }
 
     private record Run(int exit, String log, List<String> java, List<String> maven) {}
@@ -246,12 +320,15 @@ class WorkflowCommitsTest {
         final Path mavenCalls = directory.resolve("maven-calls");
         Files.writeString(javaArguments, "");
         Files.writeString(mavenCalls, "");
+        // Writes the classpath file each call names, below the module, as the dependency plugin
+        // does.
         stub(
                 directory.resolve("mvnw"),
                 "printf '%s\\n' \"$*\" >> \"$MAVEN_CALLS\"\n"
-                        + "mkdir -p release/target && printf '"
+                        + "for argument in \"$@\"; do case \"$argument\" in -Dmdep.outputFile=*)"
+                        + " file=release/${argument#*=}; mkdir -p \"${file%/*}\"; printf '"
                         + CLASSPATH
-                        + "' > release/target/commits-cp.txt\n");
+                        + "' > \"$file\" ;; esac; done\n");
         stub(
                 bin.resolve("java"),
                 "printf '%s\\n' \"$@\" >> \"$JAVA_ARGUMENTS\"\nexit " + checkExit + "\n");
