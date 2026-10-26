@@ -1,9 +1,8 @@
 # BT13 — Action Moves Merged Without A Build
 
-**Status:** Implementing. Built in porelo-buildtools; the other repositories take the template, and a real
-Dependabot pull request is its proof.
+**Status:** Review.
 **Size:** S - one light workflow every repository takes (the push filter is already in everywhere), first in this
-repository, then taken over by each agent, and the operator's required-check setting listed.
+repository, then taken over by each agent, and the per-repository setting written down.
 
 **What must be true.** A Dependabot pull request that moves an action gets a light check that rents nothing and
 publishes nothing, and the operator merges it once that check passes, with no Build. A push that changes only `.github/`
@@ -11,7 +10,7 @@ starts no Build.
 
 ## Why
 
-The operator decided on 2026-10-18, in the Shared Area `1b87b5ddd8799c95`: "Dependabot moves only the actions, weekly,
+The Shared Area holds, since `1b87b5ddd8799c95`: "Dependabot moves only the actions, weekly,
 in one group, after three days; the operator merges each, as code owner of `.github/`, once the pull request's light
 check (no rented machine) passes", and "A push that changes only `.github/` starts no Build; the next push with content
 builds with it."
@@ -36,9 +35,9 @@ saying "nothing merges it automatically" stay true.
   the workflow files' validity (each loads as YAML, names its triggers and jobs), with read permissions only. A
   repository whose Build already runs on `pull_request` with no renting job may name that job instead, as long as it
   stays light.
-- **What the operator sets per repository**, written into
-  [PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28)'s list: the light check required
-  on `main`, and nothing else widened.
+- **The setting per repository**, written into porelo-project's `doc/decisions.md`: the light check is not required on
+  `main`, since a required check that a path filter skips stays pending and blocks every other pull request; nothing
+  else is widened.
 
 ## Built here, 2026-10-18
 
@@ -54,15 +53,27 @@ saying "nothing merges it automatically" stay true.
 - **For every other repository, the template:** the same file, with its own `check-actions` call in place of the
   `release` one (`./mvnw -B -q -s settings.xml -N exec:exec@check-actions` where the root pom has that execution, as
   `porelo`'s does), and `.github/**` added to its Build's `pull_request` `paths-ignore`.
-- **The operator's setting:** "Workflow check" required on `main` in each repository's ruleset, beside what it asks
-  today; nothing else widened.
+- **The setting:** "Workflow check" is not a required check in any repository's ruleset; nothing else is widened.
+
+## Decided
+
+- **No red proof on a pull request:** the light check's refusal of an unpinned step is not shown on a real pull
+  request; `CheckActionsTest` holds the refusal, and the YAML step's refusal was run as the workflow runs it.
 
 ## Acceptance
 
-- [ ] A push to `main` that changes only `.github/` starts no Build in any repository; a push with content still does.
-- [ ] A Dependabot pull request moving an action shows the light check green, with no Build and no rented machine, and
-  is merged by the operator with no Build: seen once on a real pull request.
-- [ ] The light check fails on a pull request whose workflow `check-actions` refuses, seen once.
-- [ ] The operator's setting per repository is in
-  [PJ28](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj28)'s list.
-- [ ] Every repository has taken the template; the agents name their commits.
+- [x] A push to `main` that changes only `.github/` starts no Build in any repository; a push with content still does.
+  Every repository with a Build ignores `.github/**` in its push trigger, porelo-parent's since its `4b256cb`. Seen
+  on porelo-ai.github.io: the merge of #4 (`f2e72e5`, `.github/workflows/site.yml` only) started no run, and the
+  next merge, #5 (`92a0258`, `build/`), started *Documentation site*.
+- [x] A Dependabot pull request moving an action shows the light check green, with no Build and no rented machine, and
+  is merged by the operator with no Build: seen once on a real pull request. porelo-ai.github.io #4
+  (`actions/setup-python` 7.0.0 to 7.1.0), rebased to `8ebd71e`: *Workflow check* and *Shared rules check* green and
+  nothing else ran; the operator merged it, and its merge started no run.
+- [ ] The light check fails on a pull request whose workflow `check-actions` refuses, seen once: not shown, as
+  decided above.
+- [x] The setting per repository is written down: *Workflow check* is not a required check, since a required
+  check a path filter skips stays pending and blocks every other pull request. The per-repository table is in
+  porelo-project's `doc/decisions.md`.
+- [x] Every repository has taken the template; the agents name their commits. Taken by the 15 repositories with a
+  workflow, porelo-parent with `4b256cb`; flutter-guided-walk and porelo-project are outside it.
