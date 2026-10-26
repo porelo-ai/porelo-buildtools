@@ -33,6 +33,12 @@ Release tags publish only to Sonatype, as required by porelo-project
 - The dry run still selects `central-sonatype-release`; `CheckDeploy` and `WorkflowSigningTest` remain valid.
 - No workflow branches on the forge, and no changelog entry is added for these CI and settings changes.
 
+## Found on the forge
+
+- The forge's runner sets `JAVA_TOOL_OPTIONS` for every job, its trust store, so each JVM announces it on stderr.
+  `LocalPoolTest` read a child JVM's stderr together with the `held` it prints and failed there alone; it now leaves
+  stderr out of what it reads. With `JAVA_TOOL_OPTIONS` set, this was the only failure of the full suite.
+
 ## To be checked
 
 - Run the new guards against the previous configuration to observe red, then against the changes to observe green.

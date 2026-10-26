@@ -85,7 +85,8 @@ class LocalPoolTest {
                                 Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                                 holder.toString(),
                                 lock.toString())
-                        .redirectErrorStream(true)
+                        // A JVM announces JAVA_TOOL_OPTIONS on stderr, never in the "held" read.
+                        .redirectError(ProcessBuilder.Redirect.INHERIT)
                         .start();
         try {
             final String said =
