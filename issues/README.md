@@ -10,7 +10,6 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt25"></a>[BT25](BT25-Machines-Asked-For-By-Kind.md) | L | - | `Spec` and `Main` ask for a machine by kind instead of a provider's server types, the setup chooses the local pool or the cloud provider, and a check in `porelo-buildtools` refuses a provider's name outside its implementation; the old call keeps working, routed onto the new one, until every caller has moved. |
-| <a id="bt32"></a>[BT32](BT32-Snapshots-On-The-Forges-Own-Registry.md) | S | - | The same workflows resolve and publish snapshots through the forge's configured Maven registry, with Sonatype retained on GitHub and for every release tag. |
 | <a id="bt24"></a>[BT24](BT24-An-Account-Rented-From-The-Local-Pool.md) | M | - | `porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back. |
 
 ## Implementing
@@ -33,7 +32,6 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt30"></a>[BT30](BT30-Check-Actions-Reads-Workflows-As-YAML.md) | - | - | `check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one. |
-| <a id="bt06"></a>[BT06](BT06-The-Gathered-Push-Refuses-A-Moved-Central-Forge.md) | - | - | The gathered push sends each repository from the local forge to the central forge with a plain push without force, refused loudly when the central forge moved; no push mirrors; the central token stays on the host. |
 | <a id="bt09"></a>[BT09](BT09-A-Limit-Wait-Names-The-Limit.md) | - | - | The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit. |
 
 ## Idea
@@ -48,6 +46,7 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt32"></a>BT32 | Snapshots On The Forge's Own Registry | The same workflows resolve and deploy snapshots on Sonatype on GitHub and on the forge's Maven registry on Forgejo, chosen by variables and secrets alone, with release tags published only to Sonatype. |
 | <a id="bt28"></a>BT28 | A Release's Publish Job May Write Its Contents | `porelo-release check-actions` lets the job `publish` of `release.yml` write `contents`, so porelo-host's release can attach its tarball and digest, and holds that job to runner commands alone: no fetched action, image or shell template, only its listed env names, and expressions only in env values and if. |
 | <a id="bt31"></a>BT31 | A Function Names The Parents It Covers | A plan function names under `covers:` the parent issues it covers with no work of their own; both pages show them as one line with their state, outside the sprint's bar and counts, and `plan check` refuses a parent missing from its index, named twice, or behind its parts. |
 | <a id="bt29"></a>BT29 | The Plan Page Tells Ready From Undecided | Nine colour groups in the states' flow order, Backlog, Estimated and Idea each its own; the progress image named `progress-<8 hex of its SHA-256>.svg`, the release's older ones removed, so a preview and GitHub show the new one. |
@@ -67,3 +66,9 @@ left out.
 | <a id="bt02"></a>BT02 | Check Actions Reads Permissions | `check-actions` reads `permissions:`: one at the top of every workflow, read or nothing, `write` only in a job its list names, anything else refused by name. |
 | <a id="bt07"></a>BT07 | Renamed Porelo Here | The tools are published as `org.fuin.porelo` `0.5.0`, and what they rent, label and install is named Porelo, the CI snapshots labelled `porelo=ci`; a documents test refuses the old word. |
 | <a id="bt08"></a>BT08 | Parent Renamed Porelo Parent | `org.fuin.porelo:porelo-parent` `0.2.0`, naming the tools as `org.fuin.porelo` `0.5.0`. |
+
+## Rejected
+
+| # | Title | Why |
+|---|---|---|
+| <a id="bt06"></a>BT06 | The Gathered Push Refuses A Moved Central Forge | Moved to porelo-host, which installs the command on the host, where there is no Java. |
