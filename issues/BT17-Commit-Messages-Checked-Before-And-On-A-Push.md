@@ -66,12 +66,55 @@ is refused ("the operator's hand merge" among them), and each clean subject from
 - **A local `commit-msg` hook:** agents commit from several worktrees and machines, and a hook not installed checks
   nothing. The pre-push command is part of the hand-over instead, where the checks already are.
 
+## Built
+
+- **On a pull request:** `shared-rules.yml`'s step "The pull request's commit messages", in every repository with a
+  workflow.
+- **On a push:** the Build's `build` job runs "The pushed commits' messages" after *Build and unit tests*:
+  - it installs `release` from this commit and checks `github.event.before..github.sha`;
+  - a tag checks the commit it names (`sha~1..sha`);
+  - where `before` is not a commit the checkout holds (a new branch's zeros, a branch pushed over), the range starts
+    at `origin/main`; on `main` itself that fails with `::error::`, since `main` cannot be pushed over;
+  - an empty `before` fails with `::error::`;
+  - the job checks out every commit (`fetch-depth: 0`), so the range is read without a second fetch, which a private
+    forge copy refuses.
+- **Each day:** a push the Build never starts, of `[skip ci]` commits or of documents only, meets no check of its own,
+  since the next push's `before` begins after it. So the scheduled *Shared rules check* runs "Main's commits of the
+  last day" over `main`'s commits of the last 26 hours; a younger repository is read whole, its first commit too. Its
+  checkout holds every commit, so the pull request's step there no longer fetches again either.
+- `WorkflowCommitsTest` runs both steps' own scripts against stubs of git, Maven and java, the git stub answering only
+  the calls the steps make:
+  - a pushed range reaches `check-commits` exactly, with release's classes and classpath;
+  - each Maven call carries `-s settings.xml`;
+  - a refusal fails the step;
+  - a new branch and a branch pushed over are checked from `main`, a tag by its commit;
+  - `main` from a commit the checkout lacks, and an empty `before`, fail;
+  - the schedule reads the last day, or a younger repository whole;
+  - the pull request's step fetches nothing, the git stub refusing any call it does not know;
+  - both checkouts' depth is the number 0, and the push's step comes after the build.
+
+  Each was seen red before the steps existed, and again against steps without the `install`, without the fallback
+  to `main`, without the tag and `main` cases, with a fixed range, without the empty guard, without the scheduled
+  step's `install`, with another window, and against the earlier scheduled step that left out the first commit and
+  fetched again for a pull request.
+- **Run here, as the steps run, with real git and Maven:**
+  - `dee5d67`, a 97-character subject, is refused (exit 1);
+  - `0f23264..996fd68` passes;
+  - zeros on a branch and an unknown `before` on a branch are checked as `origin/main..HEAD`;
+  - a tag is checked by its commit;
+  - an unknown `before` on `main` fails;
+  - the last day reads 11 commits, and a pull request of `origin/main..HEAD` 4, with nothing fetched.
+- **The template for every other repository:** the same checkout `fetch-depth: 0` and the same step after its own
+  build, with its own way to put `porelo-release` on the classpath (its pull request's step already has one).
+
 ## Acceptance
 
 - [ ] `check-commits` refuses each breaking subject measured on 2026-10-18 in porelo and porelo-buildtools, and the
   failing test is watched first. It passes their clean subjects and GitHub's and Dependabot's merges.
-- [ ] Over `origin/main..HEAD` it runs as one command, and it exits `0` on a range with nothing in it.
-- [ ] In this repository's Build, a pushed range with a breaking subject turns the step red, seen once on a branch.
+- [x] Over `origin/main..HEAD` it runs as one command, and it exits `0` on a range with nothing in it
+  (`CheckCommitsTest.passesARangeWithNothingInIt`).
+- [ ] In this repository's Build, a pushed range with a breaking subject turns the step red, seen once on a branch:
+  the operator's push of a branch, since agents cannot push to GitHub.
 - [ ] A pull request from outside whose commit lacks `Signed-off-by:` is refused, seen to pass against today's tooling
   first; one with it passes, and an agent's commit with `Assisted-by:` and no sign-off passes on a push.
 - [ ] Every repository has taken it; the agents name their commits.

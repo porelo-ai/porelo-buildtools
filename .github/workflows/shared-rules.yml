@@ -22,9 +22,11 @@ jobs:
             PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
         timeout-minutes: 10
         steps:
+            # Every commit, so the scheduled run reads main's last day without a second fetch.
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
+                  fetch-depth: 0
 
             - name: The pinned GraalVM
               uses: ./.github/actions/pinned-jdk
@@ -47,12 +49,7 @@ jobs:
                   PR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
               run: |
                   set -eu
-                  # The checkout holds the merge commit alone; the range needs the history of both its sides.
-                  if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
-                      git fetch --no-tags --quiet --unshallow origin "$PR_BASE" "$PR_HEAD"
-                  else
-                      git fetch --no-tags --quiet origin "$PR_BASE" "$PR_HEAD"
-                  fi
+                  # The checkout holds every commit, both sides of the merge among them, so nothing is fetched again.
                   outside=--outside
                   if [ "$PR_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
                       case "$PR_ASSOCIATION" in OWNER | MEMBER) outside= ;; esac
@@ -62,3 +59,17 @@ jobs:
                   ./mvnw -B -q -s settings.xml -pl release dependency:build-classpath -Dmdep.outputFile=target/cp.txt
                   java -cp "release/target/classes:$(cat release/target/cp.txt)" org.fuin.porelo.release.Main \
                       check-commits "$PR_BASE..$PR_HEAD" $outside
+
+            # A push the Build never starts, of [skip ci] commits or of documents alone, meets no check of its own, so
+            # each day main's commits of the last 26 hours are read, with two hours over the schedule's own day.
+            - name: Main's commits of the last day
+              if: github.event_name == 'schedule'
+              run: |
+                  set -eu
+                  # A repository younger than that is read whole, its first commit too.
+                  start=$(git rev-list -1 --before='26 hours ago' HEAD)
+                  ./mvnw -B -q -s settings.xml -pl release -am install -DskipTests
+                  ./mvnw -B -q -s settings.xml -pl release dependency:build-classpath \
+                      -Dmdep.outputFile=target/commits-cp.txt
+                  java -cp "release/target/classes:$(cat release/target/commits-cp.txt)" org.fuin.porelo.release.Main \
+                      check-commits "${start:+$start..}HEAD"
