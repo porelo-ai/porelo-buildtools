@@ -1,6 +1,6 @@
 # BT35 — Main Read By Its Pushes, Not Its Commit Dates
 
-**Status:** Backlog, set by the operator on 2026-10-27.
+**Status:** Implementing. Built in porelo-buildtools' template; each repository with it takes it.
 **Size:** M - one command in `porelo-release` with its tests, the scheduled step it replaces in `shared-rules.yml` and
 its guard test, then every repository with a workflow takes the template again, as with the
 commit check's own template.
@@ -17,10 +17,13 @@ it.
   (`GET /repos/{owner}/{repo}/activity?ref=refs/heads/main&time_period=week`) names each push to `main` with its time,
   `before` and `after`. Measured on porelo-host with a token holding only *Actions* and *Metadata* read: `200`, five
   pushes with their two commits each, `34c08b9..919cf03` at 05:01Z the newest. A push of several commits shows as one
-  entry (`20670fd..4337e1f` holds `bd8c8fe`, `4b9de92` and `4337e1f`).
+  entry (`20670fd..4337e1f` holds `bd8c8fe`, `4b9de92` and `4337e1f`). The command asks without `time_period`, so
+  `--since` is not capped at a week, and filters by each entry's time itself.
 - **`porelo-release check-pushes --since <hours>`**, a new class `CheckPushes` beside `CheckCommits`:
   - reads `GITHUB_API_URL`, `GITHUB_REPOSITORY` and `GITHUB_TOKEN` from the environment, never from an argument;
-  - takes every page through `Web` (the `Link` header's `next`);
+  - reads one page of 100, the newest activity of `main`. `Web` answers bodies only, not the `Link` header, so a full page whose
+    oldest entry is still inside the window is refused (exit 2) rather than followed. That is the plan's one change
+    while building; a day of 100 pushes to `main` has not happened here;
   - for each push younger than `--since`, runs `CheckCommits` over `before..after` against the checkout. That is the
     same rule as on the push and the pull request, its exemptions included;
   - prints each push it read with its range. Any fault fails the step, and so do an unreachable API, a page it cannot
@@ -31,9 +34,10 @@ it.
 - **The template** goes into `~/.porelo/handover/porelo-buildtools/<commit>/template.md`. Each agent takes it into its
   repositories, as with the commit check's template, and each keeps its own way to put `porelo-release` on the classpath.
 - **Docs:** `doc/index.md` names `check-pushes` beside `check-commits`; changelog under *Added*.
-- **The test that goes red first:** `CheckPushesTest.refusesAnOldCommitInADaysPush`. It uses a temporary repository
-  (`GIT_CONFIG_GLOBAL=/dev/null`) whose commit with a requirement number is dated three days back, and a `FakeWeb`
-  activity page naming its push an hour ago. Red against today's date-based range, which reads nothing there.
+- **The test that goes red first:** `CheckPushesTest.refusesAnOldCommitInADaysPush`. A `FakeWeb` activity page names
+  a push an hour ago, and a stand-in for `check-commits` refuses that push's range, so the push is read by its range
+  and not by any commit's date. Red while `CheckPushes` did not exist; the git side is `check-commits`' own, already
+  tested, and the live run over porelo-buildtools' last day reads real ranges.
 
 ## Acceptance
 
@@ -41,7 +45,7 @@ it.
   - an old commit in a push of the day is refused;
   - a clean day passes;
   - a push older than `--since` is not read;
-  - a second page is read;
+  - a full page still inside the window is refused, not half read;
   - an API error, a missing token, and a `before` the checkout lacks each fail and name what they asked;
   - the token appears in no output.
 - `WorkflowCommitsTest` holds the scheduled step's new call and its `env:` binding, and is seen red against the old

@@ -16,13 +16,13 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
 | <a id="bt36"></a>[BT36](BT36-A-Forge-Pull-Request-From-The-Same-Repository-Counts-As-Inside.md) | S | - | A pull request on the host's forge from a branch of the same repository is checked as one from inside, told apart by `github.server_url`, since Forgejo sends no `author_association`; GitHub keeps its rule. |
 
 ## Backlog
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 

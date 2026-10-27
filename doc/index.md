@@ -86,6 +86,26 @@ interface (committer `GitHub`), told by the author and committer the commit reco
 no commit breaks the rule, an empty range among them; 1 when one does; 2 when git or the issues cannot be read, or the
 range starts with `-`, since git would read it as an option.
 
+## What `check-pushes` reads
+
+```
+porelo-release check-pushes --since HOURS
+```
+
+The pushes to `main` of the last HOURS, read from GitHub's repository activity
+(`GET /repos/{owner}/{repo}/activity`), each held to the shared rule by its own range, `before..after`, as
+`check-commits` holds a range. A commit made long before its push is read with that push, whatever its date; the push
+that made `main` is read up to its head. Activity of another branch is not read. The
+scheduled step *Main's pushes of the last day* runs it with `--since 26`, two hours over the schedule's day, against a
+checkout of every commit.
+
+It reads `GITHUB_REPOSITORY` and `GITHUB_TOKEN` from the environment, never from an argument, and sends the token to
+GitHub's API alone, and takes it out of any message it prints. It names each push it reads, with its range and time, then that range's result. Exit 0 when every
+push holds to the rule, a day without a push among them; 1 when a commit breaks it; 2 when the activity cannot be read,
+the token is missing, a push's range is not in the checkout, or a full page of 100 is still inside the window, since a
+second page is not followed. `GITHUB_API_URL` other than GitHub's own is refused with 2: another forge's activity is
+not read.
+
 ## What `check-actions` reads about permissions
 
 Besides the pins, `check-actions` reads each workflow's `permissions:`. A file under `.github/workflows` with a

@@ -1,0 +1,2 @@
+title: porelo-release check-pushes holds every push to main of a recent window to the shared rule on commit messages by the push's own range, read from GitHub's repository activity, and the shared-rules template's scheduled step runs it in place of a range by commit date
+type: added

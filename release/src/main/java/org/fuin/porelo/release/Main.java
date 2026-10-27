@@ -37,6 +37,7 @@ public final class Main {
                     "check-providers",
                     "plan",
                     "check-commits",
+                    "check-pushes",
                     "check-doc-site",
                     "check-releases",
                     "check-readmes",
@@ -133,6 +134,36 @@ public final class Main {
                         CheckCommits.Git.in(here, Map.of()),
                         () -> CheckCitations.issuePrefixes(here, web, null, out))
                 .check(options.positional().getFirst(), options.flag("--outside"));
+    }
+
+    private static int checkPushes(
+            List<String> rest, PrintStream out, PrintStream err, Web web, Map<String, String> env) {
+        final Options options = Options.parse(rest, Set.of("--since"), Set.of());
+        final String since = options == null ? null : options.value("--since");
+        if (options == null
+                || !options.positional().isEmpty()
+                || since == null
+                || !since.matches("[1-9][0-9]{0,3}")) {
+            return usage(err, "check-pushes --since HOURS");
+        }
+        // The pushes' commits are read where the command runs: a repository's root that holds them.
+        final Path here = Path.of(".");
+        return new CheckPushes(
+                        out,
+                        err,
+                        web,
+                        env,
+                        java.time.Clock.systemUTC(),
+                        range ->
+                                new CheckCommits(
+                                                out,
+                                                err,
+                                                CheckCommits.Git.in(here, Map.of()),
+                                                () ->
+                                                        CheckCitations.issuePrefixes(
+                                                                here, web, null, out))
+                                        .check(range, false))
+                .check(java.time.Duration.ofHours(Integer.parseInt(since)));
     }
 
     private Main() {
@@ -322,6 +353,7 @@ public final class Main {
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
             case "check-commits" -> checkCommits(rest, out, err, web);
+            case "check-pushes" -> checkPushes(rest, out, err, web, env);
             case "check-doc-site" ->
                     rest.size() > 2
                             ? usage(

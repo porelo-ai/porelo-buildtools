@@ -72,15 +72,16 @@ jobs:
                       check-commits "$PR_BASE..$PR_HEAD" $outside
 
             # A push the Build never starts, of [skip ci] commits or of documents alone, meets no check of its own, so
-            # each day main's commits of the last 26 hours are read, with two hours over the schedule's own day.
-            - name: Main's commits of the last day
+            # each day main's pushes of the last 26 hours, two hours over the schedule's own day, are read from the
+            # repository's activity, each by its own range: a commit made long before its push is read too.
+            - name: Main's pushes of the last day
               if: github.event_name == 'schedule'
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
               run: |
                   set -eu
-                  # A repository younger than that is read whole, its first commit too.
-                  start=$(git rev-list -1 --before='26 hours ago' HEAD)
                   ./mvnw -B -q -s settings.xml -pl release -am install -DskipTests
                   ./mvnw -B -q -s settings.xml -pl release dependency:build-classpath \
                       -Dmdep.outputFile=target/commits-cp.txt
                   java -cp "release/target/classes:$(cat release/target/commits-cp.txt)" org.fuin.porelo.release.Main \
-                      check-commits "${start:+$start..}HEAD"
+                      check-pushes --since 26

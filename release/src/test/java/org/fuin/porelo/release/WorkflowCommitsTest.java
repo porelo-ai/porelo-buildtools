@@ -158,33 +158,37 @@ class WorkflowCommitsTest {
                 .isEmpty();
     }
 
-    // Prevents a push the Build never starts from going unchecked: the schedule reads main's last
-    // day.
+    // Prevents a push the Build never starts from going unchecked: the schedule reads each push of
+    // main's last day by its own range, however long before it its commits were made.
     @Test
-    void theScheduleChecksMainsLastDay() throws IOException, InterruptedException {
+    void theScheduleChecksMainsPushesOfTheLastDay() throws IOException, InterruptedException {
         final JsonNode step = scheduledStep();
         assertThat(step.path("if").asText())
                 .as("the step runs on the schedule")
                 .isEqualTo("github.event_name == 'schedule'");
+        assertThat(step.path("env").path("GITHUB_TOKEN").asText())
+                .as("the run's own token reads the repository's activity")
+                .isEqualTo("${{ github.token }}");
         assertThat(step.path("run").asText())
-                .as("the range comes from git, not a workflow expression")
+                .as("the script reads its environment alone")
                 .doesNotContain("${{");
         final JsonNode depth =
                 job(SHARED_RULES, "check").path("steps").get(0).path("with").path("fetch-depth");
         assertThat(depth.isInt() && depth.intValue() == 0)
-                .as("the scheduled checkout holds main's last day, fetch-depth %s", depth)
+                .as("the checkout holds every push's commits, fetch-depth %s", depth)
                 .isTrue();
 
-        final Run run = execute(step, Map.of("DAY_START", "4444444"), 0);
+        final Run run = execute(step, Map.of(), 0);
         assertThat(run.exit).as("a clean day: %s", run.log).isZero();
         assertThat(run.java)
-                .as("check-commits reads main's commits since the last day began")
+                .as("check-pushes reads the pushes of the last 26 hours")
                 .containsExactly(
                         "-cp",
                         "release/target/classes:" + CLASSPATH,
                         "org.fuin.porelo.release.Main",
-                        "check-commits",
-                        "4444444..HEAD");
+                        "check-pushes",
+                        "--since",
+                        "26");
         assertThat(run.maven)
                 .as(
                         "release is installed and its classpath read, each with the repository's settings")
@@ -192,18 +196,10 @@ class WorkflowCommitsTest {
                         "-B -q -s settings.xml -pl release -am install -DskipTests",
                         "-B -q -s settings.xml -pl release dependency:build-classpath"
                                 + " -Dmdep.outputFile=target/commits-cp.txt");
-        assertThat(execute(step, Map.of("DAY_START", "4444444"), 1).exit)
-                .as("a refused day fails the step")
+        assertThat(execute(step, Map.of(), 1).exit).as("a refused day fails the step").isNotZero();
+        assertThat(execute(step, Map.of(), 2).exit)
+                .as("a day that could not be read fails the step")
                 .isNotZero();
-    }
-
-    // Prevents a repository younger than a day from checking nothing, or leaving out its first
-    // commit.
-    @Test
-    void aRepositoryYoungerThanADayIsReadWhole() throws IOException, InterruptedException {
-        final Run run = execute(scheduledStep(), Map.of("DAY_START", ""), 0);
-        assertThat(run.exit).as("a young repository: %s", run.log).isZero();
-        assertThat(run.java).as("it is read whole").endsWith("check-commits", "HEAD");
     }
 
     // Prevents a second fetch, which a private forge copy refuses to a checkout without
@@ -382,8 +378,6 @@ class WorkflowCommitsTest {
                 bin.resolve("git"),
                 "case \"$*\" in\n"
                         + "'cat-file -e '*) [ \"$#\" -eq 3 ] && [ \"$3\" = \"$KNOWN^{commit}\" ] ;;\n"
-                        + "'rev-list -1 --before=26 hours ago HEAD')"
-                        + " [ -z \"$DAY_START\" ] || printf '%s\\n' \"$DAY_START\" ;;\n"
                         + "*) echo \"unexpected git $*\" >&2; exit 99 ;;\n"
                         + "esac\n");
         final Path output = directory.resolve("output");
@@ -403,7 +397,6 @@ class WorkflowCommitsTest {
         command.environment().clear();
         command.environment().put("PATH", bin + ":/usr/bin:/bin");
         command.environment().put("KNOWN", "none");
-        command.environment().put("DAY_START", "");
         command.environment().putAll(environment);
         command.environment().put("JAVA_ARGUMENTS", javaArguments.toString());
         command.environment().put("MAVEN_CALLS", mavenCalls.toString());
@@ -444,7 +437,7 @@ class WorkflowCommitsTest {
     }
 
     private static JsonNode scheduledStep() throws IOException {
-        return named(job(SHARED_RULES, "check"), "Main's commits of the last day");
+        return named(job(SHARED_RULES, "check"), "Main's pushes of the last day");
     }
 
     private static JsonNode named(final JsonNode job, final String name) {
