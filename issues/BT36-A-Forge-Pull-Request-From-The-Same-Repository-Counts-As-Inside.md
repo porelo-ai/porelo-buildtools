@@ -2,7 +2,7 @@
 
 **Status:** Implementing. Built in porelo-buildtools' template; each repository with it takes it.
 **Size:** S - one condition and one environment binding in the template's pull-request step, its cases in
-`WorkflowCommitsTest`, and every repository with the template takes it, as with [BT34](README.md#bt34).
+`WorkflowCommitsTest`, and every repository with the template takes it, as with the own update workflow's rule before it.
 
 **What must be true.** On the host's forge, a pull request from a branch of the same repository is checked as one from
 inside: its commits need no `Signed-off-by:`, and the shared rule on commit messages still holds for them. A pull
@@ -38,7 +38,7 @@ Sprint 5's rented host, 2026-10-27, porelo-buildtools pull requests 1 and 2 on t
   Only a holder of write access can push a branch to the repository there, and the forge's `main` still takes a
   merge only with the operator's approval (porelo-host's
   [HO31](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho31)). A comment in the step says so.
-- **`WorkflowCommitsTest`** runs the step's own script, as for [BT34](README.md#bt34). It also checks the binding
+- **`WorkflowCommitsTest`** runs the step's own script, as for the own update workflow's rule. It also checks the binding
   `PR_SERVER` = `${{ github.server_url }}`, and these cases:
   - a forge pull request from the same repository, with an empty association, is checked without `--outside`;
   - a forge pull request from another repository keeps `--outside`;
@@ -47,7 +47,7 @@ Sprint 5's rented host, 2026-10-27, porelo-buildtools pull requests 1 and 2 on t
 
   Each is seen red against today's step.
 - **The template** goes to `~/.porelo/handover/porelo-buildtools/<commit>/template.md`. Each agent takes it into its
-  repositories and their own copy of the test, as with [BT17](README.md#bt17). Those are porelo, porelo-adapters,
+  repositories and their own copy of the test, as with the commit check's template. Those are porelo, porelo-adapters,
   porelo-agy, porelo-ai.github.io, porelo-buildtools, porelo-claude-code, porelo-codex, porelo-frontend, porelo-host,
   porelo-intellij, porelo-message-matrix, porelo-message-sluice, porelo-omp and porelo-pi. porelo-message-sluice
   holds it in `filter/app/src/test/java/org/fuin/porelo/msgsluice/filter/WorkflowCommitsTest.java`, porelo-frontend in

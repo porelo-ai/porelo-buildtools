@@ -2,8 +2,8 @@
 
 **Status:** Backlog, set by the operator on 2026-10-27.
 **Size:** M - one command in `porelo-release` with its tests, the scheduled step it replaces in `shared-rules.yml` and
-its guard test, then every repository with a workflow takes the template again, as with
-[BT17](README.md#bt17).
+its guard test, then every repository with a workflow takes the template again, as with the
+commit check's own template.
 
 **What must be true.** Every commit that reaches `main` is held to the shared rule on commit messages once, however long
 before its push it was committed. Today the scheduled step *Main's commits of the last day* picks its range by committer
@@ -29,7 +29,7 @@ it.
   `rev-list` range, with `GITHUB_TOKEN` in its `env:` and `contents: read` as today. The checkout keeps
   `fetch-depth: 0`.
 - **The template** goes into `~/.porelo/handover/porelo-buildtools/<commit>/template.md`. Each agent takes it into its
-  repositories, as with [BT17](README.md#bt17), and each keeps its own way to put `porelo-release` on the classpath.
+  repositories, as with the commit check's template, and each keeps its own way to put `porelo-release` on the classpath.
 - **Docs:** `doc/index.md` names `check-pushes` beside `check-commits`; changelog under *Added*.
 - **The test that goes red first:** `CheckPushesTest.refusesAnOldCommitInADaysPush`. It uses a temporary repository
   (`GIT_CONFIG_GLOBAL=/dev/null`) whose commit with a requirement number is dated three days back, and a `FakeWeb`

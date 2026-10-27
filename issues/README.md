@@ -9,7 +9,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt13"></a>[BT13](BT13-Action-Moves-Merged-Without-A-Build.md) | S | - | The template every repository takes: a push of only `.github/` starts no Build (in everywhere since wave 1), and a light pull-request check with no rented machine that an action move is merged on by hand, not a required check; no auto-merge. |
 | <a id="bt25"></a>[BT25](BT25-Machines-Asked-For-By-Kind.md) | L | - | `Spec` and `Main` ask for a machine by kind instead of a provider's server types, the setup chooses the local pool or the cloud provider, and a check in `porelo-buildtools` refuses a provider's name outside its implementation; the old call keeps working, routed onto the new one, until every caller has moved. |
 | <a id="bt24"></a>[BT24](BT24-An-Account-Rented-From-The-Local-Pool.md) | M | - | `porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back. |
 
@@ -18,8 +17,6 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt36"></a>[BT36](BT36-A-Forge-Pull-Request-From-The-Same-Repository-Counts-As-Inside.md) | S | - | A pull request on the host's forge from a branch of the same repository is checked as one from inside, told apart by `github.server_url`, since Forgejo sends no `author_association`; GitHub keeps its rule. |
-| <a id="bt34"></a>[BT34](BT34-The-Own-Update-Workflows-Pull-Request-Counts-As-Inside.md) | XS | - | A pull request the repository's own workflow opens as `github-actions[bot]` from its own branch is checked as from inside, needing no `Signed-off-by:`; one from elsewhere still needs it. |
-| <a id="bt17"></a>[BT17](BT17-Commit-Messages-Checked-Before-And-On-A-Push.md) | M | - | `porelo-release check-commits <range>` holds each commit to one line of at most 72 characters, no issue number and no who; run before a push over `origin/main..HEAD` and in each Build over the pushed range; GitHub's and Dependabot's own merges exempt; built here, left: each repository's pre-push routine and Build. |
 
 ## Backlog
 
@@ -48,6 +45,9 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt17"></a>BT17 | Commit Messages Checked Before And On A Push | `porelo-release check-commits` holds each commit of a range to the shared rule on commit messages; every repository runs it before a push, on its pushed range, on a pull request and on main's last day, from one template. |
+| <a id="bt34"></a>BT34 | The Own Update Workflow's Pull Request Counts As Inside | A pull request the repository's own workflow opens as `github-actions[bot]` from a branch of the same repository is checked as from inside, with no sign-off asked. |
+| <a id="bt13"></a>BT13 | Action Moves Merged Without A Build | A push of only `.github/` starts no Build, and an action move is merged by hand on a light pull-request check that rents nothing and is not required; no auto-merge. |
 | <a id="bt10"></a>BT10 | A Leg Takes No IPv6 Address | Every server the tools rent is created with an IPv4 address and no IPv6 one, so it holds one primary IP; measured on the project's primary IPs and green in every leg kind. |
 | <a id="bt32"></a>BT32 | Snapshots On The Forge's Own Registry | The same workflows resolve and deploy snapshots on Sonatype on GitHub and on the forge's Maven registry on Forgejo, chosen by variables and secrets alone, with release tags published only to Sonatype. |
 | <a id="bt28"></a>BT28 | A Release's Publish Job May Write Its Contents | `porelo-release check-actions` lets the job `publish` of `release.yml` write `contents`, so porelo-host's release can attach its tarball and digest, and holds that job to runner commands alone: no fetched action, image or shell template, only its listed env names, and expressions only in env values and if. |
