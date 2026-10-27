@@ -74,6 +74,10 @@ Each commit is held to the shared rule, and each fault is one line with the comm
   lists are in `Who`. Trailers are not read for it, since they name a person on purpose.
 - **With `--outside`**, for a pull request from outside, every commit also carries a `Signed-off-by:` naming its
   author's address, the Developer Certificate of Origin. Without it a sign-off is neither asked for nor refused.
+  The pull-request step passes `--outside` unless the request comes from a branch of the repository itself and its
+  author is an `OWNER` or `MEMBER` there, or is `github-actions[bot]`. GitHub reports `MEMBER` only for a public
+  membership of the organization: a member whose membership is private is reported `CONTRIBUTOR` and checked as
+  from outside.
 
 Exempt are the commits authored by `dependabot[bot]` or `github-actions[bot]`, and those GitHub committed in its web
 interface (committer `GitHub`), told by the author and committer the commit records, never by its message. Exit 0 when
