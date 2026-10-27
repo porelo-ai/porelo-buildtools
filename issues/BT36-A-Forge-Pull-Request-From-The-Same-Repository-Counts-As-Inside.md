@@ -36,7 +36,8 @@ Sprint 5's rented host, 2026-10-27, porelo-buildtools pull requests 1 and 2 on t
     when `PR_SERVER` is not `https://github.com`.
 
   Only a holder of write access can push a branch to the repository there, and the forge's `main` still takes a
-  merge only with the operator's approval (porelo-host's HO31). A comment in the step says so.
+  merge only with the operator's approval (porelo-host's
+  [HO31](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho31)). A comment in the step says so.
 - **`WorkflowCommitsTest`** runs the step's own script, as for [BT34](README.md#bt34). It also checks the binding
   `PR_SERVER` = `${{ github.server_url }}`, and these cases:
   - a forge pull request from the same repository, with an empty association, is checked without `--outside`;
