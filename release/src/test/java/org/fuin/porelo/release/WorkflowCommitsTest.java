@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The Build checks the commit messages of every push, so a direct push to {@code main} cannot pass
@@ -138,12 +140,19 @@ class WorkflowCommitsTest {
     }
 
     // Prevents a missing start of the range from silently checking nothing.
-    @Test
-    void aMissingStartFailsLoudly() throws IOException, InterruptedException {
-        final Run run = run("refs/heads/main", "", "1111111", 0);
-        assertThat(run.exit).as("no start of the range: %s", run.log).isNotZero();
-        assertThat(run.log).as("the refusal is a visible workflow error").contains("::error::");
-        assertThat(run.java).as("check-commits is not started without a range").isEmpty();
+    // A branch other than main falls back to main and a tag to its commit, so there only this
+    // guard stops an empty start.
+    @ParameterizedTest
+    @ValueSource(strings = {"refs/heads/main", "refs/heads/topic", "refs/tags/v1.2.3"})
+    void aMissingStartFailsLoudly(final String ref) throws IOException, InterruptedException {
+        final Run run = run(ref, "", "1111111", 0);
+        assertThat(run.exit).as("a push to %s with no start fails: %s", ref, run.log).isNotZero();
+        assertThat(run.log)
+                .as("the refusal on %s is a visible workflow error", ref)
+                .contains("::error::");
+        assertThat(run.java)
+                .as("check-commits is not started without a range on %s", ref)
+                .isEmpty();
     }
 
     // Prevents a push the Build never starts from going unchecked: the schedule reads main's last
