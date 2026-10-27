@@ -11,6 +11,7 @@ and what would change the answer.
 | A pool VM goes back to its snapshot after each run | each pool VM holds one run account; given back with `sudo porelo-pool-give-back`, it is reverted to its base snapshot on the host before anyone rents it again | [entry](#a-pool-vm-goes-back-to-its-snapshot-after-each-run) |
 | A snapshot is built only from new inputs | a push builds a system's image only when the newest snapshot's `inputs` label, a hash of its pinned recipe, installer and code, differs; a dispatch always builds | [Why](#a-snapshot-is-built-only-from-new-inputs) |
 | A Build on `main` takes its legs from a run that proved the same tree | `proven-legs` answers yes only for this repository's own push, dispatch or schedule run, no older than its bound, of the same tree, with every job of a named group green; a tag always runs its own legs | [Why](#a-build-on-main-takes-its-legs-from-a-run-that-proved-the-same-tree) |
+| A rented server takes no IPv6 address | every server is created with an IPv4 address and no IPv6 one, so it holds one primary IP and the project's quota of 16 primary IPs allows 16 servers | [Why](#a-rented-server-takes-no-ipv6-address) |
 | **Releases** | | |
 | A tool takes the newest release that has stood | the newest release at least `porelo.release.min-age` old, even where newer, younger ones exist; prereleases stay out | [Why](#a-tool-takes-the-newest-release-that-has-stood) |
 
@@ -79,6 +80,16 @@ schedule and never by a pull request, of the same tree (or, for a dispatched or 
 `porelo-verified-tree-<tree>`, which only the run itself can make), no older than `--max-age`, not the asking run,
 and with every job of one named group green. A tag always runs its own legs, and a question that cannot be answered
 is no proof, so the legs run then too. Build, unit tests and Publish always run.
+
+## A rented server takes no IPv6 address
+
+The one place that builds the body of every server create (legs, leases, agent legs and the snapshot builds) asks for
+an IPv4 address and no IPv6 one. **Why:** the project may hold 16 primary
+IPs, and with two per server that capped it at 8 servers while the dedicated vCPUs stood at 20 of 32 (2026-10-18).
+Nothing a leg does needs IPv6: the tools read only `public_net.ipv4.ip` and every ssh goes there, and porelo's legs, an
+agent leg, a lease and the snapshot builds were green on such servers (2026-10-26). A full primary-IP quota answers
+`403 resource_limit_exceeded`, the code the wait loop already retries. **What would change the answer:** a test that
+must reach a server over IPv6, or a provider whose quota counts otherwise.
 
 ## A tool takes the newest release that has stood
 
