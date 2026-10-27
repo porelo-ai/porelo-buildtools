@@ -1,0 +1,2 @@
+title: The pull-request step of the shared-rules template checks a pull request on the host's forge from a branch of the repository itself as one from inside, since that forge names no author association
+type: changed

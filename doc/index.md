@@ -77,7 +77,9 @@ Each commit is held to the shared rule, and each fault is one line with the comm
   The pull-request step passes `--outside` unless the request comes from a branch of the repository itself and its
   author is an `OWNER` or `MEMBER` there, or is `github-actions[bot]`. GitHub reports `MEMBER` only for a public
   membership of the organization: a member whose membership is private is reported `CONTRIBUTOR` and checked as
-  from outside.
+  from outside. On the host's forge, which names no author association at all, a pull request from a branch of the
+  repository itself is from inside: the step tells that forge by `github.server_url`, which is not
+  `https://github.com` there, and only a holder of write access pushes such a branch.
 
 Exempt are the commits authored by `dependabot[bot]` or `github-actions[bot]`, and those GitHub committed in its web
 interface (committer `GitHub`), told by the author and committer the commit records, never by its message. Exit 0 when

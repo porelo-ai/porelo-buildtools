@@ -35,6 +35,9 @@ class WorkflowCommitsTest {
     private static final String STEP = "The pushed commits' messages";
     private static final String CLASSPATH = "/stub/a.jar:/stub/b.jar";
 
+    /** The host's forge as its runner names it, measured on sprint 5's host. */
+    private static final String FORGE = "https://10.73.0.1:3000";
+
     @TempDir Path directory;
 
     // Prevents the check from being skipped on a push or fed a range a workflow expression built.
@@ -243,6 +246,9 @@ class WorkflowCommitsTest {
         assertThat(step.path("env").path("PR_ASSOCIATION").asText())
                 .as("the association is the pull request's author's")
                 .isEqualTo("${{ github.event.pull_request.author_association }}");
+        assertThat(step.path("env").path("PR_SERVER").asText())
+                .as("the server is the forge the run is on")
+                .isEqualTo("${{ github.server_url }}");
         assertThat(step.path("run").asText())
                 .as("the script reads its environment alone")
                 .doesNotContain("${{");
@@ -277,7 +283,35 @@ class WorkflowCommitsTest {
                 .endsWith("6666666..7777777", "--outside");
     }
 
+    // Prevents every pull request on the host's forge from being refused for want of a sign-off:
+    // Forgejo sends no author association, and a branch there is pushed only with write access.
+    @Test
+    void aForgePullRequestFromTheSameRepositoryIsFromInside()
+            throws IOException, InterruptedException {
+        final Run run = pullRequest("porelo-ai/porelo-buildtools", "", "agent-machines", FORGE);
+        assertThat(run.exit).as("a forge pull request from this repository: %s", run.log).isZero();
+        assertThat(run.java).as("its commits need no sign-off").endsWith("6666666..7777777");
+    }
+
+    // Prevents the forge's rule from letting code from another repository pass without its
+    // author's sign-off.
+    @Test
+    void aForgePullRequestFromElsewhereStaysFromOutside() throws IOException, InterruptedException {
+        assertThat(pullRequest("someone/porelo-buildtools", "", "someone", FORGE).java)
+                .as("a forge pull request from another repository")
+                .endsWith("6666666..7777777", "--outside");
+    }
+
     private Run pullRequest(final String repository, final String association, final String author)
+            throws IOException, InterruptedException {
+        return pullRequest(repository, association, author, "https://github.com");
+    }
+
+    private Run pullRequest(
+            final String repository,
+            final String association,
+            final String author,
+            final String server)
             throws IOException, InterruptedException {
         return execute(
                 named(job(SHARED_RULES, "check"), "The pull request's commit messages"),
@@ -293,7 +327,9 @@ class WorkflowCommitsTest {
                         "PR_ASSOCIATION",
                         association,
                         "PR_AUTHOR",
-                        author),
+                        author,
+                        "PR_SERVER",
+                        server),
                 0);
     }
 
