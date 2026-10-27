@@ -1,6 +1,6 @@
 # BT36 — A Forge Pull Request From The Same Repository Counts As Inside
 
-**Status:** Estimated by the operator on 2026-10-27.
+**Status:** Backlog, set by the operator on 2026-10-27.
 **Size:** S - one condition and one environment binding in the template's pull-request step, its cases in
 `WorkflowCommitsTest`, and every repository with the template takes it, as with [BT34](README.md#bt34).
 

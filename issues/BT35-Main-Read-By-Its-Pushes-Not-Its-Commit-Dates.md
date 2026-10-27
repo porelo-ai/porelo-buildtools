@@ -1,6 +1,6 @@
 # BT35 — Main Read By Its Pushes, Not Its Commit Dates
 
-**Status:** Estimated by the operator on 2026-10-27.
+**Status:** Backlog, set by the operator on 2026-10-27.
 **Size:** M - one command in `porelo-release` with its tests, the scheduled step it replaces in `shared-rules.yml` and
 its guard test, then every repository with a workflow takes the template again, as with
 [BT17](README.md#bt17).
