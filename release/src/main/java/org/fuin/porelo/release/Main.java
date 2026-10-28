@@ -109,7 +109,7 @@ public final class Main {
                 inputs.add(file.toRealPath());
                 inputs.add(project.root().resolve("project.yml").toRealPath());
                 PlanRender.write(file, plan, pages, html == null ? null : Path.of(html), inputs);
-                out.println("plan rendered: " + PlanRender.page(file, plan));
+                out.println("plan rendered: " + PlanRender.page(file));
             }
             return 0;
         } catch (Stop stop) {

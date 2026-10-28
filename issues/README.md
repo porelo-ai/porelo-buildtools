@@ -17,6 +17,7 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
+| <a id="bt38"></a>[BT38](BT38-One-Directory-Per-Release-Plan.md) | S | - | A release plan is `plan/<release>/plan.yml`, its page `README.md` and its progress image beside it, so the forge shows the page on opening the directory; the old layout is not read. |
 | <a id="bt36"></a>[BT36](BT36-A-Forge-Pull-Request-From-The-Same-Repository-Counts-As-Inside.md) | S | - | A pull request on the host's forge from a branch of the same repository is checked as one from inside, told apart by `github.server_url`, since Forgejo sends no `author_association`; GitHub keeps its rule. |
 
 ## Backlog

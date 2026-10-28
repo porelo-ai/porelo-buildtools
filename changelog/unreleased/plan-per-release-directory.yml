@@ -1,0 +1,2 @@
+title: '`plan render` and `plan check` read a plan as `<release>/plan.yml`, and `plan render` writes its page as `README.md` and its progress image beside it, so a forge shows the page on opening the release''s directory; a plan elsewhere is refused'
+type: changed

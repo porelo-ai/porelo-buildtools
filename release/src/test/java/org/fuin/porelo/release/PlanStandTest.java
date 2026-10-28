@@ -73,7 +73,7 @@ class PlanStandTest {
 
     @Test
     void localInputsUseTheirLatestGitCommitRatherThanFileTimes() throws Exception {
-        final Path plan = Path.of("src/test/resources/plans/0.6.yml").toAbsolutePath();
+        final Path plan = Path.of("src/test/resources/plans/0.6/plan.yml").toAbsolutePath();
         final Path index =
                 Path.of("src/test/resources/plans/checkouts/porelo-project/issues/README.md")
                         .toAbsolutePath();

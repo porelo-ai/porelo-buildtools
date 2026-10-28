@@ -61,7 +61,7 @@ final class PlanCheck {
         }
         checkCovers(plan, issues, assigned, links, faults);
         final Map<Path, String> expected = new java.util.LinkedHashMap<>();
-        expected.put(PlanRender.page(file, plan), pages.markdown());
+        expected.put(PlanRender.page(file), pages.markdown());
         pages.images()
                 .forEach(
                         (name, svg) ->

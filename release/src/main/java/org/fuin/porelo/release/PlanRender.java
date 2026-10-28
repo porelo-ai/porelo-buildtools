@@ -40,14 +40,14 @@ final class PlanRender {
         return Map.copyOf(issues);
     }
 
-    static Path page(Path file, Plan plan) {
-        return file.toAbsolutePath().resolveSibling(plan.release() + ".md");
+    static Path page(Path file) {
+        return file.toAbsolutePath().resolveSibling("README.md");
     }
 
     static void write(Path file, Plan plan, Pages pages, @Nullable Path html, Set<Path> inputs)
             throws IOException, Stop {
         final Map<Path, String> outputs = new LinkedHashMap<>();
-        outputs.put(page(file, plan), pages.markdown());
+        outputs.put(page(file), pages.markdown());
         pages.images()
                 .forEach(
                         (name, svg) ->
@@ -86,7 +86,7 @@ final class PlanRender {
                 }
             }
         }
-        final Set<Path> obsolete = obsoleteImages(file, plan, directory, outputs.keySet(), inputs);
+        final Set<Path> obsolete = obsoleteImages(file, directory, outputs.keySet(), inputs);
         for (final var output : outputs.entrySet()) {
             Files.createDirectories(
                     java.util.Objects.requireNonNull(output.getKey().toAbsolutePath().getParent()));
@@ -96,14 +96,10 @@ final class PlanRender {
     }
 
     private static Set<Path> obsoleteImages(
-            Path file, Plan plan, Path directory, Set<Path> outputs, Set<Path> inputs)
+            Path file, Path directory, Set<Path> outputs, Set<Path> inputs)
             throws IOException, Stop {
-        final Path folder = file.toAbsolutePath().resolveSibling(plan.release());
+        final Path folder = java.util.Objects.requireNonNull(file.toAbsolutePath().getParent());
         final Set<Path> obsolete = new LinkedHashSet<>();
-        if (!Files.exists(folder)) return obsolete;
-        if (!destination(folder).startsWith(directory)) {
-            throw Stop.refused("Image directory resolves outside plan directory: " + folder);
-        }
         try (var paths = Files.list(folder)) {
             for (final Path image : paths.toList()) {
                 final String name = image.getFileName().toString();
@@ -157,7 +153,7 @@ final class PlanRender {
         final PlanTemplate model = PlanTemplate.from(plan, issues, stand);
         final Map<String, String> images = new LinkedHashMap<>();
         final String svg = template("progress.jte", model);
-        final String image = plan.release() + "/progress-" + imageHash(svg) + ".svg";
+        final String image = "progress-" + imageHash(svg) + ".svg";
         images.put(image, svg);
         final Page page = new Page();
         page.markdown.append(GENERATED_MARKER).append("\n");

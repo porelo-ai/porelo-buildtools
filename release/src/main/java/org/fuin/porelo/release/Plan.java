@@ -88,6 +88,15 @@ record Plan(String release, String goal, List<Sprint> sprints) {
         if (!release.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
             throw Stop.refused(file + ": release is not a file name: " + release);
         }
+        // The page is written as README.md beside the plan, so a plan elsewhere would replace
+        // another
+        // directory's README.
+        final Path folder = file.toAbsolutePath().normalize().getParent();
+        if (!file.getFileName().toString().equals("plan.yml")
+                || folder == null
+                || !folder.getFileName().toString().equals(release)) {
+            throw Stop.refused(file + ": a plan must be " + release + "/plan.yml");
+        }
         final String goal = string(data, "goal", file.toString());
         final List<Sprint> sprints = new ArrayList<>();
         final Set<String> ids = new HashSet<>();

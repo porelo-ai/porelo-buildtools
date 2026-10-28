@@ -5,7 +5,7 @@ release/src/test/java/org/fuin/porelo/release/CheckCommitsTest.java
 # Release-plan fixtures preserve real issue references and exercise reference validation.
 release/src/test/java/org/fuin/porelo/release/PlanCommandsTest.java
 release/src/test/java/org/fuin/porelo/release/PlanStandTest.java
-release/src/test/resources/plans/0.6.yml
+release/src/test/resources/plans/0.6/plan.yml
 release/src/test/resources/plans/checkouts/porelo/issues/README.md
 release/src/test/resources/plans/checkouts/porelo/issues/base/README.md
 release/src/test/resources/plans/checkouts/porelo/issues/providers/README.md

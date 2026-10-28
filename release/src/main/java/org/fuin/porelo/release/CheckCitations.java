@@ -511,9 +511,8 @@ final class CheckCitations {
     }
 
     private static boolean generatedPlan(Path path) throws IOException {
-        final String name = path.getFileName().toString();
-        if (!name.endsWith(".md")) return false;
-        final Path plan = path.resolveSibling(name.substring(0, name.length() - 3) + ".yml");
+        if (!path.getFileName().toString().equals("README.md")) return false;
+        final Path plan = path.resolveSibling("plan.yml");
         if (!Files.isRegularFile(plan)) return false;
         // Only a plan beside it makes the page a rendered one: a YAML mapping naming its release
         // and sprints.
