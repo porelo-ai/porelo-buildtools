@@ -118,10 +118,11 @@ public final class Main {
                                 [--unless-current] [--for <minutes>]
                        acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
                                 [--os <o>] [--key <file>] [--kind <k> | --type <t,t...>] [--keep] [--accounts <n>]
-                                [--for <minutes>] [--pool <file>]
+                                [--for <minutes>] [--pool <file>] [--channel <snapshots|releases>]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
-                                [--kind <k> | --type <t>] [--for <minutes>] - rents a machine, installs Porelo,
-                                starts the daemon as an unprivileged user, and leaves it running.
+                                [--kind <k> | --type <t>] [--for <minutes>] [--channel <c>] - rents a
+                                machine, installs Porelo, starts the daemon as an unprivileged user,
+                                and leaves it running.
                                 What deletes it is 'sweep --mine'.
                        jdk      [--into <dir>] [--github] - installs the GraalVM the CI snapshots
                                 pin, checked against its digest, into <dir> (default: a directory
@@ -149,6 +150,10 @@ public final class Main {
                                          porelo-host's up wrote it, instead of renting a server;
                                          takes the run key from PORELO_POOL_SSH or --key, and the
                                          account is made anew when given back
+
+                  --channel <c>          install Porelo from the repository's snapshots or
+                                         releases; a run on a tag (GITHUB_REF_TYPE=tag) takes
+                                         releases, any other run snapshots
 
                   --candidate <dir>      install the packages built in this run instead of
                                          published ones, from a directory holding one build of
@@ -368,6 +373,7 @@ public final class Main {
         boolean keep = false;
         int accounts = 1;
         String pool = null;
+        String channel = null;
         Duration limit = Machines.DEFAULT_TIME_LIMIT;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
@@ -397,6 +403,7 @@ public final class Main {
                 case "--type" -> type = value(args, ++at);
                 case "--kind" -> kind = Kind.of(value(args, ++at));
                 case "--artifactory" -> artifactory = value(args, ++at);
+                case "--channel" -> channel = value(args, ++at);
                 case "--keep" -> keep = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
@@ -429,6 +436,10 @@ public final class Main {
             complain.accept("Choose --kind or the deprecated --type, not both.");
             return 2;
         }
+        final String from = channel(channel, env, complain);
+        if (from == null) {
+            return 2;
+        }
         final List<String> override = type == null ? List.of() : Spec.order(type);
         final Kind wanted =
                 kind != null
@@ -449,7 +460,8 @@ public final class Main {
                         keep,
                         cucumber == null ? null : java.nio.file.Path.of(cucumber),
                         accounts,
-                        override);
+                        override,
+                        from);
         if (pool != null) {
             // The host's own pool: nothing is rented and no provider is asked, so no token either.
             final Credential credential = poolCredential(env.get(POOL_SSH), key);
@@ -662,6 +674,7 @@ public final class Main {
         Kind kind = null;
         String artifactory = "https://fuinorg.jfrog.io/artifactory";
         String candidate = null;
+        String channel = null;
         Duration limit = Machines.DEFAULT_TIME_LIMIT;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
@@ -679,6 +692,7 @@ public final class Main {
                 case "--kind" -> kind = Kind.of(value(args, ++at));
                 case "--artifactory" -> artifactory = value(args, ++at);
                 case "--candidate" -> candidate = value(args, ++at);
+                case "--channel" -> channel = value(args, ++at);
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -687,6 +701,10 @@ public final class Main {
         }
         if (kind != null && type != null) {
             complain.accept("Choose --kind or the deprecated --type, not both.");
+            return 2;
+        }
+        final String from = channel(channel, env, complain);
+        if (from == null) {
             return 2;
         }
         final Kind wanted =
@@ -698,11 +716,35 @@ public final class Main {
                         artifactory,
                         write == null ? null : java.nio.file.Path.of(write),
                         candidate == null ? null : java.nio.file.Path.of(candidate),
-                        type == null ? List.of() : List.of(type));
+                        type == null ? List.of() : List.of(type),
+                        from);
         try (Machines machines = open.get().forJobsOf(limit)) {
             Rental.run(machines, options, credential(env, key));
         }
         return 0;
+    }
+
+    /**
+     * Which channel a leg installs Porelo from: the one given, else a tag run's releases, else the
+     * snapshots.
+     *
+     * @param given The {@code --channel} value, or {@code null}.
+     * @param env The environment: {@code GITHUB_REF_TYPE}.
+     * @param complain Where a refusal goes.
+     * @return The channel, or {@code null} after a refusal.
+     */
+    static @Nullable String channel(
+            @Nullable String given, Map<String, String> env, Consumer<String> complain) {
+        if (given == null) {
+            return "tag".equals(env.get("GITHUB_REF_TYPE"))
+                    ? AgentLeg.RELEASES
+                    : AgentLeg.SNAPSHOTS;
+        }
+        if (!AgentLeg.SNAPSHOTS.equals(given) && !AgentLeg.RELEASES.equals(given)) {
+            complain.accept("--channel needs snapshots or releases, not " + given);
+            return null;
+        }
+        return given;
     }
 
     /**

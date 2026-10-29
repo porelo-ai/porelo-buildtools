@@ -51,6 +51,7 @@ public final class Rental {
      * @param candidate A directory of packages built here to install over the published ones, or
      *     {@code null} for the published Porelo.
      * @param providerOverride Previous explicit type order, or empty to select by kind.
+     * @param channel Which channel Porelo is installed from: {@code snapshots} or {@code releases}.
      */
     public record Options(
             String os,
@@ -58,7 +59,38 @@ public final class Rental {
             String artifactory,
             @Nullable Path write,
             @Nullable Path candidate,
-            List<String> providerOverride) {
+            List<String> providerOverride,
+            String channel) {
+
+        /**
+         * Refuses a channel the repository does not have.
+         *
+         * @throws IllegalArgumentException If the channel is neither snapshots nor releases.
+         */
+        public Options {
+            AgentLeg.channel(channel);
+        }
+
+        /**
+         * Requests a rental installing from the snapshots, as before a lease could name its
+         * channel.
+         *
+         * @param os The operating system.
+         * @param kind The capacity and lifecycle.
+         * @param artifactory The package repository.
+         * @param write Where to record the rental, or null.
+         * @param candidate Candidate packages, or null.
+         * @param providerOverride Previous explicit type order, or empty to select by kind.
+         */
+        public Options(
+                String os,
+                Kind kind,
+                String artifactory,
+                @Nullable Path write,
+                @Nullable Path candidate,
+                List<String> providerOverride) {
+            this(os, kind, artifactory, write, candidate, providerOverride, AgentLeg.SNAPSHOTS);
+        }
 
         /**
          * Requests a rental by kind.
@@ -174,7 +206,9 @@ public final class Rental {
                         + options.artifactory()
                         + (installs.isEmpty() ? "" : " and the candidate")
                         + ", as an operator would --");
-        run(lease, AgentLeg.install(options.os(), options.artifactory(), installs));
+        run(
+                lease,
+                AgentLeg.install(options.os(), options.artifactory(), options.channel(), installs));
 
         System.out.println("\n-- creating the " + USER + " user --");
         run(lease, AgentLeg.account(USER, lease.authorizedKeys()));

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -247,5 +248,55 @@ class AgentLegTest {
                 .as("the leg preserves its requested capacity")
                 .isEqualTo(Kind.AMD64_BUILD);
         assertThat(request.accounts()).as("all concurrent accounts reach the source").isEqualTo(4);
+    }
+
+    @Test
+    void aReleaseLegInstallsFromTheReleasesChannel() {
+        // The 0.4.0 tag legs installed from the snapshots the release had emptied, and stopped at
+        // "Unable to locate package porelo".
+        assertThat(AgentLeg.install("ubuntu", "https://x/artifactory", AgentLeg.RELEASES, "p"))
+                .contains("https://x/artifactory/porelo-dist-deb releases main")
+                .doesNotContain("snapshots");
+        assertThat(AgentLeg.install("fedora", "https://x/artifactory", AgentLeg.RELEASES, "p"))
+                .contains("baseurl=https://x/artifactory/porelo-dist-rpm/releases")
+                .doesNotContain("snapshots");
+        assertThat(AgentLeg.install("ubuntu", "https://x/artifactory", "p"))
+                .as("a leg that names no channel installs the snapshots, as before")
+                .contains("porelo-dist-deb snapshots main");
+        assertThatThrownBy(() -> AgentLeg.install("ubuntu", "https://x", "nightly", "p"))
+                .hasMessageContaining("neither snapshots nor releases");
+    }
+
+    @Test
+    void aCandidateNeedsNoPackageName() throws IOException {
+        // 'acceptance --candidate' documents that it needs no name, and 0.4.0 refused it with
+        // "--package '' is not a package name".
+        final AgentLeg.Options options =
+                new AgentLeg.Options(
+                        "ubuntu",
+                        Kind.AMD64,
+                        "https://packages.invalid",
+                        "",
+                        null,
+                        Path.of("packages"),
+                        false,
+                        null,
+                        1);
+        assertThat(AgentLeg.installs(options, candidate -> "'/root/candidate/a.deb'"))
+                .isEqualTo("'/root/candidate/a.deb'");
+        final AgentLeg.Options named =
+                new AgentLeg.Options(
+                        "ubuntu",
+                        Kind.AMD64,
+                        "https://packages.invalid",
+                        "",
+                        null,
+                        null,
+                        false,
+                        null,
+                        1);
+        assertThatThrownBy(() -> AgentLeg.installs(named, candidate -> "never"))
+                .as("without a candidate the name is still checked")
+                .hasMessageContaining("is not a package name");
     }
 }

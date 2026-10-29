@@ -1,0 +1,2 @@
+title: A leg on a tag run installs the released Porelo, `--channel` names the channel, and `acceptance --candidate` needs no `--package`.
+type: fixed

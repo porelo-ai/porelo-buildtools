@@ -44,6 +44,12 @@ public final class AgentLeg {
     /** The unprivileged user a suite runs as: the shape a task runs in, rootless. */
     private static final String USER = "acceptance";
 
+    /** The channel a run installs Porelo from unless it is a release's. */
+    public static final String SNAPSHOTS = "snapshots";
+
+    /** The channel a release's run publishes to and installs from. */
+    public static final String RELEASES = "releases";
+
     /**
      * What reaches the far shell on its standard input, and the suite as environment, rather than
      * as arguments.
@@ -74,6 +80,7 @@ public final class AgentLeg {
      * @param cucumber The repository to run the Cucumber suite from, or {@code null} not to.
      * @param accounts How many accounts run the scenarios beside each other; 1 runs them in order.
      * @param providerOverride Previous explicit type order, or empty to select by kind.
+     * @param channel Which channel Porelo is installed from: {@code snapshots} or {@code releases}.
      */
     public record Options(
             String os,
@@ -85,7 +92,56 @@ public final class AgentLeg {
             boolean keep,
             @Nullable Path cucumber,
             int accounts,
-            List<String> providerOverride) {
+            List<String> providerOverride,
+            String channel) {
+
+        /**
+         * Refuses a channel the repository does not have.
+         *
+         * @throws IllegalArgumentException If the channel is neither snapshots nor releases.
+         */
+        public Options {
+            AgentLeg.channel(channel);
+        }
+
+        /**
+         * Options installing from the snapshots, as before a leg could name its channel.
+         *
+         * @param os The operating system.
+         * @param kind The capacity and lifecycle.
+         * @param artifactory The package repository.
+         * @param packageName The package to install.
+         * @param script The script, or null.
+         * @param candidate The candidate directory, or null.
+         * @param keep Whether to keep the machine.
+         * @param cucumber The scenarios, or null.
+         * @param accounts How many accounts run beside each other.
+         * @param providerOverride Previous explicit type order, or empty to select by kind.
+         */
+        public Options(
+                String os,
+                Kind kind,
+                String artifactory,
+                String packageName,
+                @Nullable String script,
+                @Nullable Path candidate,
+                boolean keep,
+                @Nullable Path cucumber,
+                int accounts,
+                List<String> providerOverride) {
+            this(
+                    os,
+                    kind,
+                    artifactory,
+                    packageName,
+                    script,
+                    candidate,
+                    keep,
+                    cucumber,
+                    accounts,
+                    providerOverride,
+                    SNAPSHOTS);
+        }
 
         /**
          * Options for a leg requested by kind.
@@ -235,10 +291,8 @@ public final class AgentLeg {
                 Stopping stopping = Stopping.on(lease)) {
             lease.awaitSsh();
 
-            String installs = packageArgument(options.packageName());
-            if (options.candidate() != null) {
-                installs = sendCandidate(lease, options.os(), options.candidate());
-            }
+            final String installs =
+                    installs(options, candidate -> sendCandidate(lease, options.os(), candidate));
 
             provision(lease, options, installs, lease.ssh()::run);
             final List<String> users = accounts(options.accounts());
@@ -325,7 +379,11 @@ public final class AgentLeg {
             throws IOException {
         System.out.println(
                 "\n-- installing from " + options.artifactory() + ", as an operator would --");
-        run(ssh, lease.asRoot(install(options.os(), options.artifactory(), installs)), null);
+        run(
+                ssh,
+                lease.asRoot(
+                        install(options.os(), options.artifactory(), options.channel(), installs)),
+                null);
         System.out.println("\n-- creating the " + USER + " user --");
         run(ssh, lease.asRoot(account(USER, lease.authorizedKeys())), null);
     }
@@ -657,6 +715,50 @@ public final class AgentLeg {
     }
 
     /**
+     * Refuses a channel the package repository does not have.
+     *
+     * @param channel The channel.
+     * @return The channel, {@code snapshots} or {@code releases}.
+     * @throws IllegalArgumentException If it is neither.
+     */
+    static String channel(String channel) {
+        if (!SNAPSHOTS.equals(channel) && !RELEASES.equals(channel)) {
+            throw new IllegalArgumentException(
+                    "the channel '" + channel + "' is neither snapshots nor releases");
+        }
+        return channel;
+    }
+
+    /** Sends a candidate directory to the machine and says how the package manager names it. */
+    interface Candidates {
+
+        /**
+         * Sends the candidate.
+         *
+         * @param candidate The directory of packages built in this run.
+         * @return The packages as the install command names them.
+         * @throws IOException If sending fails.
+         */
+        String send(Path candidate) throws IOException;
+    }
+
+    /**
+     * What the install command adds beside Porelo: the candidate when there is one, whatever
+     * package name came with it, else the named package.
+     *
+     * @param options The leg's options.
+     * @param candidates Sends a candidate to the machine.
+     * @return The packages, quoted for the shell.
+     * @throws IOException If the name is no package name, or sending fails.
+     */
+    static String installs(Options options, Candidates candidates) throws IOException {
+        if (options.candidate() != null) {
+            return candidates.send(options.candidate());
+        }
+        return packageArgument(options.packageName());
+    }
+
+    /**
      * Quotes a value so a shell takes it whole.
      *
      * @param value What to quote.
@@ -689,13 +791,27 @@ public final class AgentLeg {
      * @return A script.
      */
     static String install(String os, String artifactory, String installs) {
+        return install(os, artifactory, SNAPSHOTS, installs);
+    }
+
+    /**
+     * The script that installs Porelo and the given packages from one channel of the repository.
+     *
+     * @param os The operating system.
+     * @param artifactory Where the packages are published.
+     * @param channel {@code snapshots} or {@code releases}: a release's leg installs the release.
+     * @param installs The packages, quoted for the shell.
+     * @return The script.
+     */
+    static String install(String os, String artifactory, String channel, String installs) {
+        channel(channel);
         if ("fedora".equals(os)) {
             return """
                 set -eux
                 cat > /etc/yum.repos.d/porelo.repo <<'EOF'
                 [porelo]
                 name=Porelo
-                baseurl=@BASE@/porelo-dist-rpm/snapshots
+                baseurl=@BASE@/porelo-dist-rpm/@CHANNEL@
                 enabled=1
                 gpgcheck=0
                 EOF
@@ -708,6 +824,7 @@ public final class AgentLeg {
                 done
                 """
                     .replace("@BASE@", artifactory)
+                    .replace("@CHANNEL@", channel)
                     .replace("@PACKAGE@", installs)
                     .replace("@ALWAYS@", String.join(" ", ALWAYS));
         }
@@ -717,7 +834,7 @@ public final class AgentLeg {
             apt-get update -qq
             apt-get install -y -qq ca-certificates curl gnupg podman
             curl -fsSL @KEY@ | gpg --dearmor > /usr/share/keyrings/porelo.gpg
-            echo "deb [signed-by=/usr/share/keyrings/porelo.gpg] @BASE@/porelo-dist-deb snapshots main" \\
+            echo "deb [signed-by=/usr/share/keyrings/porelo.gpg] @BASE@/porelo-dist-deb @CHANNEL@ main" \\
                 > /etc/apt/sources.list.d/porelo.list
             apt-get update
             apt-get install -y -qq porelo @PACKAGE@
@@ -730,6 +847,7 @@ public final class AgentLeg {
                 .replace("@ALWAYS@", String.join(" ", ALWAYS))
                 .replace("@KEY@", artifactory + "/api/security/keypair/porelo-packages/public")
                 .replace("@BASE@", artifactory)
+                .replace("@CHANNEL@", channel)
                 .replace("@PACKAGE@", installs);
     }
 

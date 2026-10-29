@@ -629,4 +629,49 @@ class MainTest {
                     .hasMessageContaining(Main.OLD_SSH_KEY);
         }
     }
+
+    @Test
+    void aTagRunInstallsTheReleaseUnlessItsLegNamesAChannel(@TempDir Path dir) throws IOException {
+        final Path pool = writePool(dir);
+        final List<String> channels = new ArrayList<>();
+        for (final List<String> extra :
+                List.of(List.<String>of(), List.of("--channel", "snapshots"))) {
+            final List<String> args =
+                    new ArrayList<>(
+                            List.of(
+                                    "acceptance",
+                                    "--candidate",
+                                    "packages",
+                                    "--cucumber",
+                                    ".",
+                                    "--pool",
+                                    pool.toString()));
+            args.addAll(extra);
+            Main.acceptance(
+                    args.toArray(String[]::new),
+                    QUIET,
+                    Map.of(
+                            Main.POOL_SSH,
+                            "from-env",
+                            "XDG_STATE_HOME",
+                            dir.resolve("state").toString(),
+                            "GITHUB_REF_TYPE",
+                            "tag"),
+                    NEVER,
+                    (machines, options, credential) -> channels.add(options.channel()));
+        }
+        assertThat(channels)
+                .as("a tag run takes releases, and an explicit --channel wins")
+                .containsExactly("releases", "snapshots");
+    }
+
+    @Test
+    void aBranchRunInstallsTheSnapshotsAndAnUnknownChannelIsRefused() {
+        final List<String> said = new ArrayList<>();
+        assertThat(Main.channel(null, Map.of("GITHUB_REF_TYPE", "branch"), said::add))
+                .isEqualTo("snapshots");
+        assertThat(Main.channel(null, Map.of(), said::add)).isEqualTo("snapshots");
+        assertThat(Main.channel("nightly", Map.of(), said::add)).isNull();
+        assertThat(said).singleElement().asString().contains("snapshots or releases, not nightly");
+    }
 }
