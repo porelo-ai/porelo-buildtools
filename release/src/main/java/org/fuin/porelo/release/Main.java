@@ -2,6 +2,7 @@ package org.fuin.porelo.release;
 
 import java.io.PrintStream;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,16 +99,25 @@ public final class Main {
             final Plan.Project project = Plan.project(file, links);
             final Plan plan = Plan.read(file, project);
             final Map<String, IssueIndex> issues = PlanRender.indexes(plan, project, links);
+            final Path after = Plan.afterFile(file);
+            final List<java.net.URI> sources = new java.util.ArrayList<>(links.planSources());
+            if (Files.isRegularFile(after)) {
+                sources.add(after.toUri());
+            }
             final PlanRender.Pages pages =
-                    PlanRender.render(plan, issues, PlanStand.read(file, links.planSources(), web));
+                    PlanRender.render(plan, issues, PlanStand.read(file, sources, web));
             if (rest.getFirst().equals("check")) {
-                PlanCheck.check(file, plan, issues, pages, links);
+                PlanCheck.check(
+                        file, plan, issues, pages, links, Plan.releases(file, plan, project));
                 out.println("plan checked: " + file);
             } else {
                 final String html = options.value("--html");
                 final Set<Path> inputs = new java.util.HashSet<>(links.inputs());
                 inputs.add(file.toRealPath());
                 inputs.add(project.root().resolve("project.yml").toRealPath());
+                if (Files.isRegularFile(after)) {
+                    inputs.add(after.toRealPath());
+                }
                 PlanRender.write(file, plan, pages, html == null ? null : Path.of(html), inputs);
                 out.println("plan rendered: " + PlanRender.page(file));
             }

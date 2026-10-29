@@ -7,11 +7,9 @@
 
 ## Why
 
-In `porelo-project` [PJ22](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj22) (not read directly; quoted as given):
-
-- "1. Kinds: `Spec` asks for a kind, the setup says who meets it; the module and workflows stop naming the provider. Seen to fail first: a check in `porelo-buildtools` that finds a provider's name outside its implementation, red on today's tree."
-- "`porelo-machines` … rent a machine of a kind, run on it, return it, list what a run holds, delete what a run left behind … afterwards it asks for a kind, never for a provider's server types."
-- Acceptance in `porelo-project` [PJ22](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj22): "An acceptance leg runs on a rented VM account locally and on a rented server centrally, through the same interface call; no repository outside the interface's implementation names a provider (a check in `porelo-buildtools` finds a name that slips in)."
+- **Kinds:** `Spec` asks for a kind, and the setup says who meets it; the module and workflows stop naming the provider. Seen to fail first: a check in `porelo-buildtools` that finds a provider's name outside its implementation, red on today's tree.
+- **`porelo-machines`** rents a machine of a kind, runs on it, returns it, lists what a run holds and deletes what a run left behind; it asks for a kind, never for a provider's server types.
+- **One call for both places:** an acceptance leg runs on a rented VM account locally and on a rented server centrally, through the same call; no repository outside the implementation names a provider, and a check in `porelo-buildtools` finds a name that slips in.
 
 Today the module directory is named `hetzner/` (`pom.xml:72`), `Spec` carries a list of Hetzner server type names (`Spec.java`), `LocalPool.tryAccount` forwards `spec.serverTypes()` (`LocalPool.java:219`), `Main` opens `Hetzner` directly from `HETZNER_API` and `HETZNER_SSH` (`Main.java:34-37,55`), and workflows across seven repositories (`porelo-buildtools` and six callers) name `HETZNER_API`, `HETZNER_SSH`, `-Phetzner`, or `--type`.
 
@@ -19,9 +17,8 @@ Today the module directory is named `hetzner/` (`pom.xml:72`), `Spec` carries a 
 
 - **Backward compatible (decided):** the old call, with a provider and server types, keeps working. Inside
   `porelo-machines` it is routed onto the by-kind function, so no caller changes now. Only porelo-message-sluice moves
-  to kinds now, through its own issue under porelo-project
-  [PJ60](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj60). The old call and the routing are
-  removed once every caller has moved, through the issue for each repository under [PJ60](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj60).
+  to kinds now, through an issue of its own. The old call and the routing are removed once every caller has moved,
+  each through an issue of its own repository.
   - **Red first:** a test that the old call, with a provider and server types, lands on the by-kind function with the
     kind those types map to. It fails while the old call still opens the provider directly.
 - **Part 1 — Provider-name check in `porelo-release` (Size S, red first).**
@@ -41,7 +38,7 @@ Today the module directory is named `hetzner/` (`pom.xml:72`), `Spec` carries a 
   - Update `LocalPool` ([BT24](README.md#bt24), already in `hetzner/` with `Pool` and `acceptance --pool <file>`) so `LocalPool.tryAccount` (`LocalPool.java:219`) passes `spec.kind()` instead of `spec.serverTypes()`, and `LocalPool.acquire` and `LocalVms.acquire` check `spec.kind()` and refuse `amd64-snapshot`. (`lease` has no `--pool`, because file locks end with the process.)
   - Every `porelo-machines-pool/1` entry supplies `amd64` and `amd64-build` without a format change; local sources refuse `amd64-snapshot` before touching a VM or account. Credentials use `PORELO_MACHINES_API` and `PORELO_MACHINES_SSH`, with the previous names read when the current ones are missing or blank.
   - In `Main`, take `Supplier<Machines>`, add `--kind` beside deprecated `--type` on `snapshot`, `acceptance`, and `lease`, and replace `HETZNER_API` and `HETZNER_SSH` (`Main.java:34-37`) with provider-neutral environment variables (keeping the old names as a fallback until the six caller repositories move). Update `MainTest`, `LeaseTest`, `LocalVmsTest`, `LocalPoolTest`, `AgentLegTest`, `RentalTest`, `SnapshotsTest`, `HetznerTest`, and `CheckReleasesTest`.
-- **Part 3 — Six caller repositories, later, each through its own issue under [PJ60](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj60); nothing of them is built here** (what each will change):
+- **Part 3 — Six caller repositories, later, each through an issue of its own repository; nothing of them is built here** (what each will change):
   - **`porelo` (Agent Core):** `.github/workflows/build.yml:150-179`, `.github/workflows/sweep.yml:29-31`, `acceptance/legs/src/main/java/org/fuin/porelo/legs/Main.java` (drop `Hetzner`, `HETZNER_API`, `HETZNER_SSH`, `--type`, `Spec.DEFAULT_TYPES`, `Spec.order`), `Leg.java:154-177` (replace `new Spec(..., types, ...)` with `Kind`), and `LegTypesTest.java`.
   - **`porelo-frontend` (Agent Frontend):** `.github/workflows/build.yml:370-420`, `pom.xml:249-308` (profile `hetzner` and `Main lease`), `tool/e2e.sh:18,38,72,79`, and `AGENTS.md:475`.
   - **`porelo-claude-code` (Agent Smith):** `.github/workflows/build.yml:267-290` and `.github/workflows/update.yml:230-270` (`Main acceptance` with 1 account and `Main sweep --mine`), plus `build.md` and `claude.yaml`.
@@ -58,4 +55,4 @@ Today the module directory is named `hetzner/` (`pom.xml:72`), `Spec` carries a 
 
 ## To be checked
 
-- **How `porelo`'s 4-account leg runs against the local pool.** `porelo`'s `leg` asks for `root` to set up the `build` user and `--accounts 4` (`porelo/.github/workflows/build.yml:162`, `porelo/acceptance/legs/src/main/java/org/fuin/porelo/legs/Leg.java:36-39,169-176`), whereas [BT24](README.md#bt24) rents unprivileged run accounts from `porelo-host` [HO12](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho12); how `Leg` maps its build and acceptance accounts onto rented pool accounts is not measured.
+- **How `porelo`'s 4-account leg runs against the local pool.** `porelo`'s `leg` asks for `root` to set up the `build` user and `--accounts 4` (`porelo/.github/workflows/build.yml:162`, `porelo/acceptance/legs/src/main/java/org/fuin/porelo/legs/Leg.java:36-39,169-176`), whereas [BT24](README.md#bt24) rents unprivileged run accounts from the host's VM pool; how `Leg` maps its build and acceptance accounts onto rented pool accounts is not measured.

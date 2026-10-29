@@ -569,6 +569,296 @@ class PlanCommandsTest {
     }
 
     @Test
+    void aStartedIssueWaitingForAnUnpublishedOneIsRefusedUntilItIsInReview() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        writeSample("Implementing");
+        writeParent("Analyzed");
+        waits("porelo-sample#SA01: [porelo-project#PJ01]");
+        assertThat(run("render")).as("a wait renders before checking: %s", errors).isZero();
+        refused("porelo-sample#SA01", "Implementing", "porelo-project#PJ01", "Analyzed");
+
+        writeParent("Review");
+        assertThat(run("render")).as("the published wait renders: %s", errors).isZero();
+        assertThat(run("check"))
+                .as("work may start once what it waits for is published: %s", errors)
+                .isZero();
+    }
+
+    @Test
+    void aWaitThatIsMetIsShownAndNeverRefused() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        writeSample("Implementing");
+        write(
+                root.resolve("issues/README.md"),
+                "## Finished\n| <a id=\"pj01\"></a>PJ01 | Parent | Built |\n");
+        waits("porelo-sample#SA01: [porelo-project#PJ01]");
+        assertThat(run("render")).as("a met wait renders: %s", errors).isZero();
+        assertThat(run("check")).as("a met wait stays: %s", errors).isZero();
+        assertThat(Files.readString(file.resolveSibling("README.md")))
+                .as("the page names the wait and its state")
+                .contains("SA01", "after", "PJ01", "Finished");
+    }
+
+    @Test
+    void aWaitOnAnIssueWithoutAnIndexRowIsRefused() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        waits("porelo-sample#SA01: [porelo-project#PJ99]");
+        assertThat(run("render")).as("a missing target renders: %s", errors).isZero();
+        refused(
+                "porelo-sample#SA01",
+                "porelo-project#PJ99 has no row in its index " + root.resolve("issues/README.md"));
+    }
+
+    @Test
+    void aCycleOfWaitsIsRefused() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        writeParent("Idea");
+        waits(
+                "porelo-sample#SA01: [porelo-project#PJ01]\n  porelo-project#PJ01: [porelo-sample#SA01]");
+        assertThat(run("render")).as("a cycle renders before checking: %s", errors).isZero();
+        refused("cycle", "porelo-sample#SA01", "porelo-project#PJ01");
+    }
+
+    @Test
+    void aWaitOnAnIssueOfALaterSprintIsRefused() throws IOException {
+        write(
+                file,
+                "release: next\ngoal: A release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function("One", "issues: [porelo-sample#SA01]")
+                        + "  - id: '2'\n    title: Second\n    goal: A goal\n    functions:\n"
+                        + function("Two", "issues: [porelo-project#PJ01]"));
+        writeParent("Idea");
+        waits("porelo-sample#SA01: [porelo-project#PJ01]");
+        assertThat(run("render")).as("the order renders before checking: %s", errors).isZero();
+        refused("porelo-sample#SA01", "sprint 1", "porelo-project#PJ01", "sprint 2");
+    }
+
+    @Test
+    void aWaitOnALaterSprintThroughAnIssueOutsideThePlanIsRefused() throws IOException {
+        write(
+                file,
+                "release: next\ngoal: A release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function("One", "issues: [porelo-sample#SA01]")
+                        + "  - id: '2'\n    title: Second\n    goal: A goal\n    functions:\n"
+                        + function("Two", "issues: [porelo-project#PJ01]"));
+        write(
+                root.resolve("issues/README.md"),
+                "## Idea\n| <a id=\"pj01\"></a>PJ01 | S | - | Parent |\n"
+                        + "| <a id=\"pj02\"></a>PJ02 | S | - | Between |\n");
+        waits(
+                "porelo-sample#SA01: [porelo-project#PJ02]\n"
+                        + "  porelo-project#PJ02: [porelo-project#PJ01]");
+        assertThat(run("render")).as("the order renders before checking: %s", errors).isZero();
+        refused(
+                "porelo-sample#SA01",
+                "sprint 1",
+                "porelo-project#PJ01",
+                "sprint 2",
+                "through porelo-project#PJ02");
+    }
+
+    @Test
+    void waitsThatAreNoFileAreRefused() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        Files.createDirectories(file.getParent().resolveSibling("after.yml"));
+        assertThat(run("check"))
+                .as("a directory in place of the waits is not taken for none: %s", errors)
+                .isEqualTo(Stop.REFUSED);
+        assertThat(errors.toString(StandardCharsets.UTF_8)).contains("after.yml");
+    }
+
+    @Test
+    void aBlockedByOnALaterSprintIsRefused() throws IOException {
+        write(
+                file,
+                "release: next\ngoal: A release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function("One", "issues: [porelo-project#PJ01]")
+                        + "  - id: '2'\n    title: Second\n    goal: A goal\n    functions:\n"
+                        + function("Two", "issues: [porelo-project#PJ02]"));
+        index("Idea", row("PJ01", "PJ02"), row("PJ02", "-"));
+        assertThat(run("render")).as("the order renders before checking: %s", errors).isZero();
+        refused("porelo-project#PJ01", "sprint 1", "porelo-project#PJ02", "sprint 2");
+    }
+
+    @Test
+    void aBlockedByOnALaterReleaseIsRefused() throws IOException {
+        file = root.resolve("plan/0.9/plan.yml");
+        write(
+                file,
+                "release: '0.9'\ngoal: A release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function("One", "issues: [porelo-project#PJ01]"));
+        write(
+                root.resolve("plan/0.10/plan.yml"),
+                "release: '0.10'\ngoal: A later release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function("One", "issues: [porelo-project#PJ02]"));
+        index("Idea", row("PJ01", "[PJ02](#pj02)"), row("PJ02", "—"));
+        assertThat(run("render")).as("the order renders before checking: %s", errors).isZero();
+        refused("porelo-project#PJ01", "porelo-project#PJ02", "release 0.10");
+    }
+
+    @Test
+    void aBlockedByOnAnIssuePlannedInNoReleaseIsRefusedUntilItIsDone() throws IOException {
+        plan(function("One", "issues: [porelo-project#PJ01]"));
+        index("Idea", row("PJ01", "PJ02"), row("PJ02", "-"));
+        assertThat(run("render")).as("an unplanned wait renders: %s", errors).isZero();
+        refused("porelo-project#PJ01", "porelo-project#PJ02", "planned in no release", "Idea");
+
+        for (final String state : java.util.List.of("Review", "Finished", "Rejected")) {
+            index("Idea", row("PJ01", "PJ02"));
+            write(
+                    root.resolve("issues/README.md"),
+                    Files.readString(root.resolve("issues/README.md"))
+                            + "\n## "
+                            + state
+                            + "\n| # | Title | What was built |\n|---|---|---|\n"
+                            + "| <a id=\"pj02\"></a>PJ02 | Between | it |\n");
+            assertThat(run("render")).as("%s renders: %s", state, errors).isZero();
+            assertThat(run("check")).as("an issue in %s is no wait: %s", state, errors).isZero();
+        }
+    }
+
+    @Test
+    void aStartedIssueBlockedByOneNotPublishedIsRefused() throws IOException {
+        plan(function("One", "issues: [porelo-project#PJ01, porelo-project#PJ02]"));
+        write(
+                root.resolve("issues/README.md"),
+                section("Implementing", row("PJ01", "PJ02"))
+                        + section("Analyzed", row("PJ02", "-")));
+        assertThat(run("render")).as("a started wait renders: %s", errors).isZero();
+        refused("porelo-project#PJ01", "Implementing", "porelo-project#PJ02", "Analyzed");
+    }
+
+    @Test
+    void aCoveredParentIsImplementingWhileItsPartsRun() throws IOException {
+        plan(
+                function(
+                        "One",
+                        "issues: [porelo-project#PJ02]\n        covers: [porelo-project#PJ01]"));
+        write(
+                root.resolve("issues/README.md"),
+                section("Implementing", row("PJ01", "PJ02"))
+                        + section("Analyzed", row("PJ02", "-")));
+        waits("porelo-project#PJ01: [porelo-project#PJ02]");
+        assertThat(run("render")).as("a parent's wait renders: %s", errors).isZero();
+        assertThat(run("check"))
+                .as("a parent named only under covers starts before its parts are done: %s", errors)
+                .isZero();
+    }
+
+    @Test
+    void aCoveredParentStillWaitsForNoLaterSprint() throws IOException {
+        write(
+                file,
+                "release: next\ngoal: A release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function(
+                                "One",
+                                "issues: [porelo-sample#SA01]\n        covers: [porelo-project#PJ01]")
+                        + "  - id: '2'\n    title: Second\n    goal: A goal\n    functions:\n"
+                        + function("Two", "issues: [porelo-project#PJ02]"));
+        write(
+                root.resolve("issues/README.md"),
+                section("Implementing", row("PJ01", "PJ02"))
+                        + section("Analyzed", row("PJ02", "-")));
+        assertThat(run("render")).as("the order renders before checking: %s", errors).isZero();
+        refused("porelo-project#PJ01", "sprint 1", "porelo-project#PJ02", "sprint 2");
+    }
+
+    @Test
+    void aWaitOnACoveredRequirementIsRefused() throws IOException {
+        plan(
+                function(
+                        "One",
+                        "issues: [porelo-sample#SA01]\n        covers: [porelo-project#PJ01]"));
+        writeParent("Analyzed");
+        waits("porelo-sample#SA01: [porelo-project#PJ01]");
+        assertThat(run("render")).as("the wait renders before checking: %s", errors).isZero();
+        refused(
+                "after.yml porelo-sample#SA01",
+                "porelo-project#PJ01",
+                "covered",
+                "name the part it waits for instead");
+    }
+
+    @Test
+    void aBlockedByOnARequirementAnotherReleaseCoversIsRefused() throws IOException {
+        file = root.resolve("plan/0.9/plan.yml");
+        write(
+                file,
+                "release: '0.9'\ngoal: A release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function("One", "issues: [porelo-project#PJ02]"));
+        write(
+                root.resolve("plan/0.8/plan.yml"),
+                "release: '0.8'\ngoal: An earlier release\nsprints:\n"
+                        + "  - id: '1'\n    title: First\n    goal: A goal\n    functions:\n"
+                        + function(
+                                "One",
+                                "issues: [porelo-sample#SA01]\n        covers: [porelo-project#PJ01]"));
+        index("Idea", row("PJ01", "-"), row("PJ02", "PJ01"));
+        assertThat(run("render")).as("the wait renders before checking: %s", errors).isZero();
+        refused(
+                "porelo-project#PJ02 Blocked by",
+                "porelo-project#PJ01",
+                "covered",
+                "name the part it waits for instead");
+    }
+
+    @Test
+    void aBlockedByWithoutARowIsRefused() throws IOException {
+        plan(function("One", "issues: [porelo-project#PJ01]"));
+        index("Idea", row("PJ01", "PJ99"));
+        assertThat(run("render")).as("a rowless wait renders: %s", errors).isZero();
+        refused(
+                "porelo-project#PJ01",
+                "porelo-project#PJ99 has no row in its index " + root.resolve("issues/README.md"));
+    }
+
+    @Test
+    void aCycleThroughBlockedByAndTheWaitsIsRefused() throws IOException {
+        plan(function("One", "issues: [porelo-project#PJ01, porelo-project#PJ02]"));
+        index("Idea", row("PJ01", "PJ02"), row("PJ02", "-"));
+        waits("porelo-project#PJ02: [porelo-project#PJ01]");
+        assertThat(run("render")).as("a cycle renders before checking: %s", errors).isZero();
+        refused("cycle", "porelo-project#PJ01", "porelo-project#PJ02");
+    }
+
+    @Test
+    void anIndexWithoutABlockedByColumnHasNoWaits() throws IOException {
+        plan(function("One", "issues: [porelo-project#PJ01]"));
+        write(
+                root.resolve("issues/README.md"),
+                "## Idea\n| # | Size | What it covers |\n|---|---|---|\n"
+                        + "| <a id=\"pj01\"></a>PJ01 | S | PJ02 waits, it says |\n");
+        assertThat(run("render")).as("renders: %s", errors).isZero();
+        assertThat(run("check")).as("no column, no waits: %s", errors).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "porelo-sample#SA01: []",
+                "porelo-sample#SA01: [porelo-project#PJ01, porelo-project#PJ01]",
+                "porelo-sample#SA01: [porelo-sample#SA01]",
+                "porelo-sample#SA01: [porelo-nowhere#NO01]"
+            })
+    void aMalformedWaitIsRefusedWhereItStands(String wait) throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        waits(wait);
+        assertThat(run("check"))
+                .as("a malformed wait is refused before anything is read: %s", errors)
+                .isEqualTo(Stop.REFUSED);
+        assertThat(errors.toString(StandardCharsets.UTF_8))
+                .as("the refusal names the file and the waiting issue")
+                .contains("after.yml", "porelo-sample#SA01");
+    }
+
+    @Test
     void anIssueInTwoFunctionsIsRefused() throws IOException {
         plan(
                 function("One", "issues: [porelo-sample#SA01]")
@@ -1420,6 +1710,40 @@ class PlanCommandsTest {
         write(
                 root.resolve("issues/README.md"),
                 "## " + state + "\n| <a id=\"pj01\"></a>PJ01 | S | - | Parent |\n");
+    }
+
+    private void writeSample(String state) throws IOException {
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                "## " + state + "\n| <a id=\"sa01\"></a>SA01 | S | - | Part |\n");
+    }
+
+    /** The project's index with one state's section, its rows naming what blocks them. */
+    private void index(String state, String... rows) throws IOException {
+        write(root.resolve("issues/README.md"), section(state, rows));
+    }
+
+    private static String section(String state, String... rows) {
+        return "## "
+                + state
+                + "\n| # | Size | Blocked by | What it covers |\n|---|---|---|---|\n"
+                + String.join("", rows)
+                + "\n";
+    }
+
+    private static String row(String number, String blockedBy) {
+        return "| <a id=\""
+                + number.toLowerCase(java.util.Locale.ROOT)
+                + "\"></a>"
+                + number
+                + " | S | "
+                + blockedBy
+                + " | An issue |\n";
+    }
+
+    /** The waits every release's plan reads, kept once beside the release directories. */
+    private void waits(String entries) throws IOException {
+        write(file.getParent().resolveSibling("after.yml"), "after:\n  " + entries + "\n");
     }
 
     private static String sprintSvg(String html) {

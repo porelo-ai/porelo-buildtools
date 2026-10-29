@@ -1,0 +1,2 @@
+title: '`check-citations` refuses, outside the project''s own repository, a citation under `issues/` of another repository''s issue, as a link into its index or a bare number of its prefix, read from the project''s `project.yml` and index; a repository whose `project.yml` names its project may still cite them'
+type: changed

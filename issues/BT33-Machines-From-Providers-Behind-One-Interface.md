@@ -50,9 +50,8 @@ Behind the interface, providers come in two sorts, since they do different thing
 - **Providing**: a machine is made for the run and removed afterwards. This is what OpenTofu does, with a provider
   of its own for most clouds and hypervisors (Hetzner, Scaleway, AWS, Azure, Proxmox, vSphere, libvirt). So
   `porelo-machines` has **one** providing implementation that runs OpenTofu, with one module per place, instead of
-  code of its own for each cloud. The host itself is rented through OpenTofu too (`porelo-frontend`
-  [F166](https://github.com/porelo-ai/porelo-frontend/blob/main/issues/README.md#f166)), so host and test machines
-  use the same tool and the same modules where they can.
+  code of its own for each cloud. The host itself is rented through OpenTofu too, so host and test machines use
+  the same tool and the same modules where they can.
 - **Lending**: the machine already runs; a run account on it is locked for the run and reset afterwards. The host's
   VM pool and a fixed server are lent, never provided, since nothing is made or removed. OpenTofu has no part in it.
 
@@ -72,7 +71,7 @@ a free one, and the sweep.
   machine types in order (today's `Spec.serverTypes`), the location, the image or snapshot, the labels; secrets are
   the provider's API token and the ssh key. A lease belongs to the run alone. Today's `Hetzner` class is the
   provider until the OpenTofu one replaces it.
-- **Host pool** (porelo-host [HO12](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho12)):
+- **Host pool** (porelo-host's VM pool):
   parameter is the pool file the host writes; secret is the run key. Today's `LocalPool`.
 - **Fixed server**: a server that runs all the time, anywhere the runner reaches, with run accounts that can be
   reset. Parameters are its address, host key and accounts; secret is the ssh key. Several runs share it, so the lock

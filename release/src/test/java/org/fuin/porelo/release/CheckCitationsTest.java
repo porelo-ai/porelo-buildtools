@@ -26,7 +26,10 @@ class CheckCitationsTest {
     private static final String INTELLIJ =
             "https://github.com/porelo-ai/porelo-intellij/blob/main/issues/README.md";
 
-    @TempDir Path root;
+    /** Holds the repository and, beside it, the checkouts, so that nothing lands outside it. */
+    @TempDir Path folder;
+
+    private Path root;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -34,6 +37,7 @@ class CheckCitationsTest {
 
     @BeforeEach
     void aRepositoryWithTwoIssues() throws IOException {
+        root = folder.resolve("porelo-sample");
         write("README.md", "# A repository\n");
         write(
                 "issues/README.md",
@@ -150,6 +154,8 @@ class CheckCitationsTest {
 
     @Test
     void leavesAPointerIntoAnotherRepositorysIndexAlone() throws IOException {
+        // The project may cite other repositories' issues, so this is how its links are read.
+        write("project.yml", "project:\n  name: \"a project\"\n");
         write(
                 "issues/B11-Another.md",
                 "Blocked by F31 ([index](https://github.com/x/frontend/blob/main/issues/README.md)).\n");
@@ -159,14 +165,13 @@ class CheckCitationsTest {
 
     @Test
     void refusesANumberOfThisRepositorysOwnAmongTheIssuesThatNamesNoIssue() throws IOException {
-        // The index row or the "blocked by" its deletion missed; another repository's number is not
-        // ours to check.
+        // The index row or the "blocked by" its deletion missed.
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on porelo-frontend F31 |\n");
+                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on the interface's consent |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/README.md:1 -> B12").doesNotContain("F31");
+        assertThat(stderr()).contains("issues/README.md:1 -> B12");
     }
 
     @Test
@@ -245,6 +250,8 @@ class CheckCitationsTest {
 
     @Test
     void readsAnotherRepositorysIndexOnMain() throws IOException {
+        // The project may cite other repositories' issues, so this is how its links are read.
+        write("project.yml", "project:\n  name: \"a project\"\n");
         final FakeWeb web =
                 new FakeWeb()
                         .serve(FRONTEND_RAW, "| <a id=\"f31\"></a>[F31](F31-A-Consent.md) | x |\n");
@@ -268,6 +275,8 @@ class CheckCitationsTest {
 
     @Test
     void namesAnIndexThatCannotBeReadAndDoesNotFailOnIt() throws IOException {
+        // The project may cite other repositories' issues, so this is how its links are read.
+        write("project.yml", "project:\n  name: \"a project\"\n");
         final FakeWeb web = new FakeWeb().fail(FRONTEND_RAW, "no network");
         write(
                 "issues/B11-Another.md",
@@ -289,7 +298,9 @@ class CheckCitationsTest {
 
     @Test
     void readsAnotherRepositorysIndexFromACheckoutBeside() throws IOException {
-        final Path checkouts = root.resolve("../checkouts").normalize();
+        // The project may cite other repositories' issues, so this is how its links are read.
+        write("project.yml", "project:\n  name: \"a project\"\n");
+        final Path checkouts = folder.resolve("checkouts");
         Files.createDirectories(checkouts.resolve("porelo-frontend/issues"));
         Files.writeString(
                 checkouts.resolve("porelo-frontend/issues/README.md"),
@@ -302,6 +313,170 @@ class CheckCitationsTest {
         assertThat(stderr())
                 .contains("issues/B11-Another.md:1 -> " + FRONTEND + "#f33")
                 .doesNotContain(FRONTEND + "#f31");
+    }
+
+    @Test
+    void refusesACitationOfAnotherRepositorysIssueOutsideTheProject() throws IOException {
+        final Path checkouts = theProjectBeside();
+        Files.createDirectories(checkouts.resolve("porelo-frontend/issues"));
+        Files.writeString(
+                checkouts.resolve("porelo-frontend/issues/README.md"),
+                "| <a id=\"f31\"></a>F31 | x |\n");
+        write(
+                "issues/B11-Another.md",
+                "Its interface is [F31]("
+                        + FRONTEND
+                        + "#f31).\nIt waits for F31 and for PJ12, after [B10](README.md#b10).\n");
+        write(
+                "issues/README.md",
+                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | - | a thing |\n"
+                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | [F31]("
+                        + FRONTEND
+                        + "#f31) | another |\n");
+
+        assertThat(check(FakeWeb.untouchable(), checkouts)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("a link, a bare number and the index's Blocked-by cell are each refused")
+                .contains("a citation of another repository's issue")
+                .contains("issues/B11-Another.md:1 -> " + FRONTEND + "#f31")
+                .contains("issues/B11-Another.md:2 -> F31")
+                .contains("issues/B11-Another.md:2 -> PJ12")
+                .contains("issues/README.md:2 -> " + FRONTEND + "#f31")
+                .doesNotContain("-> B10");
+    }
+
+    @Test
+    void acceptsTheProjectCitingOtherRepositoriesIssues() throws IOException {
+        final Path checkouts = folder.resolve("checkouts");
+        Files.createDirectories(checkouts.resolve("porelo-frontend/issues"));
+        Files.writeString(
+                checkouts.resolve("porelo-frontend/issues/README.md"),
+                "| <a id=\"f31\"></a>F31 | x |\n");
+        write("project.yml", "project:\n  name: \"a project\"\n");
+        write("issues/B11-Another.md", "It waits for [F31](" + FRONTEND + "#f31).\n");
+
+        assertThat(check(FakeWeb.untouchable(), checkouts))
+                .as("the project's requirements name other repositories' issues: %s", stderr())
+                .isZero();
+    }
+
+    @Test
+    void cannotAnswerWhenTheProjectsRepositoriesCannotBeRead() throws IOException {
+        write("issues/B11-Another.md", "It waits for F31.\n");
+
+        assertThat(check(FakeWeb.untouchable(), folder.resolve("nothing")))
+                .as("without the project's prefixes another repository's number is not seen")
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("porelo-project").contains("project.yml");
+    }
+
+    @Test
+    void readsTheProjectBesideARootNamedThroughItsParts() throws IOException {
+        theProjectIn(folder);
+        write("issues/B11-Another.md", "It waits for F31.\n");
+
+        assertThat(
+                        new CheckCitations(stream(out), stream(err), FakeWeb.untouchable(), null)
+                                .check(root.resolve("issues/..")))
+                .as("the project's checkout beside the root is found: %s", stderr())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> F31");
+    }
+
+    @Test
+    void aFixturesIssueDoesNotMakeAnotherRepositorysPrefixItsOwn() throws IOException {
+        write(
+                "src/test/resources/sample/issues/README.md",
+                "| <a id=\"f05\"></a>[F05](F05-A-Fixture.md) | a fixture |\n");
+        write("src/test/resources/sample/issues/F05-A-Fixture.md", "# F05 - A Fixture\n");
+        write("issues/B11-Another.md", "It waits for F31.\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("refused as another repository's issue, not as a deletion this one missed")
+                .contains("a citation of another repository's issue")
+                .doesNotContain("its deletion missed");
+    }
+
+    @Test
+    void refusesALinkWhoseTextOrFileNamesAnotherRepositorysIssue() throws IOException {
+        final String file =
+                "https://github.com/porelo-ai/porelo-frontend/blob/main/issues/F31-Consent.md";
+        write(
+                "issues/B11-Another.md",
+                "Its interface is [porelo-frontend F31]("
+                        + FRONTEND
+                        + ").\nIt needs [the consent]("
+                        + file
+                        + ").\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("issues/B11-Another.md:1 -> " + FRONTEND)
+                .contains("issues/B11-Another.md:2 -> " + file);
+    }
+
+    @Test
+    void acceptsALinkNamedLikeAnIssueThatIsNone() throws IOException {
+        write("issues/B11-Another.md", "Its digest is [S256](https://example.org/digest).\n");
+
+        assertThat(check()).as(stderr()).isZero();
+    }
+
+    @Test
+    void refusesACitationOfAnIssueInTheProjectsLinkedIndex() throws IOException {
+        final Path checkouts = theProjectBeside();
+        Files.writeString(
+                checkouts.resolve("porelo-project/issues/README.md"),
+                "| <a id=\"pj12\"></a>PJ12 | a requirement |\n\nSee [the agents](agents/README.md).\n");
+        Files.createDirectories(checkouts.resolve("porelo-project/issues/agents"));
+        Files.writeString(
+                checkouts.resolve("porelo-project/issues/agents/README.md"),
+                "| <a id=\"a08\"></a>A08 | an agent |\n");
+        write("issues/B11-Another.md", "It waits for A08.\n");
+
+        assertThat(check(FakeWeb.untouchable(), checkouts)).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> A08");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+            strings = {
+                "repositories:\n  a:\n    issues: [\"F\"]\n  a:\n    issues: [\"IJ\"]\n",
+                "repositories:\n  a:\n    issues: \"F\"\n",
+                "repositories:\n  a:\n    issues: [[\"F\"]]\n"
+            })
+    void cannotAnswerWhenTheProjectsRepositoriesAreMalformed(String project) throws IOException {
+        final Path checkouts = theProjectBeside();
+        Files.writeString(checkouts.resolve("porelo-project/project.yml"), project);
+        write("issues/B11-Another.md", "It waits for F31.\n");
+
+        assertThat(check(FakeWeb.untouchable(), checkouts))
+                .as(
+                        "a project file that is not read as written leaves numbers unseen: %s",
+                        stderr())
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("project.yml");
+    }
+
+    @Test
+    void aProjectFileNamingNoProjectMakesNoProject() throws IOException {
+        write("project.yml", "project:\n");
+        write("issues/B11-Another.md", "It waits for F31.\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> F31");
+    }
+
+    @Test
+    void anUncommittedProjectFileMakesNoProject() throws Exception {
+        write("issues/B11-Another.md", "It waits for F31.\n");
+        git("init", "-q");
+        git("add", "README.md", "issues");
+        write("project.yml", "project:\n  name: \"a project\"\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> F31");
     }
 
     @Test
@@ -461,13 +636,49 @@ class CheckCitationsTest {
     }
 
     private int check() {
-        return check(FakeWeb.untouchable(), null);
+        try {
+            return check(FakeWeb.untouchable(), theProjectBeside());
+        } catch (IOException ex) {
+            throw new java.io.UncheckedIOException(ex);
+        }
     }
 
     private int check(Web web, Path checkouts) {
         out.reset();
         err.reset();
         return new CheckCitations(stream(out), stream(err), web, checkouts).check(root);
+    }
+
+    private Path theProjectBeside() throws IOException {
+        return theProjectIn(folder.resolve("checkouts"));
+    }
+
+    /**
+     * The project's repository in a directory of checkouts: its repositories' prefixes and index.
+     */
+    private Path theProjectIn(Path checkouts) throws IOException {
+        Files.createDirectories(checkouts.resolve("porelo-project/issues"));
+        Files.writeString(
+                checkouts.resolve("porelo-project/project.yml"),
+                "project:\n"
+                        + "  upstream: \"git@github.com:porelo-ai/porelo-project.git\"\n"
+                        + "repositories:\n"
+                        + "  core:\n"
+                        + "    upstream: \"git@github.com:porelo-ai/porelo.git\"\n"
+                        + "    issues: [\"B\"]\n"
+                        + "  frontend:\n"
+                        + "    upstream: \"git@github.com:porelo-ai/porelo-frontend.git\"\n"
+                        + "    issues: [\"F\"]\n"
+                        + "  intellij:\n"
+                        + "    upstream: \"git@github.com:porelo-ai/porelo-intellij.git\"\n"
+                        + "    issues: [\"IJ\"]\n"
+                        + "  sums:\n"
+                        + "    upstream: \"git@github.com:porelo-ai/porelo-sums.git\"\n"
+                        + "    issues: [\"S\"]\n");
+        Files.writeString(
+                checkouts.resolve("porelo-project/issues/README.md"),
+                "| <a id=\"pj12\"></a>PJ12 | a requirement |\n");
+        return checkouts;
     }
 
     private void git(String... args) throws Exception {

@@ -19,8 +19,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
-/** A release's ordered sprints and the functions a person can test. */
-record Plan(String release, String goal, List<Sprint> sprints) {
+/**
+ * A release's ordered sprints and the functions a person can test, with the waits between issues
+ * that every release's plan shares.
+ */
+record Plan(String release, String goal, List<Sprint> sprints, Map<String, List<String>> after) {
+    /** The file beside the release directories that keeps which issue waits for which, once. */
+    static final String AFTER = "after.yml";
+
     private static final ObjectMapper YAML =
             new ObjectMapper(
                     new YAMLFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
@@ -39,6 +45,20 @@ record Plan(String release, String goal, List<Sprint> sprints) {
             List<String> issues,
             List<String> covers,
             List<String> notes) {}
+
+    /** Where an issue is placed: its release, that release's place among all, and its sprint. */
+    record Placement(String release, int order, String sprint, int index) {
+        /** Whether this place comes after another, by release and then by sprint. */
+        boolean isAfter(Placement other) {
+            return order != other.order ? order > other.order : index > other.index;
+        }
+    }
+
+    /**
+     * Every release's places, and the requirements some release names under {@code covers}: the
+     * acceptance of a whole, which nothing waits for in place of its part.
+     */
+    record Releases(Map<String, Placement> placed, Set<String> covered) {}
 
     /** The project that owns the plan and the prefixes its repositories declare. */
     record Project(Path root, String own, Map<String, Set<String>> repositories) {}
@@ -148,7 +168,133 @@ record Plan(String release, String goal, List<Sprint> sprints) {
             }
             sprints.add(new Sprint(id, title, sprintGoal, List.copyOf(functions)));
         }
-        return new Plan(release, goal, List.copyOf(sprints));
+        return new Plan(release, goal, List.copyOf(sprints), after(folder, project));
+    }
+
+    /**
+     * Returns where each issue is placed among every release beside a plan, the releases ordered by
+     * their numbers; this plan's place wins over another release's.
+     *
+     * @param file the release's plan
+     * @param plan the plan read from it
+     * @param project the project the plans belong to
+     * @return each placed issue, under {@code issues} or {@code covers}, and its place, with the
+     *     issues any release covers
+     */
+    static Releases releases(Path file, Plan plan, Project project) throws IOException, Stop {
+        final Path folder = file.toAbsolutePath().normalize().getParent();
+        final Path releases = folder == null ? null : folder.getParent();
+        final List<Plan> plans = new ArrayList<>(List.of(plan));
+        if (releases != null) {
+            try (var directories = Files.list(releases)) {
+                for (final Path other :
+                        directories
+                                .filter(directory -> !directory.equals(folder))
+                                .map(directory -> directory.resolve("plan.yml"))
+                                .filter(Files::isRegularFile)
+                                .sorted()
+                                .toList()) {
+                    plans.add(read(other, project));
+                }
+            }
+        }
+        final List<String> order =
+                plans.stream().map(Plan::release).sorted(Plan::compareReleases).toList();
+        final Map<String, Placement> placed = new LinkedHashMap<>();
+        final Set<String> covered = new HashSet<>();
+        for (final Plan each : plans) {
+            final int at = order.indexOf(each.release());
+            for (int i = 0; i < each.sprints().size(); i++) {
+                final Sprint sprint = each.sprints().get(i);
+                for (final Function function : sprint.functions()) {
+                    covered.addAll(function.covers());
+                    for (final String named : placedIn(function)) {
+                        placed.putIfAbsent(
+                                named, new Placement(each.release(), at, sprint.id(), i));
+                    }
+                }
+            }
+        }
+        return new Releases(java.util.Collections.unmodifiableMap(placed), Set.copyOf(covered));
+    }
+
+    /** The issues a function places: its own and the parents it covers. */
+    static List<String> placedIn(Function function) {
+        final List<String> named = new ArrayList<>(function.issues());
+        named.addAll(function.covers());
+        return named;
+    }
+
+    /** Orders releases by their numbers, part by part, so that 0.10 comes after 0.9. */
+    private static int compareReleases(String one, String other) {
+        final String[] mine = one.split("[.-]");
+        final String[] theirs = other.split("[.-]");
+        for (int i = 0; i < Math.min(mine.length, theirs.length); i++) {
+            final int compared =
+                    mine[i].matches("\\d+") && theirs[i].matches("\\d+")
+                            ? new java.math.BigInteger(mine[i])
+                                    .compareTo(new java.math.BigInteger(theirs[i]))
+                            : mine[i].compareTo(theirs[i]);
+            if (compared != 0) {
+                return compared;
+            }
+        }
+        return Integer.compare(mine.length, theirs.length);
+    }
+
+    /**
+     * Returns the file of waits for a plan: beside its release's directory.
+     *
+     * @param file the release's plan
+     * @return {@code plan/after.yml} for {@code plan/<release>/plan.yml}
+     */
+    static Path afterFile(Path file) {
+        final Path folder = file.toAbsolutePath().normalize().getParent();
+        // A plan is always <release>/plan.yml, so a plan at a root has no release directory.
+        return folder == null ? Path.of(AFTER) : folder.resolveSibling(AFTER);
+    }
+
+    /** Reads the waits beside the release directories; none when the file is not there. */
+    private static Map<String, List<String>> after(Path folder, Project project)
+            throws IOException, Stop {
+        final Path file = folder.resolveSibling(AFTER);
+        if (Files.notExists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            return Map.of();
+        }
+        // A directory, a broken link or a file that cannot be looked at is not taken for no waits.
+        if (!Files.isRegularFile(file)) {
+            throw Stop.refused(file + ": not a readable file of waits");
+        }
+        final JsonNode data = yaml(file);
+        keys(data, Set.of("after"), file.toString());
+        final JsonNode waits = required(data, "after", file.toString());
+        if (!waits.isObject()) {
+            throw Stop.refused(file + ": after must be a mapping of an issue to what it waits for");
+        }
+        final Map<String, List<String>> after = new LinkedHashMap<>();
+        final var entries = waits.properties().iterator();
+        while (entries.hasNext()) {
+            final var entry = entries.next();
+            final String issue = entry.getKey();
+            final String where = file + " " + issue;
+            reference(issue, project, where);
+            final List<String> targets = strings(waits, issue, where);
+            if (targets.isEmpty()) {
+                throw Stop.refused(where + ": waits for nothing; remove the entry");
+            }
+            final Set<String> seen = new HashSet<>();
+            for (final String target : targets) {
+                reference(target, project, where);
+                if (target.equals(issue)) {
+                    throw Stop.refused(where + ": waits for itself");
+                }
+                if (!seen.add(target)) {
+                    throw Stop.refused(where + ": waits for " + target + " twice");
+                }
+            }
+            after.put(issue, targets);
+        }
+        return java.util.Collections.unmodifiableMap(after);
     }
 
     private static JsonNode yaml(Path file) throws IOException, Stop {

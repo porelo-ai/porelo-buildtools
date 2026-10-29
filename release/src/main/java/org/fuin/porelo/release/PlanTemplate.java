@@ -2,13 +2,16 @@ package org.fuin.porelo.release;
 
 import gg.jte.Content;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** The immutable data exposed to the compiled release-page templates. */
-public record PlanTemplate(String release, String goal, String stand, List<Sprint> sprints) {
+public record PlanTemplate(
+        String release, String goal, String stand, List<Sprint> sprints, List<Wait> waits) {
     /** Explains how the plan's issue states and operator tests are related. */
     public static final String INTRODUCTION =
             "Each sprint ends in functions the operator tests by hand; a bar shows the states of a sprint's issues, and a mark per function shows whether it is tested.";
@@ -77,6 +80,9 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
     /** A covered parent is visible without contributing work to the sprint's progress. */
     public record Parent(String number, String state, String link, String detail) {}
 
+    /** An issue of this plan and the issues it waits for, each with its state. */
+    public record Wait(Parent issue, List<Parent> targets) {}
+
     /** A function's instructions, covered parents and the person's recorded test. */
     public record Function(
             String title, String test, String tested, List<Chip> chips, List<Parent> covers) {}
@@ -128,14 +134,7 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
                 }
                 final List<Parent> covers = new ArrayList<>();
                 for (final String named : function.covers()) {
-                    final IssueIndex row = issues.get(named);
-                    final Chip chip = chip(named, row);
-                    covers.add(
-                            new Parent(
-                                    named.split("#")[1],
-                                    row == null ? "Missing index row" : row.state(),
-                                    chip.link(),
-                                    chip.detail()));
+                    covers.add(parent(named, issues));
                 }
                 functions.add(
                         new Function(
@@ -190,7 +189,38 @@ public record PlanTemplate(String release, String goal, String stand, List<Sprin
                             PlanRender.template("sprint.jte", data),
                             stateCounts));
         }
-        return new PlanTemplate(plan.release(), plan.goal(), stand, List.copyOf(sprints));
+        final Set<String> placed = new HashSet<>();
+        for (final Plan.Sprint sprint : plan.sprints()) {
+            for (final Plan.Function function : sprint.functions()) {
+                placed.addAll(function.issues());
+                placed.addAll(function.covers());
+            }
+        }
+        final List<Wait> waits = new ArrayList<>();
+        plan.after()
+                .forEach(
+                        (issue, targets) -> {
+                            if (placed.contains(issue)) {
+                                waits.add(
+                                        new Wait(
+                                                parent(issue, issues),
+                                                targets.stream()
+                                                        .map(target -> parent(target, issues))
+                                                        .toList()));
+                            }
+                        });
+        return new PlanTemplate(
+                plan.release(), plan.goal(), stand, List.copyOf(sprints), List.copyOf(waits));
+    }
+
+    private static Parent parent(String named, Map<String, IssueIndex> issues) {
+        final IssueIndex row = issues.get(named);
+        final Chip chip = chip(named, row);
+        return new Parent(
+                named.split("#")[1],
+                row == null ? "Missing index row" : row.state(),
+                chip.link(),
+                chip.detail());
     }
 
     private static Chip chip(String named, @org.jspecify.annotations.Nullable IssueIndex row) {

@@ -41,6 +41,14 @@ writes: an SVG image's path data, a lock file's hashes. Build output is not read
   `raw.githubusercontent.com` on `main`, or with `--checkouts <dir>` from `<dir>/<repository>/`. A number that no
   index read has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
   Which prefixes are issue numbers is read from the indexes, so `SHA256` or a guideline's `LLM03` is none.
+- **No issue of another repository is cited under `issues/`** - neither a link naming its number, its row or its
+  file nor a bare number of its prefix - outside the project's own repository, the one whose committed root
+  `project.yml` names its `project`; there
+  the requirements and plans name other repositories' issues and their waits. Every other issue says in words the
+  contract it builds against. The project's prefixes come from `porelo-project`'s `project.yml` and issue index
+  with the indexes it links to, read like another repository's index; when either cannot be read, the check cannot answer (exit 2), since another
+  repository's number would go unseen. Only the root's own `issues/` is held to this; a test's fixture deeper down
+  is not.
 - **An index that cannot be read** - a repository not published yet, or no network - is named in a `NOTE` line with
   the count of links into it that went unchecked, and does not fail the check.
 - **A line that holds an issue number's shape on purpose**, as test data for something that reads such text, says
@@ -296,6 +304,29 @@ string in `yyyy-MM-dd` form, and `issues`, `covers`, and `notes` are optional li
 A release-level `issue` is an unknown field. Unknown fields, repositories,
 mismatched prefixes, duplicate sprint IDs or function titles, and invalid dates are refused with their location.
 
+Which issue waits for which is kept once for every release, in `after.yml` beside the release directories
+(`plan/after.yml` for `plan/<release>/plan.yml`), since a wait belongs to an issue and many waiting issues are in no
+release yet. Each issue maps to the issues it waits for, written as under `issues`:
+
+```yaml
+after:
+  porelo-host#HO27: [porelo-buildtools#BT25]  # an example, not-a-citation
+```
+
+An issue says in its own text what it waits for; only this file names the number. An empty list, a target named
+twice and an issue that waits for itself are refused where they stand; without the file, there are no waits, but
+a directory or an unreadable entry in its place is refused. Both
+verbs read it, and it counts toward the Stand line. The page lists, under *Waits*, every issue of the plan that
+waits, each with the state of what it waits for, outside the sprints' bars and counts. A wait that is met stays and is
+shown, so that another repository finishing an issue never turns a plan's check red.
+
+A wait inside one repository is written in its index instead, in the *Blocked by* column: `plan check` reads each
+number in a planned issue's cell as a wait on that number in the same repository, held to the same rules as an
+`after.yml` entry. The column is found by its header; an index without it has no waits, and `—` or `-` names none.
+The check reads every release's plan beside this one, ordered by their numbers (0.10 after 0.9), to know where each
+waited-for issue is placed. A wait in either place may not reach a later sprint or a later release; a *Blocked by*
+number planned in no release must be Review, Finished or Rejected. The page shows only the waits of `after.yml`.
+
 Rendering writes `README.md` beside the plan, so a forge shows it on opening the release's directory. Markdown follows the HTML page's section order: the
 release heading and goal, italic Stand line, Sprint progress, the introduction, and Issues Details. The progress
 section links one self-contained jte-generated image beside it, `progress-<hash>.svg`, with the HTML legend's colored
@@ -346,7 +377,7 @@ Every destination must differ from every local input read (the plan, `project.ym
 and every other destination, including aliases; all destinations are checked before any output is written.
 Repeating an issue within one function is refused as a duplicate in that function.
 
-`plan check` refuses these eight faults, naming the issue or the sprint and function:
+`plan check` refuses these fifteen faults, naming the issue or the sprint and function:
 
 - An issue has no row in its repository's index.
 - An issue belongs to more than one function.
@@ -357,6 +388,17 @@ Repeating an issue within one function is refused as a duplicate in that functio
 - A parent is repeated in one function's `covers`, or is also listed under any function's `issues`.
 - A covered parent is Idea, Accepted, Analyzed, Estimated or Backlog while at least one of its function's issues
   is Implementing, Rework, Review or Finished.
+- An issue in `after.yml`, waiting or waited for, has no row in its repository's index.
+- A number in a planned issue's *Blocked by* cell has no row in that repository's index.
+- An issue is Implementing, Rework, Review or Finished while an issue it waits for is not yet Review or Finished,
+  the states from which a change is pushed and published. A parent the plan names only under `covers` is left out,
+  since it is Implementing while its parts run; every other rule on waits holds for it.
+- Waits form a cycle; the refusal names it in order.
+- An issue waits for one placed in a later sprint of the plan being checked or in a later release, directly or
+  through issues outside it.
+- A planned issue's *Blocked by* cell names an issue planned in no release that is not Review, Finished or Rejected.
+- A wait, in `after.yml` or a *Blocked by* cell, names a requirement any release's plan names under `covers`: it is the
+  acceptance of the whole, so the wait names the part it waits for instead.
 
 Exit 0 means the command succeeded, 1 means the plan or page was refused, and 2 means the command was malformed or
 its inputs or outputs could not be read or written. Checking never rewrites the page.

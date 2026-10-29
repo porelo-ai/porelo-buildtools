@@ -197,6 +197,11 @@ final class CheckCitations {
         int read = 0;
         int binary = 0;
         try {
+            // Only the project's requirements and plans name another repository's issues, so a
+            // wait kept anywhere else cannot go stale when that repository renumbers.
+            if (!isProject(root, names)) {
+                issueLinks.refuseCitationsOfOtherRepositories(root);
+            }
             issueLinks.read(
                     root, pages.stream().filter(page -> isIssue(root, page)).toList(), prefixes);
             final Set<String> named = new java.util.HashSet<>(issues);
@@ -242,7 +247,11 @@ final class CheckCitations {
         final List<String> unlinked = issueLinks.unlinked;
         final List<String> broken = issueLinks.broken;
         final List<String> rowless = issueLinks.rowless;
+        final List<String> crossed = issueLinks.crossed;
+        // Another repository's number is said once, as that, though a fixture shares its prefix.
+        gone.removeAll(crossed);
         if (stale.isEmpty()
+                && crossed.isEmpty()
                 && links.isEmpty()
                 && pointers.isEmpty()
                 && numbers.isEmpty()
@@ -299,8 +308,15 @@ final class CheckCitations {
                         + " never a link to its file, since the row outlives the file");
         report(broken, "a link to an index row that is not there, or that names another number");
         report(rowless, "a number no index has a row for: rewrite the text, it cannot be linked");
+        report(
+                crossed,
+                "a citation of another repository's issue, outside "
+                        + IssueLinks.PROJECT
+                        + ": state in words the contract it stands for; the project's plan names"
+                        + " the issue and what waits for it");
         err.println(
                 (stale.size()
+                                + crossed.size()
                                 + links.size()
                                 + pointers.size()
                                 + numbers.size()
@@ -508,6 +524,22 @@ final class CheckCitations {
     private static boolean isIssue(Path root, Path path) {
         final String name = relative(root, path);
         return name.startsWith("issues/") || name.contains("/issues/");
+    }
+
+    /**
+     * Whether the root is a project's own repository: a committed {@code project.yml} naming its
+     * project.
+     */
+    private static boolean isProject(Path root, Set<String> committed) throws IOException {
+        if (!committed.contains("project.yml")) {
+            return false;
+        }
+        final var tree =
+                new com.fasterxml.jackson.databind.ObjectMapper(
+                                new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                        .readTree(root.resolve("project.yml").toFile());
+        final var project = tree == null ? null : tree.get("project");
+        return project != null && project.isObject();
     }
 
     private static boolean generatedPlan(Path path) throws IOException {

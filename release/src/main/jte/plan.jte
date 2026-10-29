@@ -71,4 +71,12 @@ a.chip{text-decoration:none} .row>svg{width:100%;height:20px;display:block} .ic{
 </div>
 @endfor
 </div>
+@if(!page.waits().isEmpty())
+<div id="waits">
+<h2 class="section">Waits</h2>
+@for(var wait : page.waits())
+<div class="how">@if(wait.issue().link().isEmpty())${wait.issue().number()}@else<a href="${wait.issue().link()}" title="${wait.issue().detail()}">${wait.issue().number()}</a>@endif · ${wait.issue().state()} after @for(int i = 0; i < wait.targets().size(); i++)!{var target = wait.targets().get(i);}@if(i > 0), @endif@if(target.link().isEmpty())${target.number()}@else<a href="${target.link()}" title="${target.detail()}">${target.number()}</a>@endif · ${target.state()}@endfor</div>
+@endfor
+</div>
+@endif
 </main></body></html>

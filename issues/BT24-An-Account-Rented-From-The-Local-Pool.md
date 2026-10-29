@@ -11,8 +11,7 @@ when every account is held, and has the account's VM made clean when it is given
 
 ## Plan
 
-- **The pool file is the contract** with porelo-host
-  [HO12](https://github.com/porelo-ai/porelo-host/blob/main/issues/README.md#ho12), JSON with
+- **The pool file is the contract** with porelo-host, which writes it at `/etc/porelo-host/pool/pool.json`: JSON with
   `"format": "porelo-machines-pool/1"`: per VM its `os`, its address, its host key and its run accounts, and nothing
   secret in the file. A format it does not know, a missing field, an account named twice or a file still carrying
   `runKey` stops the run with that said.

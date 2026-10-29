@@ -1,0 +1,2 @@
+title: '`plan check` and `plan render` read which issue waits for which from one `plan/after.yml` beside the release directories; the check refuses a wait without an index row, work started before what it waits for is in Review, a cycle and a wait on a later sprint or release, and reads the Blocked by column of each index as waits inside that repository, refusing one on an issue no release plans unless it is done, and a wait on a requirement a release covers; the page lists each waiting issue with the state of what it waits for'
+type: added

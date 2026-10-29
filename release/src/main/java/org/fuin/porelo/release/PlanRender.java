@@ -32,6 +32,12 @@ final class PlanRender {
                 function.covers().forEach(parent -> repositories.add(parent.split("#")[0]));
             }
         }
+        plan.after()
+                .forEach(
+                        (issue, targets) -> {
+                            repositories.add(issue.split("#")[0]);
+                            targets.forEach(target -> repositories.add(target.split("#")[0]));
+                        });
         final Map<String, IssueIndex> issues = new LinkedHashMap<>();
         for (final String repository : repositories) {
             links.issueIndex(project.root(), repository)
@@ -204,6 +210,22 @@ final class PlanRender {
                 }
             }
             page.markdown.append("</td></tr></table>\n\n");
+        }
+        if (!model.waits().isEmpty()) {
+            page.heading(2, "Waits");
+            for (final PlanTemplate.Wait wait : model.waits()) {
+                page.markdown.append("- ");
+                page.link(wait.issue().number(), wait.issue().link(), wait.issue().detail());
+                page.markdown.append(" · ").append(inline(wait.issue().state())).append(" after ");
+                for (int i = 0; i < wait.targets().size(); i++) {
+                    if (i > 0) page.markdown.append(", ");
+                    final PlanTemplate.Parent target = wait.targets().get(i);
+                    page.link(target.number(), target.link(), target.detail());
+                    page.markdown.append(" · ").append(inline(target.state()));
+                }
+                page.markdown.append("\n");
+            }
+            page.markdown.append("\n");
         }
         return new Pages(
                 page.markdown.toString(),
