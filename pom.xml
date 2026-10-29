@@ -15,7 +15,7 @@
 
     <groupId>org.fuin.porelo</groupId>
     <artifactId>porelo-buildtools</artifactId>
-    <version>0.5.1</version>
+    <version>0.5.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Porelo Buildtools</name>
     <description>Porelo - The build and test tooling shared by the Porelo repositories (PARENT)</description>
