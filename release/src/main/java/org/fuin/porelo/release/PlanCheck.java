@@ -16,9 +16,6 @@ final class PlanCheck {
     private static final Set<String> STARTED =
             Set.of("Implementing", "Rework", "Review", "Finished");
 
-    /** From Review on, a change is pushed and published as a snapshot another one can build on. */
-    private static final Set<String> PUBLISHED = Set.of("Review", "Finished");
-
     /** An issue no release plans is no wait once it is published or will never be built. */
     private static final Set<String> DONE = Set.of("Review", "Finished", "Rejected");
 
@@ -89,7 +86,7 @@ final class PlanCheck {
 
     /**
      * A wait holds when both issues have rows, no issue waits on itself through others, work starts
-     * only once what it waits for is published, and nothing waits for a later sprint or release. A
+     * only once what it waits for has begun, and nothing waits for a later sprint or release. A
      * number in an index's Blocked by cell is a wait inside that repository, as an entry in {@value
      * Plan#AFTER} is, and waits for an issue no release plans only once that one is done.
      */
@@ -248,7 +245,10 @@ final class PlanCheck {
         }
     }
 
-    /** Work starts only once what it waits for is published. */
+    /**
+     * Work starts only once what it waits for has begun: agents build against local results and
+     * contracts stated in words, not only against what is published.
+     */
     private static void checkStarted(
             String where,
             String issue,
@@ -256,7 +256,7 @@ final class PlanCheck {
             String target,
             IssueIndex waited,
             List<String> faults) {
-        if (STARTED.contains(row.state()) && !PUBLISHED.contains(waited.state())) {
+        if (STARTED.contains(row.state()) && !STARTED.contains(waited.state())) {
             faults.add(
                     where
                             + ": "

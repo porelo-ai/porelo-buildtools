@@ -1,6 +1,6 @@
 # BT40 — Work May Wait On Work Begun
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - one rule of `plan check`, its test and its documentation.
 
 **What must be true.** An issue that is Implementing, Rework, Review or Finished may wait for one that is Implementing,
@@ -22,5 +22,5 @@ refused, as is a wait for one Rejected.
 ## Acceptance
 
 - The unit test above, seen red first, and the module's build green.
-- `plan check` on porelo-project's plan no longer refuses its waits on Implementing issues, among them MX45 and HO43
-  waiting for B312.
+- `plan check` on porelo-project's plan no longer refuses its waits for issues that are Implementing, among them a
+  homeserver's and a host's issue waiting for Porelo's own work on messages.

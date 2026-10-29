@@ -568,19 +568,27 @@ class PlanCommandsTest {
         refused("sprint s function One", parent);
     }
 
-    @Test
-    void aStartedIssueWaitingForAnUnpublishedOneIsRefusedUntilItIsInReview() throws IOException {
+    @ParameterizedTest
+    @ValueSource(strings = {"Idea", "Accepted", "Analyzed", "Estimated", "Backlog", "Rejected"})
+    void aStartedIssueWaitingForOneNotBegunIsRefused(String state) throws IOException {
         plan(function("One", "issues: [porelo-sample#SA01]"));
         writeSample("Implementing");
-        writeParent("Analyzed");
+        writeParent(state);
         waits("porelo-sample#SA01: [porelo-project#PJ01]");
         assertThat(run("render")).as("a wait renders before checking: %s", errors).isZero();
-        refused("porelo-sample#SA01", "Implementing", "porelo-project#PJ01", "Analyzed");
+        refused("porelo-sample#SA01", "Implementing", "porelo-project#PJ01", state);
+    }
 
-        writeParent("Review");
-        assertThat(run("render")).as("the published wait renders: %s", errors).isZero();
+    @ParameterizedTest
+    @ValueSource(strings = {"Implementing", "Rework", "Review", "Finished"})
+    void workMayStartOnceWhatItWaitsForHasBegun(String state) throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        writeSample("Implementing");
+        writeParent(state);
+        waits("porelo-sample#SA01: [porelo-project#PJ01]");
+        assertThat(run("render")).as("the wait renders: %s", errors).isZero();
         assertThat(run("check"))
-                .as("work may start once what it waits for is published: %s", errors)
+                .as("agents build against what has begun, in words and local results: %s", errors)
                 .isZero();
     }
 

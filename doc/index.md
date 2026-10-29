@@ -390,8 +390,9 @@ Repeating an issue within one function is refused as a duplicate in that functio
   is Implementing, Rework, Review or Finished.
 - An issue in `after.yml`, waiting or waited for, has no row in its repository's index.
 - A number in a planned issue's *Blocked by* cell has no row in that repository's index.
-- An issue is Implementing, Rework, Review or Finished while an issue it waits for is not yet Review or Finished,
-  the states from which a change is pushed and published. A parent the plan names only under `covers` is left out,
+- An issue is Implementing, Rework, Review or Finished while an issue it waits for has not begun (Idea, Accepted,
+  Analyzed, Estimated, Backlog) or is Rejected; agents build against local results and contracts stated in words, so
+  what is waited for need not be published yet. A parent the plan names only under `covers` is left out,
   since it is Implementing while its parts run; every other rule on waits holds for it.
 - Waits form a cycle; the refusal names it in order.
 - An issue waits for one placed in a later sprint of the plan being checked or in a later release, directly or
