@@ -137,6 +137,31 @@ class CheckCommitsTest {
         assertThat(stdout()).contains("OK    3 commit(s) in RANGE, 0 exempt");
     }
 
+    @Test
+    void readsATrailersKeyInAnyCaseAsGitDoes() {
+        // Claude Code writes "Co-Authored-By", and git takes trailer keys in any case.
+        commit(
+                "a000090",
+                "Give every rented machine a host key made per run\n\n"
+                        + "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
+                        + "assisted-by: Claude Code, claude-opus-5-5");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void takesASignOffInAnyCaseFromOutside() {
+        commit(
+                "a000091",
+                HUMAN,
+                HUMAN_MAIL,
+                HUMAN,
+                HUMAN_MAIL,
+                "Read the pins once\n\nSigned-Off-By: Jane Doe <jane@example.org>");
+
+        assertThat(checkOutside()).as(stderr()).isEqualTo(0);
+    }
+
     @ParameterizedTest
     @ValueSource(
             strings = {

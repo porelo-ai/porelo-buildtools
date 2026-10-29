@@ -1,0 +1,2 @@
+title: check-commits takes a trailer key such as `Co-Authored-By` in any case, as git does, instead of refusing the line as no trailer.
+type: fixed

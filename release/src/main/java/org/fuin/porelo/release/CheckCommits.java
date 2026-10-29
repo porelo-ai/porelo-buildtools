@@ -34,12 +34,18 @@ final class CheckCommits {
     /** The committer of a merge made in GitHub's web interface. */
     static final String WEB_COMMITTER = "GitHub";
 
-    /** The one line kind allowed below the subject: a trailer of a key the shared rules name. */
+    /**
+     * The one line kind allowed below the subject: a trailer of a key the shared rules name, its
+     * key in any case, as git reads one.
+     */
     private static final Pattern TRAILER =
-            Pattern.compile("^(Assisted-by|Signed-off-by|Co-authored-by): \\S.*$");
+            Pattern.compile(
+                    "^(Assisted-by|Signed-off-by|Co-authored-by): \\S.*$",
+                    Pattern.CASE_INSENSITIVE);
 
-    /** A sign-off and the address it names. */
-    private static final Pattern SIGN_OFF = Pattern.compile("^Signed-off-by: .*<([^<>\\s]+)>$");
+    /** A sign-off, its key in any case, and the address it names. */
+    private static final Pattern SIGN_OFF =
+            Pattern.compile("^Signed-off-by: .*<([^<>\\s]+)>$", Pattern.CASE_INSENSITIVE);
 
     /** A word of an issue number's shape, its prefix apart; whether it is one the prefixes say. */
     private static final Pattern NUMBER = Pattern.compile("\\b([A-Z]{1,3})\\d+\\b");
