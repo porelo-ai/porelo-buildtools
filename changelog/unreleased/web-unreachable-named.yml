@@ -1,0 +1,2 @@
+title: A release check that cannot reach an address, such as check-citations with no network, names the address and the kind of failure instead of "null", and an issue index it could not read is no longer taken for an empty one.
+type: fixed

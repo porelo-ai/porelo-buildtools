@@ -47,6 +47,17 @@ public interface Web {
     }
 
     /**
+     * Says why something failed: its message, or its kind when it has none.
+     *
+     * @param failure what was thrown
+     * @return never null, so a caller neither prints "null" nor takes it for no failure
+     */
+    static String reason(Throwable failure) {
+        final String message = failure.getMessage();
+        return message == null ? failure.getClass().getSimpleName() : message;
+    }
+
+    /**
      * Reads over HTTP.
      *
      * <p>Redirects are followed: Artifactory serves a small bill directly and offloads a large one
@@ -73,6 +84,11 @@ public interface Web {
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IOException("interrupted while reading " + address, ex);
+            } catch (IOException ex) {
+                // The JDK names no address in a timeout, an unreachable network or a TLS failure,
+                // and with no network at all its ConnectException has no message: name both, as
+                // an HTTP status below is named.
+                throw new IOException(address + ": " + reason(ex), ex);
             }
             if (response.statusCode() == 404) {
                 return Optional.empty();

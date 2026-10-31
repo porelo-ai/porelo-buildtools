@@ -157,7 +157,7 @@ final class CheckCitations {
             files = handwritten.stream().sorted().toList();
             exempt = exempt(root);
         } catch (IOException | UncheckedIOException ex) {
-            err.println("could not list the files under " + root + ": " + ex.getMessage());
+            err.println("could not list the files under " + root + ": " + Web.reason(ex));
             return Stop.UNANSWERED;
         }
         final List<Path> pages =
@@ -239,7 +239,7 @@ final class CheckCitations {
                 numbers.addAll(numbersIn(root, file, text.get()));
             }
         } catch (IOException | UncheckedIOException ex) {
-            err.println("could not read under " + root + ": " + ex.getMessage());
+            err.println("could not read under " + root + ": " + Web.reason(ex));
             return Stop.UNANSWERED;
         }
         issueLinks.notes().forEach(note -> out.println("NOTE  " + note));

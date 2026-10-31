@@ -297,6 +297,25 @@ class CheckCitationsTest {
     }
 
     @Test
+    void anIndexUnreadWithoutAReasonIsNotTakenForAnEmptyOne() throws IOException {
+        write("project.yml", "project:\n  name: \"a project\"\n");
+        // What the JDK throws with no network at all: a ConnectException without a message.
+        final Web offline =
+                (address, sent) -> {
+                    throw new java.net.ConnectException();
+                };
+        write("issues/B11-Another.md", "Its interface [F31](" + FRONTEND + "#f31).\n");
+
+        assertThat(check(offline, null))
+                .as("a link into an index that could not be read is not checked: %s", stderr())
+                .isEqualTo(0);
+        assertThat(stdout())
+                .as("the index is named as not read, with the kind of failure")
+                .contains("not read: porelo-frontend issues/README.md (ConnectException)")
+                .contains("1 link(s) into them not checked");
+    }
+
+    @Test
     void readsAnotherRepositorysIndexFromACheckoutBeside() throws IOException {
         // The project may cite other repositories' issues, so this is how its links are read.
         write("project.yml", "project:\n  name: \"a project\"\n");
@@ -368,6 +387,24 @@ class CheckCitationsTest {
                 .as("without the project's prefixes another repository's number is not seen")
                 .isEqualTo(Stop.UNANSWERED);
         assertThat(stderr()).contains("porelo-project").contains("project.yml");
+    }
+
+    @Test
+    void saysWhyTheProjectCouldNotBeReadWhenTheFailureHasNoMessage() throws IOException {
+        write("issues/B11-Another.md", "It waits for F31.\n");
+        // What the JDK throws with no network at all: a ConnectException without a message.
+        final Web offline =
+                (address, sent) -> {
+                    throw new java.net.ConnectException();
+                };
+
+        assertThat(check(offline, null))
+                .as("without the project's prefixes the check cannot answer: %s", stderr())
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr())
+                .as("it names the kind of failure, never only \"null\"")
+                .contains("could not read under " + root + ": ConnectException")
+                .doesNotContain(": null");
     }
 
     @Test

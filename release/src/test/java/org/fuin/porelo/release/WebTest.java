@@ -1,10 +1,14 @@
 package org.fuin.porelo.release;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -74,6 +78,31 @@ class WebTest {
                         "the JDK drops Authorization when a redirect changes host; if this"
                                 + " fails, the client now forwards a token to wherever it is sent")
                 .containsExactly("none");
+    }
+
+    @Test
+    void anUnreachableAddressIsNamedWithTheKindOfFailure() throws IOException {
+        final URI closed;
+        try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
+            closed = URI.create("http://127.0.0.1:" + socket.getLocalPort() + "/index");
+        }
+
+        assertThatThrownBy(() -> Web.overHttp().read(closed))
+                .as(
+                        "the JDK's ConnectException has no message and names no address: both are named")
+                .isInstanceOf(IOException.class)
+                .hasMessage(closed + ": ConnectException")
+                .hasCauseInstanceOf(ConnectException.class);
+    }
+
+    @Test
+    void aFailureWithAMessageKeepsIt() {
+        assertThat(Web.reason(new IOException("disk full")))
+                .as("a message of its own is kept as it is")
+                .isEqualTo("disk full");
+        assertThat(Web.reason(new ConnectException()))
+                .as("a failure with none is named by its kind")
+                .isEqualTo("ConnectException");
     }
 
     private URI address(String path) {

@@ -545,7 +545,8 @@ final class IssueLinks {
             indexRows(text.get()).forEach(row -> numbers.add(row.number()));
             return new Index(anchorsIn(text.get()), numbers, null);
         } catch (IOException | UncheckedIOException ex) {
-            return new Index(Set.of(), Set.of(), ex.getMessage());
+            // A null reason would read as an index that was read and has no rows.
+            return new Index(Set.of(), Set.of(), Web.reason(ex));
         }
     }
 
@@ -581,7 +582,7 @@ final class IssueLinks {
         try {
             text = source(location).orElseThrow(() -> new IOException("not found"));
         } catch (IOException | UncheckedIOException ex) {
-            throw new IOException(source + ": index not readable: " + ex.getMessage(), ex);
+            throw new IOException(source + ": index not readable: " + Web.reason(ex), ex);
         }
         planIndexSources.computeIfAbsent(repository, key -> new ArrayList<>()).add(source);
         for (final Row row : indexRows(text)) {
