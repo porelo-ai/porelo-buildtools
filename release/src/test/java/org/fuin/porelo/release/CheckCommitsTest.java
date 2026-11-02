@@ -453,10 +453,10 @@ class CheckCommitsTest {
     private void commit(String hash, String message) {
         commit(
                 hash,
-                "Michael Schnell",
-                "michael@example.org",
-                "Michael Schnell",
-                "michael@example.org",
+                "Alice Example",
+                "alice@example.org",
+                "Alice Example",
+                "alice@example.org",
                 message);
     }
 

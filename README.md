@@ -21,7 +21,7 @@ The build and test tooling shared by the Porelo repositories, published to Maven
 ## Building
 
 ```
-JAVA_HOME=~/.sdkman/candidates/java/25.3.4+1.r25-graalce ./mvnw -B clean verify
+JAVA_HOME=<the pinned GraalVM> ./mvnw -B clean verify
 ```
 
 JDK 25; the pinned GraalVM is the one CI uses. The tools depend on nothing of porelo's; `porelo-json` is

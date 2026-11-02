@@ -31,7 +31,7 @@ it.
 - **The scheduled step** in `.github/workflows/shared-rules.yml` calls `check-pushes --since 26` in place of the
   `rev-list` range, with `GITHUB_TOKEN` in its `env:` and `contents: read` as today. The checkout keeps
   `fetch-depth: 0`.
-- **The template** goes into `~/.porelo/handover/porelo-buildtools/<commit>/template.md`. Each agent takes it into its
+- **The template** goes into a template file outside the repository. Each agent takes it into its
   repositories, as with the commit check's template, and each keeps its own way to put `porelo-release` on the classpath.
 - **Docs:** `doc/index.md` names `check-pushes` beside `check-commits`; changelog under *Added*.
 - **The test that goes red first:** `CheckPushesTest.refusesAnOldCommitInADaysPush`. A `FakeWeb` activity page names

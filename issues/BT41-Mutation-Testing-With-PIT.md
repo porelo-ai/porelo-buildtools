@@ -9,5 +9,4 @@ surviving mutants into real gaps in the tests and harmless ones.
 
 ## Model
 
-The try in porelo-message-matrix: its report `~/.porelo/handover/porelo-message-matrix/pit-014d86a/report.md` and
-its branch `pit-try`, later its pushed profile.
+The try in porelo-message-matrix: its pushed profile.

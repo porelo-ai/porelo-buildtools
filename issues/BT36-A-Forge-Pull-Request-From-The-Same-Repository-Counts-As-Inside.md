@@ -19,9 +19,9 @@ A rented host running the local forge, 2026-10-27, porelo-buildtools pull reques
 - `GET /api/v1/repos/porelo/porelo-buildtools/pulls/1` on the forge has no `author_association` field at all (Core,
   07:15Z). The step's `PR_ASSOCIATION` is therefore empty, and only the bot case could make a forge pull request
   inside. So every pull request on the forge is checked as one from outside, whoever opens it.
-- On the forge, `github.server_url` is the runner's address of the forge, `https://10.73.0.1:3000`. The checkout of the
-  same job fetched `https://10.73.0.1:3000/porelo/porelo-buildtools` and removed
-  `http.https://10.73.0.1:3000/.extraheader`.
+- On the forge, `github.server_url` is the runner's address of the forge, `https://192.0.2.1:3000`. The checkout of the
+  same job fetched `https://192.0.2.1:3000/porelo/porelo-buildtools` and removed
+  `http.https://192.0.2.1:3000/.extraheader`.
 - The merge is not blocked by the red check, since the forge's `main` requires no status check, but every forge pull
   request shows it red.
 
@@ -45,7 +45,7 @@ A rented host running the local forge, 2026-10-27, porelo-buildtools pull reques
     to GitHub.
 
   Each is seen red against today's step.
-- **The template** goes to `~/.porelo/handover/porelo-buildtools/<commit>/template.md`. Each agent takes it into its
+- **The template** goes to a template file outside the repository. Each agent takes it into its
   repositories and their own copy of the test, as with the commit check's template. Those are porelo, porelo-adapters,
   porelo-agy, porelo-ai.github.io, porelo-buildtools, porelo-claude-code, porelo-codex, porelo-frontend, porelo-host,
   porelo-intellij, porelo-message-matrix, porelo-message-sluice, porelo-omp and porelo-pi. porelo-message-sluice

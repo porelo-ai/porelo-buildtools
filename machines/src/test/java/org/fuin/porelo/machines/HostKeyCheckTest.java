@@ -68,9 +68,9 @@ class HostKeyCheckTest {
     @Test
     void acceptsAnyKeyOnlyWhereTheCallerSaidSo() throws Exception {
         final HostKeyCheck check =
-                new HostKeyCheck("192.168.122.10", HostKey.any("a local virtual machine"));
+                new HostKeyCheck("192.0.2.10", HostKey.any("a local virtual machine"));
 
-        assertThat(check.verify("192.168.122.10", 22, shown()))
+        assertThat(check.verify("192.0.2.10", 22, shown()))
                 .as("a caller that named its reason accepts what the machine shows")
                 .isTrue();
     }

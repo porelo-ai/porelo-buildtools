@@ -43,4 +43,4 @@ per system.
 
 ## To be checked
 
-- Whether the sweep should also delete `porelo=ci` snapshots of an `os` no workflow builds any more (Agent Core's).
+- Whether the sweep should also delete `porelo=ci` snapshots of an `os` no workflow builds any more.

@@ -35,8 +35,8 @@ class WorkflowCommitsTest {
     private static final String STEP = "The pushed commits' messages";
     private static final String CLASSPATH = "/stub/a.jar:/stub/b.jar";
 
-    /** The host's forge as its runner names it, measured on sprint 5's host. */
-    private static final String FORGE = "https://10.73.0.1:3000";
+    /** The host's forge as its runner names it. */
+    private static final String FORGE = "https://192.0.2.1:3000";
 
     @TempDir Path directory;
 

@@ -114,4 +114,4 @@ mail:
     transports:
         matrix: {}
     peers:
-        michi: { address: "matrix:", trust: external }
+        reader: { address: "matrix:", trust: external }

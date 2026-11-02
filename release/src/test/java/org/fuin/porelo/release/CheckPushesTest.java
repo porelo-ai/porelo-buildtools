@@ -99,7 +99,7 @@ class CheckPushesTest {
         assertThat(run(FakeWeb.untouchable(), noToken, 26)).as("no token").isEqualTo(2);
 
         final Map<String, String> forge = new HashMap<>(env());
-        forge.put("GITHUB_API_URL", "https://10.73.0.1:3000/api/v1");
+        forge.put("GITHUB_API_URL", "https://192.0.2.1:3000/api/v1");
         assertThat(run(FakeWeb.untouchable(), forge, 26)).as("another forge's API").isEqualTo(2);
         assertThat(checked).as("nothing was read").isEmpty();
     }

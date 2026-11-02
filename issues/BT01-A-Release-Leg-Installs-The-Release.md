@@ -38,4 +38,4 @@ looked at `--candidate`, so `--candidate` alone, which `acceptance` documents as
 
 ## To be checked
 
-- Whether an explicit `--channel` wins over `GITHUB_REF_TYPE`, as planned (Agent Core's).
+- Whether an explicit `--channel` wins over `GITHUB_REF_TYPE`, as planned.

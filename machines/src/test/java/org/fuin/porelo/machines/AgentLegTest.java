@@ -216,11 +216,7 @@ class AgentLegTest {
     @Test
     void namesNoHostKeyForAMachineNobodyMadeOneFor() {
         // The kit then connects to the local virtual machines as it always has: the written risk.
-        assertThat(
-                        AgentLeg.suite(
-                                "192.168.122.10",
-                                HostKey.any("a local virtual machine"),
-                                List.of()))
+        assertThat(AgentLeg.suite("192.0.2.10", HostKey.any("a local virtual machine"), List.of()))
                 .as("the suite's command")
                 .noneMatch(argument -> argument.startsWith("-Dporelo.acceptance.hostkey"));
     }
