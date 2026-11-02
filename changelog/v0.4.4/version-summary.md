@@ -12,7 +12,7 @@
 
 ### Changed (2 changes)
 
-- sokar-machines waits up to 60 minutes at the project's server limit instead of 10, since acceptance legs run one after another 
+- machines waits up to 60 minutes at the project's server limit instead of 10, since acceptance legs run one after another 
 - The Build rebuilds the machine images when their recipe changes, not only a pin, and when started on main by hand, to recover after a push whose snapshot failed 
 
 ### Fixed (1 change)

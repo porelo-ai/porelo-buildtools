@@ -89,7 +89,7 @@
 
 ### Changed (2 changes)
 
-- sokar-machines waits up to 60 minutes at the project's server limit instead of 10, since acceptance legs run one after another 
+- machines waits up to 60 minutes at the project's server limit instead of 10, since acceptance legs run one after another 
 - The Build rebuilds the machine images when their recipe changes, not only a pin, and when started on main by hand, to recover after a push whose snapshot failed 
 
 ### Fixed (1 change)
@@ -102,21 +102,21 @@
 
 ### Added (2 changes)
 
-- sokar-release check-deploy reads a deploy dry run's log and refuses a module deployed without the publishing plugin, or an upload aimed off the machine 
+- release check-deploy reads a deploy dry run's log and refuses a module deployed without the publishing plugin, or an upload aimed off the machine 
 - The build runs that deploy dry run on every push, so a tag's deploy repeats what main already did 
 
 ### Changed (1 change)
 
-- sokar-machines Stopping and AgentLeg.quote are public, for the leg sokar now runs from its own tree 
+- machines Stopping and AgentLeg.quote are public, for the leg Porelo now runs from its own tree 
 
 ### Removed (2 changes)
 
-- sokar-machines no longer has the leg and deploy commands; sokar keeps them in its own tree, since they know its module layout 
-- sokar-package-check is no longer published; sokar checks its packages with a module of its own tree, which knows where its modules write them 
+- machines no longer has the leg and deploy commands; Porelo keeps them in its own tree, since they know its module layout 
+- package-check is no longer published; Porelo checks its packages with a module of its own tree, which knows where its modules write them 
 
 ### Fixed (1 change)
 
-- sokar-machines snapshot proves an image with the tree's own ci/leg-build.sh, and a tree from before it with the app where that tree keeps it 
+- machines snapshot proves an image with the tree's own ci/leg-build.sh, and a tree from before it with the app where that tree keeps it 
 
 
 [0.4.2] - 2026-10-08
@@ -124,26 +124,26 @@
 
 ### Added (7 changes)
 
-- sokar-release check-actions holds a Gradle Wrapper as it holds Maven's: a distributionUrl with a version and a distributionSha256Sum 
-- sokar-release check-readmes refuses a Maven module without a README.md beside its pom.xml, and a README that does not link each of its submodules, walking the reactor from the root, profiles included 
-- sokar-release check-releases refuses a release that builds or packages with a snapshot, reading what Maven resolved in the effective pom, a plugin's dependencies included 
-- sokar-machines deploy --account installs the build readers a handover carries under builds/ into the account, beside the packages 
-- sokar-release check-releases also reads a module's opt-in to Central where it sets it on the publishing plugins, as a BOM does 
-- sokar-release check-releases refuses a module published to Central whose pom would still name its parent, since nothing flattens it or its flatten mode keeps the parent 
-- A leg, a snapshot and a deploy build and install sokar's stub build reader as the account's stub-forge when the tree has one, so the acceptance suite can follow builds without a forge 
+- release check-actions holds a Gradle Wrapper as it holds Maven's: a distributionUrl with a version and a distributionSha256Sum 
+- release check-readmes refuses a Maven module without a README.md beside its pom.xml, and a README that does not link each of its submodules, walking the reactor from the root, profiles included 
+- release check-releases refuses a release that builds or packages with a snapshot, reading what Maven resolved in the effective pom, a plugin's dependencies included 
+- machines deploy --account installs the build readers a handover carries under builds/ into the account, beside the packages 
+- release check-releases also reads a module's opt-in to Central where it sets it on the publishing plugins, as a BOM does 
+- release check-releases refuses a module published to Central whose pom would still name its parent, since nothing flattens it or its flatten mode keeps the parent 
+- A leg, a snapshot and a deploy build and install Porelo's stub build reader as the account's stub-forge when the tree has one, so the acceptance suite can follow builds without a forge 
 
 ### Changed (5 changes)
 
 - A push that changes only documents - Markdown, mkdocs.yml, doc/ and issues/ - starts no build and leases no machine; the Shared rules workflow checks it 
-- sokar-release check-releases accepts a published pom that has no parent, as the parent pom itself is 
-- A release tag refuses every snapshot in the effective pom - a dependency, a plugin or a plugin's dependency - before it publishes, checked by the sokar-release that very tag builds 
-- The NullAway compile comes from sokar-parent, and exec-maven-plugin is 3.6.3 as it sets 
-- The build takes org.fuin.sokar:sokar-parent as its parent, with every version it builds with unchanged 
+- release check-releases accepts a published pom that has no parent, as the parent pom itself is 
+- A release tag refuses every snapshot in the effective pom - a dependency, a plugin or a plugin's dependency - before it publishes, checked by the release tool that very tag builds 
+- The NullAway compile comes from the parent pom, and exec-maven-plugin is 3.6.3 as it sets 
+- The build takes a parent pom as its parent, with every version it builds with unchanged 
 
 ### Fixed (2 changes)
 
-- sokar-machines runs with bcpkix and bcutil of bcprov's release line, and sokar-release with the Jackson dataformats of the Jackson it resolves, also where another repository resolves them 
-- The build takes sokar-parent 0.1.1, whose release profile a child inherits again, so the published modules reach Central 
+- machines runs with bcpkix and bcutil of bcprov's release line, and release with the Jackson dataformats of the Jackson it resolves, also where another repository resolves them 
+- The build takes the parent pom 0.1.1, whose release profile a child inherits again, so the published modules reach Central 
 
 
 [0.4.1] - 2026-10-06

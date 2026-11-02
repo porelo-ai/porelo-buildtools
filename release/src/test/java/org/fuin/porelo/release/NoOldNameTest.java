@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -26,12 +25,6 @@ import org.junit.jupiter.api.Test;
 class NoOldNameTest {
 
     private static final String OLD = "so" + "kar";
-
-    /**
-     * Paths that keep the old name, name and text: the released changelog entries and the changelog
-     * made of them.
-     */
-    private static final Pattern KEPT_PATHS = Pattern.compile("CHANGELOG\\.md|changelog/v[^/]+/.*");
 
     private static List<String> tracked() throws IOException, InterruptedException {
         final ProcessBuilder builder =
@@ -62,9 +55,6 @@ class NoOldNameTest {
         final List<String> files = tracked();
         final List<String> found = new ArrayList<>();
         for (final String file : files) {
-            if (KEPT_PATHS.matcher(file).matches()) {
-                continue;
-            }
             if (file.toLowerCase(Locale.ROOT).contains(OLD)) {
                 found.add(file + ": its path");
             }

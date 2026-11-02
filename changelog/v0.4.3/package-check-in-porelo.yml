@@ -1,0 +1,2 @@
+title: package-check is no longer published; Porelo checks its packages with a module of its own tree, which knows where its modules write them
+type: removed
