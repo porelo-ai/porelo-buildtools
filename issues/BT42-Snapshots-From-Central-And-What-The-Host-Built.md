@@ -24,11 +24,37 @@ Measured with Maven 3.9.15 and two local servers; not yet on a forge.
 - **A forge answering 401 is only a warning:** the build goes on from central, and a local change is silently not
   built against. So a missing read token must fail the job, as a missing `MAVEN_SNAPSHOTS_URL` does in
   [BT39](README.md#bt39).
+- **Only `main` and tags deploy snapshots on a host.** A task branch's snapshot would be newest for every build there. Each
+  repository keeps to that, and a shared check holds it, since the forge's credentials alone would allow it.
+- **A missing token is not a missing artifact.** A build with no read token fails: it would not see what the host built. An
+  artifact the host's registry does not hold is no failure: it resolves from central.
 - **The profile's central repository keeps the id `central.sonatype.snapshots`**, so the filter's file has one name
   whichever source is named. Its address is an organization's variable, Sonatype's by default.
 - **The groups are a file in the repository**, `.mvn/rrf/groupId-central.sonatype.snapshots.txt`, with the two settings in
   `.mvn/maven.config`, not a list in `settings.xml`. So they are reviewed with the code and hold alike on a desktop,
   in a task and on any forge, with no value carried through the host.
+
+## Which copies change
+
+No rule distributes `settings.xml`: each repository keeps its own, and they differ today. Each changes its own copy, by its
+own agent, in the shape this repository sets first. The same change adds `.mvn/maven.config`, which none of them has, and
+the filter's file. A shared check in `porelo-release` holds it: a repository with a `forge` profile has the central
+repository, the filter's two settings and the file.
+
+| Repository | Today | Change | Who |
+|---|---|---|---|
+| porelo-buildtools | `standard`, `forge` | the shape, its tests and the shared check | Agent Machines, first |
+| porelo-message-sluice | `standard`, `forge` | its copy, before its trial move | Agent Sluice |
+| porelo-claude-code, porelo-pi, porelo-omp | `standard`, `forge` | its copy, with its work on the local forge | Agent Smith |
+| porelo-codex, porelo-agy | `standard` | takes the `forge` profile in this shape, with its work on the local forge | Agent Smith |
+| porelo | `standard` | the same, with its Build on the local forge | Agent Core |
+| porelo-message-matrix, porelo-adapters, porelo-frontend | `standard` | the same, each when its Build moves | its own agent |
+| porelo-forge-clients, porelo-ecosystems | `standard` | the same, when its Build moves | its owner |
+| porelo-parent | no profile | none: its pom uses nothing of another Porelo repository, and its `porelo-forge` server only deploys | - |
+| porelo-intellij, porelo-host, porelo-ai.github.io | no `settings.xml` | none | - |
+
+A repository with `standard` alone asks Sonatype about every name today. The filter's file closes that for a private project
+too, as the repository's id is the same in both profiles.
 
 ## When central is newer than the host
 
