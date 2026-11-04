@@ -1,0 +1,2 @@
+title: On a forge snapshots are read with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a job naming no `MAVEN_SNAPSHOTS_URL` there fails first.
+type: changed

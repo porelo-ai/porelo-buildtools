@@ -194,6 +194,10 @@ never reaches Sonatype, Maven's remote repository filter asks it only of the gro
 - a deploy step of `-P"$PORELO_DEPLOY_PROFILE"` not held to `main` and tags, by its job or by itself, since a task
   branch's snapshot would become the newest for every build on the host.
 
+On a forge the registry is read with `PORELO_PACKAGES_READ_TOKEN`, which can only read, by the server
+`porelo-forge-snapshots`; only the step that deploys holds `PORELO_PUBLISHER_TOKEN`. A job on a forge that names no
+`MAVEN_SNAPSHOTS_URL` fails first.
+
 A repository whose `settings.xml` names no snapshot repository has nothing to hold. An empty filter file pins a
 repository to what the host built, while central's copy is newer than its own and not yet brought in.
 

@@ -131,12 +131,15 @@ class WorkflowRegistryTest {
                         assertThat(job.path("env").path("MAVEN_SNAPSHOTS_URL").asText())
                                 .as("%s selects its snapshot registry at job level", name)
                                 .isEqualTo("${{ vars.MAVEN_SNAPSHOTS_URL }}");
-                        assertThat(job.path("env").path("PORELO_PUBLISHER_TOKEN").asText())
-                                .as(
-                                        "%s authenticates parent resolution and the pinned JDK"
-                                                + " build",
-                                        name)
-                                .isEqualTo("${{ secrets.PORELO_PUBLISHER_TOKEN }}");
+                        assertThat(job.path("env").path("PORELO_PACKAGES_READ_TOKEN").asText())
+                                .as("%s resolves with the token that can only read", name)
+                                .isEqualTo("${{ secrets.PORELO_PACKAGES_READ_TOKEN }}");
+                        assertThat(job.path("env").has("PORELO_PUBLISHER_TOKEN"))
+                                .as("%s holds no publisher's token for all its steps", name)
+                                .isFalse();
+                        assertThat(job.path("steps").get(0).path("run").asText())
+                                .as("%s stops first when a forge names no registry", name)
+                                .contains("MAVEN_SNAPSHOTS_URL", "::error::", "https://github.com");
                     }
                 }
             }
@@ -150,6 +153,29 @@ class WorkflowRegistryTest {
                         "shared-rules.yml:check",
                         "workflows.yml:check",
                         "machines.yml:refresh");
+    }
+
+    // Prevents a step that runs a branch's code from holding what can overwrite a snapshot.
+    @Test
+    void onlyTheDeployingStepHoldsThePublishersToken() throws IOException {
+        final List<String> holders = new ArrayList<>();
+        try (Stream<Path> files = Files.list(WORKFLOWS)) {
+            for (final Path file : files.filter(WorkflowRegistryTest::isWorkflow).toList()) {
+                for (final var entry : YAML.readTree(file.toFile()).path("jobs").properties()) {
+                    for (final JsonNode step : entry.getValue().path("steps")) {
+                        if (step.path("env").has("PORELO_PUBLISHER_TOKEN")) {
+                            holders.add(
+                                    file.getFileName()
+                                            + ":"
+                                            + entry.getKey()
+                                            + ":"
+                                            + step.path("name").asText());
+                        }
+                    }
+                }
+            }
+        }
+        assertThat(holders).containsExactly("build.yml:deploy:Deploy the jars");
     }
 
     private static boolean isWorkflow(Path path) {

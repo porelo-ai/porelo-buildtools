@@ -173,7 +173,7 @@ class WorkflowCommitsTest {
                 .as("the script reads its environment alone")
                 .doesNotContain("${{");
         final JsonNode depth =
-                job(SHARED_RULES, "check").path("steps").get(0).path("with").path("fetch-depth");
+                job(SHARED_RULES, "check").path("steps").get(1).path("with").path("fetch-depth");
         assertThat(depth.isInt() && depth.intValue() == 0)
                 .as("the checkout holds every push's commits, fetch-depth %s", depth)
                 .isTrue();

@@ -35,12 +35,22 @@ jobs:
         runs-on: ubuntu-26.04
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
-            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
+            PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
         # Every job stops after a limit: GitHub's default is six hours, and a slow runner once took 14 times as long.
         timeout-minutes: 20
         permissions:
             contents: read
         steps:
+            # A forge with no registry named would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry
+              env:
+                  SERVER_URL: ${{ github.server_url }}
+              run: |
+                  if [ -z "$MAVEN_SNAPSHOTS_URL" ] && [ "$SERVER_URL" != 'https://github.com' ]; then
+                      echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"
+                      exit 1
+                  fi
+
             # Every commit, so a pushed range is read without a second fetch, which a private forge copy refuses.
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -103,7 +113,7 @@ jobs:
         runs-on: ubuntu-26.04
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
-            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
+            PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
         # The step that rents the machine stops sooner, so the clean-up still runs inside this limit.
         timeout-minutes: 75
         if: >-
@@ -117,6 +127,16 @@ jobs:
             matrix:
                 os: [ubuntu, fedora]
         steps:
+            # A forge with no registry named would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry
+              env:
+                  SERVER_URL: ${{ github.server_url }}
+              run: |
+                  if [ -z "$MAVEN_SNAPSHOTS_URL" ] && [ "$SERVER_URL" != 'https://github.com' ]; then
+                      echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"
+                      exit 1
+                  fi
+
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
@@ -168,7 +188,7 @@ jobs:
         runs-on: ubuntu-26.04
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
-            PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
+            PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
         timeout-minutes: 20
         needs: [build]
         if: >-
@@ -176,6 +196,16 @@ jobs:
             && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
 
         steps:
+            # A forge with no registry named would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry
+              env:
+                  SERVER_URL: ${{ github.server_url }}
+              run: |
+                  if [ -z "$MAVEN_SNAPSHOTS_URL" ] && [ "$SERVER_URL" != 'https://github.com' ]; then
+                      echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"
+                      exit 1
+                  fi
+
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
@@ -225,6 +255,7 @@ jobs:
               env:
                   PORELO_DEPLOY_PROFILE: ${{ vars.PORELO_DEPLOY_PROFILE }}
                   PORELO_DEPLOY_CHANNEL: ${{ steps.channel.outputs.channel }}
+                  PORELO_PUBLISHER_TOKEN: ${{ secrets.PORELO_PUBLISHER_TOKEN }}
                   OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
                   OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
                   MAVEN_GPG_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}

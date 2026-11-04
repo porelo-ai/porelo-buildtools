@@ -1,6 +1,6 @@
 # BT39 — Snapshots Resolved With A Read-Only Token
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - `settings.xml`, every Maven workflow and their registry tests; the settings' names are a contract other
 repositories read.
 
@@ -23,7 +23,7 @@ overwrite a snapshot nor publish one. A build on any forge other than github.com
   says today.
 - **The missing variable:** each job that runs Maven starts with a step that fails with `::error::` naming
   `MAVEN_SNAPSHOTS_URL` when it is empty and `github.server_url` is not `https://github.com`. On github.com the
-  `standard` profile keeps resolving Central's snapshots.
+  `central` profile keeps resolving Sonatype's snapshots.
 - **Tests first,** in `RegistrySettingsTest` and `WorkflowRegistryTest`: the resolving server's id and password; no
   job-level `PORELO_PUBLISHER_TOKEN` in any workflow, and exactly one step that names it, the deploying one; every
   Maven job's first step checks `MAVEN_SNAPSHOTS_URL` against `github.server_url`. Each is red before the change.
@@ -40,6 +40,8 @@ overwrite a snapshot nor publish one. A build on any forge other than github.com
 ## To be checked
 
 - Whether Forgejo checks the user name Maven sends against the token's owner; the settings send one name for every
-  organization's publisher.
-- That the parent names `porelo-forge` only in `distributionManagement`, so the new repository id changes nothing it
+  organization's publisher. The host's test reads and is refused writing with that name, on a real forge.
+- Read: the parent names `porelo-forge` only in `distributionManagement`, so the new repository id changes nothing it
   reads.
+
+What a host alone can show of the acceptance is open: a task branch's Build and `main`'s, on its forge.

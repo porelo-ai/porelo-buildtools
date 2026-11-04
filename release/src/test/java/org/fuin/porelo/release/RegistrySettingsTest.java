@@ -25,6 +25,16 @@ class RegistrySettingsTest {
         assertValue(settings, server + "password", "${env.PORELO_PUBLISHER_TOKEN}");
     }
 
+    // Prevents a task branch's test from reading the token that can overwrite a snapshot.
+    @Test
+    void resolvingUsesTheReadTokenAndNeverThePublishersOne() throws Exception {
+        final Document settings = settings();
+        final String server = "/settings/servers/server[id='porelo-forge-snapshots']/";
+        assertValue(settings, "count(/settings/servers/server[id='porelo-forge-snapshots'])", "1");
+        assertValue(settings, server + "username", "porelo-publisher");
+        assertValue(settings, server + "password", "${env.PORELO_PACKAGES_READ_TOKEN}");
+    }
+
     // Prevents every name being asked of Sonatype, or a build on a forge missing what the host
     // built.
     @Test
@@ -52,7 +62,8 @@ class RegistrySettingsTest {
                 settings,
                 "/settings/profiles/profile[id='forge']/activation/property/name",
                 "env.MAVEN_SNAPSHOTS_URL");
-        assertRepositories(settings, "forge", "porelo-forge", "${env.MAVEN_SNAPSHOTS_URL}");
+        assertRepositories(
+                settings, "forge", "porelo-forge-snapshots", "${env.MAVEN_SNAPSHOTS_URL}");
     }
 
     private static void assertRepositories(

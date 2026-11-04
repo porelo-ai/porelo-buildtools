@@ -18,13 +18,20 @@
             <password>${env.OSS_SONATYPE_TOKEN}</password>
         </server>
 
-        <!-- The id porelo-parent gives the forge's registry. Its token reads the snapshots too, since the
-             organization there is private; where none is needed it is a placeholder, sent only when a server asks. -->
+        <!-- The id porelo-parent gives the forge's registry for deploying: only the step that deploys holds its token. -->
 
         <server>
             <id>porelo-forge</id>
             <username>porelo-publisher</username>
             <password>${env.PORELO_PUBLISHER_TOKEN}</password>
+        </server>
+
+        <!-- Resolving from the forge, with a token that can only read, so a task branch's test cannot overwrite a snapshot. -->
+
+        <server>
+            <id>porelo-forge-snapshots</id>
+            <username>porelo-publisher</username>
+            <password>${env.PORELO_PACKAGES_READ_TOKEN}</password>
         </server>
 
     </servers>
@@ -98,7 +105,7 @@
             <repositories>
 
                 <repository>
-                    <id>porelo-forge</id>
+                    <id>porelo-forge-snapshots</id>
                     <name>The forge's snapshot repository</name>
                     <url>${env.MAVEN_SNAPSHOTS_URL}</url>
                     <releases>
@@ -115,7 +122,7 @@
             <pluginRepositories>
 
                 <pluginRepository>
-                    <id>porelo-forge</id>
+                    <id>porelo-forge-snapshots</id>
                     <name>The forge's snapshot repository</name>
                     <url>${env.MAVEN_SNAPSHOTS_URL}</url>
                     <releases>
