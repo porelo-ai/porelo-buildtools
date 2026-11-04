@@ -98,6 +98,56 @@ class CheckSnapshotFilterTest {
         assertRefused("standard");
     }
 
+    // Prevents a pom reading Sonatype beside the guarded profile, where no filter or switch holds
+    // it.
+    @Test
+    void refusesAPomThatNamesSonatypesSnapshots() throws IOException {
+        write(
+                "build/pom.xml",
+                """
+                <project><repositories><repository><id>any</id>
+                <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                </repository></repositories></project>
+                """);
+        assertRefused("build/pom.xml");
+    }
+
+    @Test
+    void refusesAPomThatNamesItAsAPluginRepository() throws IOException {
+        write(
+                "pom.xml",
+                """
+                <project><pluginRepositories><pluginRepository><id>central.sonatype.snapshots</id>
+                <url>https://elsewhere.example/</url>
+                </pluginRepository></pluginRepositories></project>
+                """);
+        assertRefused("pom.xml");
+    }
+
+    // A pom deploying to Sonatype reads nothing from it, so it stays free to name it.
+    @Test
+    void acceptsAPomThatOnlyDeploysThere() throws IOException {
+        write(
+                "pom.xml",
+                """
+                <project><distributionManagement><snapshotRepository><id>central.sonatype.snapshots</id>
+                <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                </snapshotRepository></distributionManagement></project>
+                """);
+        assertThat(check()).as("only deploying: %s", err).isZero();
+    }
+
+    @Test
+    void readsNoPomABuildMade() throws IOException {
+        write(
+                "target/pom.xml",
+                """
+                <project><repositories><repository><id>central.sonatype.snapshots</id>
+                </repository></repositories></project>
+                """);
+        assertThat(check()).as("a build's output: %s", err).isZero();
+    }
+
     // Prevents a task branch's snapshot becoming the newest for every build on the host.
     @Test
     void refusesADeployThatIsNotHeldToMainAndTags() throws IOException {

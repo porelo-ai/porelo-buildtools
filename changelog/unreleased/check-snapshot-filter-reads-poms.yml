@@ -1,0 +1,2 @@
+title: '`check-snapshot-filter` also refuses a `pom.xml` that reads Sonatype''s snapshots itself.'
+type: changed

@@ -24,11 +24,15 @@ import org.xml.sax.SAXException;
  *
  * <p>Maven's remote repository filter asks everything of a repository with no file, so the central
  * repository stands only in a profile that activates on the switch and on the file together. A
- * repository whose {@code settings.xml} reads no snapshots has nothing to hold.
+ * repository whose {@code settings.xml} reads no snapshots has nothing to hold, but no pom may name
+ * that repository to read from.
  */
 final class CheckSnapshotFilter {
 
     private static final String CENTRAL = "central.sonatype.snapshots";
+
+    private static final String CENTRAL_URL =
+            "https://central.sonatype.com/repository/maven-snapshots";
 
     private static final String FILTER = "groupId-" + CENTRAL + ".txt";
 
@@ -68,6 +72,7 @@ final class CheckSnapshotFilter {
             if (Files.isRegularFile(settings) && settings(settings, faults)) {
                 filter(root, faults);
             }
+            poms(root, faults);
             deploys(root.resolve(".github/workflows"), faults);
         } catch (IOException e) {
             faults.add(e.getMessage());
@@ -107,6 +112,47 @@ final class CheckSnapshotFilter {
             }
         }
         return reads;
+    }
+
+    private static void poms(Path root, List<String> faults) throws IOException {
+        final List<Path> poms;
+        try (Stream<Path> walked = Files.walk(root)) {
+            poms =
+                    walked.filter(path -> path.endsWith("pom.xml"))
+                            .filter(path -> !built(root.relativize(path)))
+                            .sorted()
+                            .toList();
+        }
+        for (final Path pom : poms) {
+            final Document document = parse(pom);
+            if (reads(document.getElementsByTagName("repository"))
+                    || reads(document.getElementsByTagName("pluginRepository"))) {
+                faults.add(
+                        root.relativize(pom)
+                                + ": it reads Sonatype's snapshots, which only the guarded profile"
+                                + " of settings.xml may");
+            }
+        }
+    }
+
+    private static boolean built(Path relative) {
+        for (final Path part : relative) {
+            if (part.toString().equals("target") || part.toString().startsWith(".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean reads(NodeList repositories) {
+        for (int i = 0; i < repositories.getLength(); i++) {
+            final Element repository = (Element) repositories.item(i);
+            if (CENTRAL.equals(first(repository, "id"))
+                    || first(repository, "url").startsWith(CENTRAL_URL)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean holds(NodeList repositories) {

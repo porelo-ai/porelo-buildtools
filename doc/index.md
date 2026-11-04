@@ -191,6 +191,8 @@ never reaches Sonatype, Maven's remote repository filter asks it only of the gro
 - a `.mvn/maven.config` without the switch and the filter's directory, written with `${session.rootDirectory}`: only
   that file expands it, and a relative path or `.mvn/jvm.config` leaves the filter asking everything;
 - a missing filter file;
+- a `pom.xml` that reads Sonatype's snapshots itself, by that id or address, which no switch or file holds; deploying
+  there stays free;
 - a deploy step of `-P"$PORELO_DEPLOY_PROFILE"` not held to `main` and tags, by its job or by itself, since a task
   branch's snapshot would become the newest for every build on the host.
 
