@@ -49,6 +49,18 @@ public final class Snapshots {
     private static final String GRAALVM_HOME = "/opt/graalvm";
 
     /**
+     * Swap for that one build: a snapshot keeps a small disk only on a small machine, whose memory
+     * the native image has outgrown. Written, not allocated, since a file system may refuse holes.
+     */
+    static final String SWAP_ON =
+            "dd if=/dev/zero of=/swap.prepare bs=1M count=4096 status=none "
+                    + "&& chmod 600 /swap.prepare && mkswap /swap.prepare >/dev/null "
+                    + "&& swapon /swap.prepare";
+
+    /** The swap gone again, so the image holds none of it. */
+    static final String SWAP_OFF = "swapoff /swap.prepare && rm -f /swap.prepare";
+
+    /**
      * How the product is built once to prove an image can: the tree's own {@code ci/leg-build.sh},
      * which knows its module layout, so a regrouping there needs no release here. A tree from
      * before the script gets the module list it had, with the app where that tree keeps it. Shell,
@@ -56,7 +68,8 @@ public final class Snapshots {
      * one.
      */
     static final String TREE_BUILD =
-            "if [ -f ci/leg-build.sh ]; then sh ci/leg-build.sh; "
+            "export NATIVE_IMAGE_OPTIONS=-J-Xmx5g; "
+                    + "if [ -f ci/leg-build.sh ]; then sh ci/leg-build.sh; "
                     // porelo's settings.xml, where the build tooling's snapshots come from.
                     + "else ./mvnw -B -s settings.xml -Pnative -DskipTests package "
                     + "-pl $(test -d apps/app && echo apps/app || echo app),daemon,hooks,agents/stub"
@@ -356,6 +369,7 @@ public final class Snapshots {
             if (archive != null) {
                 System.out.println("building the product once, to prove this image can");
                 lease.ssh().upload(archive, "/tmp/tree.tar");
+                run(lease, SWAP_ON, null);
                 run(
                         lease,
                         "su - "
@@ -378,6 +392,7 @@ public final class Snapshots {
                                 + TREE_BUILD
                                 + "'",
                         null);
+                run(lease, SWAP_OFF, null);
                 if ("fedora".equals(os)) {
                     // Compiled here rather than shipped compiled - a .pp is tied to the policy
                     // version of the machine that built it - and while the checkout is still there.

@@ -39,6 +39,26 @@ class SnapshotsTreeBuildTest {
                 .endsWith("-pl app,daemon,hooks,agents/stub -am");
     }
 
+    // Prevents the native image running out of memory on the small machine a snapshot needs.
+    @Test
+    void theBuildAsksForMoreHeapThanTheSmallMachineWouldGiveIt() throws Exception {
+        final Path tree = tree();
+        Files.createDirectories(tree.resolve("ci"));
+        Files.writeString(tree.resolve("ci/leg-build.sh"), "echo \"$NATIVE_IMAGE_OPTIONS\"\n");
+
+        assertThat(sh(tree, Snapshots.TREE_BUILD)).isEqualTo("-J-Xmx5g");
+    }
+
+    // Prevents the snapshot carrying a swap file, or a machine without it running out of memory.
+    @Test
+    void theSwapIsMadeOnlyForTheBuildAndGoneAfterIt() {
+        assertThat(Snapshots.SWAP_ON)
+                .contains("/swap.prepare", "dd if=/dev/zero", "chmod 600", "mkswap", "swapon");
+        assertThat(Snapshots.SWAP_ON.indexOf("chmod 600"))
+                .isLessThan(Snapshots.SWAP_ON.indexOf("mkswap"));
+        assertThat(Snapshots.SWAP_OFF).isEqualTo("swapoff /swap.prepare && rm -f /swap.prepare");
+    }
+
     @Test
     void theBuildCarriesNoSingleQuoteSinceItIsPassedInsideOne() {
         assertThat(Snapshots.TREE_BUILD).doesNotContain("'");

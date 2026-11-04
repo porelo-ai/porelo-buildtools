@@ -1,0 +1,2 @@
+title: A snapshot's proof build runs with swap and a larger heap for its native image, so the small machine a snapshot needs does not run out of memory; the swap is gone before the image is taken.
+type: fixed
