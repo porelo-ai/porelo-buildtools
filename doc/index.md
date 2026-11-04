@@ -196,7 +196,7 @@ never reaches Sonatype, Maven's remote repository filter asks it only of the gro
 
 On a forge the registry is read with `PORELO_PACKAGES_READ_TOKEN`, which can only read, by the server
 `porelo-forge-snapshots`; only the step that deploys holds `PORELO_PUBLISHER_TOKEN`. A job on a forge that names no
-`MAVEN_SNAPSHOTS_URL` fails first.
+`MAVEN_SNAPSHOTS_URL` or holds no read token fails first, as Maven would only warn and read Sonatype alone.
 
 A repository whose `settings.xml` names no snapshot repository has nothing to hold. An empty filter file pins a
 repository to what the host built, while central's copy is newer than its own and not yet brought in.

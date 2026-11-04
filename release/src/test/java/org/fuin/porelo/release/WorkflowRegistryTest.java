@@ -139,7 +139,11 @@ class WorkflowRegistryTest {
                                 .isFalse();
                         assertThat(job.path("steps").get(0).path("run").asText())
                                 .as("%s stops first when a forge names no registry", name)
-                                .contains("MAVEN_SNAPSHOTS_URL", "::error::", "https://github.com");
+                                .contains(
+                                        "MAVEN_SNAPSHOTS_URL",
+                                        "PORELO_PACKAGES_READ_TOKEN",
+                                        "::error::",
+                                        "https://github.com");
                     }
                 }
             }

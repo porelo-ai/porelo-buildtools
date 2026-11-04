@@ -41,15 +41,14 @@ jobs:
         permissions:
             contents: read
         steps:
-            # A forge with no registry named would quietly read Sonatype's snapshots alone.
-            - name: A forge names its registry
+            # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry and its token
               env:
                   SERVER_URL: ${{ github.server_url }}
               run: |
-                  if [ -z "$MAVEN_SNAPSHOTS_URL" ] && [ "$SERVER_URL" != 'https://github.com' ]; then
-                      echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"
-                      exit 1
-                  fi
+                  [ "$SERVER_URL" != 'https://github.com' ] || exit 0
+                  [ -n "$MAVEN_SNAPSHOTS_URL" ] || { echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"; exit 1; }
+                  [ -n "$PORELO_PACKAGES_READ_TOKEN" ] || { echo "::error::PORELO_PACKAGES_READ_TOKEN is empty on $SERVER_URL"; exit 1; }
 
             # Every commit, so a pushed range is read without a second fetch, which a private forge copy refuses.
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -127,15 +126,14 @@ jobs:
             matrix:
                 os: [ubuntu, fedora]
         steps:
-            # A forge with no registry named would quietly read Sonatype's snapshots alone.
-            - name: A forge names its registry
+            # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry and its token
               env:
                   SERVER_URL: ${{ github.server_url }}
               run: |
-                  if [ -z "$MAVEN_SNAPSHOTS_URL" ] && [ "$SERVER_URL" != 'https://github.com' ]; then
-                      echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"
-                      exit 1
-                  fi
+                  [ "$SERVER_URL" != 'https://github.com' ] || exit 0
+                  [ -n "$MAVEN_SNAPSHOTS_URL" ] || { echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"; exit 1; }
+                  [ -n "$PORELO_PACKAGES_READ_TOKEN" ] || { echo "::error::PORELO_PACKAGES_READ_TOKEN is empty on $SERVER_URL"; exit 1; }
 
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -196,15 +194,14 @@ jobs:
             && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
 
         steps:
-            # A forge with no registry named would quietly read Sonatype's snapshots alone.
-            - name: A forge names its registry
+            # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry and its token
               env:
                   SERVER_URL: ${{ github.server_url }}
               run: |
-                  if [ -z "$MAVEN_SNAPSHOTS_URL" ] && [ "$SERVER_URL" != 'https://github.com' ]; then
-                      echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"
-                      exit 1
-                  fi
+                  [ "$SERVER_URL" != 'https://github.com' ] || exit 0
+                  [ -n "$MAVEN_SNAPSHOTS_URL" ] || { echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"; exit 1; }
+                  [ -n "$PORELO_PACKAGES_READ_TOKEN" ] || { echo "::error::PORELO_PACKAGES_READ_TOKEN is empty on $SERVER_URL"; exit 1; }
 
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
