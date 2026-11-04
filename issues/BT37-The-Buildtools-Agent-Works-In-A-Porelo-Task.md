@@ -10,7 +10,8 @@ the move's host as the project's procedure for an agent's move lays out.
 - The task follows `porelo-buildtools` through the gate, its pushes reach the host's Forgejo, and the build there is
   green and read through the `forgejo` reader.
 - This issue is taken from start to Review inside the task, and the agent is reached in the room as
-  `Agent Buildtools`, from the nickname `Buildtools` in porelo-project's `project.yml`.
+  `Agent Buildtools`, from a nickname `Buildtools` on the repository `buildtools` in porelo-project's `project.yml`, which
+  names none yet.
 
 ## To be checked
 
