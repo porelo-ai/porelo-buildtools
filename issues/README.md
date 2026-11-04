@@ -20,6 +20,8 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
+| <a id="bt42"></a>[BT42](BT42-Snapshots-From-Central-And-What-The-Host-Built.md) | M | - | A build on a host's forge reads snapshots from the project's central source and the host's registry, newest first, with a private group's names kept from the central source. |
+| <a id="bt39"></a>[BT39](BT39-Snapshots-Resolved-With-A-Read-Only-Token.md) | M | - | Builds resolve the forge's snapshots with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a missing `MAVEN_SNAPSHOTS_URL` fails on any forge but github.com. |
 
 ## Backlog
 
@@ -32,7 +34,6 @@ left out.
 
 | # | Size | Blocked by | Open questions | What it covers |
 |---|---|---|---|---|
-| <a id="bt39"></a>[BT39](BT39-Snapshots-Resolved-With-A-Read-Only-Token.md) | M | - | 0 | Builds resolve the forge's snapshots with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a missing `MAVEN_SNAPSHOTS_URL` fails on any forge but github.com. |
 
 ## Accepted
 
@@ -46,7 +47,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt42"></a>[BT42](BT42-Snapshots-From-Central-And-What-The-Host-Built.md) | - | - | A build on a host's forge reads snapshots from the project's central source and the host's registry, newest first, with a private group's names kept from the central source. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | - | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: the image from `porelo.yml`, Forgejo's build publishing `main`'s snapshots to its registry, the cloud snapshot images and release publishing left to the central forge. |
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |

@@ -1,6 +1,6 @@
 # BT39 — Snapshots Resolved With A Read-Only Token
 
-**Status:** Analyzed.
+**Status:** Implementing.
 **Size:** M - `settings.xml`, every Maven workflow and their registry tests; the settings' names are a contract other
 repositories read.
 
