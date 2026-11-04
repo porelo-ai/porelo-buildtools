@@ -31,18 +31,22 @@
 
     <profiles>
 
-        <!-- Where no forge names its snapshot repository - a developer's machine, a VM, a Porelo task - they come from
-             Sonatype. A workflow names it in MAVEN_SNAPSHOTS_URL, set on every forge: Sonatype on GitHub, its own
-             registry on the local Forgejo. -->
+        <!-- Snapshots come from Sonatype, and on a forge from its registry too: the newest wins. Only the groups a
+             repository lists in .mvn/rrf/ are asked of Sonatype, so a private name stays here. The profile needs the
+             switch in .mvn/maven.config and that file, since the filter asks everything of a repository with no file. -->
 
         <profile>
 
-            <id>standard</id>
+            <id>central</id>
 
             <activation>
                 <property>
-                    <name>!env.MAVEN_SNAPSHOTS_URL</name>
+                    <name>aether.remoteRepositoryFilter.groupId</name>
+                    <value>true</value>
                 </property>
+                <file>
+                    <exists>${maven.multiModuleProjectDirectory}/.mvn/rrf/groupId-central.sonatype.snapshots.txt</exists>
+                </file>
             </activation>
 
             <repositories>

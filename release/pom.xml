@@ -175,6 +175,19 @@
                             </arguments>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>check-snapshot-filter</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.porelo.release.Main</mainClass>
+                            <arguments>
+                                <argument>check-snapshot-filter</argument>
+                                <argument>${maven.multiModuleProjectDirectory}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                     <!-- Every commit of a range held to the shared rule on messages, from the repository's root:
                          '-pl release exec:java@check-commits -Dcommits.range=origin/main..HEAD' before a push or
                          over a pushed range; '@check-commits-outside' for a pull request from outside, which also

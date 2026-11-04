@@ -1,0 +1,2 @@
+title: Snapshots come from Sonatype for the groups a repository lists in `.mvn/rrf/`, and on a forge from its registry too, the newest winning; `check-snapshot-filter` holds that shape.
+type: changed

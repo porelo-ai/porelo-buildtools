@@ -44,7 +44,8 @@ public final class Main {
                     "check-readmes",
                     "check-deploy",
                     "check-linkage",
-                    "check-package-version");
+                    "check-package-version",
+                    "check-snapshot-filter");
 
     private static final String CITATIONS_USAGE =
             "check-citations [--checkouts DIRECTORY OF REPOSITORIES] [REPOSITORY ROOT, default .]";
@@ -384,6 +385,11 @@ public final class Main {
                             ? usage(err, "check-deploy DEPLOY-LOG")
                             : new CheckDeploy(out, err).check(Path.of(rest.getFirst()));
             case "check-linkage" -> checkLinkage(rest, out, err);
+            case "check-snapshot-filter" ->
+                    rest.size() > 1
+                            ? usage(err, "check-snapshot-filter [REPOSITORY ROOT, default .]")
+                            : new CheckSnapshotFilter(out, err)
+                                    .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "check-package-version" ->
                     rest.size() != 4
                             ? usage(err, "check-package-version NAME PROJECT-VERSION RUN DIRECTORY")

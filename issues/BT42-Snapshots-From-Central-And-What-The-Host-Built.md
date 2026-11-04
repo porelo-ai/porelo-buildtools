@@ -1,6 +1,6 @@
 # BT42 — Snapshots From Central And What The Host Built
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - `settings.xml`, its check and every Maven workflow here; each other repository takes its own copy.
 
 **What must be true.** A build on a host's forge reads snapshots from the project's central source, Sonatype or its

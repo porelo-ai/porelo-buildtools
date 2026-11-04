@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt42"></a>[BT42](BT42-Snapshots-From-Central-And-What-The-Host-Built.md) | M | - | A build on a host's forge reads snapshots from the project's central source and the host's registry, newest first, with a private group's names kept from the central source. |
 | <a id="bt40"></a>[BT40](BT40-Work-May-Wait-On-Work-Begun.md) | S | - | `plan check` lets work wait for an issue that is Implementing, Rework, Review or Finished, and refuses only a wait for one not yet begun or Rejected. |
 | <a id="bt25"></a>[BT25](BT25-Machines-Asked-For-By-Kind.md) | L | - | `Spec` and `Main` ask for a machine by kind instead of a provider's server types, the setup chooses the local pool or the cloud provider, and a check in `porelo-buildtools` refuses a provider's name outside its implementation; the old call keeps working, routed onto the new one, until every caller has moved. |
 | <a id="bt24"></a>[BT24](BT24-An-Account-Rented-From-The-Local-Pool.md) | M | - | `porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back. |
@@ -20,7 +21,6 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
-| <a id="bt42"></a>[BT42](BT42-Snapshots-From-Central-And-What-The-Host-Built.md) | M | - | A build on a host's forge reads snapshots from the project's central source and the host's registry, newest first, with a private group's names kept from the central source. |
 | <a id="bt39"></a>[BT39](BT39-Snapshots-Resolved-With-A-Read-Only-Token.md) | M | - | Builds resolve the forge's snapshots with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a missing `MAVEN_SNAPSHOTS_URL` fails on any forge but github.com. |
 
 ## Backlog

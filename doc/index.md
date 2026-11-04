@@ -9,7 +9,7 @@ may publish, and checks the native images before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
@@ -179,6 +179,23 @@ The upload failing against the dead port is expected. Refused, each named:
 
 So a tag's deploy repeats what `main` already did, rather than being the first time the release profile meets the
 build.
+
+## What `check-snapshot-filter` reads
+
+A repository's snapshots come from Sonatype, and on a forge from its registry too, the newest winning. The registry of
+a host holds only what was built there and has not yet gone through the central forge. So that a private group's name
+never reaches Sonatype, Maven's remote repository filter asks it only of the groups named in
+`.mvn/rrf/groupId-central.sonatype.snapshots.txt`. With no file the filter asks everything, so the check refuses:
+
+- a `settings.xml` profile holding Sonatype's repository that does not activate on both the switch and that file;
+- a `.mvn/maven.config` without the switch and the filter's directory, written with `${session.rootDirectory}`: only
+  that file expands it, and a relative path or `.mvn/jvm.config` leaves the filter asking everything;
+- a missing filter file;
+- a deploy step of `-P"$PORELO_DEPLOY_PROFILE"` not held to `main` and tags, by its job or by itself, since a task
+  branch's snapshot would become the newest for every build on the host.
+
+A repository whose `settings.xml` names no snapshot repository has nothing to hold. An empty filter file pins a
+repository to what the host built, while central's copy is newer than its own and not yet brought in.
 
 ## What `check-releases` reads
 

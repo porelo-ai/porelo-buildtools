@@ -25,33 +25,40 @@ class RegistrySettingsTest {
         assertValue(settings, server + "password", "${env.PORELO_PUBLISHER_TOKEN}");
     }
 
-    // Prevents a forge build from resolving its parent from Sonatype instead of the forge.
+    // Prevents every name being asked of Sonatype, or a build on a forge missing what the host
+    // built.
     @Test
-    void theSnapshotUrlSelectsExactlyOneSnapshotProfile() throws Exception {
+    void sonatypeNeedsTheFilterAndTheForgeOnlyAddsItsRegistry() throws Exception {
         final Document settings = settings();
         assertValue(settings, "count(/settings/activeProfiles)", "0");
         assertValue(settings, "count(/settings/profiles/profile)", "2");
-        assertProfile(
+        final String central = "/settings/profiles/profile[id='central']/";
+        assertValue(
                 settings,
-                "standard",
-                "!env.MAVEN_SNAPSHOTS_URL",
+                central + "activation/property/name",
+                "aether.remoteRepositoryFilter.groupId");
+        assertValue(settings, central + "activation/property/value", "true");
+        assertValue(
+                settings,
+                central + "activation/file/exists",
+                "${maven.multiModuleProjectDirectory}/.mvn/rrf/"
+                        + "groupId-central.sonatype.snapshots.txt");
+        assertRepositories(
+                settings,
+                "central",
                 "central.sonatype.snapshots",
                 "https://central.sonatype.com/repository/maven-snapshots/");
-        assertProfile(
+        assertValue(
                 settings,
-                "forge",
-                "env.MAVEN_SNAPSHOTS_URL",
-                "porelo-forge",
-                "${env.MAVEN_SNAPSHOTS_URL}");
+                "/settings/profiles/profile[id='forge']/activation/property/name",
+                "env.MAVEN_SNAPSHOTS_URL");
+        assertRepositories(settings, "forge", "porelo-forge", "${env.MAVEN_SNAPSHOTS_URL}");
     }
 
-    private static void assertProfile(
-            Document settings, String id, String activation, String repositoryId, String url)
-            throws Exception {
+    private static void assertRepositories(
+            Document settings, String id, String repositoryId, String url) throws Exception {
         final String profile = "/settings/profiles/profile[id='" + id + "']/";
         assertValue(settings, "count(/settings/profiles/profile[id='" + id + "'])", "1");
-        assertValue(settings, profile + "activation/property/name", activation);
-        assertValue(settings, "count(" + profile + "activation/property/value)", "0");
         assertValue(settings, "count(" + profile + "activation/activeByDefault)", "0");
         for (final String path :
                 new String[] {"repositories/repository", "pluginRepositories/pluginRepository"}) {
