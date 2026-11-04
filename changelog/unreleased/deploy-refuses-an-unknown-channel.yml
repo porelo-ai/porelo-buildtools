@@ -1,0 +1,2 @@
+title: The deploy step refuses an empty or unknown channel, which skipped its guard on a release.
+type: fixed

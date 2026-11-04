@@ -51,6 +51,10 @@ class WorkflowRegistryTest {
     @ParameterizedTest
     @CsvSource({
         "central-sonatype-release, snapshots, true",
+        "central-sonatype-release, '', false",
+        "central-sonatype-release, unknown, false",
+        "forge-release, '', false",
+        "forge-release, unknown, false",
         "forge-release, snapshots, true",
         "central-sonatype-release, releases, true",
         "forge-release, releases, false",

@@ -263,6 +263,10 @@ jobs:
                       central-sonatype-release | forge-release) ;;
                       *) echo "::error::unsupported PORELO_DEPLOY_PROFILE: $PORELO_DEPLOY_PROFILE"; exit 1 ;;
                   esac
+                  case "$PORELO_DEPLOY_CHANNEL" in
+                      releases | snapshots) ;;
+                      *) echo "::error::unsupported PORELO_DEPLOY_CHANNEL: $PORELO_DEPLOY_CHANNEL"; exit 1 ;;
+                  esac
                   if [ "$PORELO_DEPLOY_CHANNEL" = releases ] && [ "$PORELO_DEPLOY_PROFILE" != central-sonatype-release ]; then
                       echo "::error::releases require central-sonatype-release, got $PORELO_DEPLOY_PROFILE"
                       exit 1
