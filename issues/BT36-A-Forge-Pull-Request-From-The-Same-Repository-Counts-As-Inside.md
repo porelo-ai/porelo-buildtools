@@ -1,6 +1,6 @@
 # BT36 — A Forge Pull Request From The Same Repository Counts As Inside
 
-**Status:** Implementing. Built in porelo-buildtools' template; each repository with it takes it.
+**Status:** Review.
 **Size:** S - one condition and one environment binding in the template's pull-request step, its cases in
 `WorkflowCommitsTest`, and every repository with the template takes it, as with the own update workflow's rule before it.
 
