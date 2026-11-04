@@ -105,6 +105,15 @@ public interface Machines extends AutoCloseable {
     }
 
     /**
+     * Removes what a new snapshot replaces, where a source keeps snapshots at all. A failure here
+     * is said, not thrown: the snapshot just taken is what matters.
+     *
+     * @param os The operating system.
+     * @param taken The snapshot just taken.
+     */
+    default void pruneSnapshots(String os, long taken) {}
+
+    /**
      * Checks whether the newest snapshot was built from these inputs.
      *
      * @param os The operating system.

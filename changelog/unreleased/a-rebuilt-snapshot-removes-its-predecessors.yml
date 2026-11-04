@@ -1,0 +1,2 @@
+title: A rebuilt snapshot removes older ones of its system labelled for CI, keeping the one before it as a fallback, and says each.
+type: changed

@@ -315,14 +315,16 @@ public final class Main {
                 return 0;
             }
             // Explicit legacy types retain their disk choice for callers that have not migrated.
-            Snapshots.build(
-                    machines,
-                    os,
-                    wanted,
-                    type == null ? List.of() : List.of(type),
-                    credential,
-                    archive,
-                    musl);
+            final long taken =
+                    Snapshots.build(
+                            machines,
+                            os,
+                            wanted,
+                            type == null ? List.of() : List.of(type),
+                            credential,
+                            archive,
+                            musl);
+            machines.pruneSnapshots(os, taken);
         }
         return 0;
     }

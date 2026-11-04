@@ -744,6 +744,62 @@ public final class Hetzner implements Machines {
         return Values.id(Values.object(answer, "image").get("id"));
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public void pruneSnapshots(String os, long taken) {
+        try {
+            final List<Map<String, Object>> ours = new ArrayList<>();
+            for (final Map<String, Object> image :
+                    api.all(
+                            "/images?type=snapshot&label_selector=" + LABEL_SELECTOR + ",os=" + os,
+                            "images")) {
+                final Map<String, String> labels = Values.labels(image);
+                // Whatever the listing says: a selector is the API's word, and this deletes.
+                if ("ci".equals(labels.get("porelo"))
+                        && os.equals(labels.get("os"))
+                        && "available".equals(Values.text(image, "status"))) {
+                    ours.add(image);
+                }
+            }
+            ours.sort(Comparator.comparing(Values::created).reversed());
+            final List<Map<String, Object>> others = new ArrayList<>(ours);
+            if (!others.removeIf(image -> Values.id(image.get("id")) == taken)) {
+                System.out.println("snapshot " + taken + " is not available, so none is deleted");
+                return;
+            }
+            System.out.println("kept     snapshot " + taken);
+            for (int at = 0; at < others.size(); at++) {
+                final Map<String, Object> image = others.get(at);
+                if (at == 0) {
+                    System.out.println("kept     snapshot " + Values.id(image.get("id")));
+                } else {
+                    deleteSnapshot(os, image);
+                }
+            }
+        } catch (IOException ex) {
+            System.out.println("the old snapshots stay: " + ex.getMessage());
+        }
+    }
+
+    private void deleteSnapshot(String os, Map<String, Object> image) {
+        final long id = Values.id(image.get("id"));
+        final String named =
+                id
+                        + " ("
+                        + os
+                        + ", "
+                        + Values.created(image)
+                        + ", "
+                        + Values.text(image, "description")
+                        + ")";
+        try {
+            api.delete("/images/" + id);
+            System.out.println("deleted  snapshot " + named);
+        } catch (IOException ex) {
+            System.out.println("not deleted: snapshot " + named + ": " + ex.getMessage());
+        }
+    }
+
     /**
      * Deletes one server.
      *

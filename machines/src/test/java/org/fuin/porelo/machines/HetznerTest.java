@@ -97,6 +97,112 @@ class HetznerTest {
     /** A minute after {@link #SWEEP_TIME}. */
     private static final String STILL_IN_USE = "20261018T0414Z";
 
+    private static final String PRUNE_LISTING =
+            "/images?type=snapshot&label_selector=porelo=ci,os=ubuntu&page=1&per_page=50";
+
+    private static String image(long id, String os, String porelo, String status, String month) {
+        return """
+                {"id":%d,"description":"d%d","status":"%s","created":"2026-%s-01T00:00:00+00:00",
+                "labels":{"os":"%s","porelo":"%s"}}"""
+                .formatted(id, id, status, month, os, porelo);
+    }
+
+    private static String images(String... images) {
+        return "{\"images\":["
+                + String.join(",", images)
+                + "],\"meta\":{\"pagination\":{\"next_page\":null}}}";
+    }
+
+    // Prevents each rebuild leaving a snapshot that costs storage and is never rented again.
+    @Test
+    void aRebuildKeepsTheNewSnapshotAndOneBeforeIt() throws IOException {
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                PRUNE_LISTING,
+                                images(
+                                        image(1, "ubuntu", "ci", "available", "01"),
+                                        image(2, "ubuntu", "ci", "available", "02"),
+                                        image(3, "ubuntu", "ci", "available", "03"),
+                                        image(4, "ubuntu", "ci", "available", "04")))
+                        .answering("/images/1", exchange -> new StubApi.Answer(204, ""))
+                        .answering("/images/2", exchange -> new StubApi.Answer(204, ""))) {
+            Hetzner.against(stub.base(), "run-1").pruneSnapshots("ubuntu", 4);
+            assertThat(stub.asked())
+                    .contains("DELETE /v1/images/1", "DELETE /v1/images/2")
+                    .doesNotContain("DELETE /v1/images/3", "DELETE /v1/images/4");
+        }
+    }
+
+    // Prevents a rebuild that came to nothing costing the snapshots that still work.
+    @Test
+    void aSnapshotThatIsNotAvailableDeletesNothing() throws IOException {
+        for (final String listing :
+                List.of(
+                        images(
+                                image(1, "ubuntu", "ci", "available", "01"),
+                                image(2, "ubuntu", "ci", "available", "02"),
+                                image(3, "ubuntu", "ci", "available", "03"),
+                                image(4, "ubuntu", "ci", "creating", "04")),
+                        images(
+                                image(1, "ubuntu", "ci", "available", "01"),
+                                image(2, "ubuntu", "ci", "available", "02"),
+                                image(3, "ubuntu", "ci", "available", "03")))) {
+            try (StubApi stub = new StubApi().answering(PRUNE_LISTING, listing)) {
+                Hetzner.against(stub.base(), "run-1").pruneSnapshots("ubuntu", 4);
+                assertThat(stub.asked()).noneMatch(call -> call.startsWith("DELETE"));
+            }
+        }
+    }
+
+    // Prevents a listing that answers too much taking what is not this system's CI snapshot.
+    @Test
+    void onlyThisSystemsCiSnapshotsAreDeletedWhateverTheListingSays() throws IOException {
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                PRUNE_LISTING,
+                                images(
+                                        image(1, "fedora", "ci", "available", "01"),
+                                        image(2, "ubuntu", "other", "available", "02"),
+                                        image(3, "ubuntu", "ci", "creating", "03"),
+                                        image(4, "ubuntu", "ci", "available", "04"),
+                                        image(5, "ubuntu", "ci", "available", "05"),
+                                        image(6, "ubuntu", "ci", "available", "06")))
+                        .answering("/images/4", exchange -> new StubApi.Answer(204, ""))) {
+            Hetzner.against(stub.base(), "run-1").pruneSnapshots("ubuntu", 6);
+            assertThat(stub.asked().stream().filter(call -> call.startsWith("DELETE")).toList())
+                    .containsExactly("DELETE /v1/images/4");
+        }
+    }
+
+    // Prevents a snapshot that could not be tidied away failing the rebuild that just succeeded.
+    @Test
+    void aRefusedDeleteOrListingIsSaidAndDoesNotFail() throws IOException {
+        try (StubApi stub =
+                new StubApi()
+                        .answering(
+                                PRUNE_LISTING,
+                                images(
+                                        image(1, "ubuntu", "ci", "available", "01"),
+                                        image(2, "ubuntu", "ci", "available", "02"),
+                                        image(3, "ubuntu", "ci", "available", "03"),
+                                        image(4, "ubuntu", "ci", "available", "04")))
+                        .answering(
+                                "/images/1",
+                                exchange ->
+                                        new StubApi.Answer(
+                                                423,
+                                                "{\"error\":{\"code\":\"locked\",\"message\":\"in use\"}}"))
+                        .answering("/images/2", exchange -> new StubApi.Answer(204, ""))) {
+            Hetzner.against(stub.base(), "run-1").pruneSnapshots("ubuntu", 4);
+            assertThat(stub.asked()).contains("DELETE /v1/images/1", "DELETE /v1/images/2");
+        }
+        try (StubApi stub = new StubApi()) {
+            Hetzner.against(stub.base(), "run-1").pruneSnapshots("ubuntu", 4);
+        }
+    }
+
     @Test
     void picksTheNewestSnapshotThatIsActuallyAvailable() throws IOException {
         try (StubApi stub =
