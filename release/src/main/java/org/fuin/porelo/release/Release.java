@@ -37,6 +37,9 @@ public record Release(
     /** Property prefix, so every name the tool reads is findable in one search. */
     static final String PREFIX = "porelo.release.";
 
+    /** What a job on GitHub itself names as its server, against a forge that also sets it. */
+    private static final String GITHUB_SERVER = "https://github.com";
+
     /** The only host a GitHub token is ever sent to. */
     static final String GITHUB_API = "api.github.com";
 
@@ -196,9 +199,12 @@ public record Release(
      */
     static Map<String, String> githubHeaders(URI address, Map<String, String> env) {
         // Unauthenticated GitHub allows 60 requests an hour per address, which a shared runner
-        // exhausts. The token goes to GitHub's API and nowhere else, whatever a pom property says.
+        // exhausts. The token goes to GitHub's API and nowhere else, whatever a pom property says,
+        // and a forge's job holds its own token under this name, unasked, which is not GitHub's.
+        final String server = env.get("GITHUB_SERVER_URL");
+        final boolean ours = server == null || server.isBlank() || GITHUB_SERVER.equals(server);
         final String token =
-                GITHUB_API.equals(address.getHost()) && "https".equals(address.getScheme())
+                ours && GITHUB_API.equals(address.getHost()) && "https".equals(address.getScheme())
                         ? env.get("GITHUB_TOKEN")
                         : null;
         return token == null || token.isBlank()

@@ -247,4 +247,36 @@ class LicenseTest {
     private String report() {
         return "stdout:%n%s%nstderr:%n%s".formatted(stdout(), stderr());
     }
+
+    // Prevents a forge's job token, which each of its steps holds unasked, reaching GitHub.
+    @Test
+    void aForgesTokenStaysOnItsForge() {
+        final URI api = URI.create("https://api.github.com/repos/some/thing/license");
+        assertThat(
+                        Release.githubHeaders(
+                                api,
+                                Map.of(
+                                        "GITHUB_TOKEN",
+                                        "the-forges",
+                                        "GITHUB_SERVER_URL",
+                                        "http://forge.example:3000")))
+                .doesNotContainKey("Authorization");
+    }
+
+    // Prevents a token being withheld on GitHub or outside any job, where the limit would bite.
+    @Test
+    void gitHubsAndALocalTokenStillGoToItsApi() {
+        final URI api = URI.create("https://api.github.com/repos/some/thing/license");
+        assertThat(
+                        Release.githubHeaders(
+                                api,
+                                Map.of(
+                                        "GITHUB_TOKEN",
+                                        "githubs",
+                                        "GITHUB_SERVER_URL",
+                                        "https://github.com")))
+                .containsKey("Authorization");
+        assertThat(Release.githubHeaders(api, Map.of("GITHUB_TOKEN", "local")))
+                .containsKey("Authorization");
+    }
 }

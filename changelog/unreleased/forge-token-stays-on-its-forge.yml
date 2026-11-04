@@ -1,0 +1,2 @@
+title: The release tool no longer sends a forge's job token to GitHub's API; it sends `GITHUB_TOKEN` there only on GitHub or outside any job.
+type: security
