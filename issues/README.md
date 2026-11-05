@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt43"></a>[BT43](BT43-The-JDK-Download-Tries-Again.md) | XS | - | `porelo-machines jdk` tries the download of the pinned GraalVM again on a 5xx or a failed connection, five attempts with a growing wait; a 4xx or a wrong digest fails at once. |
 | <a id="bt39"></a>[BT39](BT39-Snapshots-Resolved-With-A-Read-Only-Token.md) | M | - | Builds resolve the forge's snapshots with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a missing `MAVEN_SNAPSHOTS_URL` fails on any forge but github.com. |
 | <a id="bt42"></a>[BT42](BT42-Snapshots-From-Central-And-What-The-Host-Built.md) | M | - | A build on a host's forge reads snapshots from the project's central source and the host's registry, newest first, with a private group's names kept from the central source. |
 | <a id="bt40"></a>[BT40](BT40-Work-May-Wait-On-Work-Begun.md) | S | - | `plan check` lets work wait for an issue that is Implementing, Rework, Review or Finished, and refuses only a wait for one not yet begun or Rejected. |

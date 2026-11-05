@@ -1,0 +1,2 @@
+title: porelo-machines jdk tries the download of the pinned GraalVM again, five attempts with a growing wait, when the server answers a 5xx or the connection fails or breaks off; a 4xx or a wrong digest still fails at once.
+type: fixed

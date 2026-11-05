@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Installs the GraalVM the CI snapshots pin, on a machine that is not one of them - a GitHub
@@ -31,11 +32,24 @@ import java.util.List;
  * <p><strong>Checked before anything is unpacked.</strong> The archive is hashed as it is written
  * and compared with the pinned digest; a mismatch leaves nothing installed. Nothing is installed
  * over an existing directory either, so a second run cannot mix two JDKs.
+ *
+ * <p><strong>Tried again when the server could not answer.</strong> A release download answers a
+ * 504 now and then, and one such answer must not turn a whole Build red. Only that is tried again,
+ * a 5xx or a connection that failed or broke off: each attempt starts over with an empty file and a
+ * new digest. A 4xx and a wrong digest will not get better by waiting and fail at once.
  */
 final class PinnedJdk {
 
     /** How long the download may take; the archive is a few hundred megabytes. */
     private static final Duration DOWNLOAD = Duration.ofMinutes(10);
+
+    /** How often the download is tried, the first time included. */
+    private static final int ATTEMPTS = 5;
+
+    private static final int BUFFER = 64 * 1024;
+
+    /** The wait before the second attempt; each later one waits this much longer. */
+    private static final Duration WAIT = Duration.ofSeconds(15);
 
     /** Where an archive is fetched from. */
     interface Download {
@@ -45,9 +59,36 @@ final class PinnedJdk {
          *
          * @param address where the archive is
          * @param into where its bytes go
-         * @throws IOException if it cannot be fetched completely
+         * @throws Unavailable if the server could not answer, and asking again may help
+         * @throws IOException if it cannot be fetched completely, and asking again will not help
          */
         void to(URI address, OutputStream into) throws IOException;
+    }
+
+    /** A download that may answer next time: a 5xx, or a connection that failed or broke off. */
+    static final class Unavailable extends IOException {
+
+        private static final long serialVersionUID = 1L;
+
+        Unavailable(String message) {
+            super(message);
+        }
+
+        Unavailable(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /** How a wait between attempts is spent. */
+    interface Pause {
+
+        /**
+         * Waits.
+         *
+         * @param time how long
+         * @throws InterruptedException if interrupted
+         */
+        void of(Duration time) throws InterruptedException;
     }
 
     /**
@@ -74,6 +115,30 @@ final class PinnedJdk {
      */
     static Installed install(Snapshots.Contents contents, Path home, Download download)
             throws IOException {
+        return install(contents, home, download, WAIT, Thread::sleep, System.err::println);
+    }
+
+    /**
+     * Downloads, checks and unpacks the pinned GraalVM, waiting as told between attempts.
+     *
+     * @param contents what the pom pins
+     * @param home where the JDK goes; it must not exist yet, or be empty
+     * @param download where the archive is fetched from
+     * @param wait the wait before the second attempt; each later one waits this much longer
+     * @param pause how a wait is spent
+     * @param say where an attempt that failed is told
+     * @return what was installed
+     * @throws IOException if it cannot be fetched, does not match its digest, or does not unpack to
+     *     a JDK
+     */
+    static Installed install(
+            Snapshots.Contents contents,
+            Path home,
+            Download download,
+            Duration wait,
+            Pause pause,
+            Consumer<String> say)
+            throws IOException {
         if (Files.isDirectory(home)) {
             try (var entries = Files.list(home)) {
                 if (entries.findAny().isPresent()) {
@@ -85,13 +150,9 @@ final class PinnedJdk {
         final Path archive =
                 Files.createTempFile(home.toAbsolutePath().getParent(), "graalvm-", ".tar.gz");
         try {
-            final MessageDigest sha256 = sha256();
-            try (OutputStream out =
-                            Files.newOutputStream(archive, StandardOpenOption.TRUNCATE_EXISTING);
-                    OutputStream hashed = new java.security.DigestOutputStream(out, sha256)) {
-                download.to(URI.create(contents.graalvmUrl()), hashed);
-            }
-            final String got = HexFormat.of().formatHex(sha256.digest());
+            final String got =
+                    fetchedDigest(
+                            URI.create(contents.graalvmUrl()), archive, download, wait, pause, say);
             if (!got.equals(contents.graalvmSha256())) {
                 throw new IOException(
                         contents.graalvmUrl()
@@ -112,6 +173,45 @@ final class PinnedJdk {
             }
         }
         return new Installed(home, contents.graalvmVersion());
+    }
+
+    private static String fetchedDigest(
+            URI address,
+            Path archive,
+            Download download,
+            Duration wait,
+            Pause pause,
+            Consumer<String> say)
+            throws IOException {
+        for (int attempt = 1; ; attempt++) {
+            final MessageDigest sha256 = sha256();
+            try (OutputStream out =
+                            Files.newOutputStream(archive, StandardOpenOption.TRUNCATE_EXISTING);
+                    OutputStream hashed = new java.security.DigestOutputStream(out, sha256)) {
+                download.to(address, hashed);
+                return HexFormat.of().formatHex(sha256.digest());
+            } catch (Unavailable ex) {
+                if (attempt == ATTEMPTS) {
+                    throw ex;
+                }
+                final Duration next = wait.multipliedBy(attempt);
+                say.accept(
+                        ex.getMessage()
+                                + " on attempt "
+                                + attempt
+                                + " of "
+                                + ATTEMPTS
+                                + "; trying again in "
+                                + next.toSeconds()
+                                + " s");
+                try {
+                    pause.of(next);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted while waiting for " + address, interrupted);
+                }
+            }
+        }
     }
 
     /**
@@ -157,23 +257,59 @@ final class PinnedJdk {
                 throw new IOException(
                         "refusing to fetch a JDK over " + address.getScheme() + ": " + address);
             }
-            final HttpResponse<InputStream> response;
-            try {
-                response =
-                        http.send(
-                                HttpRequest.newBuilder(address).timeout(DOWNLOAD).GET().build(),
-                                HttpResponse.BodyHandlers.ofInputStream());
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new IOException("interrupted while fetching " + address, ex);
-            }
-            try (InputStream body = response.body()) {
-                if (response.statusCode() != 200) {
-                    throw new IOException(address + " answered HTTP " + response.statusCode());
-                }
-                body.transferTo(into);
-            }
+            fetch(http, address, into);
         };
+    }
+
+    /**
+     * Fetches an address once and tells what asking again may help with from what it will not.
+     *
+     * @param http the client
+     * @param address where the archive is
+     * @param into where its bytes go
+     * @throws Unavailable if the server answered a 5xx, or the connection failed or broke off
+     * @throws IOException if the server answered anything else but 200, or writing failed
+     */
+    static void fetch(HttpClient http, URI address, OutputStream into) throws IOException {
+        final HttpResponse<InputStream> response;
+        try {
+            response =
+                    http.send(
+                            HttpRequest.newBuilder(address).timeout(DOWNLOAD).GET().build(),
+                            HttpResponse.BodyHandlers.ofInputStream());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted while fetching " + address, ex);
+        } catch (IOException ex) {
+            throw new Unavailable(address + " could not be reached: " + ex, ex);
+        }
+        try (InputStream body = response.body()) {
+            final int status = response.statusCode();
+            if (status >= 500 && status < 600) {
+                throw new Unavailable(address + " answered HTTP " + status);
+            }
+            if (status != 200) {
+                throw new IOException(address + " answered HTTP " + status);
+            }
+            copy(address, body, into);
+        }
+    }
+
+    // Not transferTo: a body that breaks off is worth another attempt, a disk that is full is not.
+    private static void copy(URI address, InputStream body, OutputStream into) throws IOException {
+        final byte[] buffer = new byte[BUFFER];
+        while (true) {
+            final int read;
+            try {
+                read = body.read(buffer);
+            } catch (IOException ex) {
+                throw new Unavailable(address + " broke off: " + ex, ex);
+            }
+            if (read < 0) {
+                return;
+            }
+            into.write(buffer, 0, read);
+        }
     }
 
     // tar rather than a reader of our own: it is on every runner and every snapshot, and the recipe

@@ -3,17 +3,26 @@ package org.fuin.porelo.machines;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.sun.net.httpserver.HttpServer;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -143,6 +152,314 @@ class PinnedJdkTest {
                                 }))
                 .isEqualTo(2);
         assertThat(said).singleElement().asString().contains("--into");
+    }
+
+    @Test
+    void triesAgainWhenTheServerCannotAnswerAndChecksOnlyTheLastAttempt() throws IOException {
+        final byte[] archive = archive("java", "native-image");
+        final AtomicInteger attempts = new AtomicInteger();
+        final List<String> said = new ArrayList<>();
+
+        final PinnedJdk.Installed installed =
+                PinnedJdk.install(
+                        contents(sha256(archive)),
+                        dir.resolve("jdk"),
+                        (address, into) -> {
+                            if (attempts.incrementAndGet() < 3) {
+                                // What broke off midway must not stay in the file or the digest.
+                                into.write(archive, 0, 10);
+                                throw new PinnedJdk.Unavailable("HTTP 504");
+                            }
+                            into.write(archive);
+                        },
+                        Duration.ZERO,
+                        time -> {},
+                        said::add);
+
+        assertThat(installed.home().resolve("bin/java")).isExecutable();
+        assertThat(attempts).hasValue(3);
+        assertThat(said).hasSize(2);
+        assertThat(said.get(0)).contains("HTTP 504").contains("attempt 1 of 5");
+    }
+
+    @Test
+    void givesUpAfterItsAttemptsAndLeavesNothing() throws IOException {
+        final AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            attempts.incrementAndGet();
+                                            throw new PinnedJdk.Unavailable("HTTP 504");
+                                        },
+                                        Duration.ZERO,
+                                        time -> {},
+                                        message -> {}))
+                .isInstanceOf(PinnedJdk.Unavailable.class)
+                .hasMessageContaining("HTTP 504");
+        assertThat(attempts).hasValue(5);
+        assertThat(dir.resolve("jdk/bin")).doesNotExist();
+        try (var left = Files.list(dir)) {
+            assertThat(left).containsExactly(dir.resolve("jdk"));
+        }
+    }
+
+    @Test
+    void waitsLongerBeforeEachAttempt() throws IOException {
+        final List<Duration> waited = new ArrayList<>();
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            throw new PinnedJdk.Unavailable("HTTP 504");
+                                        },
+                                        Duration.ofSeconds(15),
+                                        waited::add,
+                                        message -> {}))
+                .isInstanceOf(PinnedJdk.Unavailable.class);
+
+        assertThat(waited)
+                .containsExactly(
+                        Duration.ofSeconds(15),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(45),
+                        Duration.ofSeconds(60));
+    }
+
+    @Test
+    void doesNotTryAgainForADownloadThatIsRefused() throws IOException {
+        final AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            attempts.incrementAndGet();
+                                            throw new IOException("HTTP 404");
+                                        },
+                                        Duration.ZERO,
+                                        time -> {},
+                                        message -> {}))
+                .hasMessageContaining("HTTP 404");
+        assertThat(attempts).hasValue(1);
+    }
+
+    @Test
+    void doesNotTryAgainForAWrongDigest() throws IOException {
+        final AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            attempts.incrementAndGet();
+                                            into.write(1);
+                                        },
+                                        Duration.ZERO,
+                                        time -> {},
+                                        message -> {}))
+                .hasMessageContaining("not the pinned");
+        assertThat(attempts).hasValue(1);
+    }
+
+    @Test
+    void takesA5xxAsUnavailableAlsoBehindARedirect() throws IOException {
+        final HttpServer server = server();
+        server.createContext(
+                "/redirect",
+                exchange -> {
+                    exchange.getResponseHeaders().add("Location", "/gateway");
+                    exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
+        server.createContext("/gateway", exchange -> answer(exchange, 504));
+        server.start();
+        try {
+            assertThatThrownBy(() -> fetch(server, "/redirect", new ByteArrayOutputStream()))
+                    .isInstanceOf(PinnedJdk.Unavailable.class)
+                    .hasMessageContaining("HTTP 504");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void takesA404AsRefused() throws IOException {
+        final HttpServer server = server();
+        server.createContext("/gone", exchange -> answer(exchange, 404));
+        server.start();
+        try {
+            assertThatThrownBy(() -> fetch(server, "/gone", new ByteArrayOutputStream()))
+                    .isInstanceOf(IOException.class)
+                    .isNotInstanceOf(PinnedJdk.Unavailable.class)
+                    .hasMessageContaining("HTTP 404");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void takesAnAnswerBeyondThe5xxAsRefused() throws IOException {
+        final HttpServer server = server();
+        server.createContext("/odd", exchange -> answer(exchange, 600));
+        server.start();
+        try {
+            assertThatThrownBy(() -> fetch(server, "/odd", new ByteArrayOutputStream()))
+                    .isInstanceOf(IOException.class)
+                    .isNotInstanceOf(PinnedJdk.Unavailable.class)
+                    .hasMessageContaining("HTTP 600");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void startsEachAttemptWithAnEmptyFile() throws IOException {
+        final byte[] archive = archive("java", "native-image");
+        final AtomicInteger attempts = new AtomicInteger();
+
+        PinnedJdk.install(
+                contents(sha256(archive)),
+                dir.resolve("jdk"),
+                (address, into) -> {
+                    if (attempts.incrementAndGet() == 1) {
+                        into.write(archive);
+                        throw new PinnedJdk.Unavailable("broke off");
+                    }
+                    // Longer than what follows, this attempt's rest would stay behind its end.
+                    try (var files = Files.list(dir)) {
+                        assertThat(
+                                        files.filter(
+                                                        file ->
+                                                                file.getFileName()
+                                                                        .toString()
+                                                                        .startsWith("graalvm-"))
+                                                .findFirst()
+                                                .orElseThrow())
+                                .isEmptyFile();
+                    }
+                    into.write(archive);
+                },
+                Duration.ZERO,
+                time -> {},
+                message -> {});
+
+        assertThat(attempts).hasValue(2);
+    }
+
+    @Test
+    void takesARefusedConnectionAsUnavailable() throws IOException {
+        final int port;
+        try (ServerSocket free = new ServerSocket(0)) {
+            port = free.getLocalPort();
+        }
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.fetch(
+                                        HttpClient.newHttpClient(),
+                                        URI.create("http://127.0.0.1:" + port + "/"),
+                                        new ByteArrayOutputStream()))
+                .isInstanceOf(PinnedJdk.Unavailable.class);
+    }
+
+    @Test
+    void takesABodyThatBreaksOffAsUnavailable() throws IOException {
+        final HttpServer server = server();
+        server.createContext(
+                "/short",
+                exchange -> {
+                    exchange.sendResponseHeaders(200, 1000);
+                    exchange.getResponseBody().write(new byte[10]);
+                    exchange.getResponseBody().flush();
+                    exchange.close();
+                });
+        server.start();
+        try {
+            assertThatThrownBy(() -> fetch(server, "/short", new ByteArrayOutputStream()))
+                    .isInstanceOf(PinnedJdk.Unavailable.class);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void takesAWriteThatFailsAsNothingToTryAgain() throws IOException {
+        final HttpServer server = server();
+        server.createContext(
+                "/whole",
+                exchange -> {
+                    exchange.sendResponseHeaders(200, 10);
+                    exchange.getResponseBody().write(new byte[10]);
+                    exchange.close();
+                });
+        server.start();
+        try {
+            assertThatThrownBy(
+                            () ->
+                                    fetch(
+                                            server,
+                                            "/whole",
+                                            new OutputStream() {
+                                                @Override
+                                                public void write(int value) throws IOException {
+                                                    throw new IOException("disk full");
+                                                }
+                                            }))
+                    .isInstanceOf(IOException.class)
+                    .isNotInstanceOf(PinnedJdk.Unavailable.class)
+                    .hasMessageContaining("disk full");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void writesWhatTheServerAnswers() throws IOException {
+        final HttpServer server = server();
+        server.createContext(
+                "/whole",
+                exchange -> {
+                    exchange.sendResponseHeaders(200, 3);
+                    exchange.getResponseBody().write(new byte[] {1, 2, 3});
+                    exchange.close();
+                });
+        server.start();
+        try {
+            final ByteArrayOutputStream into = new ByteArrayOutputStream();
+            fetch(server, "/whole", into);
+            assertThat(into.toByteArray()).containsExactly(1, 2, 3);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static HttpServer server() throws IOException {
+        return HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    }
+
+    private static void answer(com.sun.net.httpserver.HttpExchange exchange, int status)
+            throws IOException {
+        exchange.sendResponseHeaders(status, -1);
+        exchange.close();
+    }
+
+    private static void fetch(HttpServer server, String path, OutputStream into)
+            throws IOException {
+        PinnedJdk.fetch(
+                HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build(),
+                URI.create("http://127.0.0.1:" + server.getAddress().getPort() + path),
+                into);
     }
 
     private static Snapshots.Contents contents(String sha256) {
