@@ -103,13 +103,20 @@ final class CheckActions {
                     // Creates porelo-host's release with the runner's gh; no checkout or fetched
                     // action runs in that job.
                     "release.yml/publish", java.util.Set.of("contents"),
+                    // Publishes the rendered plan pages to their own branch, with the runner's git
+                    // and gh only; no checkout or fetched action runs in that job.
+                    "plan-pages.yml/publish", java.util.Set.of("contents"),
                     // The Build's Windows job attests that the interface's ZIP was built here, by
                     // this workflow.
                     "build.yml/windows", java.util.Set.of("id-token", "attestations"));
 
     /** A name a program reads changes what runs, and no list of such names is complete. */
     private static final Map<String, Set<String>> NO_FETCHED_CODE =
-            Map.of("release.yml/publish", Set.of("GH_TOKEN", "TAG", "VERSION", "ARTIFACT"));
+            Map.of(
+                    "release.yml/publish",
+                    Set.of("GH_TOKEN", "TAG", "VERSION", "ARTIFACT"),
+                    "plan-pages.yml/publish",
+                    Set.of("GH_TOKEN"));
 
     /** Runner features grow and defaults replace shells, so only known job keys pass. */
     private static final Set<String> RUNNER_JOB_KEYS =
