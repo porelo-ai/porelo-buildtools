@@ -5,8 +5,8 @@
 #
 # The snapshots and Publish jobs are not here: they rent machines and hold the release keys, which no task does.
 image:
-    base_image: "ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
-    snippet: |
+    from: "ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
+    run: |
         RUN apt-get update \
             && apt-get install -y --no-install-recommends ca-certificates=20260601~26.04.1 \
                 curl=8.18.0-1ubuntu2.8 git=1:2.53.0-1ubuntu1 unzip=6.0-29ubuntu1 \
