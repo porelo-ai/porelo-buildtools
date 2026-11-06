@@ -1,0 +1,62 @@
+# Deletes old snapshot packages from Artifactory's Debian and RPM repositories: every file older than four weeks,
+# except the newest three versions of each package name, however old. The releases channel is never touched.
+name: Prune snapshot packages
+
+on:
+    workflow_dispatch:
+        inputs:
+            delete:
+                description: 'Actually delete. Left unticked, this only lists what would go.'
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+jobs:
+    prune:
+        name: Snapshot packages
+        runs-on: ubuntu-26.04
+        env:
+            MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
+            PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
+        timeout-minutes: 30
+        steps:
+            # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
+            - name: A forge names its registry and its token
+              env:
+                  SERVER_URL: ${{ github.server_url }}
+              run: |
+                  [ "$SERVER_URL" != 'https://github.com' ] || exit 0
+                  [ -n "$MAVEN_SNAPSHOTS_URL" ] || { echo "::error::MAVEN_SNAPSHOTS_URL is empty on $SERVER_URL"; exit 1; }
+                  [ -n "$PORELO_PACKAGES_READ_TOKEN" ] || { echo "::error::PORELO_PACKAGES_READ_TOKEN is empty on $SERVER_URL"; exit 1; }
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: The pinned GraalVM
+              uses: ./.github/actions/pinned-jdk
+
+            # From this commit's own build, so the rule that deletes is the one beside it; before the token is in reach.
+            - name: Build the command
+              run: |
+                  set -eu
+                  ./mvnw -B -q -s settings.xml -pl release -am install -DskipTests
+                  ./mvnw -B -q -s settings.xml -pl release dependency:build-classpath -Dmdep.outputFile=target/cp.txt
+
+            # The token reaches the command through its environment alone; a run puts and deletes one probe file in each
+            # repository before it reads anything, so a token that cannot delete stops it first.
+            - name: What goes, and go if asked
+              env:
+                  JF_URL: ${{ vars.JF_URL }}
+                  JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+                  DELETE: ${{ inputs.delete }}
+              run: |
+                  set -eu
+                  [ -n "$JF_URL" ] || { echo "::error::variable JF_URL is not set"; exit 1; }
+                  [ -n "${JF_ACCESS_TOKEN:+set}" ] || { echo "::error::secret JF_ACCESS_TOKEN is not set"; exit 1; }
+                  flag=
+                  [ "$DELETE" != true ] || flag=--delete
+                  java -cp "release/target/classes:$(cat release/target/cp.txt)" org.fuin.porelo.release.Main \
+                      prune-snapshots --probe "run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" $flag

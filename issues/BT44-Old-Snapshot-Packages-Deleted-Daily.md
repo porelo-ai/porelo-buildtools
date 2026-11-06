@@ -17,12 +17,16 @@ installs any more.
 
 ## The shape
 
-- **What the rule is:** a file is deleted when its version is not among the three newest of its package name and its
-  `created` time in Artifactory is more than 28 days before the run. Versions are compared as dpkg compares them
-  (`0.5.0~snapshot.290` before `0.5.1~snapshot.292`), and every file of a version that stays, stays.
+- **What the rule is:** a file is deleted when its version is neither among the three newest of its package name nor
+  among the three stored last, and its `created` time in Artifactory is more than 28 days before the run. Versions are
+  compared as dpkg compares them (`0.5.0~snapshot.290` before `0.5.1~snapshot.292`); the time keeps the builds made last
+  when an older naming sorts above them, as `0.5.1-snapshot.92`, which `porelo-matrix-homeserver`'s RPMs carry, sorts
+  above `0.5.1~snapshot.93`. Every file of a version that stays, stays.
 - **Where `snapshots` is:** the Debian packages of both channels share `pool/main/p/<name>/`; a file's channel is only
-  its `deb.distribution` property. A Debian file is a candidate only when that property is exactly `snapshots`, and
-  it is refused whatever its property says when the `releases` index lists its file name. An RPM is a candidate only
+  its `deb.distribution` property. A Debian file is a candidate only when that property is exactly `snapshots` and it
+  is for `amd64` or `all`, which the one index read lists, and it is refused whatever its property says when the `releases` index lists
+  its file name. A `releases` index that misses a release the pool holds, or a Debian file with no channel, stops the
+  run before any deletion. An RPM is a candidate only
   under `porelo-dist-rpm/snapshots/`. Only `.deb` and `.rpm` files are touched; the bill and the setup script beside
   them are not.
 - **A dry run first:** `workflow_dispatch` with `delete` left unticked lists what would go, per file, and what stays,
@@ -33,7 +37,7 @@ installs any more.
   `JF_ACCESS_TOKEN`, a refused put or a refused delete stops the run before anything is selected, naming the probe it
   could not remove.
 - **The indexes follow:** after deleting, the run reads the `snapshots` Debian index and the RPM primary metadata until
-  neither lists a deleted file. If one still does after two minutes, it asks Artifactory to recalculate that index
+  neither lists a deleted file; an index that is gone has not followed. If one still does after two minutes, it asks Artifactory to recalculate that index
   once and reads again; a file still listed then fails the run, named.
 - **Fail closed and loud:** a listing, a property or a date that cannot be read stops the run before any deletion; a
   deletion that fails is named and fails the run after the others.
@@ -64,3 +68,18 @@ installs any more.
 - Whether `JF_ACCESS_TOKEN` is a secret `porelo-buildtools` can read and may delete with in both repositories: the
   dry run's probe says.
 - Whether Artifactory recalculates both indexes by itself after a deletion: the first deleting run says.
+
+## What is built
+
+As the shape says, as `porelo-release prune-snapshots --probe NAME [--delete]` and the workflow *Prune snapshot
+packages*, still without its schedule. Read against the live repositories without the token and without the probe, it
+read 822 snapshot package files and selected none: the oldest was stored on 2026-10-16, so the first files pass four
+weeks on 2026-11-13.
+
+Two findings of the reading were declined:
+
+- An epoch that is not a number throws in `DebianVersion`. The command's own handling turns that into exit 2 before any
+  deletion, which is failing closed, and no Porelo package carries an epoch.
+- RPM names were said to be misread when a version holds a dash. The one naming that does, `porelo-matrix-homeserver`'s
+  `0.5.1-snapshot.92.noarch.rpm`, is read as name, version `0.5.1` and release `snapshot.92`, measured on the live
+  listing.

@@ -45,7 +45,8 @@ public final class Main {
                     "check-deploy",
                     "check-linkage",
                     "check-package-version",
-                    "check-snapshot-filter");
+                    "check-snapshot-filter",
+                    "prune-snapshots");
 
     private static final String CITATIONS_USAGE =
             "check-citations [--checkouts DIRECTORY OF REPOSITORIES] [REPOSITORY ROOT, default .]";
@@ -399,8 +400,48 @@ public final class Main {
                                             rest.get(1),
                                             rest.get(2),
                                             Path.of(rest.get(3)));
+            case "prune-snapshots" -> pruneSnapshots(rest, out, err, env);
             default -> unknown(command, err);
         };
+    }
+
+    private static final String PRUNE_USAGE = "prune-snapshots --probe NAME [--delete]";
+
+    private static int pruneSnapshots(
+            List<String> rest, PrintStream out, PrintStream err, Map<String, String> env) {
+        final Options options = Options.parse(rest, Set.of("--probe"), Set.of("--delete"));
+        final String probe = options == null ? null : options.value("--probe");
+        if (options == null
+                || !options.positional().isEmpty()
+                || probe == null
+                || !probe.matches("[A-Za-z0-9][A-Za-z0-9.-]*")) {
+            return usage(err, PRUNE_USAGE);
+        }
+        final String url = env.getOrDefault("JF_URL", "");
+        final String token = env.getOrDefault("JF_ACCESS_TOKEN", "");
+        if (!url.startsWith("https://") || url.replaceAll("/+$", "").endsWith("/artifactory")) {
+            err.println(
+                    "prune-snapshots: JF_URL must be the platform's https address, without /artifactory;"
+                            + " it is '"
+                            + url
+                            + "'");
+            return Stop.UNANSWERED;
+        }
+        if (token.isBlank()) {
+            err.println("prune-snapshots: JF_ACCESS_TOKEN is not set");
+            return Stop.UNANSWERED;
+        }
+        // The JDK names a header value it refuses in its exception, the token with it.
+        if (!token.matches("[\\x21-\\x7e]+")) {
+            err.println("prune-snapshots: JF_ACCESS_TOKEN holds a character a header cannot carry");
+            return Stop.UNANSWERED;
+        }
+        return new PruneSnapshots(
+                        Artifactory.overHttp(URI.create(url), token),
+                        out,
+                        err,
+                        duration -> Thread.sleep(duration))
+                .run(options.flag("--delete"), java.time.Instant.now(), probe);
     }
 
     static int checkLinkage(List<String> rest, PrintStream out, PrintStream err) {

@@ -9,7 +9,7 @@ may publish, and checks the native images before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
@@ -233,6 +233,30 @@ those.
   since its properties are published with it, else as the property - is refused unless `flatten-maven-plugin` flattens its pom in a mode that leaves the parent out (`oss`,
   `ossrh`, `defaults`, `bom`) and no `pomElements` keeps it. A consumer then needs the module alone, and the root and
   grouping modules stay unpublished.
+
+## What `prune-snapshots` deletes
+
+Every push to `main` of a repository that ships a package adds a snapshot to Artifactory's `porelo-dist-deb` and
+`porelo-dist-rpm`, and nothing else removes one. The workflow *Prune snapshot packages* runs `prune-snapshots` by hand;
+left unticked, it lists what would go and deletes nothing. It reads `JF_URL`, the platform's address, and
+`JF_ACCESS_TOKEN` from its environment; the address must be `https`, and the token goes to it alone, as a header.
+
+- **Which files:** `.deb` files for `amd64` or `all` under `pool/main/p/<name>/` whose `deb.distribution` is exactly
+  `snapshots`, and `.rpm` files under `porelo-dist-rpm/snapshots/`; no other file there, such as a bill. The Debian
+  packages of both channels share the pool, so a file the `releases` index lists is refused whatever its property says.
+  A run deletes nothing when it cannot read that index, when the index misses a release the pool holds, or when a
+  Debian file has no `deb.distribution`.
+- **Which go:** per repository and package name, the three newest versions as dpkg orders them stay however old, and so
+  do the three stored last, since an older naming such as `0.5.1-snapshot.92` sorts above `0.5.1~snapshot.93`; of the
+  others, a version goes when every file of it was stored more than 28 days before the run.
+- **First a probe:** a file put and deleted under `prune-probe/` of each repository, outside the pool and every
+  channel's folder. A token that cannot put or delete stops the run before anything is read, naming the probe left.
+- **Then the indexes:** after deleting, the run reads the `snapshots` Debian index and the RPM primary metadata until
+  neither lists a deleted file, counting an index that is gone as one that has not followed, asks Artifactory to recalculate one that still does after two minutes, and fails naming
+  each file still listed two minutes after that.
+
+Exit 0 when done, 1 when a deletion failed or an index kept a deleted file, 2 when something could not be read, before
+any deletion.
 
 ## How a repository takes them
 

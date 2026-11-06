@@ -1,0 +1,2 @@
+title: porelo-release prune-snapshots deletes snapshot package files older than four weeks from Artifactory's Debian and RPM repositories, keeping the newest three versions of each package name and never a file of the releases channel, after a probe shows the token can delete; the Prune snapshot packages workflow runs it by hand, listing only unless told to delete.
+type: added
