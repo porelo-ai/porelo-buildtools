@@ -366,10 +366,12 @@ record Plan(String release, String goal, List<Sprint> sprints, Map<String, List<
     }
 
     private static String repository(JsonNode data, String where) throws Stop {
-        final String upstream = string(data, "upstream", where);
-        final Matcher match = UPSTREAM.matcher(upstream);
+        // A project.yml not yet renamed still names the central remote "upstream".
+        final String key = data.has("central") ? "central" : "upstream";
+        final String central = string(data, key, where);
+        final Matcher match = UPSTREAM.matcher(central);
         if (!match.matches()) {
-            throw Stop.refused(where + ": unsupported repository upstream " + upstream);
+            throw Stop.refused(where + ": unsupported repository " + key + " " + central);
         }
         return match.group(1);
     }

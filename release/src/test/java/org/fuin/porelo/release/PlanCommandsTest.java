@@ -43,6 +43,26 @@ class PlanCommandsTest {
                 "# Issues\n\n## Idea\n\n| <a id=\"pj01\"></a>PJ01 | - | - | Release |\n");
     }
 
+    // Prevents the plan pages going red when project.yml names a repository's central remote.
+    @ParameterizedTest
+    @ValueSource(strings = {"central", "upstream"})
+    void aRepositoryIsNamedByItsCentralRemoteOrTheEarlierUpstreamKey(String key)
+            throws IOException {
+        write(
+                root.resolve("project.yml"),
+                """
+                project:
+                  %1$s: git@github.com:porelo-ai/porelo-project.git
+                repositories:
+                  sample:
+                    %1$s: git@github.com:porelo-ai/porelo-sample.git
+                    issues: [SA]
+                """
+                        .formatted(key));
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        assertThat(run("render")).as("a plan renders with %s: %s", key, errors).isZero();
+    }
+
     @Test
     void imageReferencesFollowTheWrittenContentWhenThePlanChanges() throws Exception {
         plan(function("One", "issues: [porelo-sample#SA01]"));
