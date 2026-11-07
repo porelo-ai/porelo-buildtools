@@ -1,2 +1,2 @@
-title: Record issue stages and measured session usage, calculate size medians, and require closed stage records alongside issue changes.
+title: Record open and closed issue stages with session usage and per-stage sizes, calculate size medians and p80, and validate closed stats for nonexempt commits and active issue changes.
 type: added

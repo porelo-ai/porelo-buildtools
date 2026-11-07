@@ -2,13 +2,16 @@ package org.fuin.porelo.release;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -21,7 +24,6 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -30,7 +32,7 @@ import org.fuin.porelo.json.Json;
 import org.fuin.porelo.json.JsonException;
 import org.jspecify.annotations.Nullable;
 
-/** Records closed issue stages while keeping open work in the repository's git directory. */
+/** Records public issue stages and keeps their session sources private. */
 final class Stage {
     private static final Set<String> STAGES =
             Set.of(
@@ -72,7 +74,8 @@ final class Stage {
     private static final String USAGE =
             "stage begin|end <issue> <stage> [--actor agent|subagent] [--model MODEL] [--effort"
                     + " EFFORT] [--session FILE] [--result done|returned|refused|abandoned]"
-                    + " [--status-after STATE] [--wait operator|build|agent|vm] | stage median <size>";
+                    + " [--status-after STATE] [--wait operator|build|agent|vm] | stage median|p80"
+                    + " <size>";
 
     private final Path root;
     private final Clock clock;
@@ -96,8 +99,9 @@ final class Stage {
     /** Runs a stage operation, returning 2 with a reason on any refusal or unreadable input. */
     int run(List<String> arguments) {
         try {
-            if (arguments.size() == 2 && arguments.getFirst().equals("median")) {
-                out.println(decimal(median(arguments.get(1))));
+            if (arguments.size() == 2 && Set.of("median", "p80").contains(arguments.getFirst())) {
+                out.println(
+                        decimal(statistic(arguments.get(1), arguments.getFirst().equals("p80"))));
                 return 0;
             }
             final Main.Options options = Main.Options.parse(arguments, OPTIONS, Set.of());
@@ -126,6 +130,9 @@ final class Stage {
             require(
                     !action.equals("begin") || options.value("--status-after") == null,
                     "status-after is supplied on end");
+            require(
+                    !action.equals("begin") || options.value("--result") == null,
+                    "result is supplied on end");
             require(
                     !action.equals("begin")
                             || !stage.equals("wait")
@@ -162,24 +169,31 @@ final class Stage {
                                                 + ".json");
                 safe(state);
                 if (action.equals("begin")) {
-                    begin(issue, stage, actor, session, options, state, stateDirectory);
+                    begin(issue, stage, actor, session, options, state);
                 } else {
                     end(issue, stage, actor, session, options, state);
                 }
             }
             return 0;
-        } catch (IOException
-                | IllegalArgumentException
-                | JsonException
-                | DateTimeException
-                | ArithmeticException
-                | OverlappingFileLockException ex) {
+        } catch (IOException | UncheckedIOException ex) {
+            err.println("stage: could not access stage storage or session file");
+            return 2;
+        } catch (InvalidPathException ex) {
+            err.println("stage: invalid session path");
+            return 2;
+        } catch (JsonException | DateTimeException | NumberFormatException ex) {
+            err.println("stage: invalid JSON, timestamp or number");
+            return 2;
+        } catch (IllegalArgumentException | ArithmeticException | OverlappingFileLockException ex) {
             err.println("stage: " + ex.getMessage());
             return 2;
         }
     }
 
     private static void validateOptions(Main.Options options, String stage) {
+        for (final String value : options.values().values()) {
+            require(!value.startsWith("-"), "an option value must not start with a hyphen");
+        }
         for (final String key : List.of("--model", "--effort")) {
             final String value = options.value(key);
             require(
@@ -213,13 +227,10 @@ final class Stage {
         require(!value.isBlank(), "session must name a file");
         final Path path = root.resolve(value).normalize();
         require(
-                Files.isRegularFile(path) && Files.isReadable(path),
+                beginning && actor.equals("subagent") && Files.notExists(path)
+                        || Files.isRegularFile(path) && Files.isReadable(path),
                 "session is not a readable regular file");
-        try {
-            return path.toRealPath().toString();
-        } catch (IOException ex) {
-            throw new IOException("could not resolve the session file");
-        }
+        return path.toString();
     }
 
     private void begin(
@@ -228,28 +239,22 @@ final class Stage {
             String actor,
             @Nullable String session,
             Main.Options options,
-            Path state,
-            Path stateDirectory)
+            Path state)
             throws IOException {
         require(!Files.exists(state), "a stage is already open for this actor/session");
         final Issue metadata = issue(issue);
-        final List<Map<String, @Nullable Object>> previous = records(stats(issue));
+        require(
+                metadata.size() != null || Set.of("analyze", "estimate").contains(stage),
+                "this stage needs an issue size");
+        final Path output = stats(issue);
+        final List<Map<String, @Nullable Object>> previous = records(output);
+        if (actor.equals("agent")) {
+            requireNoOpenOwnStage();
+        }
         int ordinal = 1;
         for (final Map<String, @Nullable Object> record : previous) {
             if (stage.equals(record.get("stage"))) {
                 ordinal = Math.max(ordinal, Math.toIntExact(integer(record.get("n"), "n")) + 1);
-            }
-        }
-        // Reserve ordinals across open subagents as well as stages already appended.
-        try (var paths = Files.list(stateDirectory)) {
-            for (final Path open :
-                    paths.filter(p -> p.getFileName().toString().endsWith(".json")).toList()) {
-                safe(open);
-                final Map<String, @Nullable Object> record =
-                        object(object(Json.parse(Files.readString(open))).get("record"));
-                if (issue.equals(record.get("issue")) && stage.equals(record.get("stage"))) {
-                    ordinal = Math.max(ordinal, Math.toIntExact(integer(record.get("n"), "n")) + 1);
-                }
             }
         }
         final String reason = options.value("--wait");
@@ -261,25 +266,42 @@ final class Stage {
         record.put("actor", actor);
         record.put("model", options.value("--model"));
         record.put("effort", options.value("--effort"));
-        record.put("size", previous.isEmpty() ? metadata.size() : previous.getFirst().get("size"));
+        record.put("size", metadata.size());
         record.put("status_before", metadata.status());
         record.put("status_after", null);
         record.put("start", clock.instant().toString());
         record.put("end", null);
         record.put("wall_min", null);
         record.put("vm_min", null);
-        record.put("estimate_min", stage.equals("estimate") ? median(metadata.size()) : null);
+        final String size = metadata.size();
+        record.put("estimate_min", stage.equals("estimate") && size != null ? median(size) : null);
         record.put("result", options.value("--result"));
         record.put("wait_reason", reason);
         record.put("note", session == null ? "no-session" : null);
         StageTokens.empty(record);
         validate(record, false);
         final Map<String, @Nullable Object> saved = new LinkedHashMap<>();
-        saved.put("record", record);
-        // Only private git state retains the source needed by end; committed records never do.
+        // Only the reference and session accounting stay private; the record lives in stats.
+        saved.put("issue", issue);
+        saved.put("stage", stage);
+        saved.put("n", ordinal);
         saved.put("session", session);
+        saved.put(
+                "codex_begin",
+                session == null ? null : StageTokens.baseline(root.resolve(session)));
         Files.writeString(
                 state, Json.write(saved), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        try {
+            Files.createDirectories(output.getParent());
+            Files.writeString(
+                    output,
+                    Json.write(record) + "\n",
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND);
+        } catch (IOException ex) {
+            Files.delete(state);
+            throw ex;
+        }
         out.println("stage opened");
     }
 
@@ -293,13 +315,31 @@ final class Stage {
             throws IOException {
         require(Files.isRegularFile(state), "no open stage for this actor/session");
         final Map<String, @Nullable Object> saved = object(Json.parse(Files.readString(state)));
-        final Map<String, @Nullable Object> record = object(saved.get("record"));
-        validate(record, false);
         require(
-                issue.equals(record.get("issue"))
-                        && stage.equals(record.get("stage"))
-                        && actor.equals(record.get("actor")),
+                issue.equals(saved.get("issue")) && stage.equals(saved.get("stage")),
                 "end does not match the open stage");
+        final Path output = stats(issue);
+        final String contents = Files.readString(output);
+        final List<Map<String, @Nullable Object>> earlier =
+                records(contents, output.getFileName().toString(), false);
+        int index = -1;
+        for (int i = 0; i < earlier.size(); i++) {
+            final Map<String, @Nullable Object> candidate = earlier.get(i);
+            if (stage.equals(candidate.get("stage"))
+                    && integer(saved.get("n"), "n") == integer(candidate.get("n"), "n")) {
+                require(index == -1, "stage ordinal belongs to multiple records");
+                index = i;
+            }
+        }
+        require(index >= 0, "open stage is missing from stats");
+        final Map<String, @Nullable Object> record = earlier.get(index);
+        require(actor.equals(record.get("actor")), "end does not match the open actor");
+        if (record.get("end") != null) {
+            Files.delete(state);
+            out.println("stage already closed");
+            return;
+        }
+        validate(record, false);
         for (final String field : List.of("model", "effort", "wait_reason")) {
             final String value =
                     options.value(field.equals("wait_reason") ? "--wait" : "--" + field);
@@ -324,38 +364,34 @@ final class Stage {
         record.put("wall_min", minutes);
         record.put("vm_min", "vm".equals(record.get("wait_reason")) ? minutes : 0);
         if (source instanceof String path) {
-            StageTokens.read(root.resolve(path), actor, start, end, record);
+            StageTokens.read(
+                    root.resolve(path),
+                    actor,
+                    start,
+                    end,
+                    saved.get("codex_begin"),
+                    Set.of("abandoned", "refused").contains(string(record, "result")),
+                    record);
         }
         validate(record, true);
-        final Path output = stats(issue);
-        final List<Map<String, @Nullable Object>> earlier = records(output);
-        final List<Map<String, @Nullable Object>> same =
-                earlier.stream()
-                        .filter(
-                                r ->
-                                        Objects.equals(record.get("n"), r.get("n"))
-                                                && stage.equals(r.get("stage")))
-                        .toList();
-        require(
-                same.isEmpty()
-                        || same.size() == 1
-                                && Objects.equals(same.getFirst().get("start"), record.get("start"))
-                                && actor.equals(same.getFirst().get("actor")),
-                "stage ordinal already belongs to another record");
-        Files.createDirectories(output.getParent());
-        // A retry after append succeeded but state removal failed must not append the stage twice.
-        if (same.isEmpty()) {
-            Files.writeString(
-                    output,
-                    Json.write(record) + "\n",
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND);
+        record.put("n", integer(record.get("n"), "n"));
+        int offset = 0;
+        for (int i = 0; i < index; i++) {
+            offset = contents.indexOf('\n', offset) + 1;
         }
+        final int newline = contents.indexOf('\n', offset);
+        replace(
+                output,
+                contents.substring(0, offset) + Json.write(record) + contents.substring(newline));
         Files.delete(state);
         out.println("stage closed");
     }
 
     private double median(String size) throws IOException {
+        return statistic(size, false);
+    }
+
+    private double statistic(String size, boolean p80) throws IOException {
         require(SIZES.contains(size), "unknown size");
         final Path stats = root.resolve("stats");
         final Path seed = stats.resolve("seed.csv");
@@ -391,49 +427,45 @@ final class Stage {
                 final List<Map<String, @Nullable Object>> records = records(file);
                 require(!records.isEmpty(), "empty stats file");
                 double total = 0;
+                boolean measured = false;
+                boolean closed = true;
                 for (final Map<String, @Nullable Object> record : records) {
-                    require(
-                            file.getFileName()
-                                    .toString()
-                                    .equals(string(record, "issue") + ".jsonl"),
-                            "record issue disagrees with filename");
-                    require(
-                            STAGES.contains(string(record, "stage"))
-                                    && Set.of("agent", "subagent")
-                                            .contains(string(record, "actor")),
-                            "unknown stage or actor in stats");
-                    require(
-                            SIZES.contains(string(record, "size"))
-                                    && STATES.contains(string(record, "status_after")),
-                            "unknown size or status in stats");
-                    Instant.parse(string(record, "end"));
-                    final double minutes = number(record.get("wall_min"), "wall_min");
+                    if (record.get("end") == null) {
+                        closed = false;
+                        continue;
+                    }
                     if ("agent".equals(record.get("actor"))
-                            && MEASURED.contains(record.get("stage"))) {
-                        total += minutes;
+                            && MEASURED.contains(string(record, "stage"))
+                            && size.equals(record.get("size"))) {
+                        total += number(record.get("wall_min"), "wall_min");
+                        measured = true;
                     }
                 }
                 require(Double.isFinite(total), "stage minutes overflow");
-                if (size.equals(records.getFirst().get("size"))
+                if (closed
+                        && measured
                         && "Finished".equals(records.getLast().get("status_after"))) {
                     samples.add(total);
                 }
             }
         }
         samples.sort(Double::compare);
+        if (p80) {
+            return samples.get((int) Math.ceil(samples.size() * 0.8) - 1);
+        }
         final int middle = samples.size() / 2;
         return samples.size() % 2 == 1
                 ? samples.get(middle)
                 : samples.get(middle - 1) / 2 + samples.get(middle) / 2;
     }
 
-    private record Issue(String size, String status) {}
+    private record Issue(@Nullable String size, String status) {}
 
     private Issue issue(String issue) throws IOException {
         final Path directory = root.resolve("issues");
         safe(directory);
         final List<Path> matches;
-        try (var files = Files.list(directory)) {
+        try (var files = Files.walk(directory)) {
             matches =
                     files.filter(
                                     p ->
@@ -446,9 +478,17 @@ final class Stage {
         final Path file = matches.getFirst();
         safe(file);
         final String text = Files.readString(file);
-        final String size = field(text, "Size", "XS|S|M|L|XL");
-        final String status = field(text, "Status", String.join("|", STATES));
+        final String status = status(text);
+        final String size =
+                Set.of("Idea", "Accepted").contains(status)
+                                && !Pattern.compile("(?m)^\\*\\*Size:").matcher(text).find()
+                        ? null
+                        : field(text, "Size", "XS|S|M|L|XL");
         return new Issue(size, status);
+    }
+
+    static String status(String text) {
+        return field(text, "Status", String.join("|", STATES));
     }
 
     private static String field(String text, String name, String allowed) {
@@ -469,27 +509,68 @@ final class Stage {
         return file;
     }
 
-    private static List<Map<String, @Nullable Object>> records(Path file) throws IOException {
+    private List<Map<String, @Nullable Object>> records(Path file) throws IOException {
         safe(file);
         if (!Files.exists(file)) {
             return List.of();
         }
-        final String contents = Files.readString(file);
-        require(
-                contents.isEmpty() || contents.endsWith("\n"),
-                "stats file has an incomplete final line");
+        return records(Files.readString(file), file.getFileName().toString(), false);
+    }
+
+    static List<Map<String, @Nullable Object>> records(
+            String contents, String filename, boolean closed) {
+        require(filename.matches("[A-Z]{1,3}\\d{2,3}\\.jsonl"), "invalid stats filename");
+        require(!contents.isEmpty(), "empty stats file");
+        require(contents.endsWith("\n"), "stats file has an incomplete final line");
         final List<Map<String, @Nullable Object>> records = new ArrayList<>();
-        for (final String line : contents.lines().toList()) {
+        for (final String line : contents.substring(0, contents.length() - 1).split("\n", -1)) {
             final Map<String, @Nullable Object> record = object(Json.parse(line));
             require(
-                    record.get("end") instanceof String end && !end.isBlank(),
+                    !closed || record.get("end") != null,
                     "stats file contains a stage without end");
+            validate(record, record.get("end") != null);
+            require(
+                    filename.equals(string(record, "issue") + ".jsonl"),
+                    "record issue disagrees with filename");
             records.add(record);
         }
         return records;
     }
 
+    private void requireNoOpenOwnStage() throws IOException {
+        final Path directory = root.resolve("stats");
+        safe(directory);
+        if (!Files.exists(directory)) {
+            return;
+        }
+        try (var paths = Files.list(directory)) {
+            for (final Path file :
+                    paths.filter(p -> p.getFileName().toString().endsWith(".jsonl")).toList()) {
+                for (final Map<String, @Nullable Object> record : records(file)) {
+                    require(
+                            !"agent".equals(record.get("actor")) || record.get("end") != null,
+                            "an own stage is already open in stats");
+                }
+            }
+        }
+    }
+
+    private static void replace(Path file, String contents) throws IOException {
+        final Path temporary = Files.createTempFile(file.getParent(), "stage-", ".tmp");
+        try {
+            Files.writeString(temporary, contents);
+            Files.move(
+                    temporary,
+                    file,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
     private Path gitDirectory() throws IOException {
+        safe(root.resolve(".git"));
         final ProcessBuilder builder =
                 new ProcessBuilder("git", "-C", root.toString(), "rev-parse", "--git-dir");
         builder.environment().putAll(environment);
@@ -547,14 +628,19 @@ final class Stage {
         require(
                 Set.of("agent", "subagent").contains(string(record, "actor")),
                 "invalid record actor");
-        require(SIZES.contains(string(record, "size")), "invalid record size");
+        final Object size = record.get("size");
+        require(
+                size == null && Set.of("analyze", "estimate").contains(stage)
+                        || size instanceof String text && SIZES.contains(text),
+                "invalid record size");
         require(STATES.contains(string(record, "status_before")), "invalid record status_before");
         require(integer(record.get("n"), "n") > 0, "invalid stage ordinal");
         for (final String key : List.of("model", "effort")) {
             final Object value = record.get(key);
             require(
                     value == null
-                            || value instanceof String text && text.matches("[A-Za-z0-9._-]+"),
+                            || value instanceof String text
+                                    && text.matches("[A-Za-z0-9._][A-Za-z0-9._-]*"),
                     "invalid record " + key);
         }
         final Object reason = record.get("wait_reason");
@@ -567,7 +653,8 @@ final class Stage {
         require(
                 note == null
                         || note instanceof String text
-                                && (text.equals("no-session") || text.matches("[a-z]+")),
+                                && (Set.of("no-session", "no-usage").contains(text)
+                                        || text.matches("[a-z]+")),
                 "invalid record note");
         final Object result = record.get("result");
         require(
@@ -576,7 +663,7 @@ final class Stage {
                 "invalid record result");
         final Object estimate = record.get("estimate_min");
         require(
-                stage.equals("estimate") ? estimate != null : estimate == null,
+                stage.equals("estimate") && size != null ? estimate != null : estimate == null,
                 "invalid record estimate_min");
         if (estimate != null) {
             number(estimate, "estimate_min");
@@ -593,7 +680,7 @@ final class Stage {
                             && record.get("status_after") == null
                             && record.get("wall_min") == null
                             && record.get("vm_min") == null,
-                    "private stage is already closed");
+                    "open stage is already closed");
         }
         for (final String key : StageTokens.FIELDS) {
             final Object value = record.get(key);
@@ -648,9 +735,14 @@ final class Stage {
         }
     }
 
-    private static void safe(Path path) throws IOException {
-        if (Files.isSymbolicLink(path)) {
-            throw new IOException("stage storage must not be a symbolic link");
+    private void safe(Path path) throws IOException {
+        // A linked worktree legitimately names Git storage outside its own repository root.
+        for (@Nullable Path part = path.toAbsolutePath().normalize();
+                part != null && part.startsWith(root);
+                part = part.getParent()) {
+            if (Files.isSymbolicLink(part)) {
+                throw new IOException("stage storage must not be a symbolic link");
+            }
         }
     }
 

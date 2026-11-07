@@ -5,6 +5,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.DateTimeException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -13,7 +14,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.fuin.porelo.json.Json;
 import org.fuin.porelo.json.JsonException;
 
 /**
@@ -23,9 +23,9 @@ import org.fuin.porelo.json.JsonException;
  * blank line and trailers; no requirement number, since the issue is deleted once it is done; and
  * nobody named as having asked for or made the change, as far as {@link Who} can tell. A commit
  * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt
- * from the message rules: told by the author and committer the commit records, never by what its
- * message says. Every tree's stage records must be closed, and a tree with a seed must hold stats
- * for every issue it changes.
+ * from these checks: told by the author and committer the commit records, never by what its message
+ * says. Other trees' stage records must be closed, and a tree with a seed must hold stats for each
+ * changed issue that is Implementing, Review or Finished.
  */
 final class CheckCommits {
 
@@ -91,7 +91,7 @@ final class CheckCommits {
             return List.of();
         }
 
-        /** Lists paths changed against any parent, including a root commit's paths. */
+        /** Lists paths changed against the first parent, or the empty tree for a root. */
         default List<String> changed(String hash) throws IOException {
             return List.of();
         }
@@ -129,20 +129,28 @@ final class CheckCommits {
                 /** Lists that commit's changed paths. */
                 @Override
                 public List<String> changed(String hash) throws IOException {
-                    return paths(
+                    final String[] ancestry =
                             execute(
-                                    directory,
-                                    environment,
+                                            directory,
+                                            environment,
+                                            List.of("rev-list", "--parents", "-n", "1", hash, "--"))
+                                    .strip()
+                                    .split("\\s+");
+                    final List<String> arguments =
+                            new ArrayList<>(
                                     List.of(
                                             "diff-tree",
                                             "--root",
-                                            "-m",
                                             "--no-commit-id",
                                             "--name-only",
                                             "-r",
-                                            "-z",
-                                            hash,
-                                            "--")));
+                                            "-z"));
+                    if (ancestry.length > 1) {
+                        arguments.add(ancestry[1]);
+                    }
+                    arguments.add(hash);
+                    arguments.add("--");
+                    return paths(execute(directory, environment, arguments));
                 }
 
                 /** Reads a file from that commit's tree. */
@@ -285,6 +293,10 @@ final class CheckCommits {
         int breaking = 0;
         boolean rolloutNote = false;
         for (final Commit commit : commits) {
+            if (commit.exempt()) {
+                exempt++;
+                continue;
+            }
             final List<String> broken;
             try {
                 final Set<String> files = Set.copyOf(git.files(commit.hash()));
@@ -299,26 +311,22 @@ final class CheckCommits {
                 err.println(commit.hash() + "  could not check stage records: " + ex.getMessage());
                 return Stop.UNANSWERED;
             }
-            if (commit.exempt()) {
-                exempt++;
-            } else {
-                if (known == null) {
-                    try {
-                        known = prefixes.read();
-                    } catch (IOException ex) {
-                        err.println("could not read the issue prefixes: " + ex.getMessage());
-                        return Stop.UNANSWERED;
-                    }
-                    if (known.isEmpty()) {
-                        err.println(
-                                "no issue prefix found under issues/, so a requirement number"
-                                        + " cannot be told - is the working directory a repository's"
-                                        + " root?");
-                        return Stop.UNANSWERED;
-                    }
+            if (known == null) {
+                try {
+                    known = prefixes.read();
+                } catch (IOException ex) {
+                    err.println("could not read the issue prefixes: " + ex.getMessage());
+                    return Stop.UNANSWERED;
                 }
-                broken.addAll(faults(commit, known, outside));
+                if (known.isEmpty()) {
+                    err.println(
+                            "no issue prefix found under issues/, so a requirement number"
+                                    + " cannot be told - is the working directory a repository's"
+                                    + " root?");
+                    return Stop.UNANSWERED;
+                }
             }
+            broken.addAll(faults(commit, known, outside));
             if (!broken.isEmpty()) {
                 breaking++;
             }
@@ -354,28 +362,25 @@ final class CheckCommits {
             if (!path.matches("stats/[^/]+\\.jsonl")) {
                 continue;
             }
-            int line = 0;
-            for (final String text : git.read(hash, path).lines().toList()) {
-                line++;
-                final Object value;
-                try {
-                    value = Json.parse(text);
-                } catch (JsonException ex) {
-                    faults.add(path + ":" + line + " is not a JSON stage record");
-                    continue;
-                }
-                if (!(value instanceof Map<?, ?> record)
-                        || !(record.get("end") instanceof String end)
-                        || end.isBlank()) {
-                    faults.add(path + ":" + line + " has no end");
-                }
+            try {
+                Stage.records(git.read(hash, path), path.substring("stats/".length()), true);
+            } catch (JsonException ex) {
+                faults.add(path + " contains invalid JSON");
+            } catch (DateTimeException ex) {
+                faults.add(path + " contains an invalid stage timestamp");
+            } catch (IllegalArgumentException ex) {
+                faults.add(path + ": " + ex.getMessage());
             }
         }
         if (files.contains("stats/seed.csv")) {
-            final Pattern issue = Pattern.compile("issues/([A-Z]{1,3}\\d{2,3})-[^/]+\\.md");
+            final Pattern issue =
+                    Pattern.compile("issues/(?:[^/]+/)*([A-Z]{1,3}\\d{2,3})-[^/]+\\.md");
             for (final String path : git.changed(hash)) {
                 final Matcher match = issue.matcher(path);
-                if (match.matches()) {
+                if (match.matches()
+                        && files.contains(path)
+                        && Set.of("Implementing", "Review", "Finished")
+                                .contains(Stage.status(git.read(hash, path)))) {
                     final String stats = "stats/" + match.group(1) + ".jsonl";
                     if (!files.contains(stats)) {
                         faults.add(path + " changed without " + stats + " in its tree");

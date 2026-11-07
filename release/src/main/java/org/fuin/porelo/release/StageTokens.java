@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.fuin.porelo.json.Json;
@@ -49,11 +50,22 @@ final class StageTokens {
         FIELDS.forEach(field -> record.put(field, null));
     }
 
+    static Map<String, @Nullable Object> baseline(Path file) throws IOException {
+        if (Files.notExists(file)) {
+            return Map.of();
+        }
+        final List<Map<String, @Nullable Object>> entries = entries(Files.readString(file));
+        final Map<String, @Nullable Object> usage = codexTotal(entries);
+        return usage == null ? Map.of() : usage;
+    }
+
     static void read(
             Path file,
             String actor,
             Instant start,
             Instant end,
+            @Nullable Object baseline,
+            boolean allowNoUsage,
             Map<String, @Nullable Object> record)
             throws IOException {
         final String content;
@@ -68,16 +80,34 @@ final class StageTokens {
             final boolean claude =
                     entries.stream().anyMatch(entry -> "assistant".equals(entry.get("type")));
             final boolean codex = entries.stream().anyMatch(StageTokens::codex);
-            final boolean agy = entries.size() == 1 && entries.getFirst().containsKey("usage");
+            final boolean agy = entries.size() == 1 && entries.getFirst().get("usage") != null;
+            if (allowNoUsage && entries.stream().noneMatch(StageTokens::hasUsage)) {
+                Stage.require(
+                        baseline == null || Stage.object(baseline).isEmpty(),
+                        "Codex session lost its baseline usage");
+                noUsage(record);
+                return;
+            }
             Stage.require(
                     (claude ? 1 : 0) + (codex ? 1 : 0) + (agy ? 1 : 0) == 1,
                     "unknown or mixed session format");
-            Stage.require(!actor.equals("agent") || claude, "own stages need a Claude session log");
             if (claude) {
-                Stage.require(actor.equals("agent"), "subagent session must be Codex or agy");
-                claude(entries, start, end, record);
+                claude(entries, actor.equals("agent"), start, end, record);
             } else if (codex) {
-                codex(entries, record);
+                final Map<String, @Nullable Object> total = codexTotal(entries);
+                if (total == null) {
+                    throw new IllegalArgumentException(
+                            "Codex session contains no measured token usage");
+                }
+                final Map<String, @Nullable Object> before =
+                        baseline == null ? Map.of() : Stage.object(baseline);
+                for (int i = 0; i < CODEX.size(); i++) {
+                    final String key = CODEX.get(i);
+                    final long begin = before.isEmpty() ? 0 : Stage.integer(before.get(key), key);
+                    final long value = Stage.integer(total.get(key), key);
+                    Stage.require(value >= begin, "Codex cumulative usage decreased since begin");
+                    record.put(FIELDS.get(i + 5), value - begin);
+                }
             } else {
                 final Map<String, @Nullable Object> usage =
                         Stage.object(entries.getFirst().get("usage"));
@@ -91,8 +121,22 @@ final class StageTokens {
         }
     }
 
+    private static boolean hasUsage(Map<String, @Nullable Object> entry) {
+        final Object usage;
+        if ("assistant".equals(entry.get("type"))) {
+            usage = Stage.object(entry.get("message")).get("usage");
+        } else if (codex(entry)) {
+            return Stage.object(entry.get("payload")).get("info") != null;
+        } else {
+            usage = entry.get("usage");
+        }
+        return usage != null && !(usage instanceof Map<?, ?> map && map.isEmpty());
+    }
+
     private static List<Map<String, @Nullable Object>> entries(String content) {
-        Stage.require(!content.isBlank(), "session file is empty");
+        if (content.isBlank()) {
+            return List.of();
+        }
         // agy's result may be pretty-printed; rollout and Claude logs have one object per line.
         try {
             return List.of(Stage.object(Json.parse(content)));
@@ -108,16 +152,23 @@ final class StageTokens {
 
     private static void claude(
             List<Map<String, @Nullable Object>> entries,
+            boolean window,
             Instant start,
             Instant end,
             Map<String, @Nullable Object> record) {
         final long[] totals = new long[5];
+        final Map<String, Map<String, @Nullable Object>> messages = new LinkedHashMap<>();
         for (final Map<String, @Nullable Object> entry : entries) {
             if (!"assistant".equals(entry.get("type"))) {
                 continue;
             }
+            final String id = Stage.string(Stage.object(entry.get("message")), "id");
+            Stage.require(!id.isBlank(), "Claude message has no id");
+            messages.put(id, entry);
+        }
+        for (final Map<String, @Nullable Object> entry : messages.values()) {
             final Instant timestamp = Instant.parse(Stage.string(entry, "timestamp"));
-            if (timestamp.isBefore(start) || !timestamp.isBefore(end)) {
+            if (window && (timestamp.isBefore(start) || !timestamp.isBefore(end))) {
                 continue;
             }
             final Map<String, @Nullable Object> usage =
@@ -138,8 +189,8 @@ final class StageTokens {
                 && "token_count".equals(payload.get("type"));
     }
 
-    private static void codex(
-            List<Map<String, @Nullable Object>> entries, Map<String, @Nullable Object> record) {
+    private static @Nullable Map<String, @Nullable Object> codexTotal(
+            List<Map<String, @Nullable Object>> entries) {
         Map<String, @Nullable Object> last = null;
         for (final Map<String, @Nullable Object> entry : entries) {
             if (!codex(entry)) {
@@ -164,10 +215,12 @@ final class StageTokens {
             }
             last = usage;
         }
-        if (last == null) {
-            throw new IllegalArgumentException("Codex session contains no measured token usage");
-        }
-        copy(last, CODEX, FIELDS.subList(5, 9), record);
+        return last;
+    }
+
+    private static void noUsage(Map<String, @Nullable Object> record) {
+        FIELDS.forEach(field -> record.put(field, 0));
+        record.put("note", "no-usage");
     }
 
     private static void copy(

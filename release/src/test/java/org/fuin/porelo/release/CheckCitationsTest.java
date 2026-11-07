@@ -42,6 +42,20 @@ class CheckCitationsTest {
     }
 
     @Test
+    void skipsGeneratedStageRecordsButStillChecksHandwrittenStatsNotes() throws IOException {
+        write("stats/B10.jsonl", StageFixtures.closed("B10"));
+        assertThat(check()).as(stderr()).isZero();
+        assertThat(stdout())
+                .as("generated records are counted")
+                .contains("1 generated file(s) skipped");
+        write("stats/notes.md", "B99\n");
+        assertThat(check()).as("stats prose still obeys citation rules").isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the handwritten citation is identified")
+                .contains("stats/notes.md:1 -> B99");
+    }
+
+    @Test
     void skipsGeneratedPlanPagesAndCountsThem() throws IOException {
         write("plan/next/plan.yml", "release: next\nsprints: []\n");
         write(
@@ -151,7 +165,8 @@ class CheckCitationsTest {
         // Another repository's index is not read here, so a pointer into it is not judged.
         write(
                 "issues/B11-Another.md",
-                "Blocked by F31 ([index](https://github.com/x/frontend/blob/main/issues/README.md)).\n");
+                "Blocked by F31"
+                        + " ([index](https://github.com/x/frontend/blob/main/issues/README.md)).\n");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
     }
@@ -161,7 +176,8 @@ class CheckCitationsTest {
         // The index row or the "blocked by" its deletion missed.
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on the interface's consent |\n");
+                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on the interface's consent"
+                        + " |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("issues/README.md:1 -> B12");
@@ -172,7 +188,8 @@ class CheckCitationsTest {
         write(
                 "issues/README.md",
                 "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| [B11](B11-Another.md) | another |\n| <a id=\"b10\"></a>B12 | finished, named wrong |\n");
+                        + "| [B11](B11-Another.md) | another |\n"
+                        + "| <a id=\"b10\"></a>B12 | finished, named wrong |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
@@ -223,7 +240,8 @@ class CheckCitationsTest {
         write(
                 "issues/README.md",
                 "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | after [B10](#b10), not [B12](#b12) |\n");
+                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | after [B10](#b10), not"
+                        + " [B12](#b12) |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("issues/README.md:2 -> #b12").doesNotContain("-> #b10");

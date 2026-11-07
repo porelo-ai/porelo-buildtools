@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.fuin.porelo.json.Json;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -439,13 +440,15 @@ class CheckCommitsTest {
     @Test
     void refusesAnOpenStageInAnyCommitTreeEvenAfterItWasClosed() throws Exception {
         git("init", "-q", "-b", "main");
-        write("stats/EX12.jsonl", "{\"issue\":\"EX12\",\"stage\":\"implement\",\"end\":null}\n");
+        final var open = StageFixtures.record("EX12", "implement", "agent", 4, "Review", "M");
+        for (final String key : List.of("end", "status_after", "wall_min", "vm_min", "result")) {
+            open.put(key, null);
+        }
+        write("stats/EX12.jsonl", Json.write(open) + "\n");
         git("add", "stats/EX12.jsonl");
         git("commit", "-q", "-m", "Record work");
         final String bad = git("rev-parse", "--short", "HEAD").strip();
-        write(
-                "stats/EX12.jsonl",
-                "{\"issue\":\"EX12\",\"stage\":\"implement\",\"end\":\"2026-01-01T10:00:00Z\"}\n");
+        write("stats/EX12.jsonl", StageFixtures.closed("EX12"));
         git("add", "stats/EX12.jsonl");
         git("commit", "-q", "-m", "Close work");
 
@@ -461,7 +464,9 @@ class CheckCommitsTest {
     void refusesAnIssueChangeWithoutItsStatsInThatCommitTree() throws Exception {
         git("init", "-q", "-b", "main");
         write("stats/seed.csv", "size,minutes\nM,53\n");
-        write("issues/EX12-Sample.md", "# Sample\n");
+        write(
+                "issues/EX12-Sample.md",
+                "# Sample\n**Status:** Implementing.\n**Size:** M - sample.\n");
         git("add", "stats/seed.csv", "issues/EX12-Sample.md");
         git("commit", "-q", "-m", "Describe work");
         final String bad = git("rev-parse", "--short", "HEAD").strip();
@@ -479,10 +484,12 @@ class CheckCommitsTest {
         git("init", "-q", "-b", "main");
         write("stats/seed.csv", "size,minutes\nM,53\n");
         write("issues/README.md", "# Issues\n");
-        write("stats/EX12.jsonl", "{\"end\":\"2026-01-01T10:00:00Z\"}\n");
+        write("stats/EX12.jsonl", StageFixtures.closed("EX12"));
         git("add", "stats/seed.csv", "stats/EX12.jsonl", "issues/README.md");
         git("commit", "-q", "-m", "Index work");
-        write("issues/EX12-Sample.md", "# Sample\n");
+        write(
+                "issues/EX12-Sample.md",
+                "# Sample\n**Status:** Implementing.\n**Size:** M - sample.\n");
         git("add", "issues/EX12-Sample.md");
         git("commit", "-q", "-m", "Describe work");
 
@@ -494,7 +501,9 @@ class CheckCommitsTest {
     @Test
     void reportsTheIssueStatsRuleAsNotRolledOutWithoutASeed() throws Exception {
         git("init", "-q", "-b", "main");
-        write("issues/EX12-Sample.md", "# Sample\n");
+        write(
+                "issues/EX12-Sample.md",
+                "# Sample\n**Status:** Implementing.\n**Size:** M - sample.\n");
         git("add", "issues/EX12-Sample.md");
         git("commit", "-q", "-m", "Describe work");
 
@@ -502,6 +511,160 @@ class CheckCommitsTest {
         assertThat(stdout())
                 .as("the unchecked rule is explicit")
                 .contains("NOTE", "stats/seed.csv");
+    }
+
+    // These regressions prevent commits bypassing stage checks or acquiring unrelated work.
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "empty",
+                "missing-field",
+                "unknown-field",
+                "issue",
+                "start",
+                "end",
+                "wall_min",
+                "n",
+                "actor",
+                "size",
+                "model",
+                "status_before",
+                "status_after",
+                "result",
+                "wait_reason",
+                "note",
+                "estimate_min",
+                "claude_input_tokens"
+            })
+    void refusesInvalidStageRecordsInTheCommitTree(String defect) throws Exception {
+        git("init", "-q", "-b", "main");
+        final var record = StageFixtures.record("EX12", "implement", "agent", 4, "Review", "M");
+        switch (defect) {
+            case "missing-field" -> record.remove("actor");
+            case "unknown-field" -> record.put("unexpected", true);
+            case "issue" -> record.put("issue", "EX13");
+            case "start", "end" -> record.put(defect, "not-an-instant");
+            case "wall_min", "claude_input_tokens" -> record.put(defect, -1);
+            case "n" -> record.put("n", 1.5);
+            case "size" -> record.put("size", "XXL");
+            case "model" -> record.put("model", "/private/model");
+            case "note" -> record.put("note", "private/path");
+            case "actor", "status_before", "status_after", "result", "wait_reason" ->
+                    record.put(defect, "unknown");
+            case "estimate_min" -> record.put("estimate_min", 42);
+            default -> {}
+        }
+        write("stats/EX12.jsonl", defect.equals("empty") ? "" : Json.write(record) + "\n");
+        git("add", "stats/EX12.jsonl");
+        git("commit", "-q", "-m", "Record work");
+        assertThat(checkRepository())
+                .as("invalid %s must fail closed: %s", defect, stderr())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the bad record's location is visible")
+                .contains("stats/EX12.jsonl");
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "Idea",
+                "Accepted",
+                "Analyzed",
+                "Estimated",
+                "Backlog",
+                "Rework",
+                "Rejected"
+            })
+    void allowsIssueChangesBeforeImplementationWithoutStats(String status) throws Exception {
+        git("init", "-q", "-b", "main");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/EX12-Sample.md", "**Status:** " + status + ".\n");
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+        assertThat(checkRepository()).as(stderr()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Implementing", "Review", "Finished"})
+    void requiresStatsForSubgroupIssuesInActiveStates(String status) throws Exception {
+        git("init", "-q", "-b", "main");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/core/EX12-Sample.md", "**Status:** " + status + ".\n**Size:** M - sample.\n");
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+        assertThat(checkRepository())
+                .as("nested issue work also needs stats")
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the missing stats file is identified")
+                .contains("stats/EX12.jsonl");
+    }
+
+    @Test
+    void skipsDeletedIssues() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("issues/EX12-Sample.md", "**Status:** Review.\n");
+        git("add", "issues");
+        git("commit", "-q", "-m", "Describe work");
+        git("rm", "issues/EX12-Sample.md");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        git("add", "stats");
+        git("commit", "-q", "-m", "Finish work");
+        assertThat(checkRepository()).as(stderr()).isZero();
+    }
+
+    @Test
+    void comparesMergesOnlyWithTheirFirstParentAndRootsWithTheEmptyTree() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("initial.txt", "root\n");
+        git("add", "initial.txt");
+        git("commit", "-q", "-m", "Start work");
+        final CheckCommits.Git reader = CheckCommits.Git.in(directory, isolated());
+        assertThat(reader.changed("HEAD"))
+                .as("root changes are measured against the empty tree")
+                .containsExactly("initial.txt");
+        git("branch", "side");
+        write("issues/EX12-Sample.md", "**Status:** Review.\n");
+        git("add", "issues");
+        git("commit", "-q", "-m", "Describe work");
+        git("checkout", "-q", "side");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        git("add", "stats");
+        git("commit", "-q", "-m", "Seed estimates");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--no-ff", "side", "-m", "Merge estimates");
+        assertThat(reader.changed("HEAD"))
+                .as("main's earlier issue edit is not attributed to the merge")
+                .containsExactly("stats/seed.csv");
+        assertThat(
+                        new CheckCommits(stream(out), stream(err), reader, () -> prefixes)
+                                .check("HEAD^1..HEAD", false))
+                .as(stderr())
+                .isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"dependabot[bot]", "web"})
+    void exemptsBotAndWebCommitsFromTheStatsRule(String author) throws Exception {
+        git("init", "-q", "-b", "main");
+        // An issue in Review with no stats at all: only the commit's exemption lets it through.
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/EX12-Sample.md", "**Status:** Review.\n");
+        git("add", "stats", "issues");
+        final ProcessBuilder builder =
+                new ProcessBuilder(
+                        "git", "-C", directory.toString(), "commit", "-q", "-m", "Record work");
+        builder.environment().putAll(isolated());
+        builder.environment().put("GIT_AUTHOR_NAME", author.equals("web") ? HUMAN : author);
+        builder.environment().put("GIT_AUTHOR_EMAIL", "example@example.org");
+        builder.environment().put("GIT_COMMITTER_NAME", author.equals("web") ? "GitHub" : HUMAN);
+        builder.environment().put("GIT_COMMITTER_EMAIL", "example@example.org");
+        final Process process = builder.redirectErrorStream(true).start();
+        final String output =
+                new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(process.waitFor()).as(output).isZero();
+        assertThat(checkRepository()).as(stderr()).isZero();
     }
 
     private int checkRepository() {

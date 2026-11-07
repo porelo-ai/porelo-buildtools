@@ -51,14 +51,14 @@ class StageTest {
     }
 
     @Test
-    void appendsExactlyOneClosedStageWithOnlyTheClaudeWindowTokens() throws Exception {
+    void closesExactlyOneStageWithOnlyTheClaudeWindowTokens() throws Exception {
         final Path log = fixture("claude.jsonl", "opaque.data");
         assertThat(run("begin", "EX12", "implement", "--session", log.toString()))
                 .as(errors())
                 .isZero();
         time = "2026-01-01T10:04:00Z";
         assertThat(run("end", "EX12", "implement")).as(errors()).isZero();
-        assertThat(records()).as("one end appends one JSON line").hasSize(1);
+        assertThat(records()).as("closing retains one JSON line").hasSize(1);
         final Map<?, ?> record = record();
         assertThat(record.get("claude_input_tokens"))
                 .as("outside-window usage is excluded")
@@ -76,7 +76,7 @@ class StageTest {
         assertThat(record.get("wall_min"))
                 .as("the injected clock measures elapsed minutes")
                 .isEqualTo(4.0);
-        assertThat(record.get("end")).as("open stages never enter tracked stats").isEqualTo(time);
+        assertThat(record.get("end")).as("end closes the public record").isEqualTo(time);
         assertThat(records().getFirst())
                 .as("records contain no session path")
                 .doesNotContain(log.toString());
@@ -86,7 +86,7 @@ class StageTest {
 
     @Test
     void countsTheCodexSessionOnceBesideAnOpenOwnStage() throws Exception {
-        final Path log = fixture("codex.jsonl", "opaque.data");
+        final Path log = directory.resolve("opaque.data");
         assertThat(run("begin", "EX12", "implement")).as(errors()).isZero();
         assertThat(
                         run(
@@ -101,11 +101,12 @@ class StageTest {
                                 "codex"))
                 .as(errors())
                 .isZero();
+        fixture("codex.jsonl", "opaque.data");
         time = "2026-01-01T10:04:00Z";
         assertThat(run("end", "EX12", "review", "--actor", "subagent", "--session", log.toString()))
                 .as(errors())
                 .isZero();
-        final Map<?, ?> record = record();
+        final Map<?, ?> record = (Map<?, ?>) Json.parse(records().get(1));
         assertThat(record.get("actor"))
                 .as("subagents do not consume the own stage")
                 .isEqualTo("subagent");
@@ -126,16 +127,16 @@ class StageTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"agy.json", "agy-token-fields.json"})
-    void detectsAgyUsageByContent(String resource) throws Exception {
-        final Path log = fixture(resource, "opaque.data");
+    @ValueSource(strings = {"agent", "subagent"})
+    void detectsAgyUsageByContent(String actor) throws Exception {
+        final Path log = fixture("agy.json", "opaque.data");
         assertThat(
                         run(
                                 "begin",
                                 "EX12",
                                 "review",
                                 "--actor",
-                                "subagent",
+                                actor,
                                 "--session",
                                 log.toString(),
                                 "--model",
@@ -143,7 +144,7 @@ class StageTest {
                 .as(errors())
                 .isZero();
         time = "2026-01-01T10:04:00Z";
-        assertThat(run("end", "EX12", "review", "--actor", "subagent", "--session", log.toString()))
+        assertThat(run("end", "EX12", "review", "--actor", actor, "--session", log.toString()))
                 .as(errors())
                 .isZero();
         assertThat(record().get("agy_input_tokens")).as("agy input is not guessed").isEqualTo(12.0);
@@ -178,9 +179,7 @@ class StageTest {
         assertThat(run("end", "EX12", "review", "--actor", "subagent", "--session", log.toString()))
                 .as("ambiguous or absent usage must not be replaced with guessed counts")
                 .isEqualTo(2);
-        assertThat(Files.exists(directory.resolve("stats/EX12.jsonl")))
-                .as("invalid usage produces no committed measurement")
-                .isFalse();
+        assertThat(record().get("end")).as("invalid usage leaves the public stage open").isNull();
     }
 
     @ParameterizedTest
@@ -223,18 +222,19 @@ class StageTest {
         }
     }
 
-    @Test
-    void refusesMalformedUsageWithoutClosingOrWritingTheStage() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"done", "abandoned", "refused"})
+    void refusesMalformedUsageWithoutClosingOrWritingTheStage(String result) throws Exception {
         final Path log =
                 write(
                         "bad.data",
-                        "{\"type\":\"assistant\",\"timestamp\":\"2026-01-01T10:01:00Z\",\"message\":{\"usage\":{\"input_tokens\":-1}}}\n");
+                        "{\"type\":\"assistant\",\"timestamp\":\"2026-01-01T10:01:00Z\",\"message\":{\"id\":\"msg_invalid\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":-1,\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}\n");
         assertThat(run("begin", "EX12", "test", "--session", log.toString())).as(errors()).isZero();
         time = "2026-01-01T10:04:00Z";
-        assertThat(run("end", "EX12", "test")).as("corrupt usage fails closed").isEqualTo(2);
-        assertThat(Files.exists(directory.resolve("stats/EX12.jsonl")))
-                .as("no false measurements are published")
-                .isFalse();
+        assertThat(run("end", "EX12", "test", "--result", result))
+                .as("corrupt usage fails closed")
+                .isEqualTo(2);
+        assertThat(record().get("end")).as("no false measurements are published").isNull();
     }
 
     @Test
@@ -346,8 +346,9 @@ class StageTest {
                                 first.toString()))
                 .as(errors())
                 .isZero();
-        assertThat(record().get("n")).as("each session retains its own ordinal").isEqualTo(1.0);
-        assertThat(record().get("agy_input_tokens"))
+        final Map<?, ?> firstRecord = (Map<?, ?>) Json.parse(records().getFirst());
+        assertThat(firstRecord.get("n")).as("each session retains its own ordinal").isEqualTo(1.0);
+        assertThat(firstRecord.get("agy_input_tokens"))
                 .as("the other session is not mixed in")
                 .isNull();
     }
@@ -368,8 +369,8 @@ class StageTest {
         git("worktree", "add", "--detach", linked.toString(), "HEAD");
         assertThat(runAt(linked, Map.of(), "begin", "EX12", "implement")).as(errors()).isZero();
         assertThat(Files.exists(linked.resolve("stats/EX12.jsonl")))
-                .as("open stages never enter the tree")
-                .isFalse();
+                .as("open stages are visible in the linked tree")
+                .isTrue();
         assertThat(
                         Files.isRegularFile(
                                 directory.resolve(".git/worktrees/linked/porelo-stage/agent.json")))
@@ -447,19 +448,385 @@ class StageTest {
                 .isTrue();
     }
 
+    // These regressions prevent lost work, incorrect estimates, and leaking private paths.
+    @Test
+    void publishesOpenRecordsAndReplacesOnlyTheMatchingRecord() throws Exception {
+        assertThat(run("begin", "EX12", "plan")).as(errors()).isZero();
+        assertThat(record().get("end")).as("commit checks can see unfinished work").isNull();
+        assertThat(run("end", "EX12", "plan")).as(errors()).isZero();
+        final String closed = records().getFirst();
+        write("stats/EX12.jsonl", closed + "\r\n");
+        assertThat(run("begin", "EX12", "implement")).as(errors()).isZero();
+        assertThat(records()).as("begin appends an open record").hasSize(2);
+        assertThat(record().get("end")).as("the latest stage is open").isNull();
+        assertThat(run("end", "EX12", "implement")).as(errors()).isZero();
+        assertThat(records()).as("end replaces rather than appending").hasSize(2);
+        assertThat(records().getFirst()).as("unrelated lines stay byte for byte").isEqualTo(closed);
+        assertThat(Files.readString(directory.resolve("stats/EX12.jsonl")))
+                .as("neighboring line endings are preserved")
+                .startsWith(closed + "\r\n");
+        assertThat(record().get("end")).as("the matching stage closes").isEqualTo(time);
+    }
+
+    @Test
+    void commitChecksRefuseWorkOpenedAfterAnEarlierClosedStage() throws Exception {
+        assertThat(run("begin", "EX12", "plan")).as(errors()).isZero();
+        assertThat(run("end", "EX12", "plan")).as(errors()).isZero();
+        assertThat(run("begin", "EX12", "implement")).as(errors()).isZero();
+        git("add", "issues", "stats");
+        git(
+                "-c",
+                "user.name=Example",
+                "-c",
+                "user.email=example@example.org",
+                "commit",
+                "-q",
+                "-m",
+                "Record work");
+        final int result =
+                new CheckCommits(
+                                new PrintStream(out),
+                                new PrintStream(err),
+                                CheckCommits.Git.in(
+                                        directory,
+                                        Map.of(
+                                                "GIT_CONFIG_GLOBAL",
+                                                "/dev/null",
+                                                "GIT_CONFIG_NOSYSTEM",
+                                                "1")),
+                                () -> java.util.Set.of("EX"))
+                        .check("HEAD", false);
+        assertThat(result)
+                .as("the commit's public open record blocks handover")
+                .isEqualTo(Stop.REFUSED);
+        assertThat(errors())
+                .as("the refusal identifies the missing end")
+                .contains("stats/EX12.jsonl", "end");
+    }
+
+    @Test
+    void refusesRecordsSeparatedWithoutNewlines() throws Exception {
+        assertThat(run("begin", "EX12", "plan")).as(errors()).isZero();
+        final String malformed =
+                Files.readString(directory.resolve("stats/EX12.jsonl")).stripTrailing()
+                        + "\r"
+                        + StageFixtures.closed("EX12");
+        write("stats/EX12.jsonl", malformed);
+        assertThat(run("end", "EX12", "plan"))
+                .as("invalid delimiters cannot erase a neighboring record")
+                .isEqualTo(2);
+        assertThat(Files.readString(directory.resolve("stats/EX12.jsonl")))
+                .as("invalid stats are left for repair")
+                .isEqualTo(malformed);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Idea", "Accepted"})
+    void permitsUnsizedAnalysisAndEstimationThenUsesEachBeginsSize(String status) throws Exception {
+        write("issues/EX12-Sample.md", "**Status:** " + status + ".\n");
+        for (final String stage : List.of("analyze", "estimate")) {
+            assertThat(run("begin", "EX12", stage)).as(errors()).isZero();
+            assertThat(run("end", "EX12", stage)).as(errors()).isZero();
+            assertThat(record().get("size")).as("early work can precede sizing").isNull();
+            assertThat(record().get("estimate_min")).as("no size means no size estimate").isNull();
+        }
+        write("issues/EX12-Sample.md", "**Status:** Analyzed.\n**Size:** S - sample.\n");
+        assertThat(run("begin", "EX12", "estimate")).as(errors()).isZero();
+        write("issues/EX12-Sample.md", "**Status:** Estimated.\n**Size:** M - sample.\n");
+        assertThat(run("end", "EX12", "estimate")).as(errors()).isZero();
+        assertThat(record().get("size")).as("end preserves begin's size").isEqualTo("S");
+        assertThat(record().get("estimate_min")).as("estimate uses its own S size").isEqualTo(27.0);
+        assertThat(run("begin", "EX12", "plan")).as(errors()).isZero();
+        assertThat(record().get("size")).as("later work reads the current size").isEqualTo("M");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"median", "p80"})
+    void groupsFinishedWorkByTheMeasuredStagesSize(String statistic) throws Exception {
+        final var analysis =
+                StageFixtures.record("EX13", "analyze", "agent", 200, "Analyzed", null);
+        analysis.put("status_before", "Accepted");
+        write(
+                "stats/EX13.jsonl",
+                Json.write(analysis)
+                        + "\n"
+                        + Json.write(
+                                StageFixtures.record(
+                                        "EX13", "plan", "agent", 10, "Implementing", "S"))
+                        + "\n"
+                        + Json.write(
+                                StageFixtures.record(
+                                        "EX13", "handover", "agent", 30, "Finished", "M"))
+                        + "\n");
+        assertThat(run(statistic, "M")).as(errors()).isZero();
+        assertThat(out.toString(StandardCharsets.UTF_8).strip())
+                .as("one M sample of 30 plus seed 53; S work and analysis are excluded")
+                .isEqualTo(statistic.equals("median") ? "41.5" : "53");
+    }
+
+    @Test
+    void findsIssuesInSubgroups() throws Exception {
+        Files.createDirectories(directory.resolve("issues/core"));
+        Files.move(
+                directory.resolve("issues/EX12-Sample.md"),
+                directory.resolve("issues/core/EX12-Sample.md"));
+        assertThat(run("begin", "EX12", "implement")).as(errors()).isZero();
+        assertThat(run("end", "EX12", "implement")).as(errors()).isZero();
+        assertThat(record().get("issue"))
+                .as("nested issues retain their identity")
+                .isEqualTo("EX12");
+    }
+
+    @Test
+    void requiresTheFutureSubagentSessionAtEnd() throws Exception {
+        final Path log = directory.resolve("future.data");
+        assertThat(subagent("begin", log)).as(errors()).isZero();
+        assertThat(subagent("end", log)).as("missing files cannot fabricate usage").isEqualTo(2);
+        fixture("agy.json", "future.data");
+        assertThat(subagent("end", log)).as(errors()).isZero();
+        assertThat(record().get("agy_input_tokens"))
+                .as("retry reads the created session")
+                .isEqualTo(12.0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abandoned", "refused"})
+    void closesFailedSessionsWithoutUsageAndAllowsTheNextStage(String result) throws Exception {
+        for (final String content :
+                List.of(
+                        "",
+                        "{\"type\":\"session_meta\",\"payload\":{\"id\":\"example\"}}\n",
+                        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":null}}\n",
+                        "{\"response\":\"\",\"usage\":null}\n",
+                        "{\"response\":\"\",\"usage\":{}}\n",
+                        "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_cancelled\",\"role\":\"assistant\",\"content\":[]},\"timestamp\":\"2026-01-01T10:00:00Z\"}\n")) {
+            final Path log = write("failed.data", content);
+            assertThat(subagent("begin", log)).as(errors()).isZero();
+            assertThat(
+                            run(
+                                    "end",
+                                    "EX12",
+                                    "review",
+                                    "--actor",
+                                    "subagent",
+                                    "--session",
+                                    log.toString(),
+                                    "--result",
+                                    result))
+                    .as(errors())
+                    .isZero();
+            final Map<?, ?> record = record();
+            assertThat(record.get("note")).as("zero usage is explicit").isEqualTo("no-usage");
+            for (final String field :
+                    List.of(
+                            "claude_input_tokens",
+                            "claude_output_tokens",
+                            "claude_cache_read_tokens",
+                            "claude_cache_write_tokens",
+                            "claude_messages",
+                            "codex_input_tokens",
+                            "codex_cached_tokens",
+                            "codex_output_tokens",
+                            "codex_reasoning_tokens",
+                            "agy_input_tokens",
+                            "agy_cache_read_tokens",
+                            "agy_output_tokens")) {
+                assertThat(record.get(field)).as("no usage: %s", field).isEqualTo(0.0);
+            }
+        }
+    }
+
+    @Test
+    void closesOwnSessionBeforeItHasAssistantUsage() throws Exception {
+        final Path log =
+                write(
+                        "own.data",
+                        "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Example\"}}\n");
+        assertThat(run("begin", "EX12", "implement", "--session", log.toString()))
+                .as(errors())
+                .isZero();
+        assertThat(run("end", "EX12", "implement", "--result", "abandoned")).as(errors()).isZero();
+        assertThat(record().get("note")).as("missing usage is explicit").isEqualTo("no-usage");
+        assertThat(run("begin", "EX12", "implement")).as("no stranded own stage").isZero();
+    }
+
+    @Test
+    void countsSplitClaudeMessagesOnceUsingTheirLastUsage() throws Exception {
+        final Path log = fixture("claude-subagent.jsonl", "split.data");
+        assertThat(subagent("begin", log)).as(errors()).isZero();
+        time = "2026-01-01T10:04:00Z";
+        assertThat(subagent("end", log)).as(errors()).isZero();
+        assertThat(record().get("claude_input_tokens"))
+                .as("split content blocks share a message")
+                .isEqualTo(17.0);
+        assertThat(record().get("claude_output_tokens"))
+                .as("the last usage supersedes partial usage")
+                .isEqualTo(7.0);
+        assertThat(record().get("claude_messages"))
+                .as("two message IDs in the window")
+                .isEqualTo(2.0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"agent", "subagent"})
+    void subtractsTheCodexTotalCapturedAtEachBeginRegardlessOfActor(String actor) throws Exception {
+        final Path log = fixture("codex.jsonl", "continued.data");
+        for (int n = 1; n <= 2; n++) {
+            assertThat(
+                            run(
+                                    "begin",
+                                    "EX12",
+                                    "implement",
+                                    "--actor",
+                                    actor,
+                                    "--model",
+                                    "example-model",
+                                    "--session",
+                                    log.toString()))
+                    .as(errors())
+                    .isZero();
+            final String total =
+                    "{\"timestamp\":\"2026-01-01T10:01:00Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":"
+                            + (160 + n * 20)
+                            + ",\"cached_input_tokens\":"
+                            + (50 + n * 2)
+                            + ",\"output_tokens\":"
+                            + (35 + n * 4)
+                            + ",\"reasoning_output_tokens\":"
+                            + (15 + n)
+                            + "}}}}\n";
+            Files.writeString(log, total, java.nio.file.StandardOpenOption.APPEND);
+            assertThat(
+                            run(
+                                    "end",
+                                    "EX12",
+                                    "implement",
+                                    "--actor",
+                                    actor,
+                                    "--session",
+                                    log.toString()))
+                    .as(errors())
+                    .isZero();
+            assertThat(record().get("codex_input_tokens"))
+                    .as("only new input counts")
+                    .isEqualTo(20.0);
+            assertThat(record().get("codex_cached_tokens"))
+                    .as("only new cache reads count")
+                    .isEqualTo(2.0);
+            assertThat(record().get("codex_output_tokens"))
+                    .as("only new output counts")
+                    .isEqualTo(4.0);
+            assertThat(record().get("codex_reasoning_tokens"))
+                    .as("only new reasoning counts")
+                    .isEqualTo(1.0);
+        }
+    }
+
+    @Test
+    void writesTheOrdinalAsAnInteger() throws Exception {
+        assertThat(run("begin", "EX12", "implement")).as(errors()).isZero();
+        assertThat(run("end", "EX12", "implement")).as(errors()).isZero();
+        assertThat(records().getFirst())
+                .as("the public ordinal is an integer")
+                .contains("\"n\":1,")
+                .doesNotContain("\"n\":1.0");
+    }
+
+    @Test
+    void hidesPrivatePathsInFilesystemErrors() throws Exception {
+        Files.delete(directory.resolve("stats/seed.csv"));
+        assertThat(run("median", "M")).as("unreadable seed fails closed").isEqualTo(2);
+        assertThat(errors())
+                .as("filesystem diagnostics do not disclose paths")
+                .doesNotContain(directory.toString())
+                .contains("stage:");
+        assertThat(run("begin", "EX12", "implement", "--session", directory.toString()))
+                .as("a directory is not a session")
+                .isEqualTo(2);
+        assertThat(errors())
+                .as("session diagnostics stay private")
+                .doesNotContain(directory.toString());
+    }
+
+    @Test
+    void hidesInvalidSessionPaths() {
+        assertThat(run("begin", "EX12", "implement", "--session", directory + "/private-account\0"))
+                .as("an invalid path is refused")
+                .isEqualTo(2);
+        assertThat(errors())
+                .as("invalid-path diagnostics do not echo input")
+                .doesNotContain(directory.toString(), "private-account");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"median", "p80"})
+    void refusesIncompleteStatsWhenComputingStatistics(String statistic) throws Exception {
+        final var record = StageFixtures.record("EX13", "implement", "agent", 4, "Finished", "M");
+        record.remove("n");
+        write("stats/EX13.jsonl", Json.write(record) + "\n");
+        assertThat(run(statistic, "M"))
+                .as("invalid historical records cannot bias estimates")
+                .isEqualTo(2);
+    }
+
+    @Test
+    void refusesAResultOnBegin() {
+        assertThat(run("begin", "EX12", "implement", "--result", "done"))
+                .as("results describe a closed stage")
+                .isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"stats", "issues", ".git"})
+    void refusesRepositoryStorageSymlinks(String name) throws Exception {
+        final Path original = directory.resolve(name);
+        final Path moved = directory.resolve("original-" + name.replace(".", ""));
+        Files.move(original, moved);
+        Files.createSymbolicLink(original, moved);
+        assertThat(run("begin", "EX12", "implement"))
+                .as("repository-owned storage cannot redirect writes")
+                .isEqualTo(2);
+        assertThat(Files.exists(moved.resolve("porelo-stage")))
+                .as("unsafe Git storage is untouched")
+                .isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "--model",
+                "--effort",
+                "--session",
+                "--actor",
+                "--result",
+                "--status-after",
+                "--wait"
+            })
+    void refusesOptionValuesThatStartWithAHyphen(String option) throws Exception {
+        assertThat(run("begin", "EX12", "implement", option, "-private-account"))
+                .as("an option cannot be consumed as a value")
+                .isEqualTo(2);
+        assertThat(errors())
+                .as("the rejected value stays private")
+                .doesNotContain("private-account");
+    }
+
+    private int subagent(String action, Path session) {
+        return run(
+                action,
+                "EX12",
+                "review",
+                "--actor",
+                "subagent",
+                "--session",
+                session.toString(),
+                "--model",
+                "example-model");
+    }
+
     private static String measured(
             String issue, String stage, String actor, int minutes, String status) {
-        return "{\"issue\":\""
-                + issue
-                + "\",\"stage\":\""
-                + stage
-                + "\",\"actor\":\""
-                + actor
-                + "\",\"size\":\"M\",\"wall_min\":"
-                + minutes
-                + ",\"status_after\":\""
-                + status
-                + "\",\"end\":\"2026-01-01T10:04:00Z\"}\n";
+        return Json.write(StageFixtures.record(issue, stage, actor, minutes, status, "M")) + "\n";
     }
 
     private int run(String... arguments) {
@@ -467,12 +834,15 @@ class StageTest {
     }
 
     private int runAt(Path root, Map<String, String> environment, String... arguments) {
+        final Map<String, String> isolated = new java.util.HashMap<>(environment);
+        isolated.put("GIT_CONFIG_GLOBAL", "/dev/null");
+        isolated.put("GIT_CONFIG_NOSYSTEM", "1");
         return new Stage(
                         root,
                         Clock.fixed(Instant.parse(time), ZoneOffset.UTC),
                         new PrintStream(out, true, StandardCharsets.UTF_8),
                         new PrintStream(err, true, StandardCharsets.UTF_8),
-                        environment)
+                        isolated)
                 .run(List.of(arguments));
     }
 

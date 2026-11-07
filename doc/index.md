@@ -89,11 +89,17 @@ interface (committer `GitHub`), told by the author and committer the commit reco
 no commit breaks the rule, an empty range among them; 1 when one does; 2 when git or the issues cannot be read, or the
 range starts with `-`, since git would read it as an option.
 
-Stage records are checked in every commit's tree, including bot and web commits: a JSON line in `stats/*.jsonl`
-without a nonempty `end` is refused with that commit's short hash. A commit that changes
-`issues/<ISSUE>-*.md` must have `stats/<ISSUE>.jsonl` in its tree; an index-only change needs none. This second rule
-starts when that tree contains `stats/seed.csv`. A `NOTE` identifies trees without the seed, where it is not yet
-enforced. A later commit closing a stage does not repair the earlier commit in the checked range.
+Stage records are checked in each nonexempt commit's tree. Every `stats/*.jsonl` file must be nonempty and
+contain complete, closed records: the same field, value, issue-to-filename and timestamp validation used by
+`stage` applies. A record whose `end` is null is refused with that commit's short hash. Generated stage JSONL
+files are exempt from `check-citations`; handwritten notes under `stats/` are still checked.
+
+When that tree contains `stats/seed.csv`, changing an issue whose status in that tree is `Implementing`, `Review`
+or `Finished` requires `stats/<ISSUE>.jsonl` in the tree. Issue files are found directly under `issues/` and in
+its subgroups. Deleted issue files and index-only changes need no stats. Changes are compared with the first
+parent of a merge and with the empty tree for a root commit. Bot and web commits exempt from the message rules
+also skip the stats rules. A `NOTE` identifies nonexempt trees without the seed, where the issue-change rule is
+not yet enforced. A later commit closing a stage does not repair an earlier open stage in the checked range.
 
 ## Recording issue stages
 
@@ -103,45 +109,61 @@ Run these commands from the repository root:
 porelo-release stage begin <issue> <stage> [--actor agent|subagent] [--model MODEL] [--effort EFFORT] [--session FILE] [--wait operator|build|agent|vm]
 porelo-release stage end <issue> <stage> [--actor agent|subagent] [--session FILE] [--result done|returned|refused|abandoned] [--status-after STATE]
 porelo-release stage median <size>
+porelo-release stage p80 <size>
 ```
 
 The stages are `analyze`, `estimate`, `plan`, `implement`, `test`, `review`, `rework`, `handover`, and `wait`.
 A wait needs one reason: `operator`, `build`, `agent`, or `vm`. An issue identifier has one to three uppercase
 letters and two or three digits. Model and effort are single identifiers made of letters, digits, dots,
-underscores, or hyphens. Invalid input is refused with exit 2 and a reason.
+underscores, or hyphens. An option value cannot start with a hyphen. Invalid input is refused with exit 2 and a
+reason; diagnostics do not echo session paths or filesystem exception details. `--result` and `--status-after`
+are supplied on end. Model, effort and wait reason are set on begin; repeating them on end must match begin.
 
-`begin` reads size and status from the issue file and opens private state under `porelo-stage/` in the directory
-returned by `git rev-parse --git-dir`, including in a linked worktree. It refuses a second open own stage.
-Subagent stages may run beside it, one per session file, and need both `--actor subagent` and `--model` on begin.
-Use the same `--actor subagent --session FILE` on end. The private state retains the session source until end;
-the committed record contains no source path, account, or machine identity. The command serializes writers and
-refuses a concurrent invocation that cannot obtain the lock.
+`begin` reads the current size and status from the issue file, including files in subgroups, and appends an open
+record with `end: null` to `stats/<issue>.jsonl`. An `Idea` or `Accepted` issue without a size can begin `analyze`
+or `estimate`, recording `size: null` and no estimate. Each later begin reads the size anew; end preserves the
+size captured by its begin. An estimate with a size uses that size's median for `estimate_min`.
 
-`end` appends one closed JSON object and a newline to `stats/<issue>.jsonl`, then removes the private state. It
-refuses an end for a different issue or stage and cannot append a second copy when end is repeated. Commit the
-stats file with the issue's next change. No open stage is written to the tracked tree. A record has these fields:
+The session source, its Codex begin total and a reference to the public record stay under `porelo-stage/` in the
+directory returned by `git rev-parse --git-dir`, including in a linked worktree. Repository-owned storage paths
+must not be symlinks; a linked worktree's Git directory may be outside its tree. A second open own stage is
+refused. Subagent stages may run beside it, one per session file, and need both `--actor subagent` and `--model`
+on begin. Use the same `--actor subagent --session FILE` on end. A subagent session file may be absent at begin
+but must be a readable regular file at end. No public record contains its source path, account, or machine
+identity. The command serializes writers and refuses an invocation that cannot obtain the lock.
+
+`end` replaces exactly the matching open line with its closed record and removes the private state. Neighboring
+lines retain their content and order; the replacement is atomic. It refuses an end for a different issue or stage
+and cannot add a second copy when end is repeated. Commit the stats file with the issue's next change after all
+stages are closed. A record has these fields:
 
 | Fields | Meaning |
 |---|---|
 | `issue`, `stage`, `n`, `actor`, `model`, `effort` | Work identity, ordinal of this stage, and optional model settings. Repeated stages and concurrent subagents get separate ordinals. |
-| `size`, `status_before`, `status_after` | Starting issue size and the statuses before and after the stage. End defaults to the issue file's current status; `--status-after` supplies one explicitly and allows end after the finished issue's file is removed. |
+| `size`, `status_before`, `status_after` | The size at this stage's begin, or null for unsized analysis or estimation, and the statuses before and after the stage. End defaults to the issue file's current status; `--status-after` supplies one explicitly and allows end after the finished issue's file is removed. |
 | `start`, `end`, `wall_min`, `vm_min` | UTC instants, elapsed minutes, and minutes of a `wait` whose reason is `vm`; other stages have zero `vm_min`. |
-| `estimate_min`, `result`, `wait_reason`, `note` | The current median on an estimate stage, otherwise null; end result, default `done`; a wait reason or null; `no-session` when no session was supplied, otherwise null. |
-| `claude_input_tokens`, `claude_output_tokens`, `claude_cache_read_tokens`, `claude_cache_write_tokens`, `claude_messages` | Sum of Claude assistant usage entries whose timestamps are at or after start and before end. |
-| `codex_input_tokens`, `codex_cached_tokens`, `codex_output_tokens`, `codex_reasoning_tokens` | The last cumulative `total_token_usage` of the subagent session's `token_count` events. Cumulative snapshots are counted once. |
-| `agy_input_tokens`, `agy_cache_read_tokens`, `agy_output_tokens` | The subagent JSON result's `usage` fields `input`, `cacheRead`, and `output`, or the complete alternative set `input_tokens`, `cache_read_input_tokens`, and `output_tokens`. Mixed or incomplete sets are refused. |
+| `estimate_min`, `result`, `wait_reason`, `note` | The current size median on a sized estimate stage, otherwise null; end result, default `done`; a wait reason or null; `no-session` when no session was supplied, `no-usage` for a refused or abandoned session without usage, otherwise null. |
+| `claude_input_tokens`, `claude_output_tokens`, `claude_cache_read_tokens`, `claude_cache_write_tokens`, `claude_messages` | Usage counted once per assistant `message.id`, using its last line. Own stages include last-line timestamps at or after start and before end; subagent stages use the entire session. |
+| `codex_input_tokens`, `codex_cached_tokens`, `codex_output_tokens`, `codex_reasoning_tokens` | The last cumulative `total_token_usage` at end minus the total read at begin, or zero at begin if the session did not exist or had no measured usage. Events with `info: null` are ignored; decreasing totals are refused. |
+| `agy_input_tokens`, `agy_cache_read_tokens`, `agy_output_tokens` | The JSON result's `usage` fields `input`, `cacheRead`, and `output`, or the complete alternative set `input_tokens`, `cache_read_input_tokens`, and `output_tokens`. Mixed or incomplete sets are refused. |
 
 The own session is supplied with `--session FILE` on begin or `PORELO_STAGE_CLAUDE_LOG`. A subagent's usage comes
 from its own supplied session, regardless of the stage's time window. Session format is detected from content.
-Missing session files, unknown formats, malformed usage, and negative counts fail closed; no session means all
-token fields are null, with `note: "no-session"`. Token fields belonging to other session formats remain null.
+At end, missing session files, unknown formats, malformed usage, and negative counts fail closed. A refused or
+abandoned session containing no usage records closes with every token field zero and `note: "no-usage"`;
+malformed usage still refuses to close. No session means all token fields are null with `note: "no-session"`.
+Otherwise token fields belonging to other session formats remain null. Format detection is independent of actor.
 
 `stats/seed.csv` starts with `size,minutes` and one row per seeded size: XS 8, S 27, M 53, L 80. `stage median`
-combines that size's seed with one sum for each finished issue whose first record has that size. An issue is
-finished only when its last record has `status_after: "Finished"`. The sum includes the own stages `plan`,
-`implement`, `test`, `review`, `rework`, and `handover`, including repetitions; it excludes analysis, estimation,
-waits, and subagents. The command prints the median in minutes, averaging the middle two values for an even
-sample. Unfinished issues contribute nothing, and a missing seed or unreadable stats file is an error.
+combines that size's seed with one sum per finished issue of its own stages carrying that size: `plan`,
+`implement`, `test`, `review`, `rework`, and `handover`, including repetitions. Analysis, estimation, waits and
+subagents are excluded. Work recorded under another size is excluded from that size's sum. An issue with work
+under several sizes contributes one sum to each applicable size. An issue is finished only when every record is
+closed and its last record has `status_after: "Finished"`.
+
+`stage median` prints the median in minutes, averaging the middle two values for an even sample. `stage p80`
+uses the same samples and prints the nearest-rank 80th percentile. Unfinished issues contribute nothing.
+A missing seed, empty stats file, malformed record or unreadable file is an error.
 
 ## What `check-pushes` reads
 

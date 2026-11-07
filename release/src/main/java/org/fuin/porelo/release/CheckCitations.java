@@ -146,7 +146,8 @@ final class CheckCitations {
         if (pages.isEmpty()) {
             err.println(
                     root
-                            + ": no Markdown page under it, so nothing is checked - is it a repository's root?");
+                            + ": no Markdown page under it, so nothing is checked - is it a"
+                            + " repository's root?");
             return Stop.REFUSED;
         }
         // Only the root's own issues/ is this repository's; another one deeper down, a test's
@@ -206,7 +207,7 @@ final class CheckCitations {
                 if (name.equals(EXEMPT) || exempt.contains(name)) {
                     continue;
                 }
-                if (NOT_WRITTEN.matcher(name).find()) {
+                if (NOT_WRITTEN.matcher(name).find() || name.matches("stats/[^/]+\\.jsonl")) {
                     generatedFiles++;
                     continue;
                 }
@@ -256,32 +257,36 @@ final class CheckCitations {
         }
         report(
                 stale,
-                "an exemption for a file that is not there: remove the line, so the list says what is true");
+                "an exemption for a file that is not there: remove the line, so the list says what"
+                        + " is true");
         report(
                 links,
-                "a link to an issue's file, from a page that is not an issues index: link to the index and"
-                        + " name the number, because a finished issue takes its file with it");
+                "a link to an issue's file, from a page that is not an issues index: link to the"
+                        + " index and name the number, because a finished issue takes its file with"
+                        + " it");
         report(
                 pointers,
-                "a pointer to an issue that no longer exists: a number with the index beside it sends"
-                        + " somebody to an issue, and is worth nothing once it is gone");
+                "a pointer to an issue that no longer exists: a number with the index beside it"
+                        + " sends somebody to an issue, and is worth nothing once it is gone");
         report(
                 gone,
-                "a number of this repository's own issues, among the issues, that names no issue file: the"
-                        + " mention its deletion missed");
+                "a number of this repository's own issues, among the issues, that names no issue"
+                        + " file: the mention its deletion missed");
         report(
                 numbers,
-                "an issue number outside the issues: name the constraint, not the issue that recorded it;"
-                        + " a line holding the shape on purpose says not-a-citation, a whole such file is named in "
+                "an issue number outside the issues: name the constraint, not the issue that"
+                        + " recorded it; a line holding the shape on purpose says not-a-citation, a"
+                        + " whole such file is named in "
                         + EXEMPT);
         report(
                 unanchored,
-                "an index row that does not open with the anchor of its number, <a id=\"<number in lower"
-                        + " case>\"></a>: a link to the row needs it");
+                "an index row that does not open with the anchor of its number, <a id=\"<number in"
+                        + " lower case>\"></a>: a link to the row needs it");
         report(
                 unlinked,
-                "an issue number under issues/ that is not a link to its row: write [<NUMBER>](<index>#<number>),"
-                        + " never a link to its file, since the row outlives the file");
+                "an issue number under issues/ that is not a link to its row: write"
+                        + " [<NUMBER>](<index>#<number>), never a link to its file, since the row"
+                        + " outlives the file");
         report(broken, "a link to an index row that is not there, or that names another number");
         report(rowless, "a number no index has a row for: rewrite the text, it cannot be linked");
         err.println(
