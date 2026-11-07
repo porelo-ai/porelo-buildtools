@@ -38,6 +38,7 @@ public final class Main {
                     "check-providers",
                     "plan",
                     "check-commits",
+                    "stage",
                     "check-pushes",
                     "check-doc-site",
                     "check-releases",
@@ -349,6 +350,8 @@ public final class Main {
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
             case "check-commits" -> checkCommits(rest, out, err);
+            case "stage" ->
+                    new Stage(Path.of("."), java.time.Clock.systemUTC(), out, err, env).run(rest);
             case "check-pushes" -> checkPushes(rest, out, err, web, env);
             case "check-doc-site" ->
                     rest.size() > 2

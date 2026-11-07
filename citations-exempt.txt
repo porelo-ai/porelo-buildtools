@@ -2,6 +2,9 @@
 release/src/test/java/org/fuin/porelo/release/CheckCitationsTest.java
 release/src/test/java/org/fuin/porelo/release/CheckCommitsTest.java
 
+# The stage command's test records stages of a sample issue in a repository of its own.
+release/src/test/java/org/fuin/porelo/release/StageTest.java
+
 # Release-plan fixtures preserve real issue references and exercise reference validation.
 release/src/test/java/org/fuin/porelo/release/PlanCommandsTest.java
 release/src/test/java/org/fuin/porelo/release/PlanStandTest.java

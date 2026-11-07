@@ -227,7 +227,8 @@ class CheckCommitsTest {
                 "GitHub",
                 "noreply@github.com",
                 "Bump the github-actions group across 1 directory with 3 updates\n\n"
-                        + "Bumps the github-actions group with 3 updates in the / directory: actions/checkout.\n\n"
+                        + "Bumps the github-actions group with 3 updates in the / directory:"
+                        + " actions/checkout.\n\n"
                         + "Signed-off-by: dependabot[bot] <support@github.com>");
         commit(
                 "a000016",
@@ -235,7 +236,8 @@ class CheckCommitsTest {
                 "49699333+dependabot[bot]@users.noreply.github.com",
                 "dependabot[bot]",
                 "49699333+dependabot[bot]@users.noreply.github.com",
-                "Bump actions/checkout from 6.0.1 to 6.0.2 in the github-actions group across 1 directory");
+                "Bump actions/checkout from 6.0.1 to 6.0.2 in the github-actions group across 1"
+                        + " directory");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
         assertThat(stdout()).contains("OK    2 commit(s) in RANGE, 2 exempt");
@@ -249,7 +251,8 @@ class CheckCommitsTest {
                 HUMAN_MAIL,
                 "GitHub",
                 "noreply@github.com",
-                "Merge pull request #41 from porelo-ai/dependabot/github_actions/github-actions-6f1c2d\n\n"
+                "Merge pull request #41 from"
+                        + " porelo-ai/dependabot/github_actions/github-actions-6f1c2d\n\n"
                         + "Bump the github-actions group across 1 directory with 3 updates");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
@@ -263,7 +266,8 @@ class CheckCommitsTest {
                 HUMAN_MAIL,
                 HUMAN,
                 HUMAN_MAIL,
-                "Merge pull request #41 from porelo-ai/dependabot/github_actions/github-actions-6f1c2d");
+                "Merge pull request #41 from"
+                        + " porelo-ai/dependabot/github_actions/github-actions-6f1c2d");
 
         assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("a000018  subject is");
@@ -401,7 +405,8 @@ class CheckCommitsTest {
         assertThat(stderr())
                 .contains(
                         bad
-                                + "  below the subject, a line that is not a trailer: Because it was slow.")
+                                + "  below the subject, a line that is not a trailer: Because it"
+                                + " was slow.")
                 .doesNotContain(good);
         assertThat(stderr())
                 .as("one fault, so the fields were split where git put them")
@@ -414,7 +419,8 @@ class CheckCommitsTest {
         // repository's index is not read, so its state cannot decide this repository's check.
         write(
                 "issues/README.md",
-                "| <a id=\"bt17\"></a>[BT17](BT17-A.md) | x |\n| <a id=\"xy05\"></a>XY05 | done |\n");
+                "| <a id=\"bt17\"></a>[BT17](BT17-A.md) | x |\n"
+                        + "| <a id=\"xy05\"></a>XY05 | done |\n");
         write(
                 "issues/BT17-A.md",
                 "As [PJ27](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj27)"
@@ -428,6 +434,83 @@ class CheckCommitsTest {
         assertThat(CheckCitations.issuePrefixes(directory))
                 .as("its own file's and a finished row's, never the linked index's or a fixture's")
                 .containsExactlyInAnyOrder("BT", "XY");
+    }
+
+    @Test
+    void refusesAnOpenStageInAnyCommitTreeEvenAfterItWasClosed() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("stats/EX12.jsonl", "{\"issue\":\"EX12\",\"stage\":\"implement\",\"end\":null}\n");
+        git("add", "stats/EX12.jsonl");
+        git("commit", "-q", "-m", "Record work");
+        final String bad = git("rev-parse", "--short", "HEAD").strip();
+        write(
+                "stats/EX12.jsonl",
+                "{\"issue\":\"EX12\",\"stage\":\"implement\",\"end\":\"2026-01-01T10:00:00Z\"}\n");
+        git("add", "stats/EX12.jsonl");
+        git("commit", "-q", "-m", "Close work");
+
+        assertThat(checkRepository())
+                .as("closing later cannot hide an open stage in the range")
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the fault names the offending commit and file")
+                .contains(bad, "stats/EX12.jsonl", "end");
+    }
+
+    @Test
+    void refusesAnIssueChangeWithoutItsStatsInThatCommitTree() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/EX12-Sample.md", "# Sample\n");
+        git("add", "stats/seed.csv", "issues/EX12-Sample.md");
+        git("commit", "-q", "-m", "Describe work");
+        final String bad = git("rev-parse", "--short", "HEAD").strip();
+
+        assertThat(checkRepository())
+                .as("issue work cannot bypass stage recording")
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("missing stats are attributed to their commit")
+                .contains(bad, "stats/EX12.jsonl");
+    }
+
+    @Test
+    void allowsAnIndexOnlyChangeAndAnIssueWithExistingClosedStats() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/README.md", "# Issues\n");
+        write("stats/EX12.jsonl", "{\"end\":\"2026-01-01T10:00:00Z\"}\n");
+        git("add", "stats/seed.csv", "stats/EX12.jsonl", "issues/README.md");
+        git("commit", "-q", "-m", "Index work");
+        write("issues/EX12-Sample.md", "# Sample\n");
+        git("add", "issues/EX12-Sample.md");
+        git("commit", "-q", "-m", "Describe work");
+
+        assertThat(checkRepository())
+                .as("stats need to exist in the tree, not change in every commit")
+                .isZero();
+    }
+
+    @Test
+    void reportsTheIssueStatsRuleAsNotRolledOutWithoutASeed() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("issues/EX12-Sample.md", "# Sample\n");
+        git("add", "issues/EX12-Sample.md");
+        git("commit", "-q", "-m", "Describe work");
+
+        assertThat(checkRepository()).as("repositories opt in through their seed").isZero();
+        assertThat(stdout())
+                .as("the unchecked rule is explicit")
+                .contains("NOTE", "stats/seed.csv");
+    }
+
+    private int checkRepository() {
+        return new CheckCommits(
+                        stream(out),
+                        stream(err),
+                        CheckCommits.Git.in(directory, isolated()),
+                        () -> prefixes)
+                .check("HEAD", false);
     }
 
     private void write(String name, String text) throws IOException {

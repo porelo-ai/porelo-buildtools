@@ -13,15 +13,19 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.fuin.porelo.json.Json;
+import org.fuin.porelo.json.JsonException;
 
 /**
- * Holds each commit of a range to the shared rule on commit messages.
+ * Holds each commit of a range to the shared rules on commit messages and stage records.
  *
  * <p>A subject of one line of at most 72 characters, {@code [skip ci]} counted; below it only a
  * blank line and trailers; no requirement number, since the issue is deleted once it is done; and
  * nobody named as having asked for or made the change, as far as {@link Who} can tell. A commit
- * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt:
- * told by the author and committer the commit records, never by what its message says.
+ * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt
+ * from the message rules: told by the author and committer the commit records, never by what its
+ * message says. Every tree's stage records must be closed, and a tree with a seed must hold stats
+ * for every issue it changes.
  */
 final class CheckCommits {
 
@@ -82,6 +86,21 @@ final class CheckCommits {
          */
         String log(String range) throws IOException;
 
+        /** Lists the paths in a commit's tree. */
+        default List<String> files(String hash) throws IOException {
+            return List.of();
+        }
+
+        /** Lists paths changed against any parent, including a root commit's paths. */
+        default List<String> changed(String hash) throws IOException {
+            return List.of();
+        }
+
+        /** Reads a file from that commit, never from the working tree. */
+        default String read(String hash, String path) throws IOException {
+            throw new IOException("commit tree contents are unavailable");
+        }
+
         /**
          * Runs git in a directory.
          *
@@ -90,17 +109,60 @@ final class CheckCommits {
          * @return the runner
          */
         static Git in(Path directory, Map<String, String> environment) {
-            return range -> run(directory, environment, range);
+            return new Git() {
+                /** Reads the requested range's log. */
+                @Override
+                public String log(String range) throws IOException {
+                    return run(directory, environment, range);
+                }
+
+                /** Lists that commit's files. */
+                @Override
+                public List<String> files(String hash) throws IOException {
+                    return paths(
+                            execute(
+                                    directory,
+                                    environment,
+                                    List.of("ls-tree", "-rz", "--name-only", hash, "--")));
+                }
+
+                /** Lists that commit's changed paths. */
+                @Override
+                public List<String> changed(String hash) throws IOException {
+                    return paths(
+                            execute(
+                                    directory,
+                                    environment,
+                                    List.of(
+                                            "diff-tree",
+                                            "--root",
+                                            "-m",
+                                            "--no-commit-id",
+                                            "--name-only",
+                                            "-r",
+                                            "-z",
+                                            hash,
+                                            "--")));
+                }
+
+                /** Reads a file from that commit's tree. */
+                @Override
+                public String read(String hash, String path) throws IOException {
+                    return execute(directory, environment, List.of("show", hash + ":" + path));
+                }
+            };
+        }
+
+        private static List<String> paths(String output) {
+            return output.isEmpty() ? List.of() : List.of(output.split("\u0000"));
         }
 
         private static String run(Path directory, Map<String, String> environment, String range)
                 throws IOException {
-            final ProcessBuilder builder =
-                    new ProcessBuilder(
-                            "git",
-                            "-C",
-                            directory.toString(),
-                            // A signature check would print into the log.
+            return execute(
+                    directory,
+                    environment,
+                    List.of(
                             "-c",
                             "log.showSignature=false",
                             "log",
@@ -108,7 +170,16 @@ final class CheckCommits {
                             "--format=" + FORMAT,
                             "--end-of-options",
                             range,
-                            "--");
+                            "--"));
+        }
+
+        private static String execute(
+                Path directory, Map<String, String> environment, List<String> arguments)
+                throws IOException {
+            final List<String> command =
+                    new ArrayList<>(List.of("git", "-C", directory.toString()));
+            command.addAll(arguments);
+            final ProcessBuilder builder = new ProcessBuilder(command);
             builder.environment().putAll(environment);
             builder.environment().put("LC_ALL", "C");
             // To files rather than pipes: reading a pipe to its end would wait out a hang, not the
@@ -122,12 +193,13 @@ final class CheckCommits {
                                 .start();
                 if (!process.waitFor(60, TimeUnit.SECONDS)) {
                     process.destroyForcibly();
-                    throw new IOException("git log " + range + " did not finish within 60 seconds");
+                    throw new IOException(
+                            "git " + arguments.getFirst() + " did not finish within 60 seconds");
                 }
                 if (process.exitValue() != 0) {
                     throw new IOException(
-                            "git log "
-                                    + range
+                            "git "
+                                    + arguments.getFirst()
                                     + " exited with "
                                     + process.exitValue()
                                     + ": "
@@ -211,26 +283,42 @@ final class CheckCommits {
         Set<String> known = null;
         int exempt = 0;
         int breaking = 0;
+        boolean rolloutNote = false;
         for (final Commit commit : commits) {
+            final List<String> broken;
+            try {
+                final Set<String> files = Set.copyOf(git.files(commit.hash()));
+                if (!files.contains("stats/seed.csv") && !rolloutNote) {
+                    out.println(
+                            "NOTE  no stats/seed.csv in a commit tree; the issue stats rule is not"
+                                    + " rolled out there");
+                    rolloutNote = true;
+                }
+                broken = stageFaults(commit.hash(), files);
+            } catch (IOException | IllegalArgumentException ex) {
+                err.println(commit.hash() + "  could not check stage records: " + ex.getMessage());
+                return Stop.UNANSWERED;
+            }
             if (commit.exempt()) {
                 exempt++;
-                continue;
-            }
-            if (known == null) {
-                try {
-                    known = prefixes.read();
-                } catch (IOException ex) {
-                    err.println("could not read the issue prefixes: " + ex.getMessage());
-                    return Stop.UNANSWERED;
+            } else {
+                if (known == null) {
+                    try {
+                        known = prefixes.read();
+                    } catch (IOException ex) {
+                        err.println("could not read the issue prefixes: " + ex.getMessage());
+                        return Stop.UNANSWERED;
+                    }
+                    if (known.isEmpty()) {
+                        err.println(
+                                "no issue prefix found under issues/, so a requirement number"
+                                        + " cannot be told - is the working directory a repository's"
+                                        + " root?");
+                        return Stop.UNANSWERED;
+                    }
                 }
-                if (known.isEmpty()) {
-                    err.println(
-                            "no issue prefix found under issues/, so a requirement number cannot be"
-                                    + " told - is the working directory a repository's root?");
-                    return Stop.UNANSWERED;
-                }
+                broken.addAll(faults(commit, known, outside));
             }
-            final List<String> broken = faults(commit, known, outside);
             if (!broken.isEmpty()) {
                 breaking++;
             }
@@ -256,10 +344,46 @@ final class CheckCommits {
                         + commits.size()
                         + " commit(s) in "
                         + range
-                        + ": a commit message is one line of at most "
-                        + LONGEST_SUBJECT
-                        + " characters saying in words what changed, trailers below a blank line");
+                        + ": commit messages and stage records must follow the shared rules");
         return Stop.REFUSED;
+    }
+
+    private List<String> stageFaults(String hash, Set<String> files) throws IOException {
+        final List<String> faults = new ArrayList<>();
+        for (final String path : files) {
+            if (!path.matches("stats/[^/]+\\.jsonl")) {
+                continue;
+            }
+            int line = 0;
+            for (final String text : git.read(hash, path).lines().toList()) {
+                line++;
+                final Object value;
+                try {
+                    value = Json.parse(text);
+                } catch (JsonException ex) {
+                    faults.add(path + ":" + line + " is not a JSON stage record");
+                    continue;
+                }
+                if (!(value instanceof Map<?, ?> record)
+                        || !(record.get("end") instanceof String end)
+                        || end.isBlank()) {
+                    faults.add(path + ":" + line + " has no end");
+                }
+            }
+        }
+        if (files.contains("stats/seed.csv")) {
+            final Pattern issue = Pattern.compile("issues/([A-Z]{1,3}\\d{2,3})-[^/]+\\.md");
+            for (final String path : git.changed(hash)) {
+                final Matcher match = issue.matcher(path);
+                if (match.matches()) {
+                    final String stats = "stats/" + match.group(1) + ".jsonl";
+                    if (!files.contains(stats)) {
+                        faults.add(path + " changed without " + stats + " in its tree");
+                    }
+                }
+            }
+        }
+        return faults;
     }
 
     private static List<String> faults(Commit commit, Set<String> known, boolean outside) {
