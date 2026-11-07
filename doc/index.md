@@ -29,28 +29,23 @@ See [test machines](machines.md) for requests by kind, credentials, and cleanup.
 
 Every committed text file: what `git ls-files` names in a checkout, every file in a tree exported from a commit. A
 binary file - one holding a NUL byte or bytes that are not UTF-8 - is skipped and counted, and so is a file no person
-writes: an SVG image's path data, a lock file's hashes. Build output is not read.
+writes: an SVG image's path data, a lock file's hashes. Build output is not read. Nothing outside the repository is
+read - no other repository's index or `project.yml`, no checkout beside it, nothing over the network - so another
+repository's state never decides this one's check.
 
 - **Outside `issues/`**, no file names an issue number, and no link goes to an issue's file or a design document.
 - **Among the issues**, a number of the repository's own prefixes - the prefixes its issue files carry - names an
   issue file or an index row that exists, and a number beside an `[index](…)` link into the repository names one too.
 - **Every index row** under `issues/` opens with the anchor of its number, `<a id="<number in lower case>"></a>`.
 - **Every issue number under `issues/`** is a link to its row, `[<NUMBER>](<index>#<number>)`, never to its file:
-  the row outlives the file. Headings, code spans, fenced code and a row's own first cell are not read. A link reaches
-  an anchor that is there - in this repository's index read from the tree, in another's read from
-  `raw.githubusercontent.com` on `main`, or with `--checkouts <dir>` from `<dir>/<repository>/`. A number that no
-  index read has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
-  Which prefixes are issue numbers is read from the indexes, so `SHA256` or a guideline's `LLM03` is none.
-- **No issue of another repository is cited under `issues/`** - neither a link naming its number, its row or its
-  file nor a bare number of its prefix - outside the project's own repository, the one whose committed root
-  `project.yml` names its `project`; there
-  the requirements and plans name other repositories' issues and their waits. Every other issue says in words the
-  contract it builds against. The project's prefixes come from `porelo-project`'s `project.yml` and issue index
-  with the indexes it links to, read like another repository's index; when either cannot be read, the check cannot answer (exit 2), since another
-  repository's number would go unseen. Only the root's own `issues/` is held to this; a test's fixture deeper down
-  is not.
-- **An index that cannot be read** - a repository not published yet, or no network - is named in a `NOTE` line with
-  the count of links into it that went unchecked, and does not fail the check.
+  the row outlives the file. Headings, code spans, fenced code and a row's own first cell are not read. A link into
+  this repository's own indexes reaches an anchor that is there. A number of the repository's own prefixes that no
+  index has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
+  Which prefixes are issue numbers is read from the root's own issue files and index rows, so `SHA256` or a
+  guideline's `LLM03` is none, and neither is a prefix a test's fixture deeper down carries.
+- **Left to a check across repositories:** a link into another repository's index is counted, not followed, and a
+  citation of another repository's issue is not looked for. One `NOTE` line says so, with the count, and does not
+  fail the check.
 - **A line that holds an issue number's shape on purpose**, as test data for something that reads such text, says
   `not-a-citation` in its own text. A linter's codes after `noqa:` are not read.
 - **A whole file of such text** is named in `citations-exempt.txt` at the repository's root, one path per line,
@@ -72,9 +67,9 @@ Each commit is held to the shared rule, and each fault is one line with the comm
 - **Below it, only a blank line and trailers** - `Assisted-by:`, `Signed-off-by:` and the `Co-authored-by:` GitHub
   writes; any other line is a body and refused.
 - **No requirement number**: a word made of an issue prefix and digits. The prefixes are the ones `check-citations`
-  reads: those of the repository's own issue files and index rows, and of every other repository's index its issues
-  link to. So `IPv4` or `x86_64` is none, and a prefix no index read names is not caught. An index that cannot be read
-  is named in a `NOTE` line; a repository with no issue prefix at all is not checked but refused, exit 2.
+  reads: those of the repository's own issue files and index rows, never another repository's. So `IPv4` or `x86_64`
+  is none, and another repository's number is not caught here but left to a check across repositories; a repository
+  with no issue prefix at all is not checked but refused, exit 2.
 - **Nobody named as having asked for or made the change.** A heuristic: a match is refused, and a pass proves nothing.
   It matches a party named - `operator`, `coordinator`, `Smith`, `Agent` and a capitalized name, an `@handle`, or the
   commit's own author or committer name - and a phrase that gives credit, taken whole: "at X's word", "as X chose",

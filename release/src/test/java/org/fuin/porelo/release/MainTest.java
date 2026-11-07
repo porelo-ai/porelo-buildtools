@@ -75,6 +75,18 @@ class MainTest {
     }
 
     @Test
+    void checkCitationsTakesNoDirectoryOfOtherRepositories() {
+        // A directory of other checkouts would make one repository's result depend on another's.
+        assertThat(run("check-citations", "--checkouts", directory.toString(), "."))
+                .as("the option is a usage error, not read: %s", stderr())
+                .isEqualTo(2);
+        assertThat(run("check-citations", "--checkouts=" + directory))
+                .as("an option alone is no root to check: %s", stderr())
+                .isEqualTo(2);
+        assertThat(stderr()).contains("usage: check-citations [REPOSITORY ROOT, default .]");
+    }
+
+    @Test
     void compareBillsWithAMissingArgumentIsUnansweredNotAStop() {
         assertThat(run("compare-bills", "built.json")).isEqualTo(CompareBills.UNANSWERED);
         assertThat(asked).as("nothing may be fetched for a call that is not understood").isEmpty();

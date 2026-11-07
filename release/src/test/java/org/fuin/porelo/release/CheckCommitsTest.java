@@ -409,8 +409,9 @@ class CheckCommitsTest {
     }
 
     @Test
-    void takesThePrefixesOfTheIssuesTheirRowsAndTheIndexesTheyLink() throws IOException {
-        // Without a prefix a requirement number of that repository goes through as a word.
+    void takesOnlyThePrefixesOfItsOwnIssuesAndTheirRows() throws IOException {
+        // Without a prefix a requirement number of that repository goes through as a word; another
+        // repository's index is not read, so its state cannot decide this repository's check.
         write(
                 "issues/README.md",
                 "| <a id=\"bt17\"></a>[BT17](BT17-A.md) | x |\n| <a id=\"xy05\"></a>XY05 | done |\n");
@@ -418,15 +419,15 @@ class CheckCommitsTest {
                 "issues/BT17-A.md",
                 "As [PJ27](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj27)"
                         + " says.\n");
-        final FakeWeb web =
-                new FakeWeb()
-                        .serve(
-                                "https://raw.githubusercontent.com/porelo-ai/porelo-project/main/issues/README.md",
-                                "| <a id=\"pj27\"></a>[PJ27](PJ27-A.md) | x |\n");
+        // A test's fixture deeper down holds issues of whatever prefix it was written with.
+        write(
+                "src/test/resources/sample/issues/README.md",
+                "| <a id=\"f05\"></a>[F05](F05-A-Fixture.md) | a fixture |\n");
+        write("src/test/resources/sample/issues/F05-A-Fixture.md", "# F05 - A Fixture\n");
 
-        assertThat(CheckCitations.issuePrefixes(directory, web, null, stream(out)))
-                .as("its own file's, a finished row's, and the linked index's")
-                .containsExactlyInAnyOrder("BT", "XY", "PJ");
+        assertThat(CheckCitations.issuePrefixes(directory))
+                .as("its own file's and a finished row's, never the linked index's or a fixture's")
+                .containsExactlyInAnyOrder("BT", "XY");
     }
 
     private void write(String name, String text) throws IOException {

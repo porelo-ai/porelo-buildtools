@@ -1,0 +1,2 @@
+title: "check-citations reads nothing outside its own repository - no other repository's index or project.yml, no checkout beside it, no --checkouts - and says in one NOTE line that citations of another repository's issue are left to a check across repositories; check-commits and check-pushes take only the repository's own issue prefixes, and a test fixture's issues lend it none"
+type: changed

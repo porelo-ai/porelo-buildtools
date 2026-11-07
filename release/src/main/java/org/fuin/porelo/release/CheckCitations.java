@@ -18,7 +18,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Refuses the four ways a page or a file can cite an issue and go stale.
@@ -31,7 +30,8 @@ import org.jspecify.annotations.Nullable;
  * still name an issue that exists, or it is the mention a deletion missed.
  *
  * <p>Every committed text file is read: in a git checkout what {@code git ls-files} names, in an
- * exported tree every file. A binary file is skipped and counted.
+ * exported tree every file. A binary file is skipped and counted. Nothing outside the repository is
+ * read, so another repository's state never decides this one's check.
  */
 final class CheckCitations {
 
@@ -105,10 +105,6 @@ final class CheckCitations {
 
     private final PrintStream err;
 
-    private final Web web;
-
-    @Nullable private final Path checkouts;
-
     /**
      * Constructor.
      *
@@ -116,23 +112,8 @@ final class CheckCitations {
      * @param err where a refusal goes
      */
     CheckCitations(PrintStream out, PrintStream err) {
-        this(out, err, Web.overHttp(), null);
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param out where the result goes
-     * @param err where a refusal goes
-     * @param web where another repository's index is read
-     * @param checkouts a directory holding the repositories beside each other, read instead of the
-     *     web; or null
-     */
-    CheckCitations(PrintStream out, PrintStream err, Web web, @Nullable Path checkouts) {
         this.out = out;
         this.err = err;
-        this.web = web;
-        this.checkouts = checkouts;
     }
 
     /**
@@ -168,16 +149,18 @@ final class CheckCitations {
                             + ": no Markdown page under it, so nothing is checked - is it a repository's root?");
             return Stop.REFUSED;
         }
+        // Only the root's own issues/ is this repository's; another one deeper down, a test's
+        // fixture, holds files of whatever number it was written with.
         final Set<String> issues =
                 files.stream()
-                        .filter(path -> isIssue(root, path))
+                        .filter(path -> ownIssue(root, path))
                         .map(path -> ISSUE_FILE.matcher(path.getFileName().toString()))
                         .filter(Matcher::matches)
                         .map(match -> match.group(1))
                         .collect(Collectors.toSet());
         final Set<String> prefixes =
                 files.stream()
-                        .filter(path -> isIssue(root, path))
+                        .filter(path -> ownIssue(root, path))
                         .map(path -> ISSUE_FILE.matcher(path.getFileName().toString()))
                         .filter(Matcher::matches)
                         .map(match -> match.group(2))
@@ -193,17 +176,12 @@ final class CheckCitations {
         final List<String> pointers = new ArrayList<>();
         final List<String> numbers = new ArrayList<>();
         final List<String> gone = new ArrayList<>();
-        final IssueLinks issueLinks = new IssueLinks(web, checkouts);
+        final IssueLinks issueLinks = IssueLinks.ownOnly();
         int read = 0;
         int binary = 0;
         try {
-            // Only the project's requirements and plans name another repository's issues, so a
-            // wait kept anywhere else cannot go stale when that repository renumbers.
-            if (!isProject(root, names)) {
-                issueLinks.refuseCitationsOfOtherRepositories(root);
-            }
             issueLinks.read(
-                    root, pages.stream().filter(page -> isIssue(root, page)).toList(), prefixes);
+                    root, pages.stream().filter(page -> ownIssue(root, page)).toList(), prefixes);
             final Set<String> named = new java.util.HashSet<>(issues);
             // A finished issue keeps its row when its file goes, so a row is as good as a file.
             named.addAll(issueLinks.rows);
@@ -217,7 +195,9 @@ final class CheckCitations {
             for (final Path file : files) {
                 final String name = relative(root, file);
                 if (isIssue(root, file)) {
-                    final Optional<String> text = text(file);
+                    // A fixture's issues are test data, read by the test that holds them.
+                    final Optional<String> text =
+                            ownIssue(root, file) ? text(file) : Optional.empty();
                     if (text.isPresent()) {
                         gone.addAll(ownNumbersThatAreGone(root, file, text.get(), prefixes, named));
                     }
@@ -242,16 +222,12 @@ final class CheckCitations {
             err.println("could not read under " + root + ": " + Web.reason(ex));
             return Stop.UNANSWERED;
         }
-        issueLinks.notes().forEach(note -> out.println("NOTE  " + note));
+        out.println("NOTE  " + issueLinks.note());
         final List<String> unanchored = issueLinks.unanchored;
         final List<String> unlinked = issueLinks.unlinked;
         final List<String> broken = issueLinks.broken;
         final List<String> rowless = issueLinks.rowless;
-        final List<String> crossed = issueLinks.crossed;
-        // Another repository's number is said once, as that, though a fixture shares its prefix.
-        gone.removeAll(crossed);
         if (stale.isEmpty()
-                && crossed.isEmpty()
                 && links.isEmpty()
                 && pointers.isEmpty()
                 && numbers.isEmpty()
@@ -308,15 +284,8 @@ final class CheckCitations {
                         + " never a link to its file, since the row outlives the file");
         report(broken, "a link to an index row that is not there, or that names another number");
         report(rowless, "a number no index has a row for: rewrite the text, it cannot be linked");
-        report(
-                crossed,
-                "a citation of another repository's issue, outside "
-                        + IssueLinks.PROJECT
-                        + ": state in words the contract it stands for; the project's plan names"
-                        + " the issue and what waits for it");
         err.println(
                 (stale.size()
-                                + crossed.size()
                                 + links.size()
                                 + pointers.size()
                                 + numbers.size()
@@ -332,21 +301,16 @@ final class CheckCitations {
 
     /**
      * Returns the prefixes an issue number is made of, as this check reads them: those of the
-     * repository's own issue files and index rows, and of every index its issues link to.
+     * repository's own issue files and index rows, never another repository's.
      *
      * @param root the repository's root
-     * @param web where another repository's index is read
-     * @param checkouts a directory holding the repositories beside each other, read instead of the
-     *     web; or null
-     * @param out where an index that could not be read is named
      * @return the prefixes, such as {@code BT}
      * @throws IOException when the issues cannot be listed or read
      */
-    static Set<String> issuePrefixes(Path root, Web web, @Nullable Path checkouts, PrintStream out)
-            throws IOException {
+    static Set<String> issuePrefixes(Path root) throws IOException {
         final List<Path> pages =
                 committed(root).stream()
-                        .filter(path -> isIssue(root, path) && path.toString().endsWith(".md"))
+                        .filter(path -> ownIssue(root, path) && path.toString().endsWith(".md"))
                         .filter(path -> !generated(root, path))
                         .sorted()
                         .toList();
@@ -356,9 +320,8 @@ final class CheckCitations {
                         .filter(Matcher::matches)
                         .map(match -> match.group(2))
                         .collect(Collectors.toSet());
-        final IssueLinks issueLinks = new IssueLinks(web, checkouts);
+        final IssueLinks issueLinks = IssueLinks.ownOnly();
         issueLinks.read(root, pages, own);
-        issueLinks.notes().forEach(note -> out.println("NOTE  " + note));
         return Set.copyOf(issueLinks.prefixes);
     }
 
@@ -521,25 +484,14 @@ final class CheckCitations {
         return pattern.matcher(text).replaceAll(found -> " ".repeat(found.group().length()));
     }
 
+    /** Whether a file is in the root's own {@code issues/}, not a fixture's deeper down. */
+    private static boolean ownIssue(Path root, Path path) {
+        return relative(root, path).startsWith("issues/");
+    }
+
     private static boolean isIssue(Path root, Path path) {
         final String name = relative(root, path);
         return name.startsWith("issues/") || name.contains("/issues/");
-    }
-
-    /**
-     * Whether the root is a project's own repository: a committed {@code project.yml} naming its
-     * project.
-     */
-    private static boolean isProject(Path root, Set<String> committed) throws IOException {
-        if (!committed.contains("project.yml")) {
-            return false;
-        }
-        final var tree =
-                new com.fasterxml.jackson.databind.ObjectMapper(
-                                new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
-                        .readTree(root.resolve("project.yml").toFile());
-        final var project = tree == null ? null : tree.get("project");
-        return project != null && project.isObject();
     }
 
     private static boolean generatedPlan(Path path) throws IOException {

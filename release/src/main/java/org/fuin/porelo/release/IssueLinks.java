@@ -25,10 +25,9 @@ import org.jspecify.annotations.Nullable;
  * index, every row anchored by its number, every such link reaching an anchor that is there.
  *
  * <p>The row outlives the file - a finished issue keeps its row - so a link to the row does not
- * break when the issue is done. A row of this repository is read from the tree; one of another
- * repository from that repository's index on {@code main}, or from a checkout beside this one. An
- * index that cannot be read is named, and the links into it are left unchecked rather than failed:
- * a repository not published yet has no index to read.
+ * break when the issue is done. Only this repository's own pages are read: a link into another
+ * repository's index is counted and left unchecked, so another repository's state never decides
+ * this one's check.
  */
 final class IssueLinks {
 
@@ -66,14 +65,6 @@ final class IssueLinks {
     /** A line that says it holds the shape on purpose. */
     private static final String MARKED = "not-a-citation";
 
-    /** A link to another repository's issue file, by the number its file name begins with. */
-    private static final Pattern TO_AN_ISSUE_FILE =
-            Pattern.compile(
-                    "^https://github\\.com/porelo-ai/[\\w.-]+/blob/main/issues/(?:[^#\\s]*/)?([A-Z]{1,3})\\d{2,3}-[^/#\\s]*\\.md(?:#\\S*)?$");
-
-    /** An issue's file, its prefix apart. */
-    private static final Pattern ISSUE_FILE = Pattern.compile("^([A-Z]{1,3})\\d{2,3}-.*\\.md$");
-
     /** Names of an issue number's shape that are something else. */
     private static final Set<String> NOT_ISSUES = Set.of("S256");
 
@@ -92,21 +83,25 @@ final class IssueLinks {
     private static final Pattern STATE_HEADING = Pattern.compile("^ {0,3}#{2,6}\\s+(.+)$");
     private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
-    /** Source policy selected by plan commands; citation checks keep local precedence. */
+    /**
+     * Source policy: the plan commands read beside or from the forge; the citation checks read no
+     * source at all, only the pages they are given.
+     */
     enum Sources {
         LOCAL_FIRST,
-        FORGE
+        FORGE,
+        OWN
     }
+
+    /** What a check of one repository is given instead of the web: nothing may be read there. */
+    private static final Web NOWHERE =
+            (address, sent) -> {
+                throw new IllegalStateException(
+                        "a check of one repository reads nothing outside it, but asked " + address);
+            };
 
     private final Web web;
     private final Sources sources;
-
-    @Nullable private final Path checkouts;
-
-    /**
-     * Another repository's index, by repository and path: its anchors, or why it could not be read.
-     */
-    private final Map<String, Index> elsewhere = new LinkedHashMap<>();
 
     private final Map<String, Path> trees = new HashMap<>();
 
@@ -149,8 +144,8 @@ final class IssueLinks {
         trees.put(repository, root);
     }
 
-    /** The links into an index that could not be read, by that index. */
-    private final Map<String, Integer> unchecked = new LinkedHashMap<>();
+    /** The links into another repository's index, which are not checked here. */
+    private int elsewhere;
 
     final List<String> unanchored = new ArrayList<>();
 
@@ -160,223 +155,68 @@ final class IssueLinks {
 
     final List<String> rowless = new ArrayList<>();
 
-    /** The repository that holds the project's requirements and plans, the one that may cite. */
-    static final String PROJECT = "porelo-project";
-
     /** The numbers that have a row in this repository's indexes, finished ones among them. */
     final Set<String> rows = new HashSet<>();
 
-    /**
-     * Citations of another repository's issue, outside the project's repository: a link into its
-     * index or a bare number of its prefix.
-     */
-    final List<String> crossed = new ArrayList<>();
-
-    /** The prefixes of every repository of the project; empty where citing them is allowed. */
-    private final Set<String> projectPrefixes = new HashSet<>();
-
-    /**
-     * The prefixes an issue number is made of, once read: this repository's own, its rows', and
-     * those of every index its pages link to.
-     */
+    /** The prefixes an issue number is made of, once read: this repository's own and its rows'. */
     final Set<String> prefixes = new HashSet<>();
+
+    /**
+     * Returns the reader of one repository's own pages, which opens no other repository's files.
+     *
+     * @return the reader
+     */
+    static IssueLinks ownOnly() {
+        return new IssueLinks(NOWHERE, Sources.OWN);
+    }
 
     /**
      * Constructor.
      *
-     * @param web where another repository's index is read
-     * @param checkouts a directory holding the repositories beside each other, read instead of the
-     *     web; or null
+     * @param web where an index on the forge is read
+     * @param sources where the indexes are read from
      */
-    IssueLinks(Web web, @Nullable Path checkouts) {
-        this(web, checkouts, Sources.LOCAL_FIRST);
-    }
-
-    IssueLinks(Web web, @Nullable Path checkouts, Sources sources) {
+    IssueLinks(Web web, Sources sources) {
         this.web = web;
-        this.checkouts = checkouts;
         this.sources = sources;
     }
 
     /**
-     * Reads the prefixes of the project's repositories from {@value #PROJECT}'s {@code project.yml}
-     * and index, so that {@link #read} refuses a citation of another repository's issue.
-     *
-     * @param root the repository's root, beside which the project's checkout may lie
-     * @throws IOException when the project's file or index cannot be read, since without them
-     *     another repository's number goes unseen
-     */
-    void refuseCitationsOfOtherRepositories(Path root) throws IOException {
-        // A root named through "." or ".." has no parent to find the project's checkout beside.
-        final Path here = root.toAbsolutePath().normalize();
-        final URI location = sourceLocation(here, PROJECT, "project.yml");
-        final String text =
-                source(location)
-                        .orElseThrow(
-                                () ->
-                                        new IOException(
-                                                PROJECT + " project.yml not found at " + location));
-        final com.fasterxml.jackson.databind.JsonNode project;
-        try {
-            project =
-                    new com.fasterxml.jackson.databind.ObjectMapper(
-                                    new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()
-                                            .enable(
-                                                    com.fasterxml.jackson.core.JsonParser.Feature
-                                                            .STRICT_DUPLICATE_DETECTION))
-                            .readTree(text);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
-            throw new IOException(
-                    PROJECT
-                            + " project.yml at "
-                            + location
-                            + " is not read as written: "
-                            + ex.getOriginalMessage(),
-                    ex);
-        }
-        final com.fasterxml.jackson.databind.JsonNode repositories =
-                project == null ? null : project.get("repositories");
-        if (repositories == null || !repositories.isObject()) {
-            throw new IOException(PROJECT + " project.yml at " + location + " has no repositories");
-        }
-        for (final var repository : repositories.properties()) {
-            final com.fasterxml.jackson.databind.JsonNode issues =
-                    repository.getValue().path("issues");
-            if (!issues.isArray()) {
-                throw new IOException(
-                        PROJECT
-                                + " project.yml at "
-                                + location
-                                + ": repositories."
-                                + repository.getKey()
-                                + ".issues is not a list of prefixes");
-            }
-            for (final com.fasterxml.jackson.databind.JsonNode prefix : issues) {
-                if (!prefix.isTextual()) {
-                    throw new IOException(
-                            PROJECT
-                                    + " project.yml at "
-                                    + location
-                                    + ": repositories."
-                                    + repository.getKey()
-                                    + ".issues holds something other than a prefix");
-                }
-                projectPrefixes.add(prefix.textValue());
-            }
-        }
-        // The project's own rows may be kept in indexes its index links to.
-        final Set<String> visited = new HashSet<>();
-        final java.util.Deque<String> indexes = new java.util.ArrayDeque<>();
-        indexes.push("issues/README.md");
-        while (!indexes.isEmpty()) {
-            final String path = indexes.pop();
-            if (!visited.add(path)) {
-                continue;
-            }
-            final URI index = sourceLocation(here, PROJECT, path);
-            final String rows =
-                    source(index)
-                            .orElseThrow(
-                                    () ->
-                                            new IOException(
-                                                    PROJECT
-                                                            + " "
-                                                            + path
-                                                            + " not found at "
-                                                            + index));
-            indexRows(rows).forEach(row -> projectPrefixes.add(prefixOf(row.number())));
-            final Matcher link = LINK.matcher(unfenced(rows));
-            while (link.find()) {
-                final String child = indexPath(path, link.group(2));
-                if (child != null && child.endsWith("/README.md")) {
-                    indexes.push(child);
-                }
-            }
-        }
-    }
-
-    /**
-     * Reads the pages under {@code issues/}.
+     * Reads the pages under the root's own {@code issues/}.
      *
      * @param root the repository's root
-     * @param pages every Markdown page under {@code issues/}
+     * @param pages every Markdown page under the root's own {@code issues/}, none of a fixture
      * @param ownPrefixes the prefixes of this repository's issue files
      * @throws IOException when a page cannot be read
      */
     void read(Path root, List<Path> pages, Set<String> ownPrefixes) throws IOException {
         final Map<Path, Set<String>> anchors = new HashMap<>();
         final Map<Path, String> texts = new LinkedHashMap<>();
-        // Only the root's own issues/ is this repository's; another one deeper down, a test's
-        // fixture, holds files and rows of whatever prefix it was written with.
-        final Set<String> own = new HashSet<>();
+        prefixes.addAll(ownPrefixes);
         for (final Path page : pages) {
             final String text = Files.readString(page, StandardCharsets.UTF_8);
             texts.put(page, text);
             anchors.put(page.toAbsolutePath().normalize(), anchorsIn(text));
-            final String name = page.getFileName().toString();
-            final Matcher file = ISSUE_FILE.matcher(name);
-            if (ownIssues(root, page) && file.matches()) {
-                own.add(file.group(1));
-            }
-            if (name.equals("README.md")) {
+            if (page.getFileName().toString().equals("README.md")) {
                 readRows(root, page, text);
-                if (ownIssues(root, page)) {
-                    indexRows(text).forEach(row -> own.add(prefixOf(row.number())));
-                }
-            }
-        }
-        prefixes.addAll(ownPrefixes);
-        rows.forEach(number -> prefixes.add(prefixOf(number)));
-        final Set<String> others = new HashSet<>(projectPrefixes);
-        others.removeAll(own);
-        // Every index linked to is read first, so its prefix is known before the plain numbers are
-        // looked for.
-        for (final String text : texts.values()) {
-            final Matcher link = LINK.matcher(text);
-            while (link.find()) {
-                final Matcher there = GITHUB.matcher(link.group(2));
-                if (there.matches()) {
-                    index(there.group(1), there.group(2))
-                            .ifPresent(
-                                    index ->
-                                            index.numbers.forEach(
-                                                    number -> prefixes.add(prefixOf(number))));
-                }
+                indexRows(text).forEach(row -> prefixes.add(prefixOf(row.number())));
             }
         }
         for (final Map.Entry<Path, String> page : texts.entrySet()) {
-            readPage(
-                    root,
-                    page.getKey(),
-                    page.getValue(),
-                    anchors,
-                    prefixes,
-                    ownPrefixes,
-                    ownIssues(root, page.getKey()) ? others : Set.of());
+            readPage(root, page.getKey(), page.getValue(), anchors, prefixes, ownPrefixes);
         }
-    }
-
-    private static boolean ownIssues(Path root, Path page) {
-        return relative(root, page).startsWith("issues/");
     }
 
     /**
-     * Lines for the result: the indexes that could not be read and how many links into them went
-     * unchecked.
+     * The line for the result: what is left to a check across repositories, which no check of one
+     * repository can make.
      */
-    List<String> notes() {
-        final List<String> notes = new ArrayList<>();
-        elsewhere.forEach(
-                (name, index) -> {
-                    if (index.unread != null) {
-                        notes.add("not read: " + name + " (" + index.unread + ")");
-                    }
-                });
-        final int links = unchecked.values().stream().mapToInt(Integer::intValue).sum();
-        if (links > 0) {
-            notes.add(links + " link(s) into them not checked");
-        }
-        return notes;
+    String note() {
+        return "not checked here: "
+                + elsewhere
+                + " link(s) into another repository's index, and citations of another repository's"
+                + " issue; cross references between repositories are checked apart from any one of"
+                + " them";
     }
 
     private void readRows(Path root, Path page, String text) {
@@ -394,8 +234,7 @@ final class IssueLinks {
             String text,
             Map<Path, Set<String>> anchors,
             Set<String> prefixes,
-            Set<String> ownPrefixes,
-            Set<String> others) {
+            Set<String> ownPrefixes) {
         final boolean isIndex = page.getFileName().toString().equals("README.md");
         final String[] lines = text.split("\n", -1);
         boolean fenced = false;
@@ -421,11 +260,7 @@ final class IssueLinks {
             final StringBuilder rest = new StringBuilder();
             int last = 0;
             while (link.find()) {
-                if (citesAnother(link.group(1), link.group(2), others)) {
-                    crossed.add(where + link.group(2));
-                } else {
-                    checkLink(page, where, link.group(1), link.group(2), anchors);
-                }
+                checkLink(page, where, link.group(1), link.group(2), anchors);
                 rest.append(line, last, link.start()).append(" ".repeat(link.end() - link.start()));
                 last = link.end();
             }
@@ -433,14 +268,10 @@ final class IssueLinks {
             final Matcher number = NUMBER.matcher(rest);
             while (number.find()) {
                 final String found = number.group();
-                if (others.contains(number.group(1)) && !NOT_ISSUES.contains(found)) {
-                    crossed.add(where + found);
-                    continue;
-                }
                 if (!prefixes.contains(number.group(1)) || NOT_ISSUES.contains(found)) {
                     continue;
                 }
-                if (hasRow(found)) {
+                if (rows.contains(found)) {
                     unlinked.add(where + found);
                 } else if (!ownPrefixes.contains(number.group(1))) {
                     // One of this repository's own is the deletion a mention missed, which is said
@@ -467,14 +298,8 @@ final class IssueLinks {
             broken.add(where + named.group(1) + " linked to " + target);
             return;
         }
-        final Matcher there = GITHUB.matcher(target);
-        if (there.matches()) {
-            final Optional<Index> index = index(there.group(1), there.group(2));
-            if (index.isEmpty()) {
-                unchecked.merge(there.group(1) + " " + there.group(2), 1, Integer::sum);
-            } else if (!index.get().anchors.contains(anchor)) {
-                broken.add(where + target);
-            }
+        if (GITHUB.matcher(target).matches()) {
+            elsewhere++;
             return;
         }
         if (target.contains("://")) {
@@ -492,61 +317,6 @@ final class IssueLinks {
         final Set<String> here = anchors.get(file);
         if (here == null || !here.contains(anchor)) {
             broken.add(where + target);
-        }
-    }
-
-    /**
-     * Whether a link names an issue of another of the project's repositories: by a number in its
-     * text, by its row or by its file.
-     */
-    private static boolean citesAnother(String text, String target, Set<String> others) {
-        if (others.isEmpty()) {
-            return false;
-        }
-        final Matcher named = NUMBER.matcher(text);
-        while (named.find()) {
-            if (others.contains(named.group(1)) && !NOT_ISSUES.contains(named.group())) {
-                return true;
-            }
-        }
-        final Matcher there = GITHUB.matcher(target);
-        if (there.matches()
-                && others.contains(
-                        there.group(3)
-                                .replaceAll("\\d+$", "")
-                                .toUpperCase(java.util.Locale.ROOT))) {
-            return true;
-        }
-        final Matcher file = TO_AN_ISSUE_FILE.matcher(target);
-        return file.matches() && others.contains(file.group(1));
-    }
-
-    private boolean hasRow(String number) {
-        if (rows.contains(number)) {
-            return true;
-        }
-        return elsewhere.values().stream().anyMatch(index -> index.numbers.contains(number));
-    }
-
-    /** Returns another repository's index, read once; empty when it could not be read. */
-    private Optional<Index> index(String repository, String path) {
-        final Index index =
-                elsewhere.computeIfAbsent(repository + " " + path, name -> load(repository, path));
-        return index.unread == null ? Optional.of(index) : Optional.empty();
-    }
-
-    private Index load(String repository, String path) {
-        try {
-            final Optional<String> text = source(null, repository, path);
-            if (text.isEmpty()) {
-                return new Index(Set.of(), Set.of(), "not published");
-            }
-            final Set<String> numbers = new HashSet<>();
-            indexRows(text.get()).forEach(row -> numbers.add(row.number()));
-            return new Index(anchorsIn(text.get()), numbers, null);
-        } catch (IOException | UncheckedIOException ex) {
-            // A null reason would read as an index that was read and has no rows.
-            return new Index(Set.of(), Set.of(), Web.reason(ex));
         }
     }
 
@@ -647,12 +417,15 @@ final class IssueLinks {
         }
     }
 
-    private Optional<String> source(@Nullable Path root, String repository, String path)
-            throws IOException {
+    private Optional<String> source(Path root, String repository, String path) throws IOException {
         return source(sourceLocation(root, repository, path));
     }
 
     private Optional<String> source(URI location) throws IOException {
+        if (sources == Sources.OWN) {
+            throw new IllegalStateException(
+                    "a check of one repository reads nothing outside it, but asked " + location);
+        }
         final Optional<String> text =
                 location.getScheme().equals("file")
                         ? localSource(Path.of(location))
@@ -661,7 +434,7 @@ final class IssueLinks {
         return text;
     }
 
-    private URI sourceLocation(@Nullable Path root, String repository, String path) {
+    private URI sourceLocation(Path root, String repository, String path) {
         if (sources == Sources.FORGE) {
             return forgeLocation(repository, path);
         }
@@ -669,17 +442,11 @@ final class IssueLinks {
         if (tree != null) {
             return tree.resolve(path).toUri();
         }
-        if (root != null
-                && root.getFileName() != null
-                && root.getFileName().toString().equals(repository)) {
+        if (root.getFileName() != null && root.getFileName().toString().equals(repository)) {
             return root.resolve(path).toUri();
         }
-        final Path beside = root == null ? null : root.resolveSibling(repository).resolve(path);
-        if (root != null && beside != null && Files.isDirectory(root.resolveSibling(repository))) {
-            return beside.toUri();
-        }
-        if (checkouts != null) {
-            return checkouts.resolve(repository).resolve(path).toUri();
+        if (Files.isDirectory(root.resolveSibling(repository))) {
+            return root.resolveSibling(repository).resolve(path).toUri();
         }
         return forgeLocation(repository, path);
     }
@@ -823,7 +590,4 @@ final class IssueLinks {
     private static String relative(Path root, Path path) {
         return root.relativize(path).toString().replace('\\', '/');
     }
-
-    /** An index read: its anchors and the numbers of its rows, or why it could not be read. */
-    private record Index(Set<String> anchors, Set<String> numbers, @Nullable String unread) {}
 }

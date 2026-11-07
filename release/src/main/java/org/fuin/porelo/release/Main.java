@@ -48,25 +48,12 @@ public final class Main {
                     "check-snapshot-filter",
                     "prune-snapshots");
 
-    private static final String CITATIONS_USAGE =
-            "check-citations [--checkouts DIRECTORY OF REPOSITORIES] [REPOSITORY ROOT, default .]";
-
     private static int checkCitations(List<String> rest, PrintStream out, PrintStream err) {
-        final List<String> roots = new java.util.ArrayList<>(rest);
-        Path checkouts = null;
-        final int option = roots.indexOf("--checkouts");
-        if (option >= 0) {
-            if (option + 1 >= roots.size()) {
-                return usage(err, CITATIONS_USAGE);
-            }
-            checkouts = Path.of(roots.get(option + 1));
-            roots.subList(option, option + 2).clear();
+        // An option, such as a directory of other checkouts, is no root to check.
+        if (rest.size() > 1 || (rest.size() == 1 && rest.getFirst().startsWith("--"))) {
+            return usage(err, "check-citations [REPOSITORY ROOT, default .]");
         }
-        if (roots.size() > 1) {
-            return usage(err, CITATIONS_USAGE);
-        }
-        return new CheckCitations(out, err, Web.overHttp(), checkouts)
-                .check(Path.of(roots.isEmpty() ? "." : roots.getFirst()));
+        return new CheckCitations(out, err).check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
     }
 
     private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
@@ -94,7 +81,6 @@ public final class Main {
             final IssueLinks links =
                     new IssueLinks(
                             web,
-                            null,
                             "beside".equals(options.value("--indexes"))
                                     ? IssueLinks.Sources.LOCAL_FIRST
                                     : IssueLinks.Sources.FORGE);
@@ -133,7 +119,7 @@ public final class Main {
         }
     }
 
-    private static int checkCommits(List<String> rest, PrintStream out, PrintStream err, Web web) {
+    private static int checkCommits(List<String> rest, PrintStream out, PrintStream err) {
         final Options options = Options.parse(rest, Set.of(), Set.of("--outside"));
         if (options == null || options.positional().size() != 1) {
             return usage(err, "check-commits RANGE [--outside]");
@@ -144,7 +130,7 @@ public final class Main {
                         out,
                         err,
                         CheckCommits.Git.in(here, Map.of()),
-                        () -> CheckCitations.issuePrefixes(here, web, null, out))
+                        () -> CheckCitations.issuePrefixes(here))
                 .check(options.positional().getFirst(), options.flag("--outside"));
     }
 
@@ -171,9 +157,7 @@ public final class Main {
                                                 out,
                                                 err,
                                                 CheckCommits.Git.in(here, Map.of()),
-                                                () ->
-                                                        CheckCitations.issuePrefixes(
-                                                                here, web, null, out))
+                                                () -> CheckCitations.issuePrefixes(here))
                                         .check(range, false))
                 .check(java.time.Duration.ofHours(Integer.parseInt(since)));
     }
@@ -364,7 +348,7 @@ public final class Main {
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
-            case "check-commits" -> checkCommits(rest, out, err, web);
+            case "check-commits" -> checkCommits(rest, out, err);
             case "check-pushes" -> checkPushes(rest, out, err, web, env);
             case "check-doc-site" ->
                     rest.size() > 2
