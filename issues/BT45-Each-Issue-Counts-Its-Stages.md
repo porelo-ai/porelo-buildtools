@@ -1,6 +1,6 @@
 # BT45 — Each Issue Counts Its Stages
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - a new `porelo-release stage` command, a file format other repositories commit, and a rule in
 `check-commits`.
 
