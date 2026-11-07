@@ -22,6 +22,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt45"></a>[BT45](BT45-Each-Issue-Counts-Its-Stages.md) | M | - | `porelo-release stage begin` and `end` record each stage of an issue with its time and tokens in `stats/<issue>.jsonl`, `check-commits` refuses an open stage, and `stage median` reads the estimate. |
 | <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
 
 ## Backlog
