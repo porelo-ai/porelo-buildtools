@@ -5,6 +5,10 @@ release/src/test/java/org/fuin/porelo/release/CheckCommitsTest.java
 # The stage command's test records stages of a sample issue in a repository of its own.
 release/src/test/java/org/fuin/porelo/release/StageTest.java
 
+# A stage record names its issue by design. The tools skip stats/ themselves; this line lets the tools before them read
+# this repository too, until its own release is the pinned one.
+stats/BT45.jsonl
+
 # Release-plan fixtures preserve real issue references and exercise reference validation.
 release/src/test/java/org/fuin/porelo/release/PlanCommandsTest.java
 release/src/test/java/org/fuin/porelo/release/PlanStandTest.java
