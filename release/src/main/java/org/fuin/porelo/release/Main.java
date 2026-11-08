@@ -59,11 +59,13 @@ public final class Main {
         return new CheckCitations(out, err).check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
     }
 
-    private static int stories(List<String> rest, PrintStream out, PrintStream err) {
-        if (rest.size() != 2 || !rest.getFirst().equals("check")) {
-            return usage(err, "stories check <dir>");
+    private static int stories(List<String> rest, PrintStream out, PrintStream err, Web web) {
+        if (rest.size() != 2 || !Set.of("index", "check").contains(rest.getFirst())) {
+            return usage(err, "stories index <dir> | stories check <dir>");
         }
-        return new Stories(out, err).check(Path.of(rest.get(1)));
+        final Stories stories = new Stories(out, err, web);
+        final Path dir = Path.of(rest.get(1));
+        return rest.getFirst().equals("index") ? stories.index(dir) : stories.check(dir);
     }
 
     private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
@@ -358,7 +360,7 @@ public final class Main {
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
-            case "stories" -> stories(rest, out, err);
+            case "stories" -> stories(rest, out, err, web);
             case "check-commits" -> checkCommits(rest, out, err);
             case "stage" ->
                     new Stage(Path.of("."), java.time.Clock.systemUTC(), out, err, env).run(rest);

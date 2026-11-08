@@ -21,9 +21,10 @@ import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Reads the JSON head of a Markdown file: its first line is the heading, the first block after it
- * is fenced {@code ```json} and holds the head, checked by a JSON schema. A story's file has one;
- * an issue's will have one too, with a schema of its own.
+ * Reads the JSON head of a Markdown file: its first line is the heading, and the file ends in a
+ * section {@code ## Data} holding the head fenced {@code ```json}, checked by a JSON schema. The
+ * text a person reads comes first. A story's file has one; an issue's will have one too, with a
+ * schema of its own.
  */
 final class Heads {
 
@@ -33,8 +34,12 @@ final class Heads {
      * @param file the file
      * @param heading its first line
      * @param data the head
+     * @param lines the file's lines
      */
-    record Head(Path file, String heading, JsonNode data) {}
+    record Head(Path file, String heading, JsonNode data, List<String> lines) {}
+
+    /** The section the head stands in, the file's last. */
+    static final String DATA = "## Data";
 
     private static final ObjectMapper JSON =
             new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
@@ -83,20 +88,25 @@ final class Heads {
             faults.add(name + ": the first line is no heading");
             return null;
         }
-        int open = 1;
-        while (open < lines.size() && lines.get(open).isBlank()) {
+        int end = lines.size();
+        while (end > 1 && lines.get(end - 1).isBlank()) {
+            end--;
+        }
+        final int section = lines.lastIndexOf(DATA);
+        int open = section + 1;
+        while (section > 0 && open < end && lines.get(open).isBlank()) {
             open++;
         }
-        if (open >= lines.size() || !lines.get(open).equals("```json")) {
-            faults.add(name + ": no ```json head right after the heading");
+        if (section <= 0
+                || open >= end
+                || !lines.get(open).equals("```json")
+                || !lines.get(end - 1).equals("```")
+                || end - 1 <= open) {
+            faults.add(name + ": no ```json head under " + DATA + " at the end");
             return null;
         }
-        // A JSON string holds no raw line break, so a line of only three backticks ends the head.
-        final int close = lines.subList(open + 1, lines.size()).indexOf("```");
-        if (close < 0) {
-            faults.add(name + ": the head has no closing ```");
-            return null;
-        }
+        // A JSON string holds no raw line break, so no line of the head is three backticks alone.
+        final int close = end - 1 - (open + 1);
         final JsonNode data;
         try {
             data = JSON.readTree(String.join("\n", lines.subList(open + 1, open + 1 + close)));
@@ -110,6 +120,6 @@ final class Heads {
             final String message = error.getMessage();
             faults.add(name + ": " + (message.startsWith(":") ? "/" + message : message));
         }
-        return errors.isEmpty() ? new Head(file, lines.getFirst(), data) : null;
+        return errors.isEmpty() ? new Head(file, lines.getFirst(), data, lines) : null;
     }
 }

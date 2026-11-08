@@ -8,17 +8,62 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class StoriesTest {
 
-    @TempDir Path dir;
+    @TempDir Path work;
+
+    private Path dir;
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+    @BeforeEach
+    void project() throws IOException {
+        final Path project = work.resolve("porelo-project");
+        dir = Files.createDirectories(project.resolve("stories"));
+        Files.createDirectories(project.resolve("issues"));
+        Files.writeString(project.resolve("issues/README.md"), "# Issues\n");
+        Files.writeString(
+                project.resolve("project.yml"),
+                """
+                project:
+                    upstream: "git@github.com:porelo-ai/porelo-project.git"
+                repositories:
+                    core:
+                        upstream: "git@github.com:porelo-ai/porelo.git"
+                        issues: ["P"]
+                    host:
+                        upstream: "git@github.com:porelo-ai/porelo-host.git"
+                        issues: ["HO"]
+                    ecosystems:
+                        upstream: "git@github.com:porelo-ai/porelo-ecosystems.git"
+                        issues: ["EC"]
+                    site:
+                        upstream: "git@github.com:porelo-ai/porelo-ai.github.io.git"
+                        issues: ["SI"]
+                """);
+        sets(
+                "porelo",
+                "base",
+                "Review",
+                "B515",
+                "providers",
+                "Implementing",
+                "P08",
+                "providers",
+                "Backlog",
+                "P09");
+        index("porelo-host", "Review", "HO146", "Finished", "HO147", "Rejected", "HO148");
+        index("porelo-ecosystems", "Idea", "EC06");
+        index("porelo-ai.github.io", "Finished", "SI01");
+    }
 
     @Test
     void acceptsStoriesWhoseHeadsFitTheSchemaAndTheirHeadings() throws IOException {
@@ -32,8 +77,9 @@ class StoriesTest {
                 "ST2.md",
                 "ST2",
                 "A Person Tests It",
-                "[\"porelo#PO412\", \"porelo-frontend#F429\", \"porelo#P08\", \"porelo-ecosystems#EC06\", \"porelo-ai.github.io#SI01\"]",
+                "[\"porelo#P08\", \"porelo-ecosystems#EC06\", \"porelo-ai.github.io#SI01\"]",
                 "\"2026-11-08\"");
+        assertThat(run("index")).as(said()).isZero();
 
         assertThat(check()).as(said()).isZero();
         assertThat(stdout()).contains("2 story head(s)");
@@ -43,7 +89,7 @@ class StoriesTest {
     void refusesAHeadThatFailsTheSchemaNamingFileAndField() throws IOException {
         write(
                 "ST1.md",
-                "# ST1 — A Title\n\n```json\n"
+                "# ST1 — A Title\n\n## Data\n\n```json\n"
                         + "{\"id\": \"ST1\", \"title\": \"A Title\", \"gain\": \"g\", \"test\": \"t\","
                         + " \"issues\": [\"HO146\"], \"state\": \"Review\", \"priority\": \"Urgent\"}\n```\n");
 
@@ -59,7 +105,7 @@ class StoriesTest {
 
     @Test
     void refusesAHeadingThatDiffersFromItsHead() throws IOException {
-        write("ST1.md", "# ST1 — Another Title\n\n" + head("ST1", "A Title", "[]", "null"));
+        write("ST1.md", "# ST1 — Another Title\n\n" + head("ST1", "A Title", "High", "[]", "null"));
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("ST1.md: the heading is not '# ST1 — A Title'");
@@ -84,24 +130,235 @@ class StoriesTest {
 
     @Test
     void refusesAFileWithoutAHeadOrWithBrokenJson() throws IOException {
-        write("ST1.md", "# ST1 — A Title\n\nNo head at all.\n");
-        write("ST2.md", "# ST2 — A Title\n\n```json\n{\"id\": \"ST2\",, }\n```\n");
+        write("ST1.md", "# ST1 — A Title\n\n```json\n{}\n```\n\nNo head under Data at the end.\n");
+        write("ST2.md", "# ST2 — A Title\n\n## Data\n\n```json\n{\"id\": \"ST2\",, }\n```\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
-                .contains("ST1.md: no ```json head right after the heading")
+                .contains("ST1.md: no ```json head under ## Data at the end")
                 .contains("ST2.md: the head is no JSON");
     }
 
+    @Test
+    void indexesEachStoryByItsLeastAdvancedIssueHigherPriorityFirst() throws IOException {
+        story(
+                "ST1.md",
+                "ST1",
+                "Waits On Backlog",
+                "Low",
+                "[\"porelo-host#HO146\", \"porelo#P09\"]",
+                "null");
+        story(
+                "ST2.md",
+                "ST2",
+                "In Review",
+                "Medium",
+                "[\"porelo-host#HO146\", \"porelo-host#HO147\"]",
+                "null");
+        story("ST3.md", "ST3", "Also In Review", "Highest", "[\"porelo-host#HO146\"]", "null");
+        story("ST4.md", "ST4", "No Issue Yet", "Lowest", "[]", "null");
+        story(
+                "ST5.md",
+                "ST5",
+                "Done And Tried",
+                "High",
+                "[\"porelo-ai.github.io#SI01\"]",
+                "\"2026-11-08\"");
+        story(
+                "ST6.md",
+                "ST6",
+                "All Finished",
+                "High",
+                "[\"porelo-ai.github.io#SI01\", \"porelo-host#HO148\"]",
+                "null");
+
+        assertThat(run("index")).as(said()).isZero();
+
+        assertThat(Files.readString(dir.resolve("README.md")))
+                .as(
+                        "by state in the indexes' order, the higher priority first, a rejected issue holding none back")
+                .containsSubsequence(
+                        "## Review",
+                        "[ST3](ST3.md) | Highest | Also In Review | porelo-host#HO146 |",
+                        "[ST2](ST2.md) | Medium | In Review |",
+                        "## Backlog",
+                        "[ST1](ST1.md) | Low |",
+                        "## Idea",
+                        "[ST4](ST4.md) | Lowest |",
+                        "## Finished",
+                        "[ST6](ST6.md) | High |",
+                        "## Tested",
+                        "[ST5](ST5.md) | High | Done And Tried | porelo-ai.github.io#SI01 | 2026-11-08 |");
+        assertThat(check()).as(said()).isZero();
+    }
+
+    @Test
+    void refusesAnIndexThatDiffersFromItsGeneration() throws IOException {
+        story("ST1.md", "ST1", "A Title", "[]", "null");
+        assertThat(run("index")).as(said()).isZero();
+        story("ST2.md", "ST2", "Another", "[]", "null");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "README.md: differs from what the stories' heads give; run porelo-release stories index");
+    }
+
+    @Test
+    void refusesAStoryNamingAnIssueThatDoesNotExist() throws IOException {
+        story("ST1.md", "ST1", "A Title", "[\"porelo-host#HO999\", \"porelo-gone#GO01\"]", "null");
+
+        assertThat(run("index")).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("ST1.md: porelo-host#HO999 is in no issue index of porelo-host")
+                .contains("ST1.md: porelo-gone#GO01 names a repository project.yml does not");
+        assertThat(dir.resolve("README.md")).doesNotExist();
+    }
+
+    @Test
+    void writesEachStorysReadablePartFromItsHeadAndKeepsWhatAPersonWroteBelowIt()
+            throws IOException {
+        write(
+                "ST1-Words.md",
+                "# ST1 — A Title\n\nAn old text, before the generator.\n\n## Notes\n\nBy hand.\n\n"
+                        + head(
+                                "ST1",
+                                "A Title",
+                                "Medium",
+                                "[\"porelo#B515\", \"porelo#P08\"]",
+                                "null"));
+        story("ST2.md", "ST2", "Tried", "Low", "[]", "\"2026-11-08\"");
+
+        assertThat(run("index")).as(said()).isZero();
+
+        final String ready =
+                """
+                # ST1 — A Title
+
+                **Priority:** Medium · **State:** Implementing
+
+                **What a user gains.** A person gains.
+
+                **The test.** Run it.
+
+                **Issues:**
+
+                - [porelo#B515](https://github.com/porelo-ai/porelo/blob/main/issues/base/README.md#b515) (Review)
+                - [porelo#P08](https://github.com/porelo-ai/porelo/blob/main/issues/providers/README.md#p08) (Implementing)
+
+                An old text, before the generator.
+
+                ## Notes
+
+                By hand.
+
+                """;
+        assertThat(Files.readString(dir.resolve("ST1-Words.md")))
+                .as("each issue linked to the set index its row stands in")
+                .startsWith(ready)
+                .endsWith("```\n");
+        assertThat(Files.readString(dir.resolve("ST2.md")))
+                .startsWith(
+                        """
+                        # ST2 — Tried
+
+                        **Priority:** Low · **Tested:** 2026-11-08
+
+                        **What a user gains.** A person gains.
+
+                        **The test.** Run it.
+
+                        **Issues:** none yet
+
+                        A gain.
+
+                        ## Data
+                        """);
+        final String once = Files.readString(dir.resolve("ST1-Words.md"));
+        assertThat(run("index")).as(said()).isZero();
+        assertThat(Files.readString(dir.resolve("ST1-Words.md")))
+                .as("written again, the same")
+                .isEqualTo(once);
+        assertThat(check()).as(said()).isZero();
+    }
+
+    @Test
+    void refusesAStoryWhoseReadablePartDiffersFromItsHead() throws IOException {
+        story("ST1.md", "ST1", "A Title", "[\"porelo#P08\"]", "null");
+        assertThat(run("index")).as(said()).isZero();
+        final Path file = dir.resolve("ST1.md");
+        Files.writeString(file, Files.readString(file).replace("(Implementing)", "(Finished)"));
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "ST1.md: the text above ## Data is not what its head gives; run porelo-release stories index");
+    }
+
+    private void sets(String repository, String... rows) throws IOException {
+        final Path issues = Files.createDirectories(work.resolve(repository).resolve("issues"));
+        final Map<String, StringBuilder> sets = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < rows.length; i += 3) {
+            sets.computeIfAbsent(rows[i], set -> new StringBuilder("# Issues\n"))
+                    .append(row(rows[i + 1], rows[i + 2]));
+        }
+        final StringBuilder top = new StringBuilder("# Requirements\n\n");
+        for (final Map.Entry<String, StringBuilder> set : sets.entrySet()) {
+            Files.createDirectories(issues.resolve(set.getKey()));
+            Files.writeString(
+                    issues.resolve(set.getKey()).resolve("README.md"), set.getValue().toString());
+            top.append("[")
+                    .append(set.getKey())
+                    .append("](")
+                    .append(set.getKey())
+                    .append("/README.md)\n");
+        }
+        Files.writeString(issues.resolve("README.md"), top.toString());
+    }
+
+    private static String row(String state, String number) {
+        return "\n## "
+                + state
+                + "\n\n| <a id=\""
+                + number.toLowerCase(Locale.ROOT)
+                + "\"></a>["
+                + number
+                + "]("
+                + number
+                + "-X.md) | S | - | An issue. |\n";
+    }
+
+    private void index(String repository, String... rows) throws IOException {
+        final Path issues = Files.createDirectories(work.resolve(repository).resolve("issues"));
+        final StringBuilder text = new StringBuilder("# Issues\n");
+        for (int i = 0; i < rows.length; i += 2) {
+            text.append("\n## ")
+                    .append(rows[i])
+                    .append("\n\n| <a id=\"")
+                    .append(rows[i + 1].toLowerCase(Locale.ROOT))
+                    .append("\"></a>[")
+                    .append(rows[i + 1])
+                    .append("](")
+                    .append(rows[i + 1])
+                    .append("-X.md) | S | - | An issue. |\n");
+        }
+        Files.writeString(issues.resolve("README.md"), text.toString());
+    }
+
     private int check() {
+        return run("check");
+    }
+
+    private int run(String command) {
         final PrintStream o = new PrintStream(out, true, StandardCharsets.UTF_8);
         final PrintStream e = new PrintStream(err, true, StandardCharsets.UTF_8);
         return Main.run(
-                new String[] {"stories", "check", dir.toString()},
+                new String[] {"stories", command, dir.toString()},
                 o,
                 e,
                 (address, headers) -> {
-                    throw new AssertionError("stories reads nothing over the web");
+                    throw new AssertionError(
+                            "stories reads the checkouts beside, nothing over the web");
                 },
                 Map.of(),
                 (tree, manifest, lockfile, work) -> lockfile);
@@ -109,23 +366,31 @@ class StoriesTest {
 
     private void story(String file, String id, String title, String issues, String tested)
             throws IOException {
+        story(file, id, title, "High", issues, tested);
+    }
+
+    private void story(
+            String file, String id, String title, String priority, String issues, String tested)
+            throws IOException {
         write(
                 file,
                 "# "
                         + id
                         + " — "
                         + title
-                        + "\n\n"
-                        + head(id, title, issues, tested)
-                        + "\nWhat a user gains.\n");
+                        + "\n\nA gain.\n\n"
+                        + head(id, title, priority, issues, tested));
     }
 
-    private static String head(String id, String title, String issues, String tested) {
-        return "```json\n{\n  \"id\": \""
+    private static String head(
+            String id, String title, String priority, String issues, String tested) {
+        return "## Data\n\n```json\n{\n  \"id\": \""
                 + id
                 + "\",\n  \"title\": \""
                 + title
-                + "\",\n  \"priority\": \"High\",\n  \"gain\": \"A person gains.\",\n  \"test\": \"Run it.\",\n  \"issues\": "
+                + "\",\n  \"priority\": \""
+                + priority
+                + "\",\n  \"gain\": \"A person gains.\",\n  \"test\": \"Run it.\",\n  \"issues\": "
                 + issues
                 + ",\n  \"tested\": "
                 + tested
