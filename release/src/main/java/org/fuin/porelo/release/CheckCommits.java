@@ -40,11 +40,16 @@ final class CheckCommits {
 
     /**
      * The one line kind allowed below the subject: a trailer of a key the shared rules name, its
-     * key in any case, as git reads one.
+     * key in any case, as git reads one. Porelo's own commits carry two more, each held to its
+     * form: its change id, one token, and the file a commit signs anew, a path inside the
+     * repository: no leading {@code /}, no {@code ..} part, and only letters, digits and {@code . _
+     * - /}.
      */
     private static final Pattern TRAILER =
             Pattern.compile(
-                    "^(Assisted-by|Signed-off-by|Co-authored-by): \\S.*$",
+                    "^(?:(?:Assisted-by|Signed-off-by|Co-authored-by): \\S.*"
+                            + "|Porelo-Change-Id: \\S+"
+                            + "|Porelo-Signs-Anew: (?!/)(?!(?:.*/)?\\.\\.(?:/|$))[A-Za-z0-9._/-]+)$",
                     Pattern.CASE_INSENSITIVE);
 
     /** A sign-off, its key in any case, and the address it names. */

@@ -1,0 +1,2 @@
+title: check-commits takes the trailers Porelo writes on its own commits, `Porelo-Change-Id` (one token) and `Porelo-Signs-Anew` (a path inside the repository), so a Build that pushes such a commit is not red.
+type: fixed

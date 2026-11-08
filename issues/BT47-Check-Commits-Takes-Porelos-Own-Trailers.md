@@ -1,6 +1,7 @@
 # BT47 — Check Commits Takes Porelo's Own Trailers
 
-**Status:** Idea.
+**Status:** Review.
+**Size:** XS - one pattern in `check-commits`, its tests and a changelog entry.
 
 **What must be true.** `porelo-release check-commits` takes the trailers Porelo writes on the commits it makes
 itself: `Porelo-Change-Id: <id>` on each, and `Porelo-Signs-Anew: <path>` on a commit that signs a file anew. Each
@@ -28,11 +29,24 @@ whose Build runs `check-commits` turns that Build red.
   - the message exactly as `TreeRepository` writes it, with and without `Porelo-Signs-Anew`, passes;
   - a malformed value fails;
   - an unknown `Porelo-` key still fails.
-- A changelog entry, and the commit rule in `AGENTS.md`'s shared block names the two keys as Porelo's own.
+- A changelog entry. The commit rule in `AGENTS.md`'s Shared Area is left as it is: the area is held the same in
+  every repository, so a sentence naming the two keys goes to its keeper and lands everywhere at once.
 
 ## Size
 
-XS: one pattern, its tests, a changelog entry and a sentence in the shared rules.
+XS: one pattern, its tests and a changelog entry.
+
+## Done
+
+- `CheckCommits.TRAILER` takes `Porelo-Change-Id: <one token>` and `Porelo-Signs-Anew: <path>`; keys in any case.
+  - It refuses a path that starts with `/`, holds a `..` part, or has a character other than letters, digits and
+    `. _ - /` (a backslash included).
+  - It refuses a value with a space, and any other `Porelo-` key.
+- `CheckCommitsTest`:
+  - Porelo's messages exactly as `TreeRepository` writes them pass. This was seen red first.
+  - Five values outside their form are refused, each named.
+  - Six paths that leave the repository are refused, a `..` in the middle and at the end and a backslash among them.
+    The pattern broken on purpose, without its `.*/` or its end case, turns them red.
 
 ## Due
 

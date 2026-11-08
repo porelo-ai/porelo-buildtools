@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt47"></a>[BT47](BT47-Check-Commits-Takes-Porelos-Own-Trailers.md) | XS | - | `check-commits` takes `Porelo-Change-Id` and `Porelo-Signs-Anew`, each in its own form, which Porelo writes on its own commits; due before Porelo's next commit is pushed. |
 | <a id="bt45"></a>[BT45](BT45-Each-Issue-Counts-Its-Stages.md) | M | - | `porelo-release stage begin` and `end` record each stage of an issue with its time and tokens in `stats/<issue>.jsonl`, `check-commits` refuses an open stage, and `stage median` reads the estimate. |
 | <a id="bt43"></a>[BT43](BT43-The-JDK-Download-Tries-Again.md) | XS | - | `porelo-machines jdk` tries the download of the pinned GraalVM again on a 5xx or a failed connection, five attempts with a growing wait; a 4xx or a wrong digest fails at once. |
 | <a id="bt39"></a>[BT39](BT39-Snapshots-Resolved-With-A-Read-Only-Token.md) | M | - | Builds resolve the forge's snapshots with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a missing `MAVEN_SNAPSHOTS_URL` fails on any forge but github.com. |
@@ -51,7 +52,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt47"></a>[BT47](BT47-Check-Commits-Takes-Porelos-Own-Trailers.md) | XS | - | `check-commits` takes `Porelo-Change-Id` and `Porelo-Signs-Anew`, each in its own form, which Porelo writes on its own commits; due before Porelo's next commit is pushed. |
 | <a id="bt46"></a>[BT46](BT46-The-Plan-Pages-Read-Stories.md) | L | - | A story's data in a JSON head of its file, checked by a schema held here, `stories/README.md` generated from the heads and checked equal; `plan render` and `plan check` read a release as stories in place of sprints, each story's state its least advanced issue's. |
 | <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |

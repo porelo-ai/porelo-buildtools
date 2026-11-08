@@ -151,6 +151,77 @@ class CheckCommitsTest {
     }
 
     @Test
+    void takesTheTrailersPoreloWritesOnItsOwnCommits() {
+        // As porelo's organization tree writes them (TreeRepository): its change id on each, and
+        // the
+        // file a commit signs anew on one that changes no file.
+        commit("a000092", "Set the project's members\n\nPorelo-Change-Id: members-porelo-3\n");
+        commit(
+                "a000093",
+                "Sign the repository file anew: porelo.yml\n\n"
+                        + "Porelo-Change-Id: sign-pi-1\n"
+                        + "Porelo-Signs-Anew: porelo.yml\n");
+        commit(
+                "a000094",
+                "Sign the repository file anew: .github/porelo.yml\n\n"
+                        + "porelo-change-id: sign-pi-2\n"
+                        + "PORELO-SIGNS-ANEW: .github/porelo.yml");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+        assertThat(stdout()).contains("OK    3 commit(s) in RANGE, 0 exempt");
+    }
+
+    @Test
+    void refusesPorelosTrailersOutsideTheirForm() {
+        commit("a000095", "Set the project's members\n\nPorelo-Change-Id: two words");
+        commit(
+                "a000096",
+                "Sign the file anew\n\nPorelo-Change-Id: a\nPorelo-Signs-Anew: ../outside.yml");
+        commit(
+                "a000097",
+                "Sign the file anew\n\nPorelo-Change-Id: a\nPorelo-Signs-Anew: /etc/porelo.yml");
+        commit(
+                "a000098",
+                "Sign the file anew\n\nPorelo-Change-Id: a\nPorelo-Signs-Anew: a file.yml");
+        commit("a000099", "Set the project's members\n\nPorelo-Reviewed: yes");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "a000095  below the subject, a line that is not a trailer: Porelo-Change-Id: two words")
+                .contains(
+                        "a000096  below the subject, a line that is not a trailer: Porelo-Signs-Anew: ../outside.yml")
+                .contains(
+                        "a000097  below the subject, a line that is not a trailer: Porelo-Signs-Anew: /etc/porelo.yml")
+                .contains(
+                        "a000098  below the subject, a line that is not a trailer: Porelo-Signs-Anew: a file.yml")
+                .contains(
+                        "a000099  below the subject, a line that is not a trailer: Porelo-Reviewed: yes");
+    }
+
+    @Test
+    void refusesASignedAnewPathThatLeavesTheRepositoryByAnyRoute() {
+        final List<String> paths =
+                List.of("a/../../b", "..", "a/..", "..\\outside.yml", "a\\b.yml", "\\x");
+        for (int i = 0; i < paths.size(); i++) {
+            commit(
+                    "b0000" + (10 + i),
+                    "Sign the file anew\n\nPorelo-Change-Id: a\nPorelo-Signs-Anew: "
+                            + paths.get(i));
+        }
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        for (int i = 0; i < paths.size(); i++) {
+            assertThat(stderr())
+                    .contains(
+                            "b0000"
+                                    + (10 + i)
+                                    + "  below the subject, a line that is not a trailer: Porelo-Signs-Anew: "
+                                    + paths.get(i));
+        }
+    }
+
+    @Test
     void takesASignOffInAnyCaseFromOutside() {
         commit(
                 "a000091",
