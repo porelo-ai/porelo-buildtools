@@ -1,2 +1,2 @@
-title: porelo-release stories check reads each story's JSON head in porelo-project's stories/ and refuses, by file and field, a head the story schema refuses, a heading that differs from its head, a file not named after its id and a repeated id.
+title: porelo-release stories check reads each story's JSON head at the end of its file in porelo-project's stories/ and refuses, by file and field, a head the story schema refuses, a heading that differs from its head, a file not named after its id and a repeated id.
 type: added

@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/porelo-ai/porelo-buildtools/schemas/story-1.json",
   "title": "A story's head",
-  "description": "The JSON head of a story file in porelo-project's stories/: one function of value to a user, the test the person runs at its end, and every issue it needs. Its state is derived from its issues and never written.",
+  "description": "The JSON head of a story file in porelo-project's stories/: one function of value to a user, the test the person runs at its end, every issue it needs, and its state, moved as an issue's.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "title", "priority", "gain", "test", "issues", "tested", "rejected"],
+  "required": ["id", "title", "state", "priority", "gain", "test", "issues", "tested"],
   "properties": {
     "id": {
       "description": "ST and a number without leading zero; the file is <id>.md or <id>-<words>.md.",
@@ -42,12 +42,12 @@
       }
     },
     "tested": {
-      "description": "The day the person ran the story's test and it held, or null until then.",
+      "description": "The day the person ran the story's test and it held: set on a Finished story, null on any other.",
       "$ref": "#/$defs/day"
     },
-    "rejected": {
-      "description": "The day the story was rejected, or null; a story is tested or rejected, never both.",
-      "$ref": "#/$defs/day"
+    "state": {
+      "description": "Where the story stands, written and moved by the same hands as an issue's state.",
+      "enum": ["Idea", "Accepted", "Rejected", "Analyzed", "Estimated", "Backlog", "Implementing", "Review", "Rework", "Finished"]
     }
   },
   "$defs": {

@@ -100,7 +100,7 @@ class StoriesTest {
                 "ST1.md",
                 "# ST1 — A Title\n\n## Data\n\n```json\n"
                         + "{\"id\": \"ST1\", \"title\": \"A Title\", \"gain\": \"g\", \"test\": \"t\","
-                        + " \"issues\": [\"HO146\"], \"state\": \"Review\", \"priority\": \"Urgent\"}\n```\n");
+                        + " \"issues\": [\"HO146\"], \"state\": \"Tested\", \"priority\": \"Urgent\"}\n```\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
@@ -108,19 +108,8 @@ class StoriesTest {
                 .contains("ST1.md: /issues/0: ")
                 .contains("ST1.md: /: ")
                 .contains("tested")
-                .contains("state")
+                .contains("ST1.md: /state: ")
                 .contains("ST1.md: /priority: ");
-    }
-
-    @Test
-    void refusesAStoryBothTestedAndRejected() throws IOException {
-        write(
-                "ST1.md",
-                "# ST1 — A Title\n\n"
-                        + head("ST1", "A Title", "High", "[]", "\"2026-11-08\"", "\"2026-11-08\""));
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("ST1.md: a story is tested or rejected, never both");
     }
 
     @Test
@@ -160,12 +149,13 @@ class StoriesTest {
     }
 
     @Test
-    void indexesEachStoryByItsLeastAdvancedIssueHigherPriorityFirst() throws IOException {
+    void indexesEachStoryByItsStateHigherPriorityFirst() throws IOException {
         story(
                 "ST1.md",
                 "ST1",
                 "Waits On Backlog",
                 "Low",
+                "Backlog",
                 "[\"porelo-host#HO146\", \"porelo#P09\"]",
                 "null");
         story(
@@ -173,81 +163,87 @@ class StoriesTest {
                 "ST2",
                 "In Review",
                 "Medium",
-                "[\"porelo-host#HO146\", \"porelo-host#HO147\"]",
+                "Review",
+                "[\"porelo-host#HO147\", \"porelo-host#HO148\"]",
                 "null");
-        story("ST3.md", "ST3", "Also In Review", "Highest", "[\"porelo-host#HO146\"]", "null");
-        story("ST4.md", "ST4", "No Issue Yet", "Lowest", "[]", "null");
+        story(
+                "ST3.md",
+                "ST3",
+                "Also In Review",
+                "Highest",
+                "Review",
+                "[\"porelo-ai.github.io#SI01\"]",
+                "null");
+        story("ST4.md", "ST4", "No Issue Yet", "Lowest", "Idea", "[]", "null");
         story(
                 "ST5.md",
                 "ST5",
                 "Done And Tried",
                 "High",
+                "Finished",
                 "[\"porelo-ai.github.io#SI01\"]",
                 "\"2026-11-08\"");
-        story(
-                "ST6.md",
-                "ST6",
-                "All Finished",
-                "High",
-                "[\"porelo-ai.github.io#SI01\", \"porelo-host#HO148\"]",
-                "null");
-
+        story("ST6.md", "ST6", "Not Wanted", "Medium", "Rejected", "[\"porelo#P09\"]", "null");
         story(
                 "ST7.md",
                 "ST7",
                 "Back For Rework",
                 "High",
-                "[\"porelo-host#HO146\", \"porelo-host#HO149\"]",
+                "Rework",
+                "[\"porelo-host#HO149\"]",
                 "null");
-
-        write(
-                "ST8.md",
-                "# ST8 — Not Wanted\n\n"
-                        + head(
-                                "ST8",
-                                "Not Wanted",
-                                "Medium",
-                                "[\"porelo#P09\"]",
-                                "null",
-                                "\"2026-11-07\""));
 
         assertThat(run("index")).as(said()).isZero();
 
         assertThat(Files.readString(dir.resolve("README.md")))
-                .as(
-                        "by state in the indexes' order, the higher priority first, a rejected issue holding none back")
+                .as("by the head's state in the states' sequence, the higher priority first")
                 .contains("Priority: ⏫ Highest · 🔼 High · 🟰 Medium · 🔽 Low · ⏬ Lowest.")
                 .contains(
                         "(`B` porelo, `EC` porelo-ecosystems, `HO` porelo-host, `P` porelo, `SI` porelo-ai.github.io)")
                 .containsSubsequence(
                         "| State | Stories |",
-                        "| [Ready for your test](#ready-for-your-test) | 1 |",
-                        "| [Review](#review) | 2 |",
-                        "| [Implementing](#implementing) | 1 |",
-                        "| [Backlog](#backlog) | 1 |",
                         "| [Idea](#idea) | 1 |",
+                        "| [Backlog](#backlog) | 1 |",
+                        "| [Review](#review) | 2 |",
+                        "| [Rework](#rework) | 1 |",
                         "| [Finished](#finished) | 1 |",
                         "| [Rejected](#rejected) | 1 |",
-                        "## Ready for your test",
-                        "[ST6](ST6.md) All Finished | 🔼 High | HO:1 · SI:1 |",
-                        "## Review",
-                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | HO:1 | A person gains. |",
-                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:2 |",
-                        "## Implementing",
-                        "[ST7](ST7.md) Back For Rework | 🔼 High | HO:2 |",
-                        "## Backlog",
-                        "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Idea",
                         "[ST4](ST4.md) No Issue Yet | ⏬ Lowest | none yet |",
+                        "## Backlog",
+                        "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
+                        "## Review",
+                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | SI:1 | A person gains. |",
+                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:2 |",
+                        "## Rework",
+                        "[ST7](ST7.md) Back For Rework | 🔼 High | HO:1 |",
                         "## Finished",
                         "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |",
                         "## Rejected",
-                        "[ST8](ST8.md) Not Wanted | 🟰 Medium | P:1 |");
-        assertThat(Files.readString(dir.resolve("ST8.md")))
-                .contains("**Priority:** 🟰 Medium · **Rejected:** 2026-11-07");
-        assertThat(Files.readString(dir.resolve("ST6.md")))
-                .contains("**Priority:** 🔼 High · **State:** Ready for your test");
+                        "[ST6](ST6.md) Not Wanted | 🟰 Medium | P:1 |");
+        assertThat(Files.readString(dir.resolve("ST5.md")))
+                .contains("**Priority:** 🔼 High · **State:** Finished (2026-11-08)");
         assertThat(check()).as(said()).isZero();
+    }
+
+    @Test
+    void refusesAStoryInReviewWhileAnIssueIsOpenAndATestedDayOutOfPlace() throws IOException {
+        story(
+                "ST1.md",
+                "ST1",
+                "Too Early",
+                "High",
+                "Review",
+                "[\"porelo-host#HO147\", \"porelo#P08\"]",
+                "null");
+        story("ST2.md", "ST2", "Untested", "High", "Finished", "[]", "null");
+        story("ST3.md", "ST3", "Tested Early", "High", "Backlog", "[]", "\"2026-11-08\"");
+
+        assertThat(run("index")).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("ST1.md: in Review while porelo#P08 is Implementing")
+                .contains("ST2.md: Finished without a tested day")
+                .contains("ST3.md: a tested day on a story that is Backlog, not Finished");
     }
 
     @Test
@@ -283,6 +279,7 @@ class StoriesTest {
                                 "ST1",
                                 "A Title",
                                 "Medium",
+                                "Implementing",
                                 "[\"porelo#B515\", \"porelo#P08\"]",
                                 "null"));
         story("ST2.md", "ST2", "Tried", "Low", "[]", "\"2026-11-08\"");
@@ -320,7 +317,7 @@ class StoriesTest {
                         """
                         # ST2 — Tried
 
-                        **Priority:** 🔽 Low · **Finished:** 2026-11-08
+                        **Priority:** 🔽 Low · **State:** Finished (2026-11-08)
 
                         **What a user gains.** A person gains.
 
@@ -469,6 +466,25 @@ class StoriesTest {
     private void story(
             String file, String id, String title, String priority, String issues, String tested)
             throws IOException {
+        story(
+                file,
+                id,
+                title,
+                priority,
+                "null".equals(tested) ? "Idea" : "Finished",
+                issues,
+                tested);
+    }
+
+    private void story(
+            String file,
+            String id,
+            String title,
+            String priority,
+            String state,
+            String issues,
+            String tested)
+            throws IOException {
         write(
                 file,
                 "# "
@@ -476,33 +492,29 @@ class StoriesTest {
                         + " — "
                         + title
                         + "\n\nA gain.\n\n"
-                        + head(id, title, priority, issues, tested));
+                        + head(id, title, priority, state, issues, tested));
     }
 
     private static String head(
             String id, String title, String priority, String issues, String tested) {
-        return head(id, title, priority, issues, tested, "null");
+        return head(
+                id, title, priority, "null".equals(tested) ? "Idea" : "Finished", issues, tested);
     }
 
     private static String head(
-            String id,
-            String title,
-            String priority,
-            String issues,
-            String tested,
-            String rejected) {
+            String id, String title, String priority, String state, String issues, String tested) {
         return "## Data\n\n```json\n{\n  \"id\": \""
                 + id
                 + "\",\n  \"title\": \""
                 + title
+                + "\",\n  \"state\": \""
+                + state
                 + "\",\n  \"priority\": \""
                 + priority
                 + "\",\n  \"gain\": \"A person gains.\",\n  \"test\": \"Run it.\",\n  \"issues\": "
                 + issues
                 + ",\n  \"tested\": "
                 + tested
-                + ",\n  \"rejected\": "
-                + rejected
                 + "\n}\n```\n";
     }
 

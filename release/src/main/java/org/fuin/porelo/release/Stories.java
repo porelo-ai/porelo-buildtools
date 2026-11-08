@@ -30,35 +30,17 @@ final class Stories {
     /** The index beside the stories, generated from their heads. */
     static final String INDEX = "README.md";
 
-    /**
-     * An issue's states from the least advanced on, Rework counted as Implementing; a story stands
-     * in its least advanced issue's.
-     */
-    private static final List<String> PROGRESS =
-            List.of(
-                    "Idea",
-                    "Accepted",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Finished");
-
-    /** A story whose issues are all finished waits for the person's test. */
-    private static final String READY = "Ready for your test";
-
-    /** The index's sections, the most advanced first, then the finished and the rejected. */
+    /** The index's sections: a story's states in their sequence, as an issue's. */
     private static final List<String> SHOWN =
             List.of(
-                    READY,
-                    "Review",
-                    "Implementing",
-                    "Backlog",
-                    "Estimated",
-                    "Analyzed",
-                    "Accepted",
                     "Idea",
+                    "Accepted",
+                    "Analyzed",
+                    "Estimated",
+                    "Backlog",
+                    "Implementing",
+                    "Review",
+                    "Rework",
                     "Finished",
                     "Rejected");
 
@@ -127,9 +109,6 @@ final class Stories {
             final Matcher named = FILE.matcher(name);
             if (!named.matches() || !named.group(1).equals(id)) {
                 faults.add(name + ": the file is not named after its id " + id);
-            }
-            if (!head.data().get("tested").isNull() && !head.data().get("rejected").isNull()) {
-                faults.add(name + ": a story is tested or rejected, never both");
             }
             final Heads.Head before = heads.putIfAbsent(id, head);
             if (before != null) {
@@ -300,10 +279,8 @@ final class Stories {
     }
 
     /**
-     * What the stories' heads give, or nothing to go by when a head or an issue is at fault.
-     *
-     * <p>A story's state is the least advanced of its issues' states, a rejected issue holding none
-     * back; a story with no issue is an idea, and one with a tested date is tested.
+     * What the stories' heads give, or nothing to go by when a head or an issue is at fault. A
+     * story in Review waits for none of its issues: each is finished or rejected.
      */
     private Generated generate(Path dir, List<String> faults) throws IOException, Stop {
         final Map<String, Heads.Head> heads = read(dir, faults);
@@ -316,8 +293,12 @@ final class Stories {
         final Map<Path, String> files = new LinkedHashMap<>();
         for (final Heads.Head head : heads.values()) {
             final String name = head.file().getFileName().toString();
-            int least = PROGRESS.indexOf("Finished");
-            boolean any = false;
+            final String state = head.data().get("state").asText();
+            if (state.equals("Finished") && head.data().get("tested").isNull()) {
+                faults.add(name + ": Finished without a tested day");
+            } else if (!state.equals("Finished") && !head.data().get("tested").isNull()) {
+                faults.add(name + ": a tested day on a story that is " + state + ", not Finished");
+            }
             final List<String> issues = new ArrayList<>();
             for (final JsonNode node : head.data().get("issues")) {
                 final String issue = node.asText();
@@ -333,29 +314,13 @@ final class Stories {
                     continue;
                 }
                 issues.add("- [" + issue + "](" + row.link(repository) + ") (" + row.state() + ")");
-                if (!row.state().equals("Rejected")) {
-                    any = true;
-                    least =
-                            Math.min(
-                                    least,
-                                    PROGRESS.indexOf(
-                                            row.state().equals("Rework")
-                                                    ? "Implementing"
-                                                    : row.state()));
+                if (state.equals("Review")
+                        && !row.state().equals("Finished")
+                        && !row.state().equals("Rejected")) {
+                    faults.add(name + ": in Review while " + issue + " is " + row.state());
                 }
             }
-            final String state;
-            if (!head.data().get("rejected").isNull()) {
-                state = "Rejected";
-            } else if (!head.data().get("tested").isNull()) {
-                state = "Finished";
-            } else if (!any) {
-                state = "Idea";
-            } else if (PROGRESS.get(least).equals("Finished")) {
-                state = READY;
-            } else {
-                state = PROGRESS.get(least);
-            }
+
             byState.computeIfAbsent(state, unused -> new ArrayList<>()).add(head);
             files.put(head.file(), text(head, state, issues));
         }
@@ -364,11 +329,10 @@ final class Stories {
                         "# Stories\n\nWritten by `porelo-release stories index` from each story's"
                                 + " head; a change goes into the story's file. Each story is one"
                                 + " function of value to a user, with the test the person runs at"
-                                + " its end and every issue it needs. Work follows the priority. A"
-                                + " story's state is its least advanced issue's (a rejected issue"
-                                + " does not count); when all its issues are finished it waits for"
-                                + " the person's test, and the test makes it Finished. A story with"
-                                + " no issue yet is an Idea; a rejected story stands last.\n\n"
+                                + " its end and every issue it needs. A story moves through the"
+                                + " same states as an issue, set by the same hands: Idea, Accepted"
+                                + " or Rejected, Analyzed, Estimated, Backlog, Implementing, Review,"
+                                + " Rework or Finished. Work follows the priority.\n\n"
                                 + "Priority: ");
         page.append(
                 String.join(
@@ -435,14 +399,12 @@ final class Stories {
      */
     private static String text(Heads.Head head, String state, List<String> issues) {
         final JsonNode data = head.data();
-        final String shown;
-        if (!data.get("rejected").isNull()) {
-            shown = " · **Rejected:** " + data.get("rejected").asText();
-        } else if (!data.get("tested").isNull()) {
-            shown = " · **Finished:** " + data.get("tested").asText();
-        } else {
-            shown = " · **State:** " + state;
-        }
+        final String shown =
+                " · **State:** "
+                        + state
+                        + (data.get("tested").isNull()
+                                ? ""
+                                : " (" + data.get("tested").asText() + ")");
         final String generated =
                 "**Priority:** "
                         + priority(data)
