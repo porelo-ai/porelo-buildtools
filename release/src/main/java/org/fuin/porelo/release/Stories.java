@@ -48,7 +48,7 @@ final class Stories {
     /** A story whose issues are all finished waits for the person's test. */
     private static final String READY = "Ready for your test";
 
-    /** The index's sections, the most advanced first, the tested last. */
+    /** The index's sections, the most advanced first, then the tested and the rejected. */
     private static final List<String> SHOWN =
             List.of(
                     READY,
@@ -59,7 +59,8 @@ final class Stories {
                     "Analyzed",
                     "Accepted",
                     "Idea",
-                    "Tested");
+                    "Tested",
+                    "Rejected");
 
     /** Jira's priorities, the highest first, each with Jira's icon. */
     private static final Map<String, String> PRIORITIES = priorities();
@@ -126,6 +127,9 @@ final class Stories {
             final Matcher named = FILE.matcher(name);
             if (!named.matches() || !named.group(1).equals(id)) {
                 faults.add(name + ": the file is not named after its id " + id);
+            }
+            if (!head.data().get("tested").isNull() && !head.data().get("rejected").isNull()) {
+                faults.add(name + ": a story is tested or rejected, never both");
             }
             final Heads.Head before = heads.putIfAbsent(id, head);
             if (before != null) {
@@ -341,7 +345,9 @@ final class Stories {
                 }
             }
             final String state;
-            if (!head.data().get("tested").isNull()) {
+            if (!head.data().get("rejected").isNull()) {
+                state = "Rejected";
+            } else if (!head.data().get("tested").isNull()) {
                 state = "Tested";
             } else if (!any) {
                 state = "Idea";
@@ -362,7 +368,7 @@ final class Stories {
                                 + " story's state is its least advanced issue's (a rejected issue"
                                 + " does not count); when all its issues are finished it waits for"
                                 + " the person's test, and the test makes it Tested. A story with"
-                                + " no issue yet is an Idea.\n\n"
+                                + " no issue yet is an Idea; a rejected story stands last.\n\n"
                                 + "Priority: ");
         page.append(
                 String.join(
@@ -406,8 +412,8 @@ final class Stories {
             }
             page.append("\n## ")
                     .append(state.getKey())
-                    .append("\n\n| Story | State | Priority | Issues | What a user gains |\n")
-                    .append("|---|---|---|---|---|\n");
+                    .append("\n\n| Story | Priority | Issues | What a user gains |\n")
+                    .append("|---|---|---|---|\n");
             state.getValue().stream()
                     .sorted(
                             Comparator.comparingInt(
@@ -418,7 +424,7 @@ final class Stories {
                                                                             .get("priority")
                                                                             .asText()))
                                     .thenComparingInt(Stories::number))
-                    .forEach(head -> page.append(row(head, state.getKey())));
+                    .forEach(head -> page.append(row(head)));
         }
         return new Generated(page.toString(), files, heads.size());
     }
@@ -429,11 +435,18 @@ final class Stories {
      */
     private static String text(Heads.Head head, String state, List<String> issues) {
         final JsonNode data = head.data();
-        final String tested = data.get("tested").isNull() ? null : data.get("tested").asText();
+        final String shown;
+        if (!data.get("rejected").isNull()) {
+            shown = " · **Rejected:** " + data.get("rejected").asText();
+        } else if (!data.get("tested").isNull()) {
+            shown = " · **Tested:** " + data.get("tested").asText();
+        } else {
+            shown = " · **State:** " + state;
+        }
         final String generated =
                 "**Priority:** "
                         + priority(data)
-                        + (tested == null ? " · **State:** " + state : " · **Tested:** " + tested)
+                        + shown
                         + "\n\n**What a user gains.** "
                         + data.get("gain").asText()
                         + "\n\n**The test.** "
@@ -471,7 +484,7 @@ final class Stories {
                 + String.join("\n", lines.subList(rest, lines.size()));
     }
 
-    private static String row(Heads.Head head, String state) {
+    private static String row(Heads.Head head) {
         final JsonNode data = head.data();
         final String id = data.get("id").asText();
         final Map<String, Integer> counts = new LinkedHashMap<>();
@@ -502,8 +515,6 @@ final class Stories {
                 + head.file().getFileName()
                 + ") "
                 + cell(data.get("title").asText())
-                + " | "
-                + state
                 + " | "
                 + priority(data)
                 + " | "

@@ -5,7 +5,7 @@
   "description": "The JSON head of a story file in porelo-project's stories/: one function of value to a user, the test the person runs at its end, and every issue it needs. Its state is derived from its issues and never written.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "title", "priority", "gain", "test", "issues", "tested"],
+  "required": ["id", "title", "priority", "gain", "test", "issues", "tested", "rejected"],
   "properties": {
     "id": {
       "description": "ST and a number without leading zero; the file is <id>.md or <id>-<words>.md.",
@@ -43,13 +43,20 @@
     },
     "tested": {
       "description": "The day the person ran the story's test and it held, or null until then.",
+      "$ref": "#/$defs/day"
+    },
+    "rejected": {
+      "description": "The day the story was rejected, or null; a story is tested or rejected, never both.",
+      "$ref": "#/$defs/day"
+    }
+  },
+  "$defs": {
+    "day": {
       "anyOf": [
         { "type": "null" },
         { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$" }
       ]
-    }
-  },
-  "$defs": {
+    },
     "line": {
       "type": "string",
       "minLength": 1,

@@ -399,15 +399,16 @@ story tested since the last one. A story's file reads, top to bottom:
 4. `## Data` and the head, fenced `json`, by the schema `story-1.json` this tool carries.
 
 The state is never written in the head: it is the least advanced state of the story's issues, Rework counted as
-Implementing and a rejected issue not at all; a story whose issues are all finished is *Ready for your test*, one with
-a `tested` day is Tested, and one with no issue yet is an Idea. The issue indexes are read
-from the checkouts beside the project's, else from the forge.
+Implementing and a rejected issue not at all; a story whose issues are all finished is *Ready for your test*, one with a
+`tested` day is Tested, one with a `rejected` day is Rejected (never both), and one with no issue yet is an Idea. The
+issue indexes are read from the checkouts beside the project's, else from the forge.
+
 
 `stories index` writes every story's part 2 and `stories/README.md`: the count in each state, then the stories by state,
 the most advanced first, the higher priority first within one, each with its issues counted by prefix. `stories check`
 refuses, naming the file and the field: a head the schema refuses, a heading other than the head's, a file not named
-after its id, an id twice, an issue no index holds, a repository `project.yml` does not name, and a story's part 2 or
-the index other than `stories index` writes them.
+after its id, an id twice, a story both tested and rejected, an issue no index holds, a repository `project.yml` does
+not name, and a story's part 2 or the index other than `stories index` writes them.
 `stories cut` writes, for a release's notes, the stories tested after the day of the last release, the earliest first.
 
 ## Release plans

@@ -113,6 +113,17 @@ class StoriesTest {
     }
 
     @Test
+    void refusesAStoryBothTestedAndRejected() throws IOException {
+        write(
+                "ST1.md",
+                "# ST1 — A Title\n\n"
+                        + head("ST1", "A Title", "High", "[]", "\"2026-11-08\"", "\"2026-11-08\""));
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("ST1.md: a story is tested or rejected, never both");
+    }
+
+    @Test
     void refusesAHeadingThatDiffersFromItsHead() throws IOException {
         write("ST1.md", "# ST1 — Another Title\n\n" + head("ST1", "A Title", "High", "[]", "null"));
 
@@ -189,6 +200,17 @@ class StoriesTest {
                 "[\"porelo-host#HO146\", \"porelo-host#HO149\"]",
                 "null");
 
+        write(
+                "ST8.md",
+                "# ST8 — Not Wanted\n\n"
+                        + head(
+                                "ST8",
+                                "Not Wanted",
+                                "Medium",
+                                "[\"porelo#P09\"]",
+                                "null",
+                                "\"2026-11-07\""));
+
         assertThat(run("index")).as(said()).isZero();
 
         assertThat(Files.readString(dir.resolve("README.md")))
@@ -205,19 +227,24 @@ class StoriesTest {
                         "| [Backlog](#backlog) | 1 |",
                         "| [Idea](#idea) | 1 |",
                         "| [Tested](#tested) | 1 |",
+                        "| [Rejected](#rejected) | 1 |",
                         "## Ready for your test",
-                        "[ST6](ST6.md) All Finished | Ready for your test | 🔼 High | HO:1 · SI:1 |",
+                        "[ST6](ST6.md) All Finished | 🔼 High | HO:1 · SI:1 |",
                         "## Review",
-                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | Review | ⏫ Highest | HO:1 | A person gains. |",
-                        "[ST2](ST2.md) In Review | Review | 🟰 Medium | HO:2 |",
+                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | HO:1 | A person gains. |",
+                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:2 |",
                         "## Implementing",
-                        "[ST7](ST7.md) Back For Rework | Implementing | 🔼 High | HO:2 |",
+                        "[ST7](ST7.md) Back For Rework | 🔼 High | HO:2 |",
                         "## Backlog",
-                        "[ST1](ST1.md) Waits On Backlog | Backlog | 🔽 Low | HO:1 · P:1 |",
+                        "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Idea",
-                        "[ST4](ST4.md) No Issue Yet | Idea | ⏬ Lowest | none yet |",
+                        "[ST4](ST4.md) No Issue Yet | ⏬ Lowest | none yet |",
                         "## Tested",
-                        "[ST5](ST5.md) Done And Tried | Tested | 🔼 High | SI:1 |");
+                        "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |",
+                        "## Rejected",
+                        "[ST8](ST8.md) Not Wanted | 🟰 Medium | P:1 |");
+        assertThat(Files.readString(dir.resolve("ST8.md")))
+                .contains("**Priority:** 🟰 Medium · **Rejected:** 2026-11-07");
         assertThat(Files.readString(dir.resolve("ST6.md")))
                 .contains("**Priority:** 🔼 High · **State:** Ready for your test");
         assertThat(check()).as(said()).isZero();
@@ -454,6 +481,16 @@ class StoriesTest {
 
     private static String head(
             String id, String title, String priority, String issues, String tested) {
+        return head(id, title, priority, issues, tested, "null");
+    }
+
+    private static String head(
+            String id,
+            String title,
+            String priority,
+            String issues,
+            String tested,
+            String rejected) {
         return "## Data\n\n```json\n{\n  \"id\": \""
                 + id
                 + "\",\n  \"title\": \""
@@ -464,6 +501,8 @@ class StoriesTest {
                 + issues
                 + ",\n  \"tested\": "
                 + tested
+                + ",\n  \"rejected\": "
+                + rejected
                 + "\n}\n```\n";
     }
 
