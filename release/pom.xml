@@ -93,6 +93,14 @@
                 </includes>
                 <targetPath>org/fuin/porelo/release</targetPath>
             </resource>
+            <!-- The rule for pinned downloads, which every repository's pinned-jdk action copies unchanged. -->
+            <resource>
+                <directory>${project.basedir}/../.github/actions/pinned-jdk</directory>
+                <includes>
+                    <include>pinned.sh</include>
+                </includes>
+                <targetPath>org/fuin/porelo/release</targetPath>
+            </resource>
         </resources>
         <plugins>
             <!-- Generated Java is compiled into the JAR; rendering never invokes a compiler. -->

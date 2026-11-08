@@ -71,7 +71,8 @@ stopped while the rule still waits.
 ## The action in a repository
 
 The `pinned-jdk` action has no single source. Each repository holds its own copy, beside it `pinned.sh` copied
-unchanged from porelo-buildtools.
+unchanged from porelo-buildtools. `check-shared` refuses a `pinned.sh` that differs from the one the porelo-release it
+runs carries, whether the call names it or not.
 
 **When to move:** only once the repository builds against a porelo-buildtools 0.5.2-SNAPSHOT that holds `--cache` and
 `--print-sha256`. With porelo-parent 0.2.2-SNAPSHOT, that is after the buildtools snapshot with this change is

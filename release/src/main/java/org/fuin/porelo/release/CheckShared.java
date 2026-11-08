@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Refuses a shared block whose text no longer fits the hash its markers carry, and an {@code
@@ -28,6 +30,10 @@ import java.util.regex.Pattern;
  * <p>A file named {@code .editorconfig} is compared line for line with the copy this tool carries,
  * the code style every repository shares; a repository requires it by naming it, and one that is
  * named but missing is refused.
+ *
+ * <p>So is {@code .github/actions/pinned-jdk/pinned.sh}, the rule for pinned downloads, the one
+ * helper a repository copies unchanged from porelo-buildtools, since its step runs before there is
+ * Java. A repository that holds it has it compared even when the call does not name it.
  */
 final class CheckShared {
 
@@ -45,6 +51,12 @@ final class CheckShared {
 
     /** Where on the class path the shared {@code .editorconfig} is. */
     static final String SHARED_EDITORCONFIG = "/org/fuin/porelo/release/.editorconfig";
+
+    /** Where a repository holds the rule for pinned downloads, from its root. */
+    static final Path PINNED = Path.of(".github", "actions", "pinned-jdk", "pinned.sh");
+
+    /** Where on the class path the shared {@code pinned.sh} is. */
+    static final String SHARED_PINNED = "/org/fuin/porelo/release/pinned.sh";
 
     private final PrintStream out;
 
@@ -71,15 +83,49 @@ final class CheckShared {
      *     .editorconfig} is missing, {@link Stop#UNANSWERED} when a file cannot be read
      */
     int check(List<Path> files) {
+        return check(files, Path.of(""));
+    }
+
+    /**
+     * Checks every shared block in each file, and the repository's {@code pinned.sh} if it holds
+     * one.
+     *
+     * @param files the files named
+     * @param root the repository's root, where an unnamed {@link #PINNED} is looked for
+     * @return as {@link #check(List)}
+     */
+    int check(List<Path> files, Path root) {
+        // Each file once, however it is named; a link counts as held, and is refused below.
+        final java.util.Set<Path> seen = new java.util.HashSet<>();
+        final List<Path> all = new ArrayList<>();
+        for (final Path file : files) {
+            if (seen.add(file.toAbsolutePath().normalize())) {
+                all.add(file);
+            }
+        }
+        final Path pinned = root.resolve(PINNED);
+        if (Files.exists(pinned, LinkOption.NOFOLLOW_LINKS)
+                && seen.add(pinned.toAbsolutePath().normalize())) {
+            all.add(pinned);
+        }
         final List<String> faults = new ArrayList<>();
         final List<String> fine = new ArrayList<>();
-        for (final Path file : files) {
-            if (isEditorconfig(file) && !Files.exists(file)) {
+        for (final Path file : all) {
+            final String whole = wholeOf(file);
+            if (whole != null && Files.isSymbolicLink(file)) {
+                faults.add(
+                        file
+                                + ": a link; the repository carries a copy of the shared "
+                                + nameOf(whole)
+                                + ", which a checkout of it alone holds");
+                continue;
+            }
+            if (whole != null && !Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
                 faults.add(
                         file
                                 + ": missing; the repository carries the shared "
-                                + EDITORCONFIG
-                                + " at its root, as porelo-release has it");
+                                + nameOf(whole)
+                                + " as porelo-release has it");
                 continue;
             }
             final List<String> lines;
@@ -89,21 +135,21 @@ final class CheckShared {
                 err.println("could not read " + file + ": " + ex.getMessage());
                 return Stop.UNANSWERED;
             }
-            if (isEditorconfig(file)) {
+            if (whole != null) {
                 final List<String> shared;
                 try {
-                    shared = sharedEditorconfig();
+                    shared = shared(whole);
                 } catch (IOException ex) {
                     err.println(
                             "could not read the shared "
-                                    + EDITORCONFIG
+                                    + nameOf(whole)
                                     + " "
-                                    + SHARED_EDITORCONFIG
+                                    + whole
                                     + ": "
                                     + ex.getMessage());
                     return Stop.UNANSWERED;
                 }
-                compare(file, lines, shared, faults, fine);
+                compare(file, nameOf(whole), lines, shared, faults, fine);
             } else {
                 check(file, lines, faults, fine);
             }
@@ -123,20 +169,28 @@ final class CheckShared {
         return 0;
     }
 
-    private static boolean isEditorconfig(Path file) {
+    /** The resource a file is compared with whole, or {@code null} for a file of blocks. */
+    private static @Nullable String wholeOf(Path file) {
         final Path name = file.getFileName();
-        return name != null && name.toString().equals(EDITORCONFIG);
+        if (name != null && name.toString().equals(EDITORCONFIG)) {
+            return SHARED_EDITORCONFIG;
+        }
+        return file.toAbsolutePath().normalize().endsWith(PINNED) ? SHARED_PINNED : null;
+    }
+
+    private static String nameOf(String resource) {
+        return SHARED_PINNED.equals(resource) ? PINNED.toString() : EDITORCONFIG;
     }
 
     /**
-     * Returns the shared {@code .editorconfig} this tool carries, split into lines as a checked
-     * file is.
+     * Returns a shared file this tool carries, split into lines as a checked file is.
      *
+     * @param resource where it is on the class path
      * @return its lines, the last one empty when the file ends in a newline
      * @throws IOException when it is not on the class path or cannot be read
      */
-    static List<String> sharedEditorconfig() throws IOException {
-        try (InputStream in = CheckShared.class.getResourceAsStream(SHARED_EDITORCONFIG)) {
+    private static List<String> shared(String resource) throws IOException {
+        try (InputStream in = CheckShared.class.getResourceAsStream(resource)) {
             if (in == null) {
                 throw new IOException("not on the class path");
             }
@@ -146,6 +200,7 @@ final class CheckShared {
 
     private static void compare(
             Path file,
+            String name,
             List<String> lines,
             List<String> shared,
             List<String> faults,
@@ -154,7 +209,12 @@ final class CheckShared {
         for (int at = 0; at < common; at++) {
             if (!lines.get(at).equals(shared.get(at))) {
                 faults.add(
-                        differs(file, at, "'" + shared.get(at) + "'", "'" + lines.get(at) + "'"));
+                        differs(
+                                file,
+                                name,
+                                at,
+                                "'" + shared.get(at) + "'",
+                                "'" + lines.get(at) + "'"));
                 return;
             }
         }
@@ -162,6 +222,7 @@ final class CheckShared {
             faults.add(
                     differs(
                             file,
+                            name,
                             common,
                             common < shared.size()
                                     ? "'" + shared.get(common) + "'"
@@ -171,15 +232,15 @@ final class CheckShared {
                                     : "the end of the file"));
             return;
         }
-        fine.add("OK    " + file + " is the shared " + EDITORCONFIG);
+        fine.add("OK    " + file + " is the shared " + name);
     }
 
-    private static String differs(Path file, int at, String shared, String got) {
+    private static String differs(Path file, String name, int at, String shared, String got) {
         return file
                 + ":"
                 + (at + 1)
                 + ": differs from the shared "
-                + EDITORCONFIG
+                + name
                 + " porelo-release carries:"
                 + " shared "
                 + shared

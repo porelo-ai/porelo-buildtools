@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt53"></a>[BT53](BT53-Check-Shared-Holds-The-Pinned-Rule.md) | XS | - | `check-shared` refuses a repository's `pinned.sh` that differs from porelo-buildtools' own, named in the call or not. |
 | <a id="bt52"></a>[BT52](BT52-A-Pinned-Download-From-Github-Goes-With-The-Jobs-Token.md) | S | - | A pinned download from github.com goes with the job's token, to there alone; the release reader asks again by the pinned rule. |
 | <a id="bt23"></a>[BT23](BT23-One-Upload-Helper-For-Every-Publish.md) | S | - | One upload helper for Artifactory, published here and taken by digest in every Publish job, in place of the seven copies of `.github/scripts/artifactory.sh` (porelo, porelo-pi, porelo-omp, porelo-claude-code, porelo-codex, porelo-agy, porelo-message-matrix) and the own curl calls of porelo-message-sluice, porelo-intellij, porelo-frontend and porelo-adapters. |
 | <a id="bt51"></a>[BT51](BT51-The-Pinned-Rule-Keeps-A-Deadline.md) | XS | - | A pinned download starts no attempt later than 15 minutes after its first, the attempts' own time counted with the pauses, in Java and in `pinned.sh` alike. |

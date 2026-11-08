@@ -1,0 +1,2 @@
+title: check-shared refuses a repository's .github/actions/pinned-jdk/pinned.sh that differs from porelo-buildtools' own, which porelo-release now carries, whether the call names the file or not.
+type: added

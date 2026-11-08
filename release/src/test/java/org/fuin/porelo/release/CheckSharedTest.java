@@ -186,6 +186,115 @@ class CheckSharedTest {
     }
 
     @Test
+    void acceptsAPinnedShellIdenticalToTheSharedOneNamedOrNot() throws IOException {
+        final Path pinned = pinned(sharedPinned());
+
+        assertThat(check(List.of(), directory)).as(stderr()).isEqualTo(0);
+        assertThat(stdout())
+                .as("the copy found without being named, once")
+                .containsOnlyOnce(pinned + " is the shared .github/actions/pinned-jdk/pinned.sh");
+
+        out.reset();
+        assertThat(check(List.of(pinned), directory)).as(stderr()).isEqualTo(0);
+        assertThat(stdout())
+                .as("named, it is checked once, not again as found")
+                .containsOnlyOnce("is the shared .github/actions/pinned-jdk/pinned.sh");
+    }
+
+    @Test
+    void namesAPinnedShellOnceHoweverItsPathIsWritten() throws IOException {
+        final Path pinned =
+                pinned(sharedPinned().replace("pinned_attempts=8", "pinned_attempts=3"));
+        final Path roundabout =
+                directory.resolve(".github/actions/../actions/./pinned-jdk/pinned.sh");
+
+        assertThat(check(List.of(roundabout, pinned), directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("one fault for the one file, its path written roundabout")
+                .containsOnlyOnce("differs from the shared .github/actions/pinned-jdk/pinned.sh")
+                .contains("1 fault(s)");
+    }
+
+    @Test
+    void checksTheRepositorysOwnPinnedShellBesideAnotherOneNamed() throws IOException {
+        final Path own = pinned(sharedPinned().replace("pinned_attempts=8", "pinned_attempts=3"));
+        final Path other = directory.resolve("other");
+        Files.createDirectories(other.resolve(CheckShared.PINNED).getParent());
+        Files.writeString(
+                other.resolve(CheckShared.PINNED), sharedPinned(), StandardCharsets.UTF_8);
+
+        assertThat(check(List.of(other.resolve(CheckShared.PINNED)), directory))
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the root's own copy still checked").contains(own + ":");
+    }
+
+    @Test
+    void refusesAPinnedShellThatDiffersEvenWhenNotNamed() throws IOException {
+        final Path agents = file(block("Shared Area", hash(TEXT), TEXT));
+        final String shared = sharedPinned();
+        final Path pinned = pinned(shared.replace("pinned_attempts=8", "pinned_attempts=3"));
+        final int line =
+                shared.substring(0, shared.indexOf("pinned_attempts=8")).split("\n", -1).length;
+
+        assertThat(check(List.of(agents), directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the copy in the repository, held to porelo-buildtools' own, by its line")
+                .contains(
+                        pinned
+                                + ":"
+                                + line
+                                + ": differs from the shared .github/actions/pinned-jdk/pinned.sh")
+                .contains("shared 'pinned_attempts=8', got 'pinned_attempts=3'");
+    }
+
+    @Test
+    void refusesALinkInPlaceOfACopyNamedOrNotDanglingOrNot() throws IOException {
+        final Path elsewhere = Files.writeString(directory.resolve("elsewhere.sh"), sharedPinned());
+        final Path pinned = directory.resolve(CheckShared.PINNED);
+        Files.createDirectories(pinned.getParent());
+        Files.createSymbolicLink(pinned, elsewhere);
+
+        assertThat(check(List.of(), directory)).as("a link to a true copy").isEqualTo(Stop.REFUSED);
+        Files.delete(elsewhere);
+        assertThat(check(List.of(pinned), directory)).as("a dangling link").isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("what it is").contains(pinned + ": a link");
+    }
+
+    @Test
+    void refusesAMissingPinnedShellWhenNamed() {
+        final Path pinned = directory.resolve(CheckShared.PINNED);
+
+        assertThat(check(List.of(pinned), directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the file asked for").contains(pinned + ": missing");
+    }
+
+    @Test
+    void leavesARepositoryWithoutAPinnedShellAlone() throws IOException {
+        final Path agents = file(block("Shared Area", hash(TEXT), TEXT));
+
+        assertThat(check(List.of(agents), directory)).as(stderr()).isEqualTo(0);
+        assertThat(stdout())
+                .as("nothing said of a file it does not hold")
+                .doesNotContain("pinned.sh");
+    }
+
+    @Test
+    @Tag("documents")
+    void thisRepositorysOwnPinnedShellIsTheOneTheReleaseCarries() throws IOException {
+        assertThat(sharedPinned())
+                .as("the release carries the pinned.sh porelo-buildtools' own action runs")
+                .isEqualTo(
+                        Files.readString(
+                                Path.of("..").resolve(CheckShared.PINNED), StandardCharsets.UTF_8));
+        assertThat(check(List.of(Path.of("../AGENTS.md")), Path.of("..")))
+                .as("this repository's rules and pinned.sh, from its root: " + stderr())
+                .isEqualTo(0);
+        assertThat(stdout())
+                .as("pinned.sh checked from the root")
+                .contains("is the shared .github/actions/pinned-jdk/pinned.sh");
+    }
+
+    @Test
     void refusesAMissingEditorconfigNamingIt() {
         final Path file = directory.resolve(".editorconfig");
 
@@ -267,6 +376,30 @@ class CheckSharedTest {
                         new PrintStream(out, true, StandardCharsets.UTF_8),
                         new PrintStream(err, true, StandardCharsets.UTF_8))
                 .check(java.util.List.of(file));
+    }
+
+    private int check(List<Path> files, Path root) {
+        return new CheckShared(
+                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                        new PrintStream(err, true, StandardCharsets.UTF_8))
+                .check(files, root);
+    }
+
+    private Path pinned(String text) throws IOException {
+        final Path pinned = directory.resolve(CheckShared.PINNED);
+        Files.createDirectories(pinned.getParent());
+        return Files.writeString(pinned, text, StandardCharsets.UTF_8);
+    }
+
+    private static String sharedPinned() {
+        try (InputStream in = CheckShared.class.getResourceAsStream(CheckShared.SHARED_PINNED)) {
+            return new String(
+                    java.util.Objects.requireNonNull(in, "pinned.sh on the class path")
+                            .readAllBytes(),
+                    StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     private String stdout() {
