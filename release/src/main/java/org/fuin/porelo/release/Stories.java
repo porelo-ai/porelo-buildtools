@@ -31,7 +31,8 @@ final class Stories {
     static final String INDEX = "README.md";
 
     /**
-     * An issue's states from the least advanced on; a story stands in its least advanced issue's.
+     * An issue's states from the least advanced on, Rework counted as Implementing; a story stands
+     * in its least advanced issue's.
      */
     private static final List<String> PROGRESS =
             List.of(
@@ -41,22 +42,23 @@ final class Stories {
                     "Estimated",
                     "Backlog",
                     "Implementing",
-                    "Rework",
                     "Review",
                     "Finished");
 
-    /** The index's sections, in the issue indexes' order: work under way first, done last. */
+    /** A story whose issues are all finished waits for the person's test. */
+    private static final String READY = "Ready for your test";
+
+    /** The index's sections, the most advanced first, the tested last. */
     private static final List<String> SHOWN =
             List.of(
+                    READY,
                     "Review",
-                    "Rework",
                     "Implementing",
                     "Backlog",
                     "Estimated",
                     "Analyzed",
                     "Accepted",
                     "Idea",
-                    "Finished",
                     "Tested");
 
     /** Jira's priorities, the highest first, each with Jira's icon. */
@@ -329,7 +331,13 @@ final class Stories {
                 issues.add("- [" + issue + "](" + row.link(repository) + ") (" + row.state() + ")");
                 if (!row.state().equals("Rejected")) {
                     any = true;
-                    least = Math.min(least, PROGRESS.indexOf(row.state()));
+                    least =
+                            Math.min(
+                                    least,
+                                    PROGRESS.indexOf(
+                                            row.state().equals("Rework")
+                                                    ? "Implementing"
+                                                    : row.state()));
                 }
             }
             final String state;
@@ -337,6 +345,8 @@ final class Stories {
                 state = "Tested";
             } else if (!any) {
                 state = "Idea";
+            } else if (PROGRESS.get(least).equals("Finished")) {
+                state = READY;
             } else {
                 state = PROGRESS.get(least);
             }
@@ -348,9 +358,11 @@ final class Stories {
                         "# Stories\n\nWritten by `porelo-release stories index` from each story's"
                                 + " head; a change goes into the story's file. Each story is one"
                                 + " function of value to a user, with the test the person runs at"
-                                + " its end and every issue it needs. Work follows the priority; a"
-                                + " story stands in the state of its least advanced issue, as an"
-                                + " idea while it has none, and as tested once its test held.\n\n"
+                                + " its end and every issue it needs. Work follows the priority. A"
+                                + " story's state is its least advanced issue's (a rejected issue"
+                                + " does not count); when all its issues are finished it waits for"
+                                + " the person's test, and the test makes it Tested. A story with"
+                                + " no issue yet is an Idea.\n\n"
                                 + "Priority: ");
         page.append(
                 String.join(
@@ -375,15 +387,27 @@ final class Stories {
                                 .sorted(Map.Entry.comparingByKey())
                                 .map(prefix -> "`" + prefix.getKey() + "` " + prefix.getValue())
                                 .toList()));
-        page.append(").\n");
+        page.append(").\n\n| State | Stories |\n|---|---|\n");
+        byState.forEach(
+                (state, stories) -> {
+                    if (!stories.isEmpty()) {
+                        page.append("| [")
+                                .append(state)
+                                .append("](#")
+                                .append(state.toLowerCase(Locale.ROOT).replace(' ', '-'))
+                                .append(") | ")
+                                .append(stories.size())
+                                .append(" |\n");
+                    }
+                });
         for (final Map.Entry<String, List<Heads.Head>> state : byState.entrySet()) {
             if (state.getValue().isEmpty()) {
                 continue;
             }
             page.append("\n## ")
                     .append(state.getKey())
-                    .append("\n\n| Story | Priority | Issues | What a user gains |\n")
-                    .append("|---|---|---|---|\n");
+                    .append("\n\n| Story | State | Priority | Issues | What a user gains |\n")
+                    .append("|---|---|---|---|---|\n");
             state.getValue().stream()
                     .sorted(
                             Comparator.comparingInt(
@@ -394,7 +418,7 @@ final class Stories {
                                                                             .get("priority")
                                                                             .asText()))
                                     .thenComparingInt(Stories::number))
-                    .forEach(head -> page.append(row(head)));
+                    .forEach(head -> page.append(row(head, state.getKey())));
         }
         return new Generated(page.toString(), files, heads.size());
     }
@@ -447,7 +471,7 @@ final class Stories {
                 + String.join("\n", lines.subList(rest, lines.size()));
     }
 
-    private static String row(Heads.Head head) {
+    private static String row(Heads.Head head, String state) {
         final JsonNode data = head.data();
         final String id = data.get("id").asText();
         final Map<String, Integer> counts = new LinkedHashMap<>();
@@ -478,6 +502,8 @@ final class Stories {
                 + head.file().getFileName()
                 + ") "
                 + cell(data.get("title").asText())
+                + " | "
+                + state
                 + " | "
                 + priority(data)
                 + " | "

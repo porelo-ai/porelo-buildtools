@@ -60,7 +60,16 @@ class StoriesTest {
                 "providers",
                 "Backlog",
                 "P09");
-        index("porelo-host", "Review", "HO146", "Finished", "HO147", "Rejected", "HO148");
+        index(
+                "porelo-host",
+                "Review",
+                "HO146",
+                "Finished",
+                "HO147",
+                "Rejected",
+                "HO148",
+                "Rework",
+                "HO149");
         index("porelo-ecosystems", "Idea", "EC06");
         index("porelo-ai.github.io", "Finished", "SI01");
     }
@@ -172,6 +181,14 @@ class StoriesTest {
                 "[\"porelo-ai.github.io#SI01\", \"porelo-host#HO148\"]",
                 "null");
 
+        story(
+                "ST7.md",
+                "ST7",
+                "Back For Rework",
+                "High",
+                "[\"porelo-host#HO146\", \"porelo-host#HO149\"]",
+                "null");
+
         assertThat(run("index")).as(said()).isZero();
 
         assertThat(Files.readString(dir.resolve("README.md")))
@@ -181,17 +198,28 @@ class StoriesTest {
                 .contains(
                         "(`B` porelo, `EC` porelo-ecosystems, `HO` porelo-host, `P` porelo, `SI` porelo-ai.github.io)")
                 .containsSubsequence(
+                        "| State | Stories |",
+                        "| [Ready for your test](#ready-for-your-test) | 1 |",
+                        "| [Review](#review) | 2 |",
+                        "| [Implementing](#implementing) | 1 |",
+                        "| [Backlog](#backlog) | 1 |",
+                        "| [Idea](#idea) | 1 |",
+                        "| [Tested](#tested) | 1 |",
+                        "## Ready for your test",
+                        "[ST6](ST6.md) All Finished | Ready for your test | 🔼 High | HO:1 · SI:1 |",
                         "## Review",
-                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | HO:1 | A person gains. |",
-                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:2 |",
+                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | Review | ⏫ Highest | HO:1 | A person gains. |",
+                        "[ST2](ST2.md) In Review | Review | 🟰 Medium | HO:2 |",
+                        "## Implementing",
+                        "[ST7](ST7.md) Back For Rework | Implementing | 🔼 High | HO:2 |",
                         "## Backlog",
-                        "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
+                        "[ST1](ST1.md) Waits On Backlog | Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Idea",
-                        "[ST4](ST4.md) No Issue Yet | ⏬ Lowest | none yet |",
-                        "## Finished",
-                        "[ST6](ST6.md) All Finished | 🔼 High | HO:1 · SI:1 |",
+                        "[ST4](ST4.md) No Issue Yet | Idea | ⏬ Lowest | none yet |",
                         "## Tested",
-                        "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |");
+                        "[ST5](ST5.md) Done And Tried | Tested | 🔼 High | SI:1 |");
+        assertThat(Files.readString(dir.resolve("ST6.md")))
+                .contains("**Priority:** 🔼 High · **State:** Ready for your test");
         assertThat(check()).as(said()).isZero();
     }
 
