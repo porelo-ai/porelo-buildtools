@@ -1,6 +1,7 @@
 # BT48 — Snapshots Filtered In The Agent Repositories
 
-**Status:** Idea.
+**Status:** Backlog.
+**Size:** S - three files and a Build step in each of five repositories, by Agent Smith there; XS here.
 
 **What must be true.** porelo-claude-code, porelo-pi, porelo-omp, porelo-codex and porelo-agy read Sonatype's
 snapshots only for the groups they list in `.mvn/rrf/groupId-central.sonatype.snapshots.txt`, in the shape
