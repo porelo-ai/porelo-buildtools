@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt51"></a>[BT51](BT51-The-Pinned-Rule-Keeps-A-Deadline.md) | XS | - | A pinned download starts no attempt later than 15 minutes after its first, the attempts' own time counted with the pauses, in Java and in `pinned.sh` alike. |
 | <a id="bt49"></a>[BT49](BT49-Pinned-Downloads-Cached-And-Tried-Again-By-One-Rule.md) | S | - | Every pinned download of a Build is cached by its digest and checked again after a hit, and tried again by one rule (15 min of growing pauses) when it must be fetched; a 4xx or a wrong digest fails at once. |
 | <a id="bt47"></a>[BT47](BT47-Check-Commits-Takes-Porelos-Own-Trailers.md) | XS | - | `check-commits` takes `Porelo-Change-Id` and `Porelo-Signs-Anew`, each in its own form, which Porelo writes on its own commits; due before Porelo's next commit is pushed. |
 | <a id="bt45"></a>[BT45](BT45-Each-Issue-Counts-Its-Stages.md) | M | - | `porelo-release stage begin` and `end` record each stage of an issue with its time and tokens in `stats/<issue>.jsonl`, `check-commits` refuses an open stage, and `stage median` reads the estimate. |

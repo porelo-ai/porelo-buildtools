@@ -16,8 +16,10 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 
@@ -92,6 +94,16 @@ final class PinnedJdk {
          * @throws InterruptedException if interrupted
          */
         void of(Duration time) throws InterruptedException;
+
+        /**
+         * The time now, by which the rule's deadline is kept: a clock that only counts up, which no
+         * step of the system's clock moves, unless a test keeps its own.
+         *
+         * @return a point on that clock; only the time between two of them counts
+         */
+        default Instant now() {
+            return Instant.EPOCH.plusNanos(System.nanoTime());
+        }
     }
 
     /**
@@ -203,8 +215,8 @@ final class PinnedJdk {
     private static String fetchedDigest(
             URI address, Path archive, Download download, Pause pause, Consumer<String> say)
             throws IOException {
-        final List<Duration> pauses = PinnedRetry.pauses();
-        final int attempts = pauses.size() + 1;
+        final int attempts = PinnedRetry.attempts();
+        final Instant start = pause.now();
         for (int attempt = 1; ; attempt++) {
             final MessageDigest sha256 = sha256();
             try (OutputStream out =
@@ -213,10 +225,21 @@ final class PinnedJdk {
                 download.to(address, hashed);
                 return HexFormat.of().formatHex(sha256.digest());
             } catch (Unavailable ex) {
-                if (attempt == attempts) {
-                    throw ex;
+                final Duration elapsed = Duration.between(start, pause.now());
+                final Optional<Duration> after = PinnedRetry.pauseAfter(attempt, elapsed);
+                if (after.isEmpty()) {
+                    throw new Unavailable(
+                            ex.getMessage()
+                                    + "; given up after "
+                                    + attempt
+                                    + " of at most "
+                                    + attempts
+                                    + " attempts in "
+                                    + Math.max(0, elapsed.toSeconds())
+                                    + " s",
+                            ex);
                 }
-                final Duration next = pauses.get(attempt - 1);
+                final Duration next = after.get();
                 say.accept(
                         ex.getMessage()
                                 + " on attempt "

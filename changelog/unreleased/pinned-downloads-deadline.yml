@@ -1,0 +1,2 @@
+title: porelo-machines jdk starts no download attempt later than 15 minutes after the first, the attempts' own time counted with the pauses, and says after how many attempts it gave up.
+type: changed

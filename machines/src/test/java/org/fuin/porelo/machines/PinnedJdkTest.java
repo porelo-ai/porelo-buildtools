@@ -18,6 +18,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -205,6 +206,118 @@ class PinnedJdkTest {
         try (var left = Files.list(dir)) {
             assertThat(left).containsExactly(dir.resolve("jdk"));
         }
+    }
+
+    @Test
+    void startsNoAttemptAfterFifteenMinutesWithTheAttemptsTimeCounted() throws IOException {
+        // Each attempt hangs two minutes before it fails, as GitHub's did on 2026-11-08.
+        final Instant[] clock = {Instant.parse("2026-11-08T11:10:00Z")};
+        final Instant first = clock[0];
+        final List<Instant> started = new ArrayList<>();
+        final List<Duration> waited = new ArrayList<>();
+        final PinnedJdk.Pause pause =
+                new PinnedJdk.Pause() {
+                    @Override
+                    public void of(Duration time) {
+                        waited.add(time);
+                        clock[0] = clock[0].plus(time);
+                    }
+
+                    @Override
+                    public Instant now() {
+                        return clock[0];
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            started.add(clock[0]);
+                                            clock[0] = clock[0].plus(Duration.ofMinutes(2));
+                                            throw new PinnedJdk.Unavailable("HTTP 504");
+                                        },
+                                        null,
+                                        pause,
+                                        message -> {}))
+                .isInstanceOf(PinnedJdk.Unavailable.class)
+                .hasMessageContaining("HTTP 504")
+                .hasMessageContaining("given up after 6 of at most 8 attempts in 1020 s");
+
+        // Five attempts of 2 min and pauses of 15, 30, 60 and 120 s end at 13 min 45 s; the pause
+        // of
+        // 240 s is cut to 75 s, so the sixth starts at the deadline, and none after it.
+        assertThat(started)
+                .as("six attempts, none after the deadline")
+                .hasSize(6)
+                .allSatisfy(at -> assertThat(at).isBeforeOrEqualTo(first.plus(PinnedRetry.BUDGET)));
+        assertThat(started.get(5))
+                .as("the last at the deadline")
+                .isEqualTo(first.plus(PinnedRetry.BUDGET));
+        assertThat(waited)
+                .as("the rule's pauses, the last cut")
+                .containsExactly(
+                        Duration.ofSeconds(15),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(60),
+                        Duration.ofSeconds(120),
+                        Duration.ofSeconds(75));
+    }
+
+    @Test
+    void keepsTheDeadlineOnAClockThatCountsUp() throws InterruptedException {
+        final PinnedJdk.Pause pause = time -> {};
+
+        final Instant before = pause.now();
+        Thread.sleep(20);
+
+        assertThat(Duration.between(before, pause.now()))
+                .as("the default clock moves, or the deadline would never come")
+                .isGreaterThanOrEqualTo(Duration.ofMillis(20));
+    }
+
+    @Test
+    void cutsThePauseSoTheNextAttemptStartsByTheDeadline() throws IOException {
+        final Instant[] clock = {Instant.parse("2026-11-08T11:10:00Z")};
+        final List<Duration> waited = new ArrayList<>();
+        final AtomicInteger attempts = new AtomicInteger();
+        final PinnedJdk.Pause pause =
+                new PinnedJdk.Pause() {
+                    @Override
+                    public void of(Duration time) {
+                        waited.add(time);
+                        clock[0] = clock[0].plus(time);
+                    }
+
+                    @Override
+                    public Instant now() {
+                        return clock[0];
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            // The first hangs 14 min 50 s.
+                                            if (attempts.incrementAndGet() == 1) {
+                                                clock[0] = clock[0].plus(Duration.ofSeconds(890));
+                                            }
+                                            throw new PinnedJdk.Unavailable("HTTP 504");
+                                        },
+                                        null,
+                                        pause,
+                                        message -> {}))
+                .isInstanceOf(PinnedJdk.Unavailable.class);
+
+        assertThat(waited)
+                .as("the pause cut to what is left")
+                .containsExactly(Duration.ofSeconds(10));
+        assertThat(attempts).as("one more attempt, at the deadline").hasValue(2);
     }
 
     @Test

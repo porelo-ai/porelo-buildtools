@@ -17,11 +17,16 @@ A pinned download is cached with `actions/cache`, keyed by its digest:
 
 When a file must be fetched:
 - **The pauses** double from 15 s, none longer than 5 min, until 15 min of pauses are spent: 15, 30, 60, 120, 240,
-  300, 135 s, so eight attempts.
+  300, 135 s, so eight attempts at most.
+- **The deadline:** the same 15 min, counted from the start of the first attempt with the attempts' own time in it. No
+  attempt starts later, and a pause is cut so the next one starts by then. A fetch so takes at most 15 min plus the
+  one attempt then running, however long a failing attempt hangs. The time is a clock that only counts up, in whole
+  seconds.
 - **Only an answer that may be better next time** is tried again: a 5xx, or a connection that could not be made,
   timed out or broke off. A 4xx, a refused certificate, a full disk and a wrong digest fail at once.
 - **A command whose failure does not say why**, such as the wrapper's Maven, is run again on any failure by the same
-  pauses.
+  pauses and deadline. It runs in a subshell under `set -e`, so a function given stops at its first failing command,
+  as long as `pinned_retry` is a statement of its own and not a condition.
 
 The rule is held twice:
 - in Java, in porelo-machines' `PinnedRetry`;

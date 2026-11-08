@@ -3,6 +3,7 @@ package org.fuin.porelo.machines;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The one rule by which every pinned download is tried again: the GraalVM here, and shfmt, the
@@ -13,6 +14,11 @@ import java.util.List;
  * of pauses are spent; the last one is cut to fit. GitHub's release downloads answered 504 for over
  * ten minutes on 2026-11-08, longer than the two and a half minutes the attempts before this
  * waited.
+ *
+ * <p>The fifteen minutes are also a deadline, counted from the start of the first attempt with the
+ * attempts' own time in it: no attempt starts later, and a pause is cut so the next one starts by
+ * then. On 2026-11-08 a failing attempt took two minutes before it answered, so eight of them and
+ * their pauses would have taken half an hour.
  */
 final class PinnedRetry {
 
@@ -22,7 +28,9 @@ final class PinnedRetry {
     /** The longest single pause. */
     static final Duration LONGEST = Duration.ofMinutes(5);
 
-    /** All pauses together, before the download fails. */
+    /**
+     * All pauses together, and the time after the first attempt's start by which the last starts.
+     */
     static final Duration BUDGET = Duration.ofMinutes(15);
 
     private PinnedRetry() {
@@ -49,7 +57,27 @@ final class PinnedRetry {
     }
 
     /**
-     * How often a download is tried, the first time included.
+     * The pause after a failed attempt, by the rule and the deadline, in whole seconds as {@code
+     * pinned.sh} counts them.
+     *
+     * @param attempt the attempt that failed, from 1
+     * @param elapsed the time since the first attempt started; less than none counts as none
+     * @return the pause before the next attempt, or empty when none is to start
+     */
+    static Optional<Duration> pauseAfter(int attempt, Duration elapsed) {
+        final List<Duration> pauses = pauses();
+        final Duration spent =
+                elapsed.isNegative() ? Duration.ZERO : Duration.ofSeconds(elapsed.toSeconds());
+        final Duration left = BUDGET.minus(spent);
+        if (attempt < 1 || attempt > pauses.size() || !left.isPositive()) {
+            return Optional.empty();
+        }
+        final Duration pause = pauses.get(attempt - 1);
+        return Optional.of(pause.compareTo(left) > 0 ? left : pause);
+    }
+
+    /**
+     * How often a download is tried at most, the first time included.
      *
      * @return one more than the pauses
      */

@@ -59,6 +59,177 @@ class PinnedRetryTest {
     }
 
     @Test
+    void theShellKeepsTheDeadlineAsJavaDoes() throws IOException, InterruptedException {
+        final List<String> expected = new ArrayList<>();
+        final StringBuilder calls = new StringBuilder();
+        for (int attempt = 0; attempt <= 8; attempt++) {
+            for (final int elapsed : new int[] {-5, 0, 100, 400, 600, 780, 890, 899, 900, 1000}) {
+                expected.add(
+                        attempt
+                                + " "
+                                + elapsed
+                                + " "
+                                + PinnedRetry.pauseAfter(attempt, Duration.ofSeconds(elapsed))
+                                        .map(pause -> Long.toString(pause.toSeconds()))
+                                        .orElse("none"));
+                calls.append("echo \"")
+                        .append(attempt)
+                        .append(' ')
+                        .append(elapsed)
+                        .append(" $(pinned_pause ")
+                        .append(attempt)
+                        .append(' ')
+                        .append(elapsed)
+                        .append(" || echo none)\"; ");
+            }
+        }
+
+        final Ran ran = shell(calls.toString(), "exit 99");
+
+        assertThat(ran.out().lines())
+                .as("pinned_pause against pauseAfter")
+                .containsExactlyElementsOf(expected);
+        assertThat(ran.exit()).isZero();
+    }
+
+    @Test
+    void theDeadlineCutsByTheseNumbers() {
+        // Reference values of their own, so a pauseAfter that went wrong cannot carry the shell
+        // with it.
+        assertThat(PinnedRetry.pauseAfter(1, Duration.ZERO))
+                .as("first pause")
+                .contains(Duration.ofSeconds(15));
+        assertThat(PinnedRetry.pauseAfter(7, Duration.ZERO))
+                .as("last pause")
+                .contains(Duration.ofSeconds(135));
+        assertThat(PinnedRetry.pauseAfter(8, Duration.ZERO))
+                .as("after the eighth attempt")
+                .isEmpty();
+        assertThat(PinnedRetry.pauseAfter(0, Duration.ZERO)).as("no attempt 0").isEmpty();
+        assertThat(PinnedRetry.pauseAfter(5, Duration.ofSeconds(890)))
+                .as("cut to the deadline")
+                .contains(Duration.ofSeconds(10));
+        assertThat(PinnedRetry.pauseAfter(1, Duration.ofMillis(899_500)))
+                .as("whole seconds, as the shell")
+                .contains(Duration.ofSeconds(1));
+        assertThat(PinnedRetry.pauseAfter(1, Duration.ofSeconds(900)))
+                .as("at the deadline")
+                .isEmpty();
+        assertThat(PinnedRetry.pauseAfter(1, Duration.ofSeconds(-5)))
+                .as("a clock behind counts as none")
+                .contains(Duration.ofSeconds(15));
+    }
+
+    @Test
+    void theShellsClockCountsUpWhateverTheCallerDoesWithSeconds()
+            throws IOException, InterruptedException {
+        final Ran ran =
+                shell(
+                        "a=$(pinned_now); SECONDS=0; python3 -c 'import time; time.sleep(1.3)'; b=$(pinned_now);"
+                                + " echo $((b - a))",
+                        "exit 99");
+
+        assertThat(ran.exit()).as(ran.out()).isZero();
+        assertThat(Integer.parseInt(ran.out().strip()))
+                .as("seconds counted over 1.3 s")
+                .isBetween(1, 2);
+    }
+
+    @Test
+    void theShellRunsACommandAgainOnlyUntilTheDeadline() throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+
+        // Each run hangs two minutes and fails; sleep moves the same clock.
+        final Ran ran =
+                shell(
+                        "pinned_now() { cat "
+                                + clock
+                                + "; }; hangs() { echo $(($(cat "
+                                + clock
+                                + ") + 120)) > "
+                                + clock
+                                + "; return 3; }; pinned_retry 'the wrapper' hangs",
+                        "exit 99",
+                        "echo $(($(cat "
+                                + clock
+                                + ") + $1)) > "
+                                + clock
+                                + "; echo \"slept $1\" >&2");
+
+        assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        assertThat(ran.out())
+                .as("six runs, the last at the deadline")
+                .contains("the wrapper failed (exit 3) on attempt 5 of 8; trying again in 75 s")
+                .contains("given up after 6 of at most 8 attempts in 1020 s");
+    }
+
+    @Test
+    void theShellRunsACommandWithItsOwnErrexitAndKeepsTheCallers()
+            throws IOException, InterruptedException {
+        final Path reached = dir.resolve("reached");
+
+        // pinned_retry as a statement of its own: as a condition, bash ignores set -e all the way
+        // down.
+        final Ran ran =
+                shell(
+                        "install() { false; echo reached > "
+                                + reached
+                                + "; }; pinned_now() { echo 0; };"
+                                + " set +e; pinned_retry install install; echo \"status $?\";"
+                                + " case $- in *e*) echo 'errexit came on' ;; esac;"
+                                + " set -e; pinned_retry ok true; case $- in *e*) echo 'errexit kept' ;; esac",
+                        "exit 99");
+
+        assertThat(reached).as("a failing command stops the function given").doesNotExist();
+        assertThat(ran.out())
+                .as(ran.out())
+                .contains("install failed (exit 1) on attempt 1 of 8")
+                .contains("status 1")
+                .doesNotContain("errexit came on")
+                .contains("errexit kept");
+    }
+
+    @Test
+    void theShellStartsNoAttemptAfterFifteenMinutes() throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+        final Path started = dir.resolve("started");
+
+        // Each attempt hangs two minutes before it answers 504; sleep moves the same clock.
+        final Ran ran =
+                shell(
+                        "pinned_now() { cat "
+                                + clock
+                                + "; }; pinned_fetch https://example.invalid/tool "
+                                + sha("pinned")
+                                + " "
+                                + dir.resolve("tool"),
+                        "cat "
+                                + clock
+                                + " >> "
+                                + started
+                                + "; echo $(($(cat "
+                                + clock
+                                + ") + 120)) > "
+                                + clock
+                                + "; printf 504",
+                        "echo $(($(cat "
+                                + clock
+                                + ") + $1)) > "
+                                + clock
+                                + "; echo \"slept $1\" >&2");
+
+        assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        assertThat(Files.readString(started).lines())
+                .as("no attempt starts after 900 s")
+                .containsExactly("0", "135", "285", "465", "705", "900");
+        assertThat(ran.out())
+                .as("what it says when it gives up")
+                .contains("given up after 6 of at most 8 attempts in 1020 s");
+    }
+
+    @Test
     void theShellKeepsAFileThatMatchesWithoutFetching() throws IOException, InterruptedException {
         final Path file = dir.resolve("tool");
         Files.writeString(file, "pinned");
@@ -136,7 +307,7 @@ class PinnedRetryTest {
         assertThat(ran.exit()).isEqualTo(1);
         assertThat(Files.readString(dir.resolve("n")).strip()).isEqualTo("8");
         assertThat(ran.out().lines().filter(line -> line.startsWith("slept"))).hasSize(7);
-        assertThat(ran.out()).contains("on all 8 attempts");
+        assertThat(ran.out()).contains("given up after 8 of at most 8 attempts");
         assertThat(file).doesNotExist();
         assertNoPartLeft(file);
     }
@@ -190,7 +361,9 @@ class PinnedRetryTest {
         assertThat(ran.exit()).isZero();
         assertThat(Files.readString(count).strip()).isEqualTo("3");
         // Its words reach the log though the command's output is discarded.
-        assertThat(ran.out()).contains("the wrapper failed on attempt 1 of 8").contains("slept 15");
+        assertThat(ran.out())
+                .contains("the wrapper failed (exit 1) on attempt 1 of 8")
+                .contains("slept 15");
     }
 
     @Test
@@ -214,8 +387,8 @@ class PinnedRetryTest {
 
         assertThat(ran.exit()).isZero();
         assertThat(ran.out())
-                .contains("outer failed on attempt 1 of 8")
-                .contains("outer failed on attempt 2 of 8");
+                .contains("outer failed (exit 1) on attempt 1 of 8")
+                .contains("outer failed (exit 1) on attempt 2 of 8");
     }
 
     /** What a run of bash printed, standard error included, and how it ended. */
@@ -267,9 +440,14 @@ class PinnedRetryTest {
 
     /** Runs the script's functions in bash with stand-ins for curl and sleep. */
     private Ran shell(String body, String curl) throws IOException, InterruptedException {
+        return shell(body, curl, "echo \"slept $1\" >&2");
+    }
+
+    private Ran shell(String body, String curl, String sleep)
+            throws IOException, InterruptedException {
         final Path bin = Files.createDirectories(dir.resolve("bin"));
         Files.writeString(bin.resolve("curl"), "#!/bin/sh\n" + curl + "\n");
-        Files.writeString(bin.resolve("sleep"), "#!/bin/sh\necho \"slept $1\" >&2\n");
+        Files.writeString(bin.resolve("sleep"), "#!/bin/sh\n" + sleep + "\n");
         bin.resolve("curl").toFile().setExecutable(true);
         bin.resolve("sleep").toFile().setExecutable(true);
         final ProcessBuilder builder =
