@@ -38,7 +38,7 @@ class StoriesTest {
                 repositories:
                     core:
                         upstream: "git@github.com:porelo-ai/porelo.git"
-                        issues: ["P"]
+                        issues: ["B", "P"]
                     host:
                         upstream: "git@github.com:porelo-ai/porelo-host.git"
                         issues: ["HO"]
@@ -177,18 +177,21 @@ class StoriesTest {
         assertThat(Files.readString(dir.resolve("README.md")))
                 .as(
                         "by state in the indexes' order, the higher priority first, a rejected issue holding none back")
+                .contains("Priority: ⏫ Highest · 🔼 High · 🟰 Medium · 🔽 Low · ⏬ Lowest.")
+                .contains(
+                        "(`B` porelo, `EC` porelo-ecosystems, `HO` porelo-host, `P` porelo, `SI` porelo-ai.github.io)")
                 .containsSubsequence(
                         "## Review",
-                        "[ST3](ST3.md) | Highest | Also In Review | porelo-host#HO146 |",
-                        "[ST2](ST2.md) | Medium | In Review |",
+                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | HO:1 | A person gains. |",
+                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:2 |",
                         "## Backlog",
-                        "[ST1](ST1.md) | Low |",
+                        "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Idea",
-                        "[ST4](ST4.md) | Lowest |",
+                        "[ST4](ST4.md) No Issue Yet | ⏬ Lowest | none yet |",
                         "## Finished",
-                        "[ST6](ST6.md) | High |",
+                        "[ST6](ST6.md) All Finished | 🔼 High | HO:1 · SI:1 |",
                         "## Tested",
-                        "[ST5](ST5.md) | High | Done And Tried | porelo-ai.github.io#SI01 | 2026-11-08 |");
+                        "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |");
         assertThat(check()).as(said()).isZero();
     }
 
@@ -235,7 +238,7 @@ class StoriesTest {
                 """
                 # ST1 — A Title
 
-                **Priority:** Medium · **State:** Implementing
+                **Priority:** 🟰 Medium · **State:** Implementing
 
                 **What a user gains.** A person gains.
 
@@ -262,7 +265,7 @@ class StoriesTest {
                         """
                         # ST2 — Tried
 
-                        **Priority:** Low · **Tested:** 2026-11-08
+                        **Priority:** 🔽 Low · **Tested:** 2026-11-08
 
                         **What a user gains.** A person gains.
 

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,9 +59,8 @@ final class Stories {
                     "Finished",
                     "Tested");
 
-    /** Jira's priorities, the highest first. */
-    private static final List<String> PRIORITIES =
-            List.of("Highest", "High", "Medium", "Low", "Lowest");
+    /** Jira's priorities, the highest first, each with Jira's icon. */
+    private static final Map<String, String> PRIORITIES = priorities();
 
     /** The line that starts the last paragraph of a story's generated part, the list of issues. */
     private static final String ISSUES = "**Issues:** ";
@@ -346,24 +346,53 @@ final class Stories {
         final StringBuilder page =
                 new StringBuilder(
                         "# Stories\n\nWritten by `porelo-release stories index` from each story's"
-                                + " head; a change goes into the story's file. A story stands in"
-                                + " the state of its least advanced issue, as an idea while it has"
-                                + " none, and as tested once its test held; within a state, the"
-                                + " higher priority comes first.\n");
+                                + " head; a change goes into the story's file. Each story is one"
+                                + " function of value to a user, with the test the person runs at"
+                                + " its end and every issue it needs. Work follows the priority; a"
+                                + " story stands in the state of its least advanced issue, as an"
+                                + " idea while it has none, and as tested once its test held.\n\n"
+                                + "Priority: ");
+        page.append(
+                String.join(
+                        " · ",
+                        PRIORITIES.entrySet().stream()
+                                .map(priority -> priority.getValue() + " " + priority.getKey())
+                                .toList()));
+        page.append(". Issues are counted by their prefix (");
+        page.append(
+                String.join(
+                        ", ",
+                        project.repositories().entrySet().stream()
+                                .flatMap(
+                                        repository ->
+                                                repository.getValue().stream()
+                                                        .map(
+                                                                prefix ->
+                                                                        Map.entry(
+                                                                                prefix,
+                                                                                repository
+                                                                                        .getKey())))
+                                .sorted(Map.Entry.comparingByKey())
+                                .map(prefix -> "`" + prefix.getKey() + "` " + prefix.getValue())
+                                .toList()));
+        page.append(").\n");
         for (final Map.Entry<String, List<Heads.Head>> state : byState.entrySet()) {
             if (state.getValue().isEmpty()) {
                 continue;
             }
             page.append("\n## ")
                     .append(state.getKey())
-                    .append("\n\n| Story | Priority | Title | Issues | Tested |\n")
-                    .append("|---|---|---|---|---|\n");
+                    .append("\n\n| Story | Priority | Issues | What a user gains |\n")
+                    .append("|---|---|---|---|\n");
             state.getValue().stream()
                     .sorted(
                             Comparator.comparingInt(
                                             (Heads.Head head) ->
-                                                    PRIORITIES.indexOf(
-                                                            head.data().get("priority").asText()))
+                                                    List.copyOf(PRIORITIES.keySet())
+                                                            .indexOf(
+                                                                    head.data()
+                                                                            .get("priority")
+                                                                            .asText()))
                                     .thenComparingInt(Stories::number))
                     .forEach(head -> page.append(row(head)));
         }
@@ -379,7 +408,7 @@ final class Stories {
         final String tested = data.get("tested").isNull() ? null : data.get("tested").asText();
         final String generated =
                 "**Priority:** "
-                        + data.get("priority").asText()
+                        + priority(data)
                         + (tested == null ? " · **State:** " + state : " · **Tested:** " + tested)
                         + "\n\n**What a user gains.** "
                         + data.get("gain").asText()
@@ -420,20 +449,60 @@ final class Stories {
 
     private static String row(Heads.Head head) {
         final JsonNode data = head.data();
-        final List<String> issues = new ArrayList<>();
-        data.get("issues").forEach(issue -> issues.add(issue.asText()));
-        return "| ["
-                + data.get("id").asText()
+        final String id = data.get("id").asText();
+        final Map<String, Integer> counts = new LinkedHashMap<>();
+        data.get("issues")
+                .forEach(
+                        issue ->
+                                counts.merge(
+                                        issue.asText()
+                                                .substring(issue.asText().indexOf('#') + 1)
+                                                .replaceAll("[0-9]+$", ""),
+                                        1,
+                                        Integer::sum));
+        final String issues =
+                String.join(
+                        " · ",
+                        counts.entrySet().stream()
+                                .sorted(
+                                        Map.Entry.<String, Integer>comparingByValue()
+                                                .reversed()
+                                                .thenComparing(Map.Entry.comparingByKey()))
+                                .map(count -> count.getKey() + ":" + count.getValue())
+                                .toList());
+        return "| <a id=\""
+                + id.toLowerCase(Locale.ROOT)
+                + "\"></a>["
+                + id
                 + "]("
                 + head.file().getFileName()
-                + ") | "
-                + data.get("priority").asText()
+                + ") "
+                + cell(data.get("title").asText())
                 + " | "
-                + data.get("title").asText().replace("|", "\\|")
+                + priority(data)
                 + " | "
-                + (issues.isEmpty() ? "-" : String.join(", ", issues))
+                + (issues.isEmpty() ? "none yet" : issues)
                 + " | "
-                + (data.get("tested").isNull() ? "-" : data.get("tested").asText())
+                + cell(data.get("gain").asText())
                 + " |\n";
+    }
+
+    private static String cell(String text) {
+        return text.replace("|", "\\|");
+    }
+
+    private static String priority(JsonNode data) {
+        final String priority = data.get("priority").asText();
+        return PRIORITIES.get(priority) + " " + priority;
+    }
+
+    private static Map<String, String> priorities() {
+        final Map<String, String> priorities = new LinkedHashMap<>();
+        priorities.put("Highest", "⏫");
+        priorities.put("High", "🔼");
+        priorities.put("Medium", "🟰");
+        priorities.put("Low", "🔽");
+        priorities.put("Lowest", "⏬");
+        return java.util.Collections.unmodifiableMap(priorities);
     }
 }
