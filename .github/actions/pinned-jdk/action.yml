@@ -10,7 +10,7 @@
 # download: first, since even the GraalVM's installation runs 'validate', and the tree holds shell scripts.
 #
 # Each pinned download is cached by its digest and checked against it again after a hit, and tried again by the one
-# rule in pinned.sh, which porelo-machines' PinnedRetry follows too.
+# rule in pinned.sh, which PinnedRetry in porelo-pinned-rule follows too.
 name: Pinned GraalVM
 description: Installs the GraalVM porelo-machines pins, checked against its digest, as JAVA_HOME for the rest of the job, and the pinned shfmt on the PATH.
 runs:
@@ -41,6 +41,9 @@ runs:
         # Spotless refuses an shfmt of another version than the parent pins, so a moved pin fails here loudly.
         - name: Install the pinned shfmt
           shell: bash
+          env:
+              # The job's token, for a download from https://github.com alone; none on a host's forge.
+              PORELO_PINNED_GITHUB_TOKEN: ${{ github.server_url == 'https://github.com' && github.token || '' }}
           run: |
               set -eu
               . "$GITHUB_ACTION_PATH/pinned.sh"
@@ -75,8 +78,10 @@ runs:
               ./mvnw -B -q -s settings.xml -pl machines -am install -DskipTests
               ./mvnw -B -q -s settings.xml -pl machines dependency:build-classpath \
                   -Dmdep.outputFile=target/jdk-cp.txt
+              # A failure says so: set -e alone would end the step at this assignment without a word.
               sha256=$("$JAVA_HOME/bin/java" -cp "machines/target/classes:$(cat machines/target/jdk-cp.txt)" \
-                  org.fuin.porelo.machines.Main jdk --print-sha256)
+                  org.fuin.porelo.machines.Main jdk --print-sha256) \
+                  || { echo "::error::porelo-machines could not name the pinned digest (exit $?)"; exit 1; }
               [[ $sha256 =~ ^[0-9a-f]{64}$ ]] \
                   || { echo "::error::porelo-machines named no pinned digest"; exit 1; }
               echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
@@ -89,6 +94,9 @@ runs:
 
         - name: Install the pinned GraalVM
           shell: bash
+          env:
+              # The job's token, for a download from https://github.com alone; none on a host's forge.
+              PORELO_PINNED_GITHUB_TOKEN: ${{ github.server_url == 'https://github.com' && github.token || '' }}
           run: |
               set -eu
               "$JAVA_HOME_25_X64/bin/java" -cp "machines/target/classes:$(cat machines/target/jdk-cp.txt)" \

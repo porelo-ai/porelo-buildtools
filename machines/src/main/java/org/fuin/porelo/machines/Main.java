@@ -93,7 +93,7 @@ public final class Main {
             return lease(args, complain, env, open);
         }
         if (args.length > 0 && "jdk".equals(args[0])) {
-            return jdk(args, complain, System.getenv(), PinnedJdk.overHttps());
+            return jdk(args, complain, env, PinnedJdk.overHttps(PinnedJdk.githubToken(env)));
         }
         if (args.length > 0 && "musl".equals(args[0])) {
             return musl(args, complain, Main::runInBash);

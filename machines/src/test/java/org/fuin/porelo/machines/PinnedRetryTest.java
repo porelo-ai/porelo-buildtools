@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.fuin.porelo.pinned.PinnedRetry;
 import org.junit.jupiter.api.Test;
@@ -348,6 +349,134 @@ class PinnedRetryTest {
                 .contains("outer failed (exit 1) on attempt 2 of 8");
     }
 
+    @Test
+    void theShellSendsTheJobsTokenOnItsStandardInputToGithubAloneAndNotAlongTheRedirect()
+            throws IOException, InterruptedException {
+        final Ran ran =
+                githubFetch(
+                        "https://github.com/graalvm/x.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN));
+
+        assertThat(ran.exit()).as(ran.out()).isEqualTo(0);
+        assertThat(Files.readString(dir.resolve("calls")))
+                .as(
+                        "the address asked for with the token on stdin, following nothing; the signed one without it")
+                .isEqualTo(
+                        "-K - stdin header = \"Authorization: Bearer "
+                                + TOKEN
+                                + "\" url https://github.com/graalvm/x.tar.gz\n"
+                                + "-L stdin  url https://objects.example/signed\n");
+        assertThat(ran.out()).as("never told").doesNotContain(TOKEN);
+    }
+
+    @Test
+    void theShellSendsNoTokenOffGithubOrOutOfForm() throws IOException, InterruptedException {
+        final Map<String, Map<String, String>> cases =
+                Map.of(
+                        "https://github.com/x.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "http://127.0.0.1:3000",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN),
+                        "https://github.com.example/x.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN),
+                        "https://example.invalid/x.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN),
+                        "https://github.com/y.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                "short\"x"),
+                        "https://github.com/z.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN + "\nurl = \"https://evil.example/x"),
+                        "https://github.com/w.tar.gz",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN + "\""));
+        for (final var entry : cases.entrySet()) {
+            Files.deleteIfExists(dir.resolve("calls"));
+            Files.deleteIfExists(dir.resolve("tool"));
+            final Ran ran = githubFetch(entry.getKey(), entry.getValue());
+
+            assertThat(Files.readString(dir.resolve("calls")))
+                    .as(
+                            entry.getKey()
+                                    + " "
+                                    + entry.getValue().get("GITHUB_SERVER_URL")
+                                    + ": "
+                                    + ran.out())
+                    .startsWith("-L stdin  url " + entry.getKey())
+                    .doesNotContain("Authorization");
+        }
+    }
+
+    @Test
+    void theShellFailsAtOnceWhenTheTokenIsRefused() throws IOException, InterruptedException {
+        Files.deleteIfExists(dir.resolve("n"));
+        final Ran ran =
+                shell(
+                        "pinned_fetch https://github.com/x.tar.gz "
+                                + sha("pinned")
+                                + " "
+                                + dir.resolve("tool"),
+                        "cat >/dev/null; printf '403 '",
+                        "echo \"slept $1\" >&2",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN));
+
+        assertThat(ran.exit()).isEqualTo(1);
+        assertThat(ran.out())
+                .contains("answered HTTP 403")
+                .doesNotContain("slept")
+                .doesNotContain(TOKEN);
+    }
+
+    private static final String TOKEN = "ghs_" + "B".repeat(36);
+
+    /**
+     * Fetches with a stand-in curl that writes each call to {@code calls}: its mode, what came on
+     * stdin, and the address. With -K it answers a redirect to a signed address, else the file.
+     */
+    private Ran githubFetch(String url, Map<String, String> env)
+            throws IOException, InterruptedException {
+        final Path calls = dir.resolve("calls");
+        return shell(
+                "pinned_fetch " + url + " " + sha("pinned") + " " + dir.resolve("tool"),
+                "mode=; in=; case \" $* \" in *' -K - '*) mode='-K -'; in=$(cat) ;; esac\n"
+                        + "case \" $* \" in *' -L '*) mode=\"${mode:+$mode }-L\" ;; esac\n"
+                        + "for a; do last=$a; done\n"
+                        + "printf '%s stdin %s url %s\\n' \"$mode\" \"$in\" \"$last\" >> "
+                        + calls
+                        + "\nwhile [ $# -gt 0 ]; do [ \"$1\" = -o ] && out=$2; shift; done\n"
+                        + "if [ \"$mode\" = '-K -' ]; then printf '302 https://objects.example/signed'; "
+                        + "else printf pinned > \"$out\"; printf 200; fi",
+                "echo \"slept $1\" >&2",
+                env);
+    }
+
     /** What a run of bash printed, standard error included, and how it ended. */
     private record Ran(String out, int exit) {}
 
@@ -402,6 +531,11 @@ class PinnedRetryTest {
 
     private Ran shell(String body, String curl, String sleep)
             throws IOException, InterruptedException {
+        return shell(body, curl, sleep, Map.of());
+    }
+
+    private Ran shell(String body, String curl, String sleep, Map<String, String> env)
+            throws IOException, InterruptedException {
         final Path bin = Files.createDirectories(dir.resolve("bin"));
         Files.writeString(bin.resolve("curl"), "#!/bin/sh\n" + curl + "\n");
         Files.writeString(bin.resolve("sleep"), "#!/bin/sh\n" + sleep + "\n");
@@ -415,6 +549,9 @@ class PinnedRetryTest {
                                 SCRIPT.toAbsolutePath().toString())
                         .redirectErrorStream(true);
         builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+        builder.environment().remove("GITHUB_SERVER_URL");
+        builder.environment().remove("PORELO_PINNED_GITHUB_TOKEN");
+        builder.environment().putAll(env);
         final Process bash = builder.start();
         final String out = new String(bash.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertThat(bash.waitFor(60, TimeUnit.SECONDS)).isTrue();

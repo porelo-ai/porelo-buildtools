@@ -7,8 +7,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import org.fuin.porelo.pinned.PinnedRetry;
 
 /** Where the commands read what a vendor or a repository has published. */
 @FunctionalInterface
@@ -83,46 +86,146 @@ public interface Web {
         return message == null ? failure.getClass().getSimpleName() : message;
     }
 
+    /** How a wait between attempts is spent, and the clock the deadline is kept by. */
+    interface Pause {
+
+        /**
+         * Waits.
+         *
+         * @param time how long
+         * @throws InterruptedException if interrupted
+         */
+        void of(Duration time) throws InterruptedException;
+
+        /**
+         * The time now, on a clock that only counts up.
+         *
+         * @return a point on it; only the time between two counts
+         */
+        default Instant now() {
+            return Instant.EPOCH.plusNanos(System.nanoTime());
+        }
+    }
+
     /**
-     * Reads over HTTP.
+     * Reads over HTTP, once.
      *
      * <p>Redirects are followed: Artifactory serves a small bill directly and offloads a large one
      * with a 302, so a reader that stops there gets an empty body for the packages with the most to
      * say.
      *
-     * @return a reader that treats 404 as "not there" and every other failure as unreadable
+     * @return a reader that treats 404 as "not there", no answer and a 5xx as {@link Unanswered},
+     *     and every other failure as unreadable
      */
     static Web overHttp() {
         // Measured on JDK 25: a redirect to another host drops Authorization, so a credential stays
         // where it was sent.
-        final HttpClient client =
+        return overHttp(
                 HttpClient.newBuilder()
                         .followRedirects(HttpClient.Redirect.NORMAL)
                         .connectTimeout(Duration.ofSeconds(60))
-                        .build();
+                        .build());
+    }
+
+    /**
+     * Reads over HTTP with the given client, once.
+     *
+     * @param client the client
+     * @return the reader
+     */
+    static Web overHttp(HttpClient client) {
+        return (address, headers) -> once(client, address, headers);
+    }
+
+    /**
+     * This reader, with what did not answer or answered a 5xx read again by the pinned rule's
+     * pauses and deadline. Only for a command whose job allows the 15 minutes: each address read
+     * may take them.
+     *
+     * @param pause how a wait is spent
+     * @param say where an attempt that failed is told
+     * @return the reader
+     */
+    default Web askedAgain(Pause pause, Consumer<String> say) {
+        final Web once = this;
         return (address, headers) -> {
-            final HttpRequest.Builder request =
-                    HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(60)).GET();
-            headers.forEach(request::header);
-            final HttpResponse<byte[]> response;
-            try {
-                response = client.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new IOException("interrupted while reading " + address, ex);
-            } catch (IOException ex) {
-                // The JDK names no address in a timeout, an unreachable network or a TLS failure,
-                // and with no network at all its ConnectException has no message: name both, as
-                // an HTTP status below is named.
-                throw new IOException(address + ": " + reason(ex), ex);
+            final Instant start = pause.now();
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    return once.read(address, headers);
+                } catch (Unanswered ex) {
+                    final Duration elapsed = Duration.between(start, pause.now());
+                    final Optional<Duration> next = PinnedRetry.pauseAfter(attempt, elapsed);
+                    if (next.isEmpty()) {
+                        throw new IOException(
+                                ex.getMessage()
+                                        + "; given up after "
+                                        + attempt
+                                        + " of at most "
+                                        + PinnedRetry.attempts()
+                                        + " attempts in "
+                                        + Math.max(0, elapsed.toSeconds())
+                                        + " s",
+                                ex);
+                    }
+                    say.accept(
+                            "::warning::"
+                                    + ex.getMessage()
+                                    + " on attempt "
+                                    + attempt
+                                    + " of "
+                                    + PinnedRetry.attempts()
+                                    + "; trying again in "
+                                    + next.get().toSeconds()
+                                    + " s");
+                    try {
+                        pause.of(next.get());
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted while reading " + address, interrupted);
+                    }
+                }
             }
-            if (response.statusCode() == 404) {
-                return Optional.empty();
-            }
-            if (response.statusCode() != 200) {
-                throw new IOException(address + ": HTTP " + response.statusCode());
-            }
-            return Optional.of(response.body());
         };
+    }
+
+    /** No answer, or a 5xx: worth reading again. */
+    final class Unanswered extends IOException {
+
+        @java.io.Serial private static final long serialVersionUID = 1L;
+
+        Unanswered(String message, @org.jspecify.annotations.Nullable Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    private static Optional<byte[]> once(
+            HttpClient client, URI address, Map<String, String> headers) throws IOException {
+        final HttpRequest.Builder request =
+                HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(60)).GET();
+        headers.forEach(request::header);
+        final HttpResponse<byte[]> response;
+        try {
+            response = client.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted while reading " + address, ex);
+        } catch (IOException ex) {
+            // The JDK names no address in a timeout, an unreachable network or a TLS failure, and
+            // with no network at all its ConnectException has no message: name both, as an HTTP
+            // status below is named.
+            final String why = address + ": " + reason(ex);
+            throw mayAnswerNextTime(ex) ? new Unanswered(why, ex) : new IOException(why, ex);
+        }
+        if (response.statusCode() == 404) {
+            return Optional.empty();
+        }
+        if (response.statusCode() / 100 == 5) {
+            throw new Unanswered(address + ": HTTP " + response.statusCode(), null);
+        }
+        if (response.statusCode() != 200) {
+            throw new IOException(address + ": HTTP " + response.statusCode());
+        }
+        return Optional.of(response.body());
     }
 }

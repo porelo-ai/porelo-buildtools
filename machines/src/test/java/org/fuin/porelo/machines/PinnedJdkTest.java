@@ -737,6 +737,331 @@ class PinnedJdkTest {
         }
     }
 
+    @Test
+    void sendsTheTokenToItsOriginAndNeverAlongARedirect() throws IOException {
+        final HttpServer github = server();
+        final HttpServer elsewhere = server();
+        final List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        github.createContext(
+                "/asked",
+                exchange -> {
+                    seen.add("asked " + authorization(exchange));
+                    redirect(exchange, "/again");
+                });
+        github.createContext(
+                "/again",
+                exchange -> {
+                    seen.add("again " + authorization(exchange));
+                    redirect(exchange, origin(elsewhere) + "/signed");
+                });
+        elsewhere.createContext(
+                "/signed",
+                exchange -> {
+                    seen.add("signed " + authorization(exchange));
+                    final byte[] body = "archive".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                    exchange.close();
+                });
+        github.start();
+        elsewhere.start();
+        try {
+            final ByteArrayOutputStream into = new ByteArrayOutputStream();
+            PinnedJdk.fetch(
+                    noRedirects(),
+                    URI.create(origin(github) + "/asked"),
+                    new PinnedJdk.Credential(URI.create(origin(github)), TOKEN),
+                    into);
+
+            assertThat(into.toString(StandardCharsets.UTF_8))
+                    .as("the archive")
+                    .isEqualTo("archive");
+            assertThat(seen)
+                    .as(
+                            "the token with the address asked for; not along a redirect, not even back to its own origin")
+                    .containsExactly("asked Bearer " + TOKEN, "again none", "signed none");
+        } finally {
+            github.stop(0);
+            elsewhere.stop(0);
+        }
+    }
+
+    @Test
+    void sendsTheTokenNowhereButItsOrigin() throws IOException {
+        final HttpServer github = server();
+        final HttpServer elsewhere = server();
+        final List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        elsewhere.createContext(
+                "/archive",
+                exchange -> {
+                    seen.add(authorization(exchange));
+                    answer(exchange, 200);
+                });
+        elsewhere.start();
+        try {
+            PinnedJdk.fetch(
+                    noRedirects(),
+                    URI.create(origin(elsewhere) + "/archive"),
+                    new PinnedJdk.Credential(URI.create(origin(github)), TOKEN),
+                    new ByteArrayOutputStream());
+
+            assertThat(seen).as("another port is another origin").containsExactly("none");
+        } finally {
+            elsewhere.stop(0);
+        }
+    }
+
+    @Test
+    void takesA401OrA403AsRefusedNotUnavailable() throws IOException {
+        for (final int status : new int[] {401, 403}) {
+            final HttpServer server = server();
+            server.createContext("/refused", exchange -> answer(exchange, status));
+            server.start();
+            try {
+                assertThatThrownBy(
+                                () ->
+                                        PinnedJdk.fetch(
+                                                noRedirects(),
+                                                URI.create(origin(server) + "/refused"),
+                                                new PinnedJdk.Credential(
+                                                        URI.create(origin(server)), TOKEN),
+                                                new ByteArrayOutputStream()))
+                        .as("HTTP " + status + " is not asked again")
+                        .isInstanceOf(IOException.class)
+                        .isNotInstanceOf(PinnedJdk.Unavailable.class)
+                        .hasMessageContaining("HTTP " + status)
+                        .hasMessageNotContaining(TOKEN);
+            } finally {
+                server.stop(0);
+            }
+        }
+    }
+
+    @Test
+    void followsNoEndlessRedirects() throws IOException {
+        final HttpServer server = server();
+        server.createContext("/loop", exchange -> redirect(exchange, "/loop"));
+        server.start();
+        try {
+            assertThatThrownBy(
+                            () ->
+                                    PinnedJdk.fetch(
+                                            noRedirects(),
+                                            URI.create(origin(server) + "/loop"),
+                                            null,
+                                            new ByteArrayOutputStream()))
+                    .hasMessageContaining("redirected more than 10 times");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void takesTheJobsTokenOnlyOnGithubAndOnlyOfATokensForm() {
+        final Map<String, String> github =
+                Map.of("GITHUB_SERVER_URL", "https://github.com", PinnedJdk.TOKEN_VARIABLE, TOKEN);
+
+        assertThat(PinnedJdk.githubToken(github))
+                .as("on github.com")
+                .isEqualTo(new PinnedJdk.Credential(URI.create("https://github.com"), TOKEN));
+        assertThat(
+                        PinnedJdk.githubToken(
+                                Map.of(
+                                        "GITHUB_SERVER_URL",
+                                        "http://127.0.0.1:3000",
+                                        PinnedJdk.TOKEN_VARIABLE,
+                                        TOKEN)))
+                .as("a host's forge: its token is not GitHub's")
+                .isNull();
+        assertThat(PinnedJdk.githubToken(Map.of(PinnedJdk.TOKEN_VARIABLE, TOKEN)))
+                .as("no server named")
+                .isNull();
+        assertThat(
+                        PinnedJdk.githubToken(
+                                Map.of(
+                                        "GITHUB_SERVER_URL",
+                                        "https://github.com/",
+                                        PinnedJdk.TOKEN_VARIABLE,
+                                        TOKEN)))
+                .as("exactly https://github.com")
+                .isNull();
+        assertThat(
+                        PinnedJdk.githubToken(
+                                Map.of(
+                                        "GITHUB_SERVER_URL",
+                                        "https://github.com",
+                                        PinnedJdk.TOKEN_VARIABLE,
+                                        "abc\r\nX-Injected: 1")))
+                .as("not of a token's form")
+                .isNull();
+        assertThat(PinnedJdk.githubToken(Map.of("GITHUB_SERVER_URL", "https://github.com")))
+                .as("no token given")
+                .isNull();
+        assertThat(String.valueOf(PinnedJdk.githubToken(github)))
+                .as("never told")
+                .doesNotContain(TOKEN);
+    }
+
+    @Test
+    void sendsTheTokenToGithubComAloneByItsWholeOrigin() {
+        assertThat(
+                        new PinnedJdk.Credential(URI.create("https://github.com"), TOKEN)
+                                .isFor(
+                                        URI.create(
+                                                "https://github.com/graalvm/releases/download/x.tar.gz")))
+                .as("github.com's release download")
+                .isTrue();
+        assertThat(
+                        new PinnedJdk.Credential(URI.create("https://github.com"), TOKEN)
+                                .isFor(URI.create("https://github.com.evil.example/x.tar.gz")))
+                .as("a host that only begins like it")
+                .isFalse();
+        assertThat(
+                        new PinnedJdk.Credential(URI.create("https://github.com"), TOKEN)
+                                .isFor(URI.create("http://github.com/x.tar.gz")))
+                .as("not over http")
+                .isFalse();
+        assertThat(
+                        new PinnedJdk.Credential(URI.create("https://github.com"), TOKEN)
+                                .isFor(URI.create("https://api.github.com/x")))
+                .as("not another host of GitHub's")
+                .isFalse();
+    }
+
+    @Test
+    void namesWhereARedirectLedByItsHostAloneNeverItsSignature() throws IOException {
+        final HttpServer github = server();
+        final HttpServer signed = server();
+        github.createContext(
+                "/asked",
+                exchange -> redirect(exchange, origin(signed) + "/object?X-Amz-Signature=s3cret"));
+        signed.createContext("/object", exchange -> answer(exchange, 504));
+        github.start();
+        signed.start();
+        try {
+            assertThatThrownBy(
+                            () ->
+                                    PinnedJdk.fetch(
+                                            noRedirects(),
+                                            URI.create(origin(github) + "/asked"),
+                                            null,
+                                            new ByteArrayOutputStream()))
+                    .isInstanceOf(PinnedJdk.Unavailable.class)
+                    .hasMessageContaining(
+                            origin(github) + "/asked (redirected to " + origin(signed) + ")")
+                    .hasMessageNotContaining("s3cret");
+        } finally {
+            github.stop(0);
+            signed.stop(0);
+        }
+    }
+
+    @Test
+    void followsTenRedirectsAndNoMore() throws IOException {
+        final HttpServer server = server();
+        server.createContext(
+                "/r",
+                exchange -> {
+                    final int left = Integer.parseInt(exchange.getRequestURI().getQuery());
+                    if (left == 0) {
+                        answer(exchange, 200);
+                    } else {
+                        redirect(exchange, "/r?" + (left - 1));
+                    }
+                });
+        server.start();
+        try {
+            PinnedJdk.fetch(
+                    noRedirects(),
+                    URI.create(origin(server) + "/r?10"),
+                    null,
+                    new ByteArrayOutputStream());
+            assertThatThrownBy(
+                            () ->
+                                    PinnedJdk.fetch(
+                                            noRedirects(),
+                                            URI.create(origin(server) + "/r?11"),
+                                            null,
+                                            new ByteArrayOutputStream()))
+                    .hasMessageContaining("redirected more than 10 times");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void followsARedirectOnlyToAnAddressOverHttpsOnceOnHttps() throws IOException {
+        final URI https = URI.create("https://github.com/x");
+
+        assertThat(PinnedJdk.redirected(https, "HTTPS://objects.example/y", "x"))
+                .as("a scheme in capitals is the same")
+                .hasHost("objects.example");
+        assertThat(PinnedJdk.redirected(https, "/y", "x"))
+                .as("relative")
+                .hasToString("https://github.com/y");
+        assertThatThrownBy(() -> PinnedJdk.redirected(https, "http://objects.example/y", "x"))
+                .as("from https to http")
+                .hasMessageContaining("not https");
+        assertThatThrownBy(() -> PinnedJdk.redirected(https, "ftp://objects.example/y", "x"))
+                .hasMessageContaining("not https");
+        assertThatThrownBy(() -> PinnedJdk.redirected(https, "https://a b/ y", "x"))
+                .as("no address")
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("redirected to an address that is none");
+        assertThatThrownBy(() -> PinnedJdk.redirected(https, "https:///path", "x"))
+                .as("no host")
+                .isInstanceOf(IOException.class);
+    }
+
+    @Test
+    void theDownloadsClientFollowsNoRedirectItself() {
+        assertThat(PinnedJdk.client().followRedirects())
+                .as("a client that follows would take the token along a same-origin redirect")
+                .isEqualTo(HttpClient.Redirect.NEVER);
+    }
+
+    @Test
+    void takesNoTokenOfAnotherFormHoweverLong() {
+        for (final String wrong :
+                List.of(
+                        "ghs_" + "A".repeat(30) + "\"",
+                        "ghs_" + "A".repeat(30) + "\nurl = https://evil.example",
+                        "ghs_" + "A".repeat(30) + " x",
+                        "A".repeat(256))) {
+            assertThat(
+                            PinnedJdk.githubToken(
+                                    Map.of(
+                                            "GITHUB_SERVER_URL",
+                                            "https://github.com",
+                                            PinnedJdk.TOKEN_VARIABLE,
+                                            wrong)))
+                    .as(wrong)
+                    .isNull();
+        }
+    }
+
+    private static final String TOKEN = "ghs_" + "A".repeat(36);
+
+    private static HttpClient noRedirects() {
+        return HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+    }
+
+    private static String origin(HttpServer server) {
+        return "http://127.0.0.1:" + server.getAddress().getPort();
+    }
+
+    private static String authorization(com.sun.net.httpserver.HttpExchange exchange) {
+        final String value = exchange.getRequestHeaders().getFirst("Authorization");
+        return value == null ? "none" : value;
+    }
+
+    private static void redirect(com.sun.net.httpserver.HttpExchange exchange, String to)
+            throws IOException {
+        exchange.getResponseHeaders().add("Location", to);
+        exchange.sendResponseHeaders(302, -1);
+        exchange.close();
+    }
+
     private static HttpServer server() throws IOException {
         return HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     }

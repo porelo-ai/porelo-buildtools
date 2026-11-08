@@ -39,6 +39,32 @@ A test holds the two to the same numbers. A script that fetches something pinned
 
 What the two say goes to standard error, so it reaches the log when the command's own output is discarded.
 
+## With the job's token
+
+On GitHub, a download from `https://github.com` goes with the job's token, so GitHub counts it against the job's own
+limit and not against the shared runner's address:
+- **Only to `https://github.com`:** only when `GITHUB_SERVER_URL` is exactly `https://github.com`, the address asked
+  for is on it, and the token has a token's form. On a host's forge the job's token is the forge's own, and goes
+  nowhere.
+- **Never along a redirect:** a release download is sent on to a signed address, which is fetched without it, as is
+  any address a redirect leads to.
+- **Never told:** `pinned.sh` hands it to curl on its standard input, never as an argument; Java sends it as a header.
+  Neither puts it in a message.
+- **A 401 or 403 fails at once,** as any 4xx does.
+
+The token comes from the step's environment, `PORELO_PINNED_GITHUB_TOKEN`, which each step that downloads sets:
+
+```yaml
+env:
+    PORELO_PINNED_GITHUB_TOKEN: ${{ github.server_url == 'https://github.com' && github.token || '' }}
+```
+
+Without it, a download goes without the token, as before.
+
+`check-pin` reads GitHub's API by the same rule when an address does not answer or answers a 5xx, each address
+read up to 15 minutes. The other release commands read once. They all send `GITHUB_TOKEN`, when the step sets it, to
+`https://api.github.com` alone, and not on a host's forge.
+
 **A job that fetches** something pinned needs `timeout-minutes` of at least its usual time plus 15, or the job is
 stopped while the rule still waits.
 
@@ -56,8 +82,12 @@ are in `.github/actions/pinned-jdk/steps-for-build-pom.yml`. They go into the ac
 steps.
 
 **Variations:**
+- A line that captures a command's output, such as the digest, says `::error::` when the command fails: `set -e`
+  alone ends the step at the assignment without a word. A command run through Maven with `-q` writes even its
+  `[ERROR]` lines to standard output, so the captured text is printed too.
 - The class path line is porelo-host's. A repository keeps its own class path line exactly as it has it, with its
   `-s settings.xml` where it has one, so its snapshots still resolve, and changes only the rest.
+- Each step that downloads sets `PORELO_PINNED_GITHUB_TOKEN` as above.
 - A copy that also installs shfmt takes porelo-buildtools' own steps for it:
   - `actions/cache/restore` keyed `pinned-shfmt-<sha256>`;
   - `pinned_fetch` into the home's `.cache/porelo-pinned/shfmt`;

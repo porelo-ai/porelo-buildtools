@@ -13,8 +13,10 @@
       # so asking it again after a failed fetch is a retry; a cached one answers at once.
       pinned_retry "the wrapper's Maven" ./mvnw -B -q --version >/dev/null
       ./mvnw -B -q -f build/pom.xml dependency:build-classpath -Dmdep.outputFile="$RUNNER_TEMP/tools-cp.txt"
+      # A failure says so: set -e alone would end the step at this assignment without a word.
       sha256=$("$JAVA_HOME/bin/java" -cp "$(cat "$RUNNER_TEMP/tools-cp.txt")" \
-          org.fuin.porelo.machines.Main jdk --print-sha256)
+          org.fuin.porelo.machines.Main jdk --print-sha256) \
+          || { echo "::error::porelo-machines could not name the pinned digest (exit $?)"; exit 1; }
       [[ $sha256 =~ ^[0-9a-f]{64}$ ]] || { echo "::error::porelo-machines named no pinned digest"; exit 1; }
       echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
 
@@ -26,6 +28,9 @@
 
 - name: Install the pinned GraalVM
   shell: bash
+  env:
+      # The job's token, for a download from https://github.com alone; none on a host's forge.
+      PORELO_PINNED_GITHUB_TOKEN: ${{ github.server_url == 'https://github.com' && github.token || '' }}
   run: |
       set -eu
       "$JAVA_HOME_25_X64/bin/java" -cp "$(cat "$RUNNER_TEMP/tools-cp.txt")" \

@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.fuin.porelo.pinned.PinnedRetry;
@@ -49,6 +50,13 @@ import org.jspecify.annotations.Nullable;
  * matched is kept there as {@code <sha256>.tar.gz}, where a CI cache keyed by the same digest
  * brings it back. A cached archive is hashed again before it is used; one that does not match is
  * deleted and fetched anew, never unpacked.
+ *
+ * <p><strong>With the job's token, to github.com alone.</strong> On GitHub, a download from {@code
+ * https://github.com} goes with the job's token, so GitHub counts it against the job's own limit
+ * rather than the shared runner's address. The token goes to the address asked for, and only when
+ * that is on {@code https://github.com}. Redirects are followed here, not by the client, so it
+ * never goes along to the signed address a release download is sent on to, and never anywhere on a
+ * host's forge, whose token it would be. A 401 or 403 fails at once.
  */
 final class PinnedJdk {
 
@@ -56,6 +64,59 @@ final class PinnedJdk {
     private static final Duration DOWNLOAD = Duration.ofMinutes(10);
 
     private static final int BUFFER = 64 * 1024;
+
+    /** The one origin the job's token is sent to. */
+    static final URI GITHUB = URI.create("https://github.com");
+
+    /** Where the token is named, set by the action only on github.com. */
+    static final String TOKEN_VARIABLE = "PORELO_PINNED_GITHUB_TOKEN";
+
+    /** How many redirects a download follows. */
+    private static final int REDIRECTS = 10;
+
+    /**
+     * A token and the one origin it is sent to.
+     *
+     * @param origin scheme, host and port the token goes to, and nothing else
+     * @param token the token, never told
+     */
+    record Credential(URI origin, String token) {
+
+        @Override
+        public String toString() {
+            return "Credential[origin=" + origin + ", token=<hidden>]";
+        }
+
+        boolean isFor(URI address) {
+            return origin.getScheme().equals(address.getScheme())
+                    && origin.getHost().equalsIgnoreCase(String.valueOf(address.getHost()))
+                    && port(origin) == port(address);
+        }
+
+        private static int port(URI address) {
+            if (address.getPort() >= 0) {
+                return address.getPort();
+            }
+            return "https".equals(address.getScheme()) ? 443 : 80;
+        }
+    }
+
+    /**
+     * The job's token for github.com, when the job runs on github.com and was given one.
+     *
+     * @param env the job's environment
+     * @return the credential, or {@code null} on a host's forge, without a token, or with one not
+     *     of a token's form
+     */
+    static @Nullable Credential githubToken(Map<String, String> env) {
+        final String token = env.get(TOKEN_VARIABLE);
+        if (!GITHUB.toString().equals(env.get("GITHUB_SERVER_URL"))
+                || token == null
+                || !token.matches("[A-Za-z0-9_]{20,255}")) {
+            return null;
+        }
+        return new Credential(GITHUB, token);
+    }
 
     /** Where an archive is fetched from. */
     interface Download {
@@ -290,21 +351,57 @@ final class PinnedJdk {
     /**
      * Fetches over HTTPS, following the redirect GitHub answers a release download with.
      *
+     * @param credential the token for its one origin, or {@code null}
      * @return the download
      */
-    static Download overHttps() {
-        final HttpClient http =
-                HttpClient.newBuilder()
-                        .followRedirects(HttpClient.Redirect.NORMAL)
-                        .connectTimeout(Duration.ofSeconds(30))
-                        .build();
+    static Download overHttps(@Nullable Credential credential) {
+        final HttpClient http = client();
         return (address, into) -> {
             if (!"https".equals(address.getScheme())) {
                 throw new IOException(
                         "refusing to fetch a JDK over " + address.getScheme() + ": " + address);
             }
-            fetch(http, address, into);
+            fetch(http, address, credential, into);
         };
+    }
+
+    /**
+     * The client a download goes through: it follows no redirect itself, so {@link #fetch} decides
+     * where the token goes.
+     *
+     * @return the client
+     */
+    static HttpClient client() {
+        return HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofSeconds(30))
+                .build();
+    }
+
+    /**
+     * Where a redirect leads, refused when it is no address, not http(s), or leaves https.
+     *
+     * @param at the address that answered the redirect
+     * @param location its {@code Location}
+     * @param name how the download is named in a failure
+     * @return the next address
+     * @throws IOException when it is refused
+     */
+    static URI redirected(URI at, String location, String name) throws IOException {
+        final URI next;
+        try {
+            next = at.resolve(location.strip());
+        } catch (IllegalArgumentException ex) {
+            throw new IOException(name + " redirected to an address that is none", ex);
+        }
+        if (next.getHost() == null
+                || !("https".equalsIgnoreCase(next.getScheme())
+                        || "http".equalsIgnoreCase(next.getScheme()))
+                || ("https".equalsIgnoreCase(at.getScheme())
+                        && !"https".equalsIgnoreCase(next.getScheme()))) {
+            throw new IOException(name + " redirected to " + next.getScheme() + ", not https");
+        }
+        return next;
     }
 
     /**
@@ -317,18 +414,85 @@ final class PinnedJdk {
      * @throws IOException if the server answered anything else but 200, or writing failed
      */
     static void fetch(HttpClient http, URI address, OutputStream into) throws IOException {
-        final HttpResponse<InputStream> response;
+        fetch(http, address, null, into);
+    }
+
+    /**
+     * Fetches an address once, following its redirects, with a token for its one origin.
+     *
+     * @param http the client, which follows no redirect itself
+     * @param address where the archive is
+     * @param credential the token and the one origin it goes to, or {@code null}
+     * @param into where its bytes go
+     * @throws Unavailable if the server answered a 5xx, or the connection failed or broke off
+     * @throws IOException if the server answered anything else but 200, or writing failed
+     */
+    static void fetch(
+            HttpClient http, URI address, @Nullable Credential credential, OutputStream into)
+            throws IOException {
+        URI at = address;
+        String name = address.toString();
+        for (int hop = 0; ; hop++) {
+            // The token goes with the address asked for, and never along a redirect, wherever it
+            // leads.
+            final HttpResponse<InputStream> response =
+                    send(http, at, hop == 0 ? credential : null, name);
+            final int status = response.statusCode();
+            final Optional<String> location = response.headers().firstValue("Location");
+            if (isRedirect(status) && location.isPresent()) {
+                response.body().close();
+                if (hop >= REDIRECTS) {
+                    throw new IOException(
+                            address + " redirected more than " + REDIRECTS + " times");
+                }
+                final URI next = redirected(at, location.get(), name);
+                at = next;
+                // Where a release download is sent on carries its signature in the query: named by
+                // its host alone.
+                name =
+                        address
+                                + " (redirected to "
+                                + next.getScheme()
+                                + "://"
+                                + next.getRawAuthority()
+                                + ")";
+                continue;
+            }
+            answered(name, response, into);
+            return;
+        }
+    }
+
+    private static boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private static HttpResponse<InputStream> send(
+            HttpClient http, URI address, @Nullable Credential credential, String name)
+            throws IOException {
+        final HttpRequest.Builder request;
         try {
-            response =
-                    http.send(
-                            HttpRequest.newBuilder(address).timeout(DOWNLOAD).GET().build(),
-                            HttpResponse.BodyHandlers.ofInputStream());
+            request = HttpRequest.newBuilder(address).timeout(DOWNLOAD).GET();
+        } catch (IllegalArgumentException ex) {
+            throw new IOException(name + " is no address to fetch", ex);
+        }
+        if (credential != null && credential.isFor(address)) {
+            request.header("Authorization", "Bearer " + credential.token());
+        }
+        try {
+            return http.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IOException("interrupted while fetching " + address, ex);
+            throw new IOException("interrupted while fetching " + name, ex);
         } catch (IOException ex) {
-            throw new Unavailable(address + " could not be reached: " + ex, ex);
+            throw new Unavailable(
+                    name + " could not be reached: " + ex.getClass().getSimpleName(), ex);
         }
+    }
+
+    private static void answered(
+            String address, HttpResponse<InputStream> response, OutputStream into)
+            throws IOException {
         try (InputStream body = response.body()) {
             final int status = response.statusCode();
             if (status >= 500 && status < 600) {
@@ -342,14 +506,15 @@ final class PinnedJdk {
     }
 
     // Not transferTo: a body that breaks off is worth another attempt, a disk that is full is not.
-    private static void copy(URI address, InputStream body, OutputStream into) throws IOException {
+    private static void copy(String address, InputStream body, OutputStream into)
+            throws IOException {
         final byte[] buffer = new byte[BUFFER];
         while (true) {
             final int read;
             try {
                 read = body.read(buffer);
             } catch (IOException ex) {
-                throw new Unavailable(address + " broke off: " + ex, ex);
+                throw new Unavailable(address + " broke off: " + ex.getClass().getSimpleName(), ex);
             }
             if (read < 0) {
                 return;

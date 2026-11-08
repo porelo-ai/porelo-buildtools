@@ -326,7 +326,7 @@ public final class Main {
                         ? usage(
                                 err,
                                 "check-pin [--definition FILE] [--offline] [--pom FILE] [--pin NAME]")
-                        : new CheckPin(out, err, web, env)
+                        : new CheckPin(out, err, web.askedAgain(Thread::sleep, err::println), env)
                                 .check(
                                         options.pom(),
                                         definition == null ? null : Path.of(definition),

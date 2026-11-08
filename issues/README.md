@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt52"></a>[BT52](BT52-A-Pinned-Download-From-Github-Goes-With-The-Jobs-Token.md) | S | - | A pinned download from github.com goes with the job's token, to there alone; the release reader asks again by the pinned rule. |
 | <a id="bt23"></a>[BT23](BT23-One-Upload-Helper-For-Every-Publish.md) | S | - | One upload helper for Artifactory, published here and taken by digest in every Publish job, in place of the seven copies of `.github/scripts/artifactory.sh` (porelo, porelo-pi, porelo-omp, porelo-claude-code, porelo-codex, porelo-agy, porelo-message-matrix) and the own curl calls of porelo-message-sluice, porelo-intellij, porelo-frontend and porelo-adapters. |
 | <a id="bt51"></a>[BT51](BT51-The-Pinned-Rule-Keeps-A-Deadline.md) | XS | - | A pinned download starts no attempt later than 15 minutes after its first, the attempts' own time counted with the pauses, in Java and in `pinned.sh` alike. |
 | <a id="bt49"></a>[BT49](BT49-Pinned-Downloads-Cached-And-Tried-Again-By-One-Rule.md) | S | - | Every pinned download of a Build is cached by its digest and checked again after a hit, and tried again by one rule (15 min of growing pauses) when it must be fetched; a 4xx or a wrong digest fails at once. |
