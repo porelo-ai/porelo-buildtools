@@ -44,6 +44,10 @@ final class Stories {
                     "Finished",
                     "Rejected");
 
+    /** The states an issue of a story in Review may stand in: none earlier than Review. */
+    private static final java.util.Set<String> DONE_FOR_REVIEW =
+            java.util.Set.of("Review", "Finished", "Rejected");
+
     /** Jira's priorities, the highest first, each with Jira's icon. */
     private static final Map<String, String> PRIORITIES = priorities();
 
@@ -280,7 +284,7 @@ final class Stories {
 
     /**
      * What the stories' heads give, or nothing to go by when a head or an issue is at fault. A
-     * story in Review waits for none of its issues: each is finished or rejected.
+     * story in Review waits for none of its issues: each is in Review, finished or rejected.
      */
     private Generated generate(Path dir, List<String> faults) throws IOException, Stop {
         final Map<String, Heads.Head> heads = read(dir, faults);
@@ -314,9 +318,7 @@ final class Stories {
                     continue;
                 }
                 issues.add("- [" + issue + "](" + row.link(repository) + ") (" + row.state() + ")");
-                if (state.equals("Review")
-                        && !row.state().equals("Finished")
-                        && !row.state().equals("Rejected")) {
+                if (state.equals("Review") && !DONE_FOR_REVIEW.contains(row.state())) {
                     faults.add(name + ": in Review while " + issue + " is " + row.state());
                 }
             }

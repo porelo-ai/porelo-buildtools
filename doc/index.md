@@ -407,9 +407,9 @@ forge.
 in the states' sequence, the higher priority first within one, each with its issues counted by prefix. `stories check`
 refuses, naming the file and the field: a head the schema refuses, a heading other than the head's, a file not named
 after its id, an id twice, a Finished story without a tested day or a tested day on another, a story in Review while one
-of its issues is neither Finished nor Rejected, an issue no index holds, a repository `project.yml` does not name, and a
-story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's notes, the
-stories tested after the day of the last release, the earliest first.
+of its issues is neither in Review, Finished nor Rejected, an issue no index holds, a repository `project.yml` does not
+name, and a story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's
+notes, the stories tested after the day of the last release, the earliest first.
 
 ## Release plans
 

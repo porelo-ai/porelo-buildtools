@@ -164,7 +164,7 @@ class StoriesTest {
                 "In Review",
                 "Medium",
                 "Review",
-                "[\"porelo-host#HO147\", \"porelo-host#HO148\"]",
+                "[\"porelo-host#HO146\", \"porelo-host#HO147\", \"porelo-host#HO148\"]",
                 "null");
         story(
                 "ST3.md",
@@ -214,7 +214,7 @@ class StoriesTest {
                         "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Review",
                         "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | SI:1 | A person gains. |",
-                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:2 |",
+                        "[ST2](ST2.md) In Review | 🟰 Medium | HO:3 |",
                         "## Rework",
                         "[ST7](ST7.md) Back For Rework | 🔼 High | HO:1 |",
                         "## Finished",
@@ -234,7 +234,7 @@ class StoriesTest {
                 "Too Early",
                 "High",
                 "Review",
-                "[\"porelo-host#HO147\", \"porelo#P08\"]",
+                "[\"porelo-host#HO146\", \"porelo-host#HO149\", \"porelo#P08\"]",
                 "null");
         story("ST2.md", "ST2", "Untested", "High", "Finished", "[]", "null");
         story("ST3.md", "ST3", "Tested Early", "High", "Backlog", "[]", "\"2026-11-08\"");
@@ -242,6 +242,8 @@ class StoriesTest {
         assertThat(run("index")).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .contains("ST1.md: in Review while porelo#P08 is Implementing")
+                .contains("ST1.md: in Review while porelo-host#HO149 is Rework")
+                .doesNotContain("porelo-host#HO146 is Review")
                 .contains("ST2.md: Finished without a tested day")
                 .contains("ST3.md: a tested day on a story that is Backlog, not Finished");
     }
