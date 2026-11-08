@@ -37,6 +37,7 @@ public final class Main {
                     "check-citations",
                     "check-providers",
                     "plan",
+                    "stories",
                     "check-commits",
                     "stage",
                     "check-pushes",
@@ -56,6 +57,13 @@ public final class Main {
             return usage(err, "check-citations [REPOSITORY ROOT, default .]");
         }
         return new CheckCitations(out, err).check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
+    }
+
+    private static int stories(List<String> rest, PrintStream out, PrintStream err) {
+        if (rest.size() != 2 || !rest.getFirst().equals("check")) {
+            return usage(err, "stories check <dir>");
+        }
+        return new Stories(out, err).check(Path.of(rest.get(1)));
     }
 
     private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
@@ -350,6 +358,7 @@ public final class Main {
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
+            case "stories" -> stories(rest, out, err);
             case "check-commits" -> checkCommits(rest, out, err);
             case "stage" ->
                     new Stage(Path.of("."), java.time.Clock.systemUTC(), out, err, env).run(rest);

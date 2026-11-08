@@ -63,6 +63,10 @@
         <bouncycastle.pkix.version>1.85</bouncycastle.pkix.version>
         <jte.version>3.2.4</jte.version>
         <jackson.version>2.22.3</jackson.version>
+        <!-- The schema validator CycloneDX's bill reader brings: one copy for both, so this follows its version. -->
+        <json-schema-validator.version>1.5.9</json-schema-validator.version>
+        <!-- The schema validator logs through SLF4J; its API's version, with no provider that writes. -->
+        <slf4j.version>2.0.17</slf4j.version>
         <!-- Jackson's annotations carry a release of their own, the one its bom names beside 2.22.3. -->
         <jackson.annotations.version>2.22</jackson.annotations.version>
     </properties>
@@ -124,6 +128,16 @@
             </dependency>
             <!-- Every Jackson module the tools load, named here: the fuin BOM imported above manages core and databind
                  at an older release, and an entry of this pom's own wins over what an import manages. -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-nop</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.networknt</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>${json-schema-validator.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-core</artifactId>

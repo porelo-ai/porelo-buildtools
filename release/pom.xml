@@ -53,6 +53,16 @@
         </dependency>
 
         <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+        </dependency>
+        <!-- The validator's log goes nowhere: a command says what it found itself. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-nop</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>org.fuin.porelo</groupId>
             <artifactId>porelo-json</artifactId>
         </dependency>
@@ -86,6 +96,10 @@
         <!-- The shared .editorconfig check-shared compares a repository's copy with: the root's own, so this
              repository keeps it once, and a release carries the text it was built with. -->
         <resources>
+            <!-- The schemas of the heads the stories, and later the issues, carry. -->
+            <resource>
+                <directory>${project.basedir}/src/main/resources</directory>
+            </resource>
             <resource>
                 <directory>${project.basedir}/..</directory>
                 <includes>
