@@ -1,0 +1,299 @@
+package org.fuin.porelo.machines;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Tests for {@link PinnedRetry} and its shell twin {@code .github/actions/pinned-jdk/pinned.sh}:
+ * one rule for every pinned download.
+ */
+class PinnedRetryTest {
+
+    private static final Path SCRIPT = Path.of("../.github/actions/pinned-jdk/pinned.sh");
+
+    @TempDir Path dir;
+
+    @Test
+    void pausesDoubleFromFifteenSecondsUpToFiveMinutesUntilFifteenMinutesAreSpent() {
+        assertThat(PinnedRetry.pauses())
+                .containsExactly(
+                        Duration.ofSeconds(15),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(60),
+                        Duration.ofSeconds(120),
+                        Duration.ofSeconds(240),
+                        Duration.ofSeconds(300),
+                        Duration.ofSeconds(135));
+        assertThat(PinnedRetry.pauses().stream().reduce(Duration.ZERO, Duration::plus))
+                .isEqualTo(Duration.ofMinutes(15));
+        assertThat(PinnedRetry.attempts()).isEqualTo(8);
+    }
+
+    @Test
+    void theShellPausesAsJavaDoes() throws IOException, InterruptedException {
+        final List<String> expected = new ArrayList<>();
+        for (final Duration pause : PinnedRetry.pauses()) {
+            expected.add(Long.toString(pause.toSeconds()));
+        }
+        expected.add("none");
+        expected.add("attempts " + PinnedRetry.attempts());
+
+        final Ran ran =
+                shell(
+                        "for n in 1 2 3 4 5 6 7 8; do pinned_pause \"$n\" || echo none; done;"
+                                + " echo \"attempts $pinned_attempts\"",
+                        "exit 99");
+
+        assertThat(ran.out().lines()).containsExactlyElementsOf(expected);
+        assertThat(ran.exit()).isZero();
+    }
+
+    @Test
+    void theShellKeepsAFileThatMatchesWithoutFetching() throws IOException, InterruptedException {
+        final Path file = dir.resolve("tool");
+        Files.writeString(file, "pinned");
+
+        final Ran ran = fetch(file, "echo called >> " + dir.resolve("calls") + "; exit 99");
+
+        assertThat(ran.exit()).isZero();
+        assertThat(dir.resolve("calls")).doesNotExist();
+        assertThat(ran.out()).contains("from the cache");
+        assertThat(file).hasContent("pinned");
+    }
+
+    @Test
+    void theShellFetchesAgainAFileThatDoesNotMatch() throws IOException, InterruptedException {
+        final Path file = dir.resolve("tool");
+        Files.writeString(file, "planted");
+
+        final Ran ran = fetch(file, serving("pinned", "200", 0));
+
+        assertThat(ran.exit()).isZero();
+        assertThat(ran.out()).doesNotContain("from the cache");
+        assertThat(file).hasContent("pinned");
+    }
+
+    @Test
+    void theShellTakesNoLinkForACachedFile() throws IOException, InterruptedException {
+        final Path target = dir.resolve("elsewhere");
+        Files.writeString(target, "pinned");
+        final Path file = dir.resolve("tool");
+        Files.createSymbolicLink(file, target);
+
+        final Ran ran = fetch(file, serving("pinned", "200", 0));
+
+        assertThat(ran.exit()).isZero();
+        assertThat(ran.out()).doesNotContain("from the cache");
+        assertThat(Files.isSymbolicLink(file)).isFalse();
+        assertThat(file).hasContent("pinned");
+    }
+
+    @Test
+    void theShellTriesAgainOnA5xxAndPausesByTheRule() throws IOException, InterruptedException {
+        final Path file = dir.resolve("tool");
+
+        final Ran ran = fetch(file, failingFirst(2, "printf 'bad' > \"$out\"; printf 504"));
+
+        assertThat(ran.exit()).isZero();
+        assertThat(file).hasContent("pinned");
+        assertThat(Files.readString(dir.resolve("n")).strip()).isEqualTo("3");
+        assertThat(ran.out())
+                .contains("HTTP 504 (curl exit 0) on attempt 1 of 8")
+                .contains("slept 15")
+                .contains("slept 30");
+        assertNoPartLeft(file);
+    }
+
+    @Test
+    void theShellTriesAgainWhenTheConnectionFails() throws IOException, InterruptedException {
+        final Path file = dir.resolve("tool");
+
+        final Ran ran = fetch(file, failingFirst(1, "printf 000; exit 7"));
+
+        assertThat(ran.exit()).isZero();
+        assertThat(file).hasContent("pinned");
+        assertThat(ran.out())
+                .contains("HTTP 000 (curl exit 7) on attempt 1 of 8")
+                .contains("slept 15");
+    }
+
+    @Test
+    void theShellGivesUpAfterEightAttempts() throws IOException, InterruptedException {
+        final Path file = dir.resolve("tool");
+
+        final Ran ran = fetch(file, failingFirst(99, "printf 503"));
+
+        assertThat(ran.exit()).isEqualTo(1);
+        assertThat(Files.readString(dir.resolve("n")).strip()).isEqualTo("8");
+        assertThat(ran.out().lines().filter(line -> line.startsWith("slept"))).hasSize(7);
+        assertThat(ran.out()).contains("on all 8 attempts");
+        assertThat(file).doesNotExist();
+        assertNoPartLeft(file);
+    }
+
+    @Test
+    void theShellFailsAtOnceOnWhatWaitingWillNotMend() throws IOException, InterruptedException {
+        final Path file = dir.resolve("tool");
+
+        final Ran refused = fetch(file, serving("", "404", 0));
+        final Ran wrong = fetch(file, serving("other", "200", 0));
+        final Ran certificate = fetch(file, serving("", "000", 60));
+        final Ran full = fetch(file, serving("", "200", 23));
+
+        assertThat(refused.out()).contains("HTTP 404").doesNotContain("slept");
+        assertThat(wrong.out()).contains("not the pinned").doesNotContain("slept");
+        assertThat(certificate.out()).contains("curl exit 60").doesNotContain("slept");
+        assertThat(full.out()).contains("curl exit 23").doesNotContain("slept");
+        for (final Ran ran : List.of(refused, wrong, certificate, full)) {
+            assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        }
+        assertThat(file).doesNotExist();
+        assertNoPartLeft(file);
+    }
+
+    @Test
+    void theShellAsksOnlyOverHttps() throws IOException, InterruptedException {
+        final Ran ran =
+                fetch(
+                        dir.resolve("tool"),
+                        "echo \"$*\" > " + dir.resolve("args") + "; printf 000; exit 1");
+
+        assertThat(ran.exit()).isEqualTo(1);
+        assertThat(Files.readString(dir.resolve("args")))
+                .contains("--proto =https")
+                .contains("--proto-redir =https");
+    }
+
+    @Test
+    void theShellRunsACommandAgainByTheRule() throws IOException, InterruptedException {
+        final Path count = dir.resolve("count");
+
+        final Ran ran =
+                shell(
+                        "pinned_retry 'the wrapper' sh -c 'n=$(cat "
+                                + count
+                                + " 2>/dev/null || echo 0); echo $((n+1)) > "
+                                + count
+                                + "; [ $n -ge 2 ]' >/dev/null",
+                        "exit 99");
+
+        assertThat(ran.exit()).isZero();
+        assertThat(Files.readString(count).strip()).isEqualTo("3");
+        // Its words reach the log though the command's output is discarded.
+        assertThat(ran.out()).contains("the wrapper failed on attempt 1 of 8").contains("slept 15");
+    }
+
+    @Test
+    void theShellKeepsEachCallsAttemptsApart() throws IOException, InterruptedException {
+        final Path count = dir.resolve("count");
+        Files.writeString(dir.resolve("tool"), "pinned");
+
+        // A command run again that itself fetches must not reset the outer count.
+        final Ran ran =
+                shell(
+                        "inner() { pinned_fetch https://example.invalid/tool "
+                                + sha("pinned")
+                                + " "
+                                + dir.resolve("tool")
+                                + "; n=$(cat "
+                                + count
+                                + " 2>/dev/null || echo 0); echo $((n+1)) > "
+                                + count
+                                + "; [ $n -ge 2 ]; }; pinned_retry outer inner",
+                        "exit 99");
+
+        assertThat(ran.exit()).isZero();
+        assertThat(ran.out())
+                .contains("outer failed on attempt 1 of 8")
+                .contains("outer failed on attempt 2 of 8");
+    }
+
+    /** What a run of bash printed, standard error included, and how it ended. */
+    private record Ran(String out, int exit) {}
+
+    private Ran fetch(Path file, String curl) throws IOException, InterruptedException {
+        Files.deleteIfExists(dir.resolve("n"));
+        return shell(
+                "pinned_fetch https://example.invalid/tool " + sha("pinned") + " " + file, curl);
+    }
+
+    /**
+     * A stand-in curl that writes a body where -o says, prints a status and ends with an exit code.
+     */
+    private static String serving(String body, String status, int exit) {
+        return "while [ $# -gt 0 ]; do [ \"$1\" = -o ] && out=$2; shift; done; printf '%s' '"
+                + body
+                + "' > \"$out\"; printf "
+                + status
+                + "; exit "
+                + exit;
+    }
+
+    /** A stand-in curl that fails as told the first times, then serves the pinned file. */
+    private String failingFirst(int times, String failure) {
+        return "n=$(cat "
+                + dir.resolve("n")
+                + " 2>/dev/null || echo 0); n=$((n+1)); echo $n > "
+                + dir.resolve("n")
+                + "\nwhile [ $# -gt 0 ]; do [ \"$1\" = -o ] && out=$2; shift; done\n"
+                + "if [ $n -le "
+                + times
+                + " ]; then "
+                + failure
+                + "; else printf pinned > \"$out\"; printf 200; fi";
+    }
+
+    private void assertNoPartLeft(Path file) throws IOException {
+        try (var left = Files.list(file.getParent())) {
+            assertThat(
+                            left.filter(
+                                    path ->
+                                            path.getFileName()
+                                                    .toString()
+                                                    .startsWith(file.getFileName() + ".")))
+                    .isEmpty();
+        }
+    }
+
+    /** Runs the script's functions in bash with stand-ins for curl and sleep. */
+    private Ran shell(String body, String curl) throws IOException, InterruptedException {
+        final Path bin = Files.createDirectories(dir.resolve("bin"));
+        Files.writeString(bin.resolve("curl"), "#!/bin/sh\n" + curl + "\n");
+        Files.writeString(bin.resolve("sleep"), "#!/bin/sh\necho \"slept $1\" >&2\n");
+        bin.resolve("curl").toFile().setExecutable(true);
+        bin.resolve("sleep").toFile().setExecutable(true);
+        final ProcessBuilder builder =
+                new ProcessBuilder(
+                                "bash",
+                                "-c",
+                                "set -eu; . \"$0\"; " + body,
+                                SCRIPT.toAbsolutePath().toString())
+                        .redirectErrorStream(true);
+        builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+        final Process bash = builder.start();
+        final String out = new String(bash.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(bash.waitFor(60, TimeUnit.SECONDS)).isTrue();
+        return new Ran(out, bash.exitValue());
+    }
+
+    private static String sha(String text) {
+        try {
+            return java.util.HexFormat.of()
+                    .formatHex(
+                            java.security.MessageDigest.getInstance("SHA-256")
+                                    .digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}

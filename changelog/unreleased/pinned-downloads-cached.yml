@@ -1,0 +1,2 @@
+title: porelo-machines jdk keeps the checked GraalVM archive in a cache by its digest (--cache), checks a cached one again before use, prints the pinned digest for a CI cache key (--print-sha256), and tries a download again for up to 15 minutes of growing pauses instead of two and a half.
+type: changed

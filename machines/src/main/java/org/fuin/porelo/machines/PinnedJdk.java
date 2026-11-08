@@ -9,7 +9,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -17,6 +19,7 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Installs the GraalVM the CI snapshots pin, on a machine that is not one of them - a GitHub
@@ -35,21 +38,21 @@ import java.util.function.Consumer;
  *
  * <p><strong>Tried again when the server could not answer.</strong> A release download answers a
  * 504 now and then, and one such answer must not turn a whole Build red. Only that is tried again,
- * a 5xx or a connection that failed or broke off: each attempt starts over with an empty file and a
- * new digest. A 4xx and a wrong digest will not get better by waiting and fail at once.
+ * a 5xx or a connection that failed or broke off, by {@link PinnedRetry}'s pauses: each attempt
+ * starts over with an empty file and a new digest. A 4xx and a wrong digest will not get better by
+ * waiting and fail at once.
+ *
+ * <p><strong>Kept in a cache by its digest.</strong> Given a cache directory, the archive that
+ * matched is kept there as {@code <sha256>.tar.gz}, where a CI cache keyed by the same digest
+ * brings it back. A cached archive is hashed again before it is used; one that does not match is
+ * deleted and fetched anew, never unpacked.
  */
 final class PinnedJdk {
 
     /** How long the download may take; the archive is a few hundred megabytes. */
     private static final Duration DOWNLOAD = Duration.ofMinutes(10);
 
-    /** How often the download is tried, the first time included. */
-    private static final int ATTEMPTS = 5;
-
     private static final int BUFFER = 64 * 1024;
-
-    /** The wait before the second attempt; each later one waits this much longer. */
-    private static final Duration WAIT = Duration.ofSeconds(15);
 
     /** Where an archive is fetched from. */
     interface Download {
@@ -115,7 +118,7 @@ final class PinnedJdk {
      */
     static Installed install(Snapshots.Contents contents, Path home, Download download)
             throws IOException {
-        return install(contents, home, download, WAIT, Thread::sleep, System.err::println);
+        return install(contents, home, download, null, Thread::sleep, System.err::println);
     }
 
     /**
@@ -124,7 +127,7 @@ final class PinnedJdk {
      * @param contents what the pom pins
      * @param home where the JDK goes; it must not exist yet, or be empty
      * @param download where the archive is fetched from
-     * @param wait the wait before the second attempt; each later one waits this much longer
+     * @param cache where the checked archive is kept by its digest, or null to keep none
      * @param pause how a wait is spent
      * @param say where an attempt that failed is told
      * @return what was installed
@@ -135,7 +138,7 @@ final class PinnedJdk {
             Snapshots.Contents contents,
             Path home,
             Download download,
-            Duration wait,
+            @Nullable Path cache,
             Pause pause,
             Consumer<String> say)
             throws IOException {
@@ -147,25 +150,47 @@ final class PinnedJdk {
             }
         }
         Files.createDirectories(home);
-        final Path archive =
-                Files.createTempFile(home.toAbsolutePath().getParent(), "graalvm-", ".tar.gz");
+        final String pinned = contents.graalvmSha256();
+        final Path cached = cache == null ? null : cache.resolve(pinned + ".tar.gz");
+        if (cached != null && Files.isRegularFile(cached, LinkOption.NOFOLLOW_LINKS)) {
+            if (digestOf(cached).equals(pinned)) {
+                say.accept(
+                        contents.graalvmUrl() + " taken from the cache, checked against " + pinned);
+                unpack(cached, home);
+                return checked(contents, home);
+            }
+            say.accept(cached + " did not match the pinned " + pinned + "; fetching it again");
+            Files.delete(cached);
+        }
+        // Beside the cached file, so that a checked archive moves into it whole.
+        final Path folder =
+                cache != null ? Files.createDirectories(cache) : home.toAbsolutePath().getParent();
+        final Path archive = Files.createTempFile(folder, "graalvm-", ".tar.gz");
         try {
             final String got =
-                    fetchedDigest(
-                            URI.create(contents.graalvmUrl()), archive, download, wait, pause, say);
-            if (!got.equals(contents.graalvmSha256())) {
+                    fetchedDigest(URI.create(contents.graalvmUrl()), archive, download, pause, say);
+            if (!got.equals(pinned)) {
                 throw new IOException(
                         contents.graalvmUrl()
                                 + " has the digest "
                                 + got
                                 + ", not the pinned "
-                                + contents.graalvmSha256()
+                                + pinned
                                 + "; nothing was installed");
             }
-            unpack(archive, home);
+            if (cached != null) {
+                Files.move(archive, cached, StandardCopyOption.ATOMIC_MOVE);
+                unpack(cached, home);
+            } else {
+                unpack(archive, home);
+            }
         } finally {
             Files.deleteIfExists(archive);
         }
+        return checked(contents, home);
+    }
+
+    private static Installed checked(Snapshots.Contents contents, Path home) throws IOException {
         for (final String tool : List.of("java", "native-image")) {
             if (!Files.isExecutable(home.resolve("bin").resolve(tool))) {
                 throw new IOException(
@@ -176,13 +201,10 @@ final class PinnedJdk {
     }
 
     private static String fetchedDigest(
-            URI address,
-            Path archive,
-            Download download,
-            Duration wait,
-            Pause pause,
-            Consumer<String> say)
+            URI address, Path archive, Download download, Pause pause, Consumer<String> say)
             throws IOException {
+        final List<Duration> pauses = PinnedRetry.pauses();
+        final int attempts = pauses.size() + 1;
         for (int attempt = 1; ; attempt++) {
             final MessageDigest sha256 = sha256();
             try (OutputStream out =
@@ -191,16 +213,16 @@ final class PinnedJdk {
                 download.to(address, hashed);
                 return HexFormat.of().formatHex(sha256.digest());
             } catch (Unavailable ex) {
-                if (attempt == ATTEMPTS) {
+                if (attempt == attempts) {
                     throw ex;
                 }
-                final Duration next = wait.multipliedBy(attempt);
+                final Duration next = pauses.get(attempt - 1);
                 say.accept(
                         ex.getMessage()
                                 + " on attempt "
                                 + attempt
                                 + " of "
-                                + ATTEMPTS
+                                + attempts
                                 + "; trying again in "
                                 + next.toSeconds()
                                 + " s");
@@ -335,6 +357,17 @@ final class PinnedJdk {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while unpacking the JDK", ex);
         }
+    }
+
+    private static String digestOf(Path file) throws IOException {
+        final MessageDigest sha256 = sha256();
+        try (InputStream in = Files.newInputStream(file)) {
+            final byte[] buffer = new byte[BUFFER];
+            for (int read = in.read(buffer); read >= 0; read = in.read(buffer)) {
+                sha256.update(buffer, 0, read);
+            }
+        }
+        return HexFormat.of().formatHex(sha256.digest());
     }
 
     private static MessageDigest sha256() {

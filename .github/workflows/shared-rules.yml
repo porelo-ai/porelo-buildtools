@@ -20,7 +20,7 @@ jobs:
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
             PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
-        timeout-minutes: 10
+        timeout-minutes: 25
         steps:
             # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
             - name: A forge names its registry and its token

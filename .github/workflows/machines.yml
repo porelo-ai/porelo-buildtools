@@ -30,7 +30,7 @@ jobs:
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
             PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
-        timeout-minutes: 20
+        timeout-minutes: 35
         permissions:
             contents: write
             pull-requests: write

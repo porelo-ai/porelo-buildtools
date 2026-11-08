@@ -124,10 +124,13 @@ public final class Main {
                                 machine, installs Porelo, starts the daemon as an unprivileged user,
                                 and leaves it running.
                                 What deletes it is 'sweep --mine'.
-                       jdk      [--into <dir>] [--github] - installs the GraalVM the CI snapshots
-                                pin, checked against its digest, into <dir> (default: a directory
-                                under RUNNER_TEMP). --github makes it JAVA_HOME and puts it on the
-                                PATH for every later step of the job.
+                       jdk      [--into <dir>] [--github] [--cache <dir>] | --print-sha256 -
+                                installs the GraalVM the CI snapshots pin, checked against its
+                                digest, into <dir> (default: a directory under RUNNER_TEMP).
+                                --github makes it JAVA_HOME and puts it on the PATH for every
+                                later step of the job. --cache keeps the checked archive there as
+                                <sha256>.tar.gz and takes it from there, checked again.
+                                --print-sha256 prints the pinned digest alone, fetching nothing.
                        musl     - installs the musl cross-toolchain and a musl-built zlib that the
                                 hooks link against, both checked against their digests, under
                                 MUSL_PREFIX (default ~/.local/opt).
@@ -545,11 +548,26 @@ public final class Main {
             PinnedJdk.Download download)
             throws IOException {
         String into = null;
+        String cache = null;
         boolean github = false;
+        boolean digest = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--into" -> into = value(args, ++at);
+                case "--cache" -> {
+                    // A blank one would be the working directory, and the archive would land in the
+                    // tree.
+                    if (at + 1 >= args.length
+                            || args[at + 1].isBlank()
+                            || args[at + 1].startsWith("--")) {
+                        complain.accept("--cache needs the directory the archive is kept in");
+                        return 2;
+                    }
+                    cache = args[++at];
+                }
                 case "--github" -> github = true;
+                // The key a CI cache keeps the archive under, before anything is fetched.
+                case "--print-sha256" -> digest = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -557,6 +575,10 @@ public final class Main {
             }
         }
         final Snapshots.Contents contents = Snapshots.Contents.pinned();
+        if (digest) {
+            System.out.println(contents.graalvmSha256());
+            return 0;
+        }
         if (into == null) {
             final String temp = env.get("RUNNER_TEMP");
             if (temp == null || temp.isBlank()) {
@@ -578,7 +600,13 @@ public final class Main {
             return 2;
         }
         final PinnedJdk.Installed installed =
-                PinnedJdk.install(contents, java.nio.file.Path.of(into), download);
+                PinnedJdk.install(
+                        contents,
+                        java.nio.file.Path.of(into),
+                        download,
+                        cache == null ? null : java.nio.file.Path.of(cache),
+                        Thread::sleep,
+                        System.err::println);
         if (github) {
             PinnedJdk.exportTo(
                     installed, java.nio.file.Path.of(envFile), java.nio.file.Path.of(pathFile));

@@ -172,14 +172,14 @@ class PinnedJdkTest {
                             }
                             into.write(archive);
                         },
-                        Duration.ZERO,
+                        null,
                         time -> {},
                         said::add);
 
         assertThat(installed.home().resolve("bin/java")).isExecutable();
         assertThat(attempts).hasValue(3);
         assertThat(said).hasSize(2);
-        assertThat(said.get(0)).contains("HTTP 504").contains("attempt 1 of 5");
+        assertThat(said.get(0)).contains("HTTP 504").contains("attempt 1 of 8");
     }
 
     @Test
@@ -195,12 +195,12 @@ class PinnedJdkTest {
                                             attempts.incrementAndGet();
                                             throw new PinnedJdk.Unavailable("HTTP 504");
                                         },
-                                        Duration.ZERO,
+                                        null,
                                         time -> {},
                                         message -> {}))
                 .isInstanceOf(PinnedJdk.Unavailable.class)
                 .hasMessageContaining("HTTP 504");
-        assertThat(attempts).hasValue(5);
+        assertThat(attempts).hasValue(8);
         assertThat(dir.resolve("jdk/bin")).doesNotExist();
         try (var left = Files.list(dir)) {
             assertThat(left).containsExactly(dir.resolve("jdk"));
@@ -219,17 +219,196 @@ class PinnedJdkTest {
                                         (address, into) -> {
                                             throw new PinnedJdk.Unavailable("HTTP 504");
                                         },
-                                        Duration.ofSeconds(15),
+                                        null,
                                         waited::add,
                                         message -> {}))
                 .isInstanceOf(PinnedJdk.Unavailable.class);
 
-        assertThat(waited)
-                .containsExactly(
-                        Duration.ofSeconds(15),
-                        Duration.ofSeconds(30),
-                        Duration.ofSeconds(45),
-                        Duration.ofSeconds(60));
+        // The one rule of every pinned download: GitHub's 504s on 2026-11-08 lasted over ten
+        // minutes.
+        assertThat(waited).isEqualTo(PinnedRetry.pauses());
+    }
+
+    @Test
+    void keepsTheCheckedArchiveInTheCacheByItsDigest() throws IOException {
+        final byte[] archive = archive("java", "native-image");
+        final Path cache = dir.resolve("cache");
+
+        PinnedJdk.install(
+                contents(sha256(archive)),
+                dir.resolve("jdk"),
+                (address, into) -> into.write(archive),
+                cache,
+                time -> {},
+                message -> {});
+
+        try (var kept = Files.list(cache)) {
+            assertThat(kept).containsExactly(cache.resolve(sha256(archive) + ".tar.gz"));
+        }
+        assertThat(cache.resolve(sha256(archive) + ".tar.gz")).hasBinaryContent(archive);
+    }
+
+    @Test
+    void takesTheCachedArchiveWithoutFetchingWhenItsDigestMatches() throws IOException {
+        final byte[] archive = archive("java", "native-image");
+        final Path cache = Files.createDirectories(dir.resolve("cache"));
+        Files.write(cache.resolve(sha256(archive) + ".tar.gz"), archive);
+        final List<String> said = new ArrayList<>();
+
+        final PinnedJdk.Installed installed =
+                PinnedJdk.install(
+                        contents(sha256(archive)),
+                        dir.resolve("jdk"),
+                        (address, into) -> {
+                            throw new AssertionError(
+                                    "a cached archive that matches is not fetched");
+                        },
+                        cache,
+                        time -> {},
+                        said::add);
+
+        assertThat(installed.home().resolve("bin/native-image")).isExecutable();
+        assertThat(said).singleElement().asString().contains("from the cache");
+    }
+
+    @Test
+    void fetchesAgainWhenTheCachedArchiveDoesNotMatchAndNeverUnpacksIt() throws IOException {
+        final byte[] archive = archive("java", "native-image");
+        final Path cache = Files.createDirectories(dir.resolve("cache"));
+        final Path cached = cache.resolve(sha256(archive) + ".tar.gz");
+        // Its own file would show in the JDK if it were unpacked before or despite its digest.
+        Files.write(cached, archive("planted-by-the-cache"));
+        final AtomicInteger attempts = new AtomicInteger();
+        final List<String> said = new ArrayList<>();
+
+        final PinnedJdk.Installed installed =
+                PinnedJdk.install(
+                        contents(sha256(archive)),
+                        dir.resolve("jdk"),
+                        (address, into) -> {
+                            attempts.incrementAndGet();
+                            into.write(archive);
+                        },
+                        cache,
+                        time -> {},
+                        said::add);
+
+        assertThat(attempts).hasValue(1);
+        assertThat(installed.home().resolve("bin/native-image")).isExecutable();
+        assertThat(installed.home().resolve("bin/planted-by-the-cache")).doesNotExist();
+        assertThat(cached).hasBinaryContent(archive);
+        assertThat(said).anySatisfy(line -> assertThat(line).contains("did not match"));
+    }
+
+    @Test
+    void putsNothingInTheCacheThatDoesNotMatch() throws IOException {
+        final Path cache = dir.resolve("cache");
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        dir.resolve("jdk"),
+                                        (address, into) -> into.write(1),
+                                        cache,
+                                        time -> {},
+                                        message -> {}))
+                .hasMessageContaining("not the pinned");
+        try (var kept = Files.list(cache)) {
+            assertThat(kept).isEmpty();
+        }
+    }
+
+    @Test
+    void printsThePinnedDigestAloneForACacheKey() throws IOException {
+        final java.io.PrintStream before = System.out;
+        final ByteArrayOutputStream printed = new ByteArrayOutputStream();
+        System.setOut(new java.io.PrintStream(printed, true, StandardCharsets.UTF_8));
+        final int code;
+        try {
+            code =
+                    Main.jdk(
+                            new String[] {"jdk", "--print-sha256"},
+                            message -> {
+                                throw new AssertionError(message);
+                            },
+                            Map.of(),
+                            (address, into) -> {
+                                throw new AssertionError("printing the digest fetches nothing");
+                            });
+        } finally {
+            System.setOut(before);
+        }
+
+        assertThat(code).isZero();
+        assertThat(printed.toString(StandardCharsets.UTF_8))
+                .isEqualTo(Snapshots.Contents.pinned().graalvmSha256() + "\n");
+    }
+
+    @Test
+    void consultsTheCacheItIsGiven() throws IOException {
+        final Path cache = Files.createDirectories(dir.resolve("cache"));
+        final Path cached = cache.resolve(Snapshots.Contents.pinned().graalvmSha256() + ".tar.gz");
+        Files.writeString(cached, "not the pinned archive");
+        final AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(
+                        () ->
+                                Main.jdk(
+                                        new String[] {
+                                            "jdk",
+                                            "--into",
+                                            dir.resolve("jdk").toString(),
+                                            "--cache",
+                                            cache.toString()
+                                        },
+                                        message -> {},
+                                        Map.of(),
+                                        (address, into) -> {
+                                            attempts.incrementAndGet();
+                                            throw new IOException("HTTP 404");
+                                        }))
+                .hasMessageContaining("HTTP 404");
+        assertThat(attempts).hasValue(1);
+        assertThat(cached).doesNotExist();
+    }
+
+    @Test
+    void refusesAnEmptyCacheDirectory() throws IOException {
+        final List<String> said = new ArrayList<>();
+
+        assertThat(
+                        Main.jdk(
+                                new String[] {
+                                    "jdk", "--into", dir.resolve("jdk").toString(), "--cache", " "
+                                },
+                                said::add,
+                                Map.of(),
+                                (address, into) -> {
+                                    throw new AssertionError(
+                                            "nothing is fetched for a refused call");
+                                }))
+                .isEqualTo(2);
+        assertThat(said).singleElement().asString().contains("--cache");
+    }
+
+    @Test
+    void refusesACacheOptionWithoutADirectory() throws IOException {
+        final List<String> said = new ArrayList<>();
+
+        assertThat(
+                        Main.jdk(
+                                new String[] {
+                                    "jdk", "--into", dir.resolve("jdk").toString(), "--cache"
+                                },
+                                said::add,
+                                Map.of(),
+                                (address, into) -> {
+                                    throw new AssertionError(
+                                            "nothing is fetched for a refused call");
+                                }))
+                .isEqualTo(2);
+        assertThat(said).singleElement().asString().contains("--cache");
     }
 
     @Test
@@ -245,7 +424,7 @@ class PinnedJdkTest {
                                             attempts.incrementAndGet();
                                             throw new IOException("HTTP 404");
                                         },
-                                        Duration.ZERO,
+                                        null,
                                         time -> {},
                                         message -> {}))
                 .hasMessageContaining("HTTP 404");
@@ -265,7 +444,7 @@ class PinnedJdkTest {
                                             attempts.incrementAndGet();
                                             into.write(1);
                                         },
-                                        Duration.ZERO,
+                                        null,
                                         time -> {},
                                         message -> {}))
                 .hasMessageContaining("not the pinned");
@@ -350,7 +529,7 @@ class PinnedJdkTest {
                     }
                     into.write(archive);
                 },
-                Duration.ZERO,
+                null,
                 time -> {},
                 message -> {});
 

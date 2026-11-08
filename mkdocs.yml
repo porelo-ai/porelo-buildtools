@@ -4,6 +4,7 @@ strict: true
 nav:
     - Overview: index.md
     - Test machines: machines.md
+    - Pinned downloads: pinned-downloads.md
     - Decisions: decisions.md
 validation:
     links:
