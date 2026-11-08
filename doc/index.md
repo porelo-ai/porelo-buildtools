@@ -409,7 +409,9 @@ refuses, naming the file and the field: a head the schema refuses, a heading oth
 after its id, an id twice, a Finished story without a tested day or a tested day on another, a story in Review while one
 of its issues is neither in Review, Finished nor Rejected, an issue no index holds, a repository `project.yml` does not
 name, and a story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's
-notes, the stories tested after the day of the last release, the earliest first.
+notes, the stories tested after the day of the last release, the earliest first. `check-citations` skips the root's own
+stories and their index as generated, a story being made of issues as a plan was, and takes `ST<n>` elsewhere as a
+story's number where `stories/` holds that story.
 
 ## Release plans
 

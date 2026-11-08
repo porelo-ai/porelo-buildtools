@@ -61,6 +61,9 @@ final class CheckCitations {
     /** An issue's own file, named by its number: its prefix, then its digits. */
     private static final Pattern ISSUE_FILE = Pattern.compile("^(([A-Z]{1,3})\\d{2,3})-.*\\.md$");
 
+    /** A story's file in the root's own {@code stories/}, named by its number. */
+    private static final Pattern STORY_FILE = Pattern.compile("^stories/(ST\\d+)(-[^/]*)?\\.md$");
+
     /** The shape of an issue number. */
     private static final Pattern NUMBER = Pattern.compile("\\b[A-Z]{1,2}\\d{2,3}\\b");
 
@@ -127,13 +130,19 @@ final class CheckCitations {
     int check(Path root) {
         final List<Path> files;
         final Set<String> exempt;
+        // porelo-project's stories, each a number of its own, cited as an issue is.
+        final Set<String> stories = new java.util.HashSet<>();
         int generatedFiles = 0;
         try {
             final List<Path> handwritten = new ArrayList<>();
             for (final Path path : committed(root)) {
                 if (generated(root, path)) continue;
                 if (generatedPlan(path)) generatedFiles++;
-                else handwritten.add(path);
+                else if (generatedStory(root, path)) {
+                    generatedFiles++;
+                    final Matcher story = STORY_FILE.matcher(relative(root, path));
+                    if (story.matches()) stories.add(story.group(1));
+                } else handwritten.add(path);
             }
             files = handwritten.stream().sorted().toList();
             exempt = exempt(root);
@@ -217,7 +226,7 @@ final class CheckCitations {
                     continue;
                 }
                 read++;
-                numbers.addAll(numbersIn(root, file, text.get()));
+                numbers.addAll(numbersIn(root, file, text.get(), stories));
             }
         } catch (IOException | UncheckedIOException ex) {
             err.println("could not read under " + root + ": " + Web.reason(ex));
@@ -452,11 +461,11 @@ final class CheckCitations {
         return faults;
     }
 
-    private static List<String> numbersIn(Path root, Path file, String text) {
+    private static List<String> numbersIn(Path root, Path file, String text, Set<String> stories) {
         final List<String> faults = new ArrayList<>();
         final Matcher number = NUMBER.matcher(blank(MARKED, blank(LINT_CODES, text)));
         while (number.find()) {
-            if (!NOT_CITATIONS.contains(number.group())) {
+            if (!NOT_CITATIONS.contains(number.group()) && !stories.contains(number.group())) {
                 faults.add(
                         relative(root, file)
                                 + ":"
@@ -497,6 +506,33 @@ final class CheckCitations {
     private static boolean isIssue(Path root, Path path) {
         final String name = relative(root, path);
         return name.startsWith("issues/") || name.contains("/issues/");
+    }
+
+    /**
+     * Whether a file is one of the root's own stories as {@code porelo-release stories index}
+     * writes them: a story, whose head under {@code ## Data} lists its issues, or their index. A
+     * story is made of issues, as a plan was.
+     */
+    private static boolean generatedStory(Path root, Path path) throws IOException {
+        final String name = relative(root, path);
+        final boolean story = STORY_FILE.matcher(name).matches();
+        if (!story && !name.equals("stories/" + Stories.INDEX)) return false;
+        final List<String> lines;
+        try {
+            lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+        } catch (CharacterCodingException ex) {
+            return false;
+        }
+        return story
+                ? lines.contains(Heads.DATA)
+                : !lines.isEmpty()
+                        && lines.getFirst().equals("# Stories")
+                        && lines.stream()
+                                .anyMatch(
+                                        line ->
+                                                line.startsWith(
+                                                        "Written by `porelo-release stories"
+                                                                + " index`"));
     }
 
     private static boolean generatedPlan(Path path) throws IOException {

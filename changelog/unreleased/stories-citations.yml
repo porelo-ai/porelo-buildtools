@@ -1,0 +1,2 @@
+title: check-citations skips porelo-project's stories and their index as generated, a story being made of issues, and accepts a story's number ST<n> elsewhere where stories/ holds that story.
+type: changed

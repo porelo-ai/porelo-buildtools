@@ -68,6 +68,37 @@ class CheckCitationsTest {
                 .contains("1 generated file(s) skipped");
     }
 
+    @Test
+    void skipsTheStoriesAsGeneratedAndTakesAStorysNumberWhereTheStoryIs() throws IOException {
+        write(
+                "stories/ST12-A-Story.md",
+                "# ST12 — A Story\n\n**Issues:**\n\n- [porelo#B99](https://github.com/porelo-ai/porelo/"
+                        + "blob/main/issues/README.md#b99) (Review)\n\n## Data\n\n```json\n"
+                        + "{\"id\": \"ST12\", \"issues\": [\"porelo#B99\"]}\n```\n");
+        write(
+                "stories/README.md",
+                "# Stories\n\nWritten by `porelo-release stories index` from each story's head.\n\n"
+                        + "| [ST12](ST12-A-Story.md) | B:1 | B98 |\n");
+        write("doc/next.md", "The next step is ST12.\n");
+
+        assertThat(check()).as("a story names issues by design: %s", stderr()).isZero();
+        assertThat(stdout()).contains("2 generated file(s) skipped");
+
+        write("doc/next.md", "The next step is ST13.\n");
+        assertThat(check()).as("no story ST13").isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("doc/next.md:1 -> ST13");
+    }
+
+    @Test
+    void checksAFileInStoriesThatIsNoStory() throws IOException {
+        write("stories/notes.md", "B99\n");
+        write("stories/ST12-Without-Head.md", "# ST12 — Without Head\n\nB98\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("stories/notes.md:1 -> B99", "stories/ST12-Without-Head.md:3 -> B98");
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(
             strings = {
