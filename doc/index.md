@@ -380,7 +380,37 @@ Both must carry the project's version as the packaging promises: `0.4.2-SNAPSHOT
 or release differs, such as the timestamp release the rpm plugin gives a snapshot unless told not to.
 
 
+## Stories
+
+```
+porelo-release stories index stories
+porelo-release stories check stories
+porelo-release stories cut 0.6.0 stories --after 2026-11-01
+```
+
+porelo-project's `stories/` holds one file a story: a function of value to a user, the test the person runs at its
+end, and every issue it needs. Work follows the stories' priority; a release is a cut the person calls, holding every
+story tested since the last one. A story's file reads, top to bottom:
+
+1. the heading `# <id> — <title>`;
+2. the part `stories index` writes from the head: the priority with the state or the tested day, what a user gains,
+   the test, and the issues, one a line, each linked to its row in its index with its state;
+3. whatever a person writes by hand;
+4. `## Data` and the head, fenced `json`, by the schema `story-1.json` this tool carries.
+
+The state is never written in the head: it is the least advanced state of the story's issues, a rejected issue holding
+none back; a story with no issue yet is an idea, and one with a `tested` day is tested. The issue indexes are read
+from the checkouts beside the project's, else from the forge.
+
+`stories index` writes every story's part 2 and `stories/README.md`, the stories by state in the issue indexes' order,
+the higher priority first within one. `stories check` refuses, naming the file and the field: a head the schema
+refuses, a heading other than the head's, a file not named after its id, an id twice, an issue no index holds, a
+repository `project.yml` does not name, and a story's part 2 or the index other than `stories index` writes them.
+`stories cut` writes, for a release's notes, the stories tested after the day of the last release, the earliest first.
+
 ## Release plans
+
+The plans below are kept as the record of how releases were planned; nothing new is planned so.
 
 ```
 porelo-release plan render plan/0.6/plan.yml

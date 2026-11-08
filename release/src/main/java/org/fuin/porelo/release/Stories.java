@@ -7,6 +7,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -223,6 +224,66 @@ final class Stories {
         return 0;
     }
 
+    /**
+     * Says, for a release's notes, the stories tested after the day of the last release.
+     *
+     * @param version the release
+     * @param dir the stories' directory
+     * @param after the day of the last release; a story tested that day went with it
+     * @return 0, {@link Stop#REFUSED} with each fault said, or {@link Stop#UNANSWERED} when
+     *     something cannot be read
+     */
+    int cut(String version, Path dir, LocalDate after) {
+        final List<String> faults = new ArrayList<>();
+        try {
+            final Map<String, Heads.Head> heads = read(dir, faults);
+            if (report(dir, faults)) {
+                return Stop.REFUSED;
+            }
+            final String own = Plan.project(dir.resolve(INDEX), links).own();
+            final StringBuilder notes =
+                    new StringBuilder(
+                            "## " + version + "\n\nThe stories tested after " + after + ":\n\n");
+            heads.values().stream()
+                    .filter(head -> !head.data().get("tested").isNull())
+                    .filter(
+                            head ->
+                                    LocalDate.parse(head.data().get("tested").asText())
+                                            .isAfter(after))
+                    .sorted(
+                            Comparator.comparing(
+                                            (Heads.Head head) -> head.data().get("tested").asText())
+                                    .thenComparingInt(Stories::number))
+                    .forEach(
+                            head ->
+                                    notes.append("- [")
+                                            .append(head.data().get("id").asText())
+                                            .append("](https://github.com/porelo-ai/")
+                                            .append(own)
+                                            .append("/blob/main/")
+                                            .append(dir.toAbsolutePath().normalize().getFileName())
+                                            .append('/')
+                                            .append(head.file().getFileName())
+                                            .append(") ")
+                                            .append(head.data().get("title").asText())
+                                            .append(" (")
+                                            .append(head.data().get("tested").asText())
+                                            .append(")\n"));
+            out.print(notes);
+            return 0;
+        } catch (IOException ex) {
+            err.println("could not read " + dir + ": " + Web.reason(ex));
+            return Stop.UNANSWERED;
+        } catch (Stop stop) {
+            err.println(stop.getMessage());
+            return stop.code();
+        }
+    }
+
+    private static int number(Heads.Head head) {
+        return Integer.parseInt(head.data().get("id").asText().substring(2));
+    }
+
     private boolean report(Path dir, List<String> faults) {
         if (faults.isEmpty()) {
             return false;
@@ -303,13 +364,7 @@ final class Stories {
                                             (Heads.Head head) ->
                                                     PRIORITIES.indexOf(
                                                             head.data().get("priority").asText()))
-                                    .thenComparingInt(
-                                            head ->
-                                                    Integer.parseInt(
-                                                            head.data()
-                                                                    .get("id")
-                                                                    .asText()
-                                                                    .substring(2))))
+                                    .thenComparingInt(Stories::number))
                     .forEach(head -> page.append(row(head)));
         }
         return new Generated(page.toString(), files, heads.size());

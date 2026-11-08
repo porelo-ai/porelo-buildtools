@@ -295,6 +295,37 @@ class StoriesTest {
                         "ST1.md: the text above ## Data is not what its head gives; run porelo-release stories index");
     }
 
+    @Test
+    void cutsTheStoriesTestedAfterTheLastReleaseForTheReleaseNotes() throws IOException {
+        story("ST1-Old.md", "ST1", "Tested Before", "[]", "\"2026-10-01\"");
+        story("ST2.md", "ST2", "On The Release Day", "[]", "\"2026-11-01\"");
+        story("ST3-Words.md", "ST3", "Tested After", "[]", "\"2026-11-08\"");
+        story("ST4.md", "ST4", "Tested Next Day", "[]", "\"2026-11-02\"");
+        story("ST5.md", "ST5", "Not Yet", "[]", "null");
+
+        assertThat(run("cut", "0.6.0", "--after", "2026-11-01")).as(said()).isZero();
+
+        assertThat(stdout())
+                .isEqualTo(
+                        """
+                        ## 0.6.0
+
+                        The stories tested after 2026-11-01:
+
+                        - [ST4](https://github.com/porelo-ai/porelo-project/blob/main/stories/ST4.md) Tested Next Day (2026-11-02)
+                        - [ST3](https://github.com/porelo-ai/porelo-project/blob/main/stories/ST3-Words.md) Tested After (2026-11-08)
+                        """);
+    }
+
+    @Test
+    void refusesACutWithoutADayOrAVersion() throws IOException {
+        story("ST1.md", "ST1", "A Title", "[]", "null");
+
+        assertThat(run("cut", "0.6.0", "--after", "1.11.2026")).isEqualTo(2);
+        assertThat(run("cut", "../x", "--after", "2026-11-01")).isEqualTo(2);
+        assertThat(stderr()).contains("stories cut <version> <dir> --after <yyyy-mm-dd>");
+    }
+
     private void sets(String repository, String... rows) throws IOException {
         final Path issues = Files.createDirectories(work.resolve(repository).resolve("issues"));
         final Map<String, StringBuilder> sets = new java.util.LinkedHashMap<>();
@@ -350,10 +381,18 @@ class StoriesTest {
     }
 
     private int run(String command) {
+        return run(command, null, null, null);
+    }
+
+    private int run(String command, String version, String flag, String day) {
+        final String[] args =
+                version == null
+                        ? new String[] {"stories", command, dir.toString()}
+                        : new String[] {"stories", command, version, dir.toString(), flag, day};
         final PrintStream o = new PrintStream(out, true, StandardCharsets.UTF_8);
         final PrintStream e = new PrintStream(err, true, StandardCharsets.UTF_8);
         return Main.run(
-                new String[] {"stories", command, dir.toString()},
+                args,
                 o,
                 e,
                 (address, headers) -> {

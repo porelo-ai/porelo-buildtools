@@ -60,12 +60,29 @@ public final class Main {
     }
 
     private static int stories(List<String> rest, PrintStream out, PrintStream err, Web web) {
-        if (rest.size() != 2 || !Set.of("index", "check").contains(rest.getFirst())) {
-            return usage(err, "stories index <dir> | stories check <dir>");
-        }
+        final String expected =
+                "stories index <dir> | stories check <dir>"
+                        + " | stories cut <version> <dir> --after <yyyy-mm-dd>";
         final Stories stories = new Stories(out, err, web);
-        final Path dir = Path.of(rest.get(1));
-        return rest.getFirst().equals("index") ? stories.index(dir) : stories.check(dir);
+        if (rest.size() == 2 && rest.getFirst().equals("index")) {
+            return stories.index(Path.of(rest.get(1)));
+        }
+        if (rest.size() == 2 && rest.getFirst().equals("check")) {
+            return stories.check(Path.of(rest.get(1)));
+        }
+        if (rest.size() == 5
+                && rest.getFirst().equals("cut")
+                && rest.get(1).matches("[0-9A-Za-z][0-9A-Za-z._-]*")
+                && rest.get(3).equals("--after")
+                && rest.get(4).matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) {
+            try {
+                return stories.cut(
+                        rest.get(1), Path.of(rest.get(2)), java.time.LocalDate.parse(rest.get(4)));
+            } catch (java.time.format.DateTimeParseException ex) {
+                return usage(err, expected);
+            }
+        }
+        return usage(err, expected);
     }
 
     private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
