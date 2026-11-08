@@ -2,6 +2,7 @@ package org.fuin.porelo.release;
 
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.JsonSchema;
@@ -42,7 +43,9 @@ final class Heads {
     static final String DATA = "## Data";
 
     private static final ObjectMapper JSON =
-            new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            new ObjectMapper()
+                    .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                    .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
     private Heads() {}
 

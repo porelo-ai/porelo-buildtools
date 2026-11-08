@@ -225,10 +225,13 @@ final class Stories {
     int cut(String version, Path dir, LocalDate after) {
         final List<String> faults = new ArrayList<>();
         try {
-            final Map<String, Heads.Head> heads = read(dir, faults);
+            // The heads as check holds them, so a cut never lists a story its state and day
+            // dispute.
+            generate(dir, faults);
             if (report(dir, faults)) {
                 return Stop.REFUSED;
             }
+            final Map<String, Heads.Head> heads = read(dir, new ArrayList<>());
             final String own = Plan.project(dir.resolve(INDEX), links).own();
             final StringBuilder notes =
                     new StringBuilder(
@@ -269,6 +272,15 @@ final class Stories {
         }
     }
 
+    private static boolean isDay(String text) {
+        try {
+            LocalDate.parse(text);
+            return true;
+        } catch (java.time.format.DateTimeParseException ex) {
+            return false;
+        }
+    }
+
     private static int number(Heads.Head head) {
         return Integer.parseInt(head.data().get("id").asText().substring(2));
     }
@@ -277,7 +289,8 @@ final class Stories {
         if (faults.isEmpty()) {
             return false;
         }
-        faults.forEach(fault -> err.println(dir.resolve(fault)));
+        // Said as written: a fault taken for a path would lose the second slash of an address.
+        faults.forEach(fault -> err.println(dir + "/" + fault));
         err.println(faults.size() + " fault(s) in the stories in " + dir);
         return true;
     }
@@ -298,6 +311,10 @@ final class Stories {
         for (final Heads.Head head : heads.values()) {
             final String name = head.file().getFileName().toString();
             final String state = head.data().get("state").asText();
+            final JsonNode tested = head.data().get("tested");
+            if (!tested.isNull() && !isDay(tested.asText())) {
+                faults.add(name + ": /tested: " + tested.asText() + " is no day");
+            }
             if (state.equals("Finished") && head.data().get("tested").isNull()) {
                 faults.add(name + ": Finished without a tested day");
             } else if (!state.equals("Finished") && !head.data().get("tested").isNull()) {

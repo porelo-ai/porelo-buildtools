@@ -113,6 +113,29 @@ class StoriesTest {
     }
 
     @Test
+    void refusesAHeadWithMoreThanOneJsonValue() throws IOException {
+        write(
+                "ST1.md",
+                "# ST1 — A Title\n\n"
+                        + head("ST1", "A Title", "High", "[]", "null")
+                        + "\nText after the head.\n\n```\nmore\n```\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("ST1.md: the head is no JSON");
+    }
+
+    @Test
+    void saysAFaultAsWrittenWithoutTakingItForAPath() throws IOException {
+        write(
+                "ST1.md",
+                "# ST1 — Old\n\n" + head("ST1", "See https://example.com", "High", "[]", "null"));
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("ST1.md: the heading is not '# ST1 — See https://example.com'");
+    }
+
+    @Test
     void refusesAHeadingThatDiffersFromItsHead() throws IOException {
         write("ST1.md", "# ST1 — Another Title\n\n" + head("ST1", "A Title", "High", "[]", "null"));
 
@@ -193,6 +216,15 @@ class StoriesTest {
                 "[\"porelo-host#HO149\"]",
                 "null");
 
+        story(
+                "ST10.md",
+                "ST10",
+                "Same Rank Later Id",
+                "Highest",
+                "Review",
+                "[\"porelo-ai.github.io#SI01\"]",
+                "null");
+
         assertThat(run("index")).as(said()).isZero();
 
         assertThat(Files.readString(dir.resolve("README.md")))
@@ -204,7 +236,7 @@ class StoriesTest {
                         "| State | Stories |",
                         "| [Idea](#idea) | 1 |",
                         "| [Backlog](#backlog) | 1 |",
-                        "| [Review](#review) | 2 |",
+                        "| [Review](#review) | 3 |",
                         "| [Rework](#rework) | 1 |",
                         "| [Finished](#finished) | 1 |",
                         "| [Rejected](#rejected) | 1 |",
@@ -214,6 +246,7 @@ class StoriesTest {
                         "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Review",
                         "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | SI:1 | A person gains. |",
+                        "[ST10](ST10.md) Same Rank Later Id | ⏫ Highest |",
                         "[ST2](ST2.md) In Review | 🟰 Medium | HO:3 |",
                         "## Rework",
                         "[ST7](ST7.md) Back For Rework | 🔼 High | HO:1 |",
@@ -239,13 +272,18 @@ class StoriesTest {
         story("ST2.md", "ST2", "Untested", "High", "Finished", "[]", "null");
         story("ST3.md", "ST3", "Tested Early", "High", "Backlog", "[]", "\"2026-11-08\"");
 
-        assertThat(run("index")).isEqualTo(Stop.REFUSED);
+        story("ST4.md", "ST4", "No Such Day", "High", "Finished", "[]", "\"2026-11-31\"");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+
         assertThat(stderr())
                 .contains("ST1.md: in Review while porelo#P08 is Implementing")
                 .contains("ST1.md: in Review while porelo-host#HO149 is Rework")
                 .doesNotContain("porelo-host#HO146 is Review")
                 .contains("ST2.md: Finished without a tested day")
-                .contains("ST3.md: a tested day on a story that is Backlog, not Finished");
+                .contains("ST3.md: a tested day on a story that is Backlog, not Finished")
+                .contains("ST4.md: /tested: 2026-11-31 is no day");
+        assertThat(run("index")).as("index refuses what check refuses").isEqualTo(Stop.REFUSED);
     }
 
     @Test
@@ -264,6 +302,7 @@ class StoriesTest {
     void refusesAStoryNamingAnIssueThatDoesNotExist() throws IOException {
         story("ST1.md", "ST1", "A Title", "[\"porelo-host#HO999\", \"porelo-gone#GO01\"]", "null");
 
+        assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(run("index")).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .contains("ST1.md: porelo-host#HO999 is in no issue index of porelo-host")
@@ -359,6 +398,7 @@ class StoriesTest {
         story("ST3-Words.md", "ST3", "Tested After", "[]", "\"2026-11-08\"");
         story("ST4.md", "ST4", "Tested Next Day", "[]", "\"2026-11-02\"");
         story("ST5.md", "ST5", "Not Yet", "[]", "null");
+        story("ST10.md", "ST10", "Same Day Later Id", "[]", "\"2026-11-08\"");
 
         assertThat(run("cut", "0.6.0", "--after", "2026-11-01")).as(said()).isZero();
 
@@ -371,7 +411,18 @@ class StoriesTest {
 
                         - [ST4](https://github.com/porelo-ai/porelo-project/blob/main/stories/ST4.md) Tested Next Day (2026-11-02)
                         - [ST3](https://github.com/porelo-ai/porelo-project/blob/main/stories/ST3-Words.md) Tested After (2026-11-08)
+                        - [ST10](https://github.com/porelo-ai/porelo-project/blob/main/stories/ST10.md) Same Day Later Id (2026-11-08)
                         """);
+    }
+
+    @Test
+    void refusesToCutStoriesWhoseStateAndTestedDayDisagree() throws IOException {
+        story("ST1.md", "ST1", "Tested Early", "High", "Rework", "[]", "\"2026-11-08\"");
+
+        assertThat(run("cut", "0.6.0", "--after", "2026-11-01")).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("ST1.md: a tested day on a story that is Rework, not Finished");
+        assertThat(stdout()).isEmpty();
     }
 
     @Test
@@ -380,6 +431,7 @@ class StoriesTest {
 
         assertThat(run("cut", "0.6.0", "--after", "1.11.2026")).isEqualTo(2);
         assertThat(run("cut", "../x", "--after", "2026-11-01")).isEqualTo(2);
+        assertThat(run("cut", "0.6.0", "--after", "2026-02-30")).isEqualTo(2);
         assertThat(stderr()).contains("stories cut <version> <dir> --after <yyyy-mm-dd>");
     }
 
