@@ -226,7 +226,7 @@ class StoriesTest {
                         "| [Implementing](#implementing) | 1 |",
                         "| [Backlog](#backlog) | 1 |",
                         "| [Idea](#idea) | 1 |",
-                        "| [Tested](#tested) | 1 |",
+                        "| [Finished](#finished) | 1 |",
                         "| [Rejected](#rejected) | 1 |",
                         "## Ready for your test",
                         "[ST6](ST6.md) All Finished | 🔼 High | HO:1 · SI:1 |",
@@ -239,7 +239,7 @@ class StoriesTest {
                         "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Idea",
                         "[ST4](ST4.md) No Issue Yet | ⏬ Lowest | none yet |",
-                        "## Tested",
+                        "## Finished",
                         "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |",
                         "## Rejected",
                         "[ST8](ST8.md) Not Wanted | 🟰 Medium | P:1 |");
@@ -320,7 +320,7 @@ class StoriesTest {
                         """
                         # ST2 — Tried
 
-                        **Priority:** 🔽 Low · **Tested:** 2026-11-08
+                        **Priority:** 🔽 Low · **Finished:** 2026-11-08
 
                         **What a user gains.** A person gains.
 

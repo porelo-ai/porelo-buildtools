@@ -48,7 +48,7 @@ final class Stories {
     /** A story whose issues are all finished waits for the person's test. */
     private static final String READY = "Ready for your test";
 
-    /** The index's sections, the most advanced first, then the tested and the rejected. */
+    /** The index's sections, the most advanced first, then the finished and the rejected. */
     private static final List<String> SHOWN =
             List.of(
                     READY,
@@ -59,7 +59,7 @@ final class Stories {
                     "Analyzed",
                     "Accepted",
                     "Idea",
-                    "Tested",
+                    "Finished",
                     "Rejected");
 
     /** Jira's priorities, the highest first, each with Jira's icon. */
@@ -348,7 +348,7 @@ final class Stories {
             if (!head.data().get("rejected").isNull()) {
                 state = "Rejected";
             } else if (!head.data().get("tested").isNull()) {
-                state = "Tested";
+                state = "Finished";
             } else if (!any) {
                 state = "Idea";
             } else if (PROGRESS.get(least).equals("Finished")) {
@@ -367,7 +367,7 @@ final class Stories {
                                 + " its end and every issue it needs. Work follows the priority. A"
                                 + " story's state is its least advanced issue's (a rejected issue"
                                 + " does not count); when all its issues are finished it waits for"
-                                + " the person's test, and the test makes it Tested. A story with"
+                                + " the person's test, and the test makes it Finished. A story with"
                                 + " no issue yet is an Idea; a rejected story stands last.\n\n"
                                 + "Priority: ");
         page.append(
@@ -439,7 +439,7 @@ final class Stories {
         if (!data.get("rejected").isNull()) {
             shown = " · **Rejected:** " + data.get("rejected").asText();
         } else if (!data.get("tested").isNull()) {
-            shown = " · **Tested:** " + data.get("tested").asText();
+            shown = " · **Finished:** " + data.get("tested").asText();
         } else {
             shown = " · **State:** " + state;
         }

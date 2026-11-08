@@ -400,7 +400,7 @@ story tested since the last one. A story's file reads, top to bottom:
 
 The state is never written in the head: it is the least advanced state of the story's issues, Rework counted as
 Implementing and a rejected issue not at all; a story whose issues are all finished is *Ready for your test*, one with a
-`tested` day is Tested, one with a `rejected` day is Rejected (never both), and one with no issue yet is an Idea. The
+`tested` day is Finished, one with a `rejected` day is Rejected (never both), and one with no issue yet is an Idea. The
 issue indexes are read from the checkouts beside the project's, else from the forge.
 
 
