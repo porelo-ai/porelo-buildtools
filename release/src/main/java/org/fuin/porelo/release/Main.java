@@ -47,7 +47,8 @@ public final class Main {
                     "check-linkage",
                     "check-package-version",
                     "check-snapshot-filter",
-                    "prune-snapshots");
+                    "prune-snapshots",
+                    "artifactory");
 
     private static int checkCitations(List<String> rest, PrintStream out, PrintStream err) {
         // An option, such as a directory of other checkouts, is no root to check.
@@ -388,6 +389,7 @@ public final class Main {
                                             rest.get(2),
                                             Path.of(rest.get(3)));
             case "prune-snapshots" -> pruneSnapshots(rest, out, err, env);
+            case "artifactory" -> artifactory(rest, out, err, env);
             default -> unknown(command, err);
         };
     }
@@ -404,31 +406,57 @@ public final class Main {
                 || !probe.matches("[A-Za-z0-9][A-Za-z0-9.-]*")) {
             return usage(err, PRUNE_USAGE);
         }
+        final Artifactory artifactory = artifactoryOf("prune-snapshots", env, err);
+        if (artifactory == null) {
+            return Stop.UNANSWERED;
+        }
+        return new PruneSnapshots(artifactory, out, err, duration -> Thread.sleep(duration))
+                .run(options.flag("--delete"), java.time.Instant.now(), probe);
+    }
+
+    /**
+     * Artifactory as the job's {@code JF_URL} and {@code JF_ACCESS_TOKEN} name it.
+     *
+     * @param command whose call, for what is said
+     * @param env the job's environment
+     * @param err where a refusal goes, never with the token
+     * @return the client, or {@code null} when the two are missing or not of their form
+     */
+    static Artifactory.@org.jspecify.annotations.Nullable Http artifactoryOf(
+            String command, Map<String, String> env, PrintStream err) {
         final String url = env.getOrDefault("JF_URL", "");
         final String token = env.getOrDefault("JF_ACCESS_TOKEN", "");
         if (!url.startsWith("https://") || url.replaceAll("/+$", "").endsWith("/artifactory")) {
             err.println(
-                    "prune-snapshots: JF_URL must be the platform's https address, without /artifactory;"
+                    command
+                            + ": JF_URL must be the platform's https address, without /artifactory;"
                             + " it is '"
                             + url
                             + "'");
-            return Stop.UNANSWERED;
+            return null;
         }
         if (token.isBlank()) {
-            err.println("prune-snapshots: JF_ACCESS_TOKEN is not set");
-            return Stop.UNANSWERED;
+            err.println(command + ": JF_ACCESS_TOKEN is not set");
+            return null;
         }
         // The JDK names a header value it refuses in its exception, the token with it.
         if (!token.matches("[\\x21-\\x7e]+")) {
-            err.println("prune-snapshots: JF_ACCESS_TOKEN holds a character a header cannot carry");
+            err.println(command + ": JF_ACCESS_TOKEN holds a character a header cannot carry");
+            return null;
+        }
+        return (Artifactory.Http) Artifactory.overHttp(URI.create(url), token);
+    }
+
+    private static int artifactory(
+            List<String> rest, PrintStream out, PrintStream err, Map<String, String> env) {
+        if (!ArtifactoryCommand.fits(rest)) {
+            return usage(err, ArtifactoryCommand.USAGE);
+        }
+        final Artifactory artifactory = artifactoryOf("artifactory", env, err);
+        if (artifactory == null) {
             return Stop.UNANSWERED;
         }
-        return new PruneSnapshots(
-                        Artifactory.overHttp(URI.create(url), token),
-                        out,
-                        err,
-                        duration -> Thread.sleep(duration))
-                .run(options.flag("--delete"), java.time.Instant.now(), probe);
+        return new ArtifactoryCommand(artifactory, out, err, Thread::sleep).run(rest);
     }
 
     static int checkLinkage(List<String> rest, PrintStream out, PrintStream err) {

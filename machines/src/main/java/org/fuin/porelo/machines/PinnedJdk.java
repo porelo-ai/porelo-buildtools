@@ -21,6 +21,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.fuin.porelo.pinned.PinnedRetry;
 import org.jspecify.annotations.Nullable;
 
 /**

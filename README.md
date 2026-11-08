@@ -17,6 +17,7 @@ The build and test tooling shared by the Porelo repositories, published to Maven
 | `porelo-ffm-check` | [`ffm-check/`](ffm-check/README.md) | Checks that every FFM downcall a test makes is registered for the native image. |
 | `porelo-cpu-check` | [`cpu-check/`](cpu-check/README.md) | Checks that a native image runs on any x86-64 CPU. |
 | `porelo-json` | [`json/`](json/README.md) | The JSON reader and writer the tools above share. |
+| `porelo-pinned-rule` | [`pinned-rule/`](pinned-rule/README.md) | The one rule by which a pinned download or an upload is tried again. |
 
 ## Building
 
@@ -25,7 +26,7 @@ JAVA_HOME=<the pinned GraalVM> ./mvnw -B clean verify
 ```
 
 JDK 25; the pinned GraalVM is the one CI uses. The tools depend on nothing of porelo's; `porelo-json` is
-their own JSON reader. See [AGENTS.md](AGENTS.md) for the conventions.
+their own JSON reader, and `porelo-pinned-rule` their one rule for asking again. See [AGENTS.md](AGENTS.md) for the conventions.
 
 [Contributing](CONTRIBUTING.md), and [reporting a vulnerability](SECURITY.md).
 

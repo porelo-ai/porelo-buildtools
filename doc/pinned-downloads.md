@@ -29,7 +29,7 @@ When a file must be fetched:
   as long as `pinned_retry` is a statement of its own and not a condition.
 
 The rule is held twice:
-- in Java, in porelo-machines' `PinnedRetry`;
+- in Java, in `PinnedRetry` of the module `porelo-pinned-rule`, which porelo-machines and porelo-release use;
 - in shell, in `.github/actions/pinned-jdk/pinned.sh`.
 
 A test holds the two to the same numbers. A script that fetches something pinned sources `pinned.sh` (bash) and calls:

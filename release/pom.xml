@@ -57,6 +57,11 @@
             <artifactId>porelo-json</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.fuin.porelo</groupId>
+            <artifactId>porelo-pinned-rule</artifactId>
+        </dependency>
+
         <!-- An agent definition is read by Porelo's own reader, never by a pattern over its text. -->
         <dependency>
             <groupId>org.yaml</groupId>

@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt23"></a>[BT23](BT23-One-Upload-Helper-For-Every-Publish.md) | S | - | One upload helper for Artifactory, published here and taken by digest in every Publish job, in place of the seven copies of `.github/scripts/artifactory.sh` (porelo, porelo-pi, porelo-omp, porelo-claude-code, porelo-codex, porelo-agy, porelo-message-matrix) and the own curl calls of porelo-message-sluice, porelo-intellij, porelo-frontend and porelo-adapters. |
 | <a id="bt51"></a>[BT51](BT51-The-Pinned-Rule-Keeps-A-Deadline.md) | XS | - | A pinned download starts no attempt later than 15 minutes after its first, the attempts' own time counted with the pauses, in Java and in `pinned.sh` alike. |
 | <a id="bt49"></a>[BT49](BT49-Pinned-Downloads-Cached-And-Tried-Again-By-One-Rule.md) | S | - | Every pinned download of a Build is cached by its digest and checked again after a hit, and tried again by one rule (15 min of growing pauses) when it must be fetched; a 4xx or a wrong digest fails at once. |
 | <a id="bt47"></a>[BT47](BT47-Check-Commits-Takes-Porelos-Own-Trailers.md) | XS | - | `check-commits` takes `Porelo-Change-Id` and `Porelo-Signs-Anew`, each in its own form, which Porelo writes on its own commits; due before Porelo's next commit is pushed. |
@@ -59,7 +60,6 @@ left out.
 | <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
-| <a id="bt23"></a>[BT23](BT23-One-Upload-Helper-For-Every-Publish.md) | - | - | One upload helper for Artifactory, published here and taken by digest in every Publish job, in place of the seven copies of `.github/scripts/artifactory.sh` (porelo, porelo-pi, porelo-omp, porelo-claude-code, porelo-codex, porelo-agy, porelo-message-matrix) and the own curl calls of porelo-message-sluice, porelo-intellij, porelo-frontend and porelo-adapters. |
 
 ## Finished
 

@@ -1,4 +1,4 @@
-package org.fuin.porelo.machines;
+package org.fuin.porelo.pinned;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -7,8 +7,9 @@ import java.util.Optional;
 
 /**
  * The one rule by which every pinned download is tried again: the GraalVM here, and shfmt, the
- * wrapper's Maven and the like in {@code .github/actions/pinned-jdk/pinned.sh}, which follows the
- * same numbers and is held to them by a test.
+ * wrapper's Maven and the like in {@code .github/actions/pinned-jdk/pinned.sh}, and
+ * porelo-release's uploads to Artifactory, which follows the same numbers and is held to them by a
+ * test.
  *
  * <p>The pauses double from fifteen seconds, none longer than five minutes, until fifteen minutes
  * of pauses are spent; the last one is cut to fit. GitHub's release downloads answered 504 for over
@@ -20,18 +21,18 @@ import java.util.Optional;
  * then. On 2026-11-08 a failing attempt took two minutes before it answered, so eight of them and
  * their pauses would have taken half an hour.
  */
-final class PinnedRetry {
+public final class PinnedRetry {
 
     /** The pause after the first failed attempt. */
-    static final Duration FIRST = Duration.ofSeconds(15);
+    public static final Duration FIRST = Duration.ofSeconds(15);
 
     /** The longest single pause. */
-    static final Duration LONGEST = Duration.ofMinutes(5);
+    public static final Duration LONGEST = Duration.ofMinutes(5);
 
     /**
      * All pauses together, and the time after the first attempt's start by which the last starts.
      */
-    static final Duration BUDGET = Duration.ofMinutes(15);
+    public static final Duration BUDGET = Duration.ofMinutes(15);
 
     private PinnedRetry() {
         throw new UnsupportedOperationException("Utility class");
@@ -42,7 +43,7 @@ final class PinnedRetry {
      *
      * @return one pause after each failed attempt but the last
      */
-    static List<Duration> pauses() {
+    public static List<Duration> pauses() {
         final List<Duration> pauses = new ArrayList<>();
         Duration spent = Duration.ZERO;
         Duration next = FIRST;
@@ -64,7 +65,7 @@ final class PinnedRetry {
      * @param elapsed the time since the first attempt started; less than none counts as none
      * @return the pause before the next attempt, or empty when none is to start
      */
-    static Optional<Duration> pauseAfter(int attempt, Duration elapsed) {
+    public static Optional<Duration> pauseAfter(int attempt, Duration elapsed) {
         final List<Duration> pauses = pauses();
         final Duration spent =
                 elapsed.isNegative() ? Duration.ZERO : Duration.ofSeconds(elapsed.toSeconds());
@@ -81,7 +82,7 @@ final class PinnedRetry {
      *
      * @return one more than the pauses
      */
-    static int attempts() {
+    public static int attempts() {
         return pauses().size() + 1;
     }
 }

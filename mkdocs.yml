@@ -5,6 +5,7 @@ nav:
     - Overview: index.md
     - Test machines: machines.md
     - Pinned downloads: pinned-downloads.md
+    - Publishing: publishing.md
     - Decisions: decisions.md
 validation:
     links:

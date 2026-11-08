@@ -224,6 +224,15 @@ public final class PruneSnapshots {
                         repository,
                         path,
                         "porelo-buildtools probe\n".getBytes(StandardCharsets.UTF_8));
+            } catch (Artifactory.Unanswered ex) {
+                throw Stop.unanswered(
+                        "Artifactory did not answer the probe "
+                                + repository
+                                + "/"
+                                + path
+                                + ": "
+                                + Web.reason(ex),
+                        ex);
             } catch (IOException ex) {
                 throw Stop.refused(
                         "the token cannot put the probe "
@@ -251,6 +260,15 @@ public final class PruneSnapshots {
                 if (!gone) {
                     throw new IOException("still listed after its delete was answered");
                 }
+            } catch (Artifactory.Unanswered ex) {
+                throw Stop.unanswered(
+                        "Artifactory did not answer; the probe "
+                                + repository
+                                + "/"
+                                + path
+                                + " may be left: "
+                                + Web.reason(ex),
+                        ex);
             } catch (IOException ex) {
                 throw Stop.refused(
                         "the token cannot delete; the probe "

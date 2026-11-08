@@ -53,6 +53,32 @@ public interface Web {
      * @return never null, so a caller neither prints "null" nor takes it for no failure
      */
     static String reason(Throwable failure) {
+        return reasonOf(failure);
+    }
+
+    /**
+     * Whether a request that failed before an answer may be answered next time: no connection, a
+     * timeout, a connection broken off. Not a refused certificate, nor a local file that could not
+     * be read, which asking again does not mend.
+     *
+     * @param failure what the client threw
+     * @return whether to ask again
+     */
+    static boolean mayAnswerNextTime(java.io.IOException failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof java.security.cert.CertificateException
+                    || cause instanceof java.security.cert.CertPathValidatorException
+                    || cause instanceof javax.net.ssl.SSLPeerUnverifiedException
+                    || cause instanceof java.nio.file.FileSystemException
+                    || cause instanceof java.io.FileNotFoundException
+                    || cause instanceof java.io.UncheckedIOException) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String reasonOf(Throwable failure) {
         final String message = failure.getMessage();
         return message == null ? failure.getClass().getSimpleName() : message;
     }

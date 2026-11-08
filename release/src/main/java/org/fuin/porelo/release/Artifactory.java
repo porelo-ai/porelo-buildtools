@@ -23,9 +23,24 @@ import java.util.zip.GZIPInputStream;
 import org.jspecify.annotations.Nullable;
 
 /**
- * What the snapshot pruning asks of Artifactory: listings, a file's facts, put, delete, indexes.
+ * What the snapshot pruning and the uploads of a Publish ask of Artifactory: listings, a file's
+ * facts, put, upload, delete, indexes, and a call to its REST interface.
  */
 public interface Artifactory {
+
+    /** Artifactory did not answer, or answered a 5xx: worth asking again. */
+    final class Unanswered extends IOException {
+
+        @java.io.Serial private static final long serialVersionUID = 1L;
+
+        Unanswered(String message) {
+            super(message);
+        }
+
+        Unanswered(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 
     /**
      * One entry of a folder.
@@ -74,6 +89,29 @@ public interface Artifactory {
      * @throws IOException when it was not stored
      */
     void put(String repository, String path, byte[] body) throws IOException;
+
+    /**
+     * Uploads a file, its SHA-1 and SHA-256 with it, so Artifactory refuses bytes that do not match
+     * them.
+     *
+     * @param target the repository's key and the path in it, joined by {@code /}
+     * @param file the file, streamed
+     * @param properties {@code key=value} joined by {@code ;}, set with the upload; empty for none
+     * @throws Unanswered when Artifactory did not answer or answered a 5xx
+     * @throws IOException when it was not stored
+     */
+    void upload(String target, java.nio.file.Path file, String properties) throws IOException;
+
+    /**
+     * A call to the REST interface.
+     *
+     * @param method the HTTP method
+     * @param path the path under {@code /artifactory}, starting with {@code /}, a query included
+     * @return the answer's body
+     * @throws Unanswered when Artifactory did not answer or answered a 5xx
+     * @throws IOException when it answered anything else but a 2xx
+     */
+    byte[] call(String method, String path) throws IOException;
 
     /**
      * Deletes a file.
@@ -239,6 +277,65 @@ public interface Artifactory {
         }
 
         @Override
+        public void upload(String target, java.nio.file.Path file, String properties)
+                throws IOException {
+            final String slash = target.substring(0, target.indexOf('/') + 1);
+            final URI address =
+                    URI.create(
+                            root
+                                    + "/"
+                                    + slash
+                                    + encode(target.substring(slash.length()))
+                                    + (properties.isEmpty() ? "" : ";" + properties));
+            final long size = java.nio.file.Files.size(file);
+            final HttpRequest.Builder request =
+                    HttpRequest.newBuilder(address)
+                            .header("X-Checksum-Sha1", digest(file, "SHA-1"))
+                            .header("X-Checksum-Sha256", digest(file, "SHA-256"))
+                            .PUT(HttpRequest.BodyPublishers.ofFile(file));
+            try {
+                sent("PUT", address, request)
+                        .orElseThrow(() -> new IOException("PUT " + address + ": HTTP 404"));
+            } catch (Unanswered ex) {
+                // A file gone or changed while it was sent: asking again sends something else.
+                if (!java.nio.file.Files.isRegularFile(
+                                file, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                        || java.nio.file.Files.size(file) != size) {
+                    throw new IOException(
+                            "PUT " + address + ": " + file + " changed while it was sent", ex);
+                }
+                throw ex;
+            }
+        }
+
+        @Override
+        public byte[] call(String method, String path) throws IOException {
+            final URI address = URI.create(root + path);
+            // A path that leaves /artifactory would take the token with it.
+            final String under = URI.create(root).getRawPath() + "/";
+            if (!address.normalize().getRawPath().startsWith(under)) {
+                throw new IOException(method + " " + path + ": not under " + under);
+            }
+            return required(method, address);
+        }
+
+        private static String digest(java.nio.file.Path file, String algorithm) throws IOException {
+            final java.security.MessageDigest digest;
+            try {
+                digest = java.security.MessageDigest.getInstance(algorithm);
+            } catch (java.security.NoSuchAlgorithmException ex) {
+                throw new IllegalStateException("every Java has " + algorithm, ex);
+            }
+            try (java.io.InputStream in = java.nio.file.Files.newInputStream(file)) {
+                final byte[] buffer = new byte[64 * 1024];
+                for (int read = in.read(buffer); read >= 0; read = in.read(buffer)) {
+                    digest.update(buffer, 0, read);
+                }
+            }
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        }
+
+        @Override
         public void delete(String repository, String path) throws IOException {
             required("DELETE", URI.create(root + "/" + repository + "/" + encode(path)));
         }
@@ -345,15 +442,21 @@ public interface Artifactory {
 
         private Optional<byte[]> send(String method, URI address, byte @Nullable [] body)
                 throws IOException {
-            final HttpRequest.Builder request =
+            return sent(
+                    method,
+                    address,
                     HttpRequest.newBuilder(address)
-                            .timeout(Duration.ofSeconds(120))
-                            .header("Authorization", "Bearer " + token)
                             .method(
                                     method,
                                     body == null
                                             ? HttpRequest.BodyPublishers.noBody()
-                                            : HttpRequest.BodyPublishers.ofByteArray(body));
+                                            : HttpRequest.BodyPublishers.ofByteArray(body)));
+        }
+
+        private Optional<byte[]> sent(String method, URI address, HttpRequest.Builder request)
+                throws IOException {
+            // An upload of a few hundred megabytes takes longer than a call.
+            request.timeout(Duration.ofMinutes(10)).header("Authorization", "Bearer " + token);
             final HttpResponse<byte[]> response;
             try {
                 response = client.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
@@ -361,12 +464,18 @@ public interface Artifactory {
                 Thread.currentThread().interrupt();
                 throw new IOException("interrupted: " + method + " " + address, ex);
             } catch (IOException ex) {
-                throw new IOException(method + " " + address + ": " + Web.reason(ex), ex);
+                final String why = method + " " + address + ": " + Web.reason(ex);
+                throw Web.mayAnswerNextTime(ex)
+                        ? new Unanswered(why, ex)
+                        : new IOException(why, ex);
             }
             final int status = response.statusCode();
             // Empty, which every call that must change something turns into a failure.
             if (status == 404) {
                 return Optional.empty();
+            }
+            if (status / 100 == 5) {
+                throw new Unanswered(method + " " + address + ": HTTP " + status);
             }
             if (status / 100 != 2) {
                 throw new IOException(method + " " + address + ": HTTP " + status);

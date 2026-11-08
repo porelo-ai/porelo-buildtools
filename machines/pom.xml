@@ -73,6 +73,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.fuin.porelo</groupId>
+            <artifactId>porelo-pinned-rule</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
             <version>${sshj.version}</version>

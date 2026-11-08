@@ -69,6 +69,7 @@
 
     <modules>
         <module>json</module>
+        <module>pinned-rule</module>
         <module>machines</module>
         <module>release</module>
         <module>ffm-check</module>
@@ -155,6 +156,12 @@
             <dependency>
                 <groupId>org.fuin.porelo</groupId>
                 <artifactId>porelo-json</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.porelo</groupId>
+                <artifactId>porelo-pinned-rule</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -166,6 +166,16 @@ class PruneSnapshotsTest {
     }
 
     @Test
+    void aProbeArtifactoryDoesNotAnswerIsNoRefusal() {
+        artifactory.putUnanswered = true;
+
+        assertThat(prune(true))
+                .as("a 5xx is unanswered, not refused: " + stderr())
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("Artifactory did not answer the probe");
+    }
+
+    @Test
     void aReleasesIndexThatCannotBeReadDeletesNothing() {
         for (int build = 1; build <= 4; build++) {
             artifactory.deb(
@@ -578,9 +588,25 @@ class PruneSnapshotsTest {
             return file;
         }
 
+        /** The probe's put finds Artifactory not answering. */
+        private boolean putUnanswered;
+
         @Override
-        public void put(String repository, String path, byte[] body) {
+        public void put(String repository, String path, byte[] body) throws IOException {
+            if (putUnanswered) {
+                throw new Artifactory.Unanswered("PUT " + repository + "/" + path + ": HTTP 503");
+            }
             stored.put(repository + "/" + path, new Stored(NOW, Map.of()));
+        }
+
+        @Override
+        public void upload(String target, java.nio.file.Path file, String properties) {
+            throw new UnsupportedOperationException("the pruning uploads nothing");
+        }
+
+        @Override
+        public byte[] call(String method, String path) {
+            throw new UnsupportedOperationException("the pruning makes no raw call");
         }
 
         @Override
