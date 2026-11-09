@@ -1,6 +1,6 @@
 # BT55 — Stories Read Their Workflow From A File
 
-**Status:** Analyzed.
+**Status:** Backlog on the operator's word of 2026-11-09.
 **Size:** L - grown from M by the operator's decisions of 2026-11-09. The states written in five classes of
 `porelo-release` give way to one file: stories and every repository's issue index read it. A story's state is
 computed from its issues. A second schema version.

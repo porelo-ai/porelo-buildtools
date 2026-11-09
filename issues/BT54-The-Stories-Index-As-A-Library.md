@@ -1,6 +1,6 @@
 # BT54 — The Stories Index As A Library
 
-**Status:** Analyzed.
+**Status:** Backlog on the operator's word of 2026-11-09.
 **Size:** L - a new published module with a public API carved out of four package-private classes of
 `porelo-release`, its native-image metadata and a native test, while `porelo-release stories …` keeps its behaviour.
 
