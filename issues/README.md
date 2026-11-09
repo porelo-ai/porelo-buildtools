@@ -44,6 +44,8 @@ left out.
 
 | # | Size | Blocked by | Open questions | What it covers |
 |---|---|---|---|---|
+| <a id="bt54"></a>[BT54](BT54-The-Stories-Index-As-A-Library.md) | L | - | 0 | The stories index, its heads and the issue index reading become a small published library, native-image friendly and opening no connection unless given one, which `porelo-release` and an adapter both call. |
+| <a id="bt55"></a>[BT55](BT55-Stories-Read-Their-Workflow-From-A-File.md) | L | - | 0 | One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused. |
 
 ## Accepted
 
