@@ -33,7 +33,83 @@ class StoriesIndexTest {
                 {"id":"ST1","title":"A title","state":"Idea","priority":"High","gain":"A gain.","test":"A test.","issues":[],"tested":null}
                 ```
                 """);
+        Files.copy(Path.of("src/test/resources/workflow.yml"), dir.resolve("workflow.yml"));
         return dir;
+    }
+
+    // Prevents schema migration from obscuring story changes by rewriting unrelated JSON bytes.
+    @Test
+    void fixtureMigrationOnlyPrependsSchemaAndRemovesLinkedStates() throws Exception {
+        final Path fixtures = Path.of("src/test/resources/checkouts");
+        final Path copied = work.resolve("checkouts");
+        try (var files = Files.walk(fixtures)) {
+            for (final Path file : files.filter(Files::isRegularFile).toList()) {
+                final Path target = copied.resolve(fixtures.relativize(file));
+                Files.createDirectories(target.getParent());
+                Files.copy(file, target);
+            }
+        }
+        final Path project = copied.resolve("porelo-project");
+        final Path stories = project.resolve("stories");
+        final var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        final java.util.Map<Path, java.util.List<String>> expected =
+                new java.util.LinkedHashMap<>();
+        int empty = 0;
+        int one = 0;
+        int many = 0;
+        try (var files = Files.list(stories)) {
+            for (final Path file :
+                    files.filter(
+                                    path ->
+                                            path.getFileName().toString().startsWith("ST")
+                                                    && path.toString().endsWith(".md"))
+                            .sorted()
+                            .toList()) {
+                final java.util.List<String> lines = jsonLines(file);
+                final var data = json.readTree(String.join("\n", lines));
+                final java.util.List<String> migrated = new java.util.ArrayList<>(lines);
+                if (!data.get("issues").isEmpty()) {
+                    assertThat(migrated.removeIf(line -> line.startsWith("  \"state\": ")))
+                            .as("one stated-state line in %s", file)
+                            .isTrue();
+                }
+                migrated.add(1, "  \"$schema\": \"story-2.json\",");
+                expected.put(file, migrated);
+                if (data.get("issues").isEmpty()) empty++;
+                else if (data.get("issues").size() == 1) one++;
+                else many++;
+            }
+        }
+        assertThat(expected).hasSize(294);
+        assertThat(java.util.List.of(empty, one, many))
+                .as("independently counted empty, single-item, and longer arrays")
+                .containsExactly(44, 96, 154);
+        final var first = StoriesIndex.write(stories, IssueSource.local(project));
+        assertThat(first.faults()).isEmpty();
+        for (final var entry : expected.entrySet()) {
+            assertThat(jsonLines(entry.getKey()))
+                    .as(
+                            "only the schema line is added and the linked state line removed: %s",
+                            entry.getKey())
+                    .containsExactlyElementsOf(entry.getValue());
+        }
+        final java.util.Map<Path, byte[]> once = new java.util.LinkedHashMap<>();
+        for (final Path file : expected.keySet()) once.put(file, Files.readAllBytes(file));
+        final var second = StoriesIndex.write(stories, IssueSource.local(project));
+        assertThat(second.faults()).isEmpty();
+        assertThat(second.written())
+                .as("already-migrated stories and index are untouched")
+                .isEmpty();
+        for (final var entry : once.entrySet())
+            assertThat(Files.readAllBytes(entry.getKey()))
+                    .as("story-2 bytes remain identical: %s", entry.getKey())
+                    .isEqualTo(entry.getValue());
+    }
+
+    private static java.util.List<String> jsonLines(Path file) throws IOException {
+        final String text = Files.readString(file);
+        final int start = text.lastIndexOf("```json\n") + "```json\n".length();
+        return java.util.List.of(text.substring(start, text.lastIndexOf("```")).split("\n", -1));
     }
 
     // Prevents a writer from truncating content held by an existing reader or hard link.
@@ -73,7 +149,7 @@ class StoriesIndexTest {
         try (var files = Files.list(dir)) {
             assertThat(files.map(file -> file.getFileName().toString()).sorted().toList())
                     .as("no temporary files remain")
-                    .containsExactly("README.md", "ST1.md");
+                    .containsExactly("README.md", "ST1.md", "workflow.yml");
         }
     }
 

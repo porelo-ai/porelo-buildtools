@@ -21,13 +21,26 @@ class IssueIndexesTest {
                 | # | Size | Blocked by | What it covers |
                 | [AB01](AB01-X.md) | S | [AB02](#ab02) | A title with a \\| pipe. |
                 """;
-        assertThatThrownBy(() -> IssueIndexes.read(index, "porelo-sample"))
+        assertThatThrownBy(
+                        () ->
+                                IssueIndexes.read(
+                                        index,
+                                        "porelo-sample",
+                                        Workflow.read(
+                                                java.nio.file.Path.of(
+                                                        "src/test/resources/workflow.yml"))))
                 .as("reserved marker lines are forbidden even in examples")
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("marker inside index page");
         final String plain =
                 "## Review\n| # | Size | Blocked by | What it covers |\n| [AB01](AB01-X.md) | S | [AB02](#ab02) | A title with a \\| pipe. |\n";
-        final IssueIndex row = IssueIndexes.read(plain, "porelo-sample").get("AB01");
+        final IssueIndex row =
+                IssueIndexes.read(
+                                plain,
+                                "porelo-sample",
+                                Workflow.read(
+                                        java.nio.file.Path.of("src/test/resources/workflow.yml")))
+                        .get("AB01");
         assertThat(row.path())
                 .as("an example cannot redirect the durable row link")
                 .isEqualTo("issues/README.md");
@@ -46,7 +59,14 @@ class IssueIndexesTest {
         final String index =
                 framed("issues/base/README.md", "base", page)
                         + framed("issues/extra/README.md", "extra", page);
-        assertThatThrownBy(() -> IssueIndexes.read(index, "porelo-sample"))
+        assertThatThrownBy(
+                        () ->
+                                IssueIndexes.read(
+                                        index,
+                                        "porelo-sample",
+                                        Workflow.read(
+                                                java.nio.file.Path.of(
+                                                        "src/test/resources/workflow.yml"))))
                 .as("both conflicting sources are identified")
                 .isInstanceOf(IOException.class)
                 .hasMessage("extra: duplicate index row AB01; also in base");
@@ -61,7 +81,13 @@ class IssueIndexesTest {
                                 "base",
                                 "## Review\n| [AB01](AB01-X.md) | S | - | A title. |\n")
                         .replace("\n", "\r\n");
-        final IssueIndex row = IssueIndexes.read(index, "porelo-sample").get("AB01");
+        final IssueIndex row =
+                IssueIndexes.read(
+                                index,
+                                "porelo-sample",
+                                Workflow.read(
+                                        java.nio.file.Path.of("src/test/resources/workflow.yml")))
+                        .get("AB01");
         assertThat(row.path())
                 .as("CRLF does not discard the index's path")
                 .isEqualTo("issues/base/README.md");
@@ -74,7 +100,10 @@ class IssueIndexesTest {
                         () ->
                                 IssueIndexes.read(
                                         "<!-- porelo-issue-index {broken}\n## Review\n| AB01 | S | - | Title |\n",
-                                        "porelo-sample"))
+                                        "porelo-sample",
+                                        Workflow.read(
+                                                java.nio.file.Path.of(
+                                                        "src/test/resources/workflow.yml"))))
                 .as("a visible malformed boundary cannot be mistaken for ordinary prose")
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("invalid issue index provenance");
@@ -106,7 +135,14 @@ class IssueIndexesTest {
                         "../issues/README.md")) {
             final String input =
                     framed(path, "diagnostic only", "## Review\n| AB01 | S | - | Title |\n");
-            assertThatThrownBy(() -> IssueIndexes.read(input, "porelo-sample"))
+            assertThatThrownBy(
+                            () ->
+                                    IssueIndexes.read(
+                                            input,
+                                            "porelo-sample",
+                                            Workflow.read(
+                                                    java.nio.file.Path.of(
+                                                            "src/test/resources/workflow.yml"))))
                     .as("unsafe index path %s", path)
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining(path);
@@ -133,7 +169,10 @@ class IssueIndexesTest {
                             () ->
                                     IssueIndexes.read(
                                             "<!-- porelo-issue-index " + json + " -->\n" + page,
-                                            "porelo-sample"))
+                                            "porelo-sample",
+                                            Workflow.read(
+                                                    java.nio.file.Path.of(
+                                                            "src/test/resources/workflow.yml"))))
                     .as("marker JSON is one unambiguous value")
                     .isInstanceOf(IOException.class);
         }
@@ -148,7 +187,14 @@ class IssueIndexesTest {
                 List.of(
                         "# Issues\n" + injected,
                         framed("issues/base/README.md", "trusted", injected))) {
-            assertThatThrownBy(() -> IssueIndexes.read(input, "porelo-sample"))
+            assertThatThrownBy(
+                            () ->
+                                    IssueIndexes.read(
+                                            input,
+                                            "porelo-sample",
+                                            Workflow.read(
+                                                    java.nio.file.Path.of(
+                                                            "src/test/resources/workflow.yml"))))
                     .as("a page cannot inject a provenance boundary")
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("marker inside index page");
@@ -163,7 +209,13 @@ class IssueIndexesTest {
                         "issues/base/README.md",
                         ")[injected](https://evil.example)",
                         "## Review\n| AB01 | S | - | Title |\n");
-        final IssueIndex row = IssueIndexes.read(input, "porelo-sample").get("AB01");
+        final IssueIndex row =
+                IssueIndexes.read(
+                                input,
+                                "porelo-sample",
+                                Workflow.read(
+                                        java.nio.file.Path.of("src/test/resources/workflow.yml")))
+                        .get("AB01");
         assertThat(row.link("porelo-sample"))
                 .as("the row link is made only from repository, safe path and number")
                 .isEqualTo(
@@ -188,7 +240,14 @@ class IssueIndexesTest {
                             + length
                             + "} -->\n"
                             + page;
-            assertThatThrownBy(() -> IssueIndexes.read(input, "porelo-sample"))
+            assertThatThrownBy(
+                            () ->
+                                    IssueIndexes.read(
+                                            input,
+                                            "porelo-sample",
+                                            Workflow.read(
+                                                    java.nio.file.Path.of(
+                                                            "src/test/resources/workflow.yml"))))
                     .as("invalid declared page length %s", length)
                     .isInstanceOf(IOException.class);
         }

@@ -40,6 +40,39 @@ class CheckCommitsTest {
 
     // Each refused subject below was on a main branch, as measured over a day's commits.
 
+    // A read-only check must not leave a build directory in its caller's checkout.
+    @Test
+    void stageWorkflowUsesSystemTemporaryFilesWithoutLeavingFiles() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("issues/workflow.yml", "states:\n  - {name: Idea, closed: false}\nphases: []\n");
+        write("issues/EX12-Sample.md", "**Status:** Idea.\n");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+        final Path temporary = Files.createDirectory(directory.resolve("temporary"));
+        final var builder =
+                new ProcessBuilder(
+                                Path.of(System.getProperty("java.home"), "bin/java").toString(),
+                                "-XX:-UsePerfData",
+                                "-Djava.io.tmpdir=" + temporary,
+                                "-cp",
+                                System.getProperty("java.class.path"),
+                                "org.fuin.porelo.release.Main",
+                                "check-commits",
+                                "HEAD")
+                        .directory(directory.toFile())
+                        .redirectErrorStream(true);
+        builder.environment().putAll(isolated());
+        final Process process = builder.start();
+        final String output =
+                new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(process.waitFor()).as(output).isZero();
+        assertThat(directory.resolve("target")).doesNotExist();
+        try (var files = Files.list(temporary)) {
+            assertThat(files.toList()).isEmpty();
+        }
+    }
+
     @Test
     void refusesASubjectOverSeventyTwoCharactersCountingSkipCi() {
         commit(
@@ -453,6 +486,10 @@ class CheckCommitsTest {
     @Test
     void readsWhatGitItselfWrites() throws IOException, InterruptedException {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         git("commit", "-q", "--allow-empty", "-m", "Read the pins once", "-m", AGENT);
         git(
                 "commit",
@@ -490,8 +527,11 @@ class CheckCommitsTest {
         // Without a prefix a requirement number of that repository goes through as a word; another
         // repository's index is not read, so its state cannot decide this repository's check.
         write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        write(
                 "issues/README.md",
-                "| <a id=\"bt17\"></a>[BT17](BT17-A.md) | x |\n"
+                "## Idea\n| <a id=\"bt17\"></a>[BT17](BT17-A.md) | x |\n"
                         + "| <a id=\"xy05\"></a>XY05 | done |\n");
         write(
                 "issues/BT17-A.md",
@@ -511,6 +551,10 @@ class CheckCommitsTest {
     @Test
     void refusesAnOpenStageInAnyCommitTreeEvenAfterItWasClosed() throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         final var open = StageFixtures.record("EX12", "implement", "agent", 4, "Review", "M");
         for (final String key : List.of("end", "status_after", "wall_min", "vm_min", "result")) {
             open.put(key, null);
@@ -534,6 +578,10 @@ class CheckCommitsTest {
     @Test
     void refusesAnIssueChangeWithoutItsStatsInThatCommitTree() throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         write("stats/seed.csv", "size,minutes\nM,53\n");
         write(
                 "issues/EX12-Sample.md",
@@ -553,6 +601,10 @@ class CheckCommitsTest {
     @Test
     void allowsAnIndexOnlyChangeAndAnIssueWithExistingClosedStats() throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         write("stats/seed.csv", "size,minutes\nM,53\n");
         write("issues/README.md", "# Issues\n");
         write("stats/EX12.jsonl", StageFixtures.closed("EX12"));
@@ -573,6 +625,10 @@ class CheckCommitsTest {
     void reportsTheIssueStatsRuleAsNotRolledOutWithoutASeed() throws Exception {
         git("init", "-q", "-b", "main");
         write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
+        write(
                 "issues/EX12-Sample.md",
                 "# Sample\n**Status:** Implementing.\n**Size:** M - sample.\n");
         git("add", "issues/EX12-Sample.md");
@@ -582,6 +638,45 @@ class CheckCommitsTest {
         assertThat(stdout())
                 .as("the unchecked rule is explicit")
                 .contains("NOTE", "stats/seed.csv");
+    }
+
+    // Prevents a newly measured state from bypassing accounting in the committed tree.
+    @Test
+    void aMeasuredStateNeedsAStageRecord() throws Exception {
+        git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
+        write(
+                "issues/workflow.yml",
+                "states:\n  - {name: Reading, closed: false, measured: true}\n  - {name: Idea, closed: false}\nphases: []\n");
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/EX12-Sample.md", "**Status:** Reading.\n");
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Read work");
+        write(
+                "issues/workflow.yml",
+                "states:\n  - {name: Reading, closed: false}\n  - {name: Idea, closed: false}\nphases: []\n");
+        assertThat(checkRepository())
+                .as(
+                        "the committed measured flag governs, even after editing the working copy: %s",
+                        stderr())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("stats/EX12.jsonl");
+        err.reset();
+        write("issues/EX12-Sample.md", "**Status:** Idea.\n");
+        git("add", "issues/EX12-Sample.md");
+        git("commit", "-q", "-m", "Propose work");
+        assertThat(
+                        new CheckCommits(
+                                        stream(out),
+                                        stream(err),
+                                        CheckCommits.Git.in(directory, isolated()),
+                                        () -> prefixes)
+                                .check("HEAD^..HEAD", false))
+                .as(stderr())
+                .isZero();
     }
 
     // These regressions prevent commits bypassing stage checks or acquiring unrelated work.
@@ -609,6 +704,10 @@ class CheckCommitsTest {
             })
     void refusesInvalidStageRecordsInTheCommitTree(String defect) throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         final var record = StageFixtures.record("EX12", "implement", "agent", 4, "Review", "M");
         switch (defect) {
             case "missing-field" -> record.remove("actor");
@@ -649,6 +748,10 @@ class CheckCommitsTest {
             })
     void allowsIssueChangesBeforeImplementationWithoutStats(String status) throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         write("stats/seed.csv", "size,minutes\nM,53\n");
         write("issues/EX12-Sample.md", "**Status:** " + status + ".\n");
         git("add", "issues", "stats");
@@ -660,6 +763,10 @@ class CheckCommitsTest {
     @ValueSource(strings = {"Implementing", "Review", "Finished"})
     void requiresStatsForSubgroupIssuesInActiveStates(String status) throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         write("stats/seed.csv", "size,minutes\nM,53\n");
         write("issues/core/EX12-Sample.md", "**Status:** " + status + ".\n**Size:** M - sample.\n");
         git("add", "issues", "stats");
@@ -675,6 +782,10 @@ class CheckCommitsTest {
     @Test
     void skipsDeletedIssues() throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         write("issues/EX12-Sample.md", "**Status:** Review.\n");
         git("add", "issues");
         git("commit", "-q", "-m", "Describe work");
@@ -688,13 +799,17 @@ class CheckCommitsTest {
     @Test
     void comparesMergesOnlyWithTheirFirstParentAndRootsWithTheEmptyTree() throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         write("initial.txt", "root\n");
         git("add", "initial.txt");
         git("commit", "-q", "-m", "Start work");
         final CheckCommits.Git reader = CheckCommits.Git.in(directory, isolated());
         assertThat(reader.changed("HEAD"))
                 .as("root changes are measured against the empty tree")
-                .containsExactly("initial.txt");
+                .containsExactly("initial.txt", "issues/workflow.yml");
         git("branch", "side");
         write("issues/EX12-Sample.md", "**Status:** Review.\n");
         git("add", "issues");
@@ -719,6 +834,10 @@ class CheckCommitsTest {
     @ValueSource(strings = {"dependabot[bot]", "web"})
     void exemptsBotAndWebCommitsFromTheStatsRule(String author) throws Exception {
         git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
         // An issue in Review with no stats at all: only the commit's exemption lets it through.
         write("stats/seed.csv", "size,minutes\nM,53\n");
         write("issues/EX12-Sample.md", "**Status:** Review.\n");

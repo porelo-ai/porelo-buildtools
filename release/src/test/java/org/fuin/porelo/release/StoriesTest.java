@@ -29,6 +29,8 @@ class StoriesTest {
         final Path project = work.resolve("porelo-project");
         dir = Files.createDirectories(project.resolve("stories"));
         Files.createDirectories(project.resolve("issues"));
+        Files.copy(
+                Path.of("../stories/src/test/resources/workflow.yml"), dir.resolve("workflow.yml"));
         Files.writeString(project.resolve("issues/README.md"), "# Issues\n");
         Files.writeString(
                 project.resolve("project.yml"),
@@ -87,7 +89,7 @@ class StoriesTest {
                 "ST2",
                 "A Person Tests It",
                 "[\"porelo#P08\", \"porelo-ecosystems#EC06\", \"porelo-ai.github.io#SI01\"]",
-                "\"2026-11-08\"");
+                "null");
         assertThat(run("index")).as(said()).isZero();
 
         assertThat(check()).as(said()).isZero();
@@ -235,32 +237,29 @@ class StoriesTest {
                 .containsSubsequence(
                         "| State | Stories |",
                         "| [Idea](#idea) | 1 |",
-                        "| [Backlog](#backlog) | 1 |",
-                        "| [Review](#review) | 3 |",
+                        "| [Backlog](#backlog) | 2 |",
+                        "| [Review](#review) | 1 |",
                         "| [Rework](#rework) | 1 |",
-                        "| [Finished](#finished) | 1 |",
-                        "| [Rejected](#rejected) | 1 |",
+                        "| [Finished](#finished) | 3 |",
                         "## Idea",
                         "[ST4](ST4.md) No Issue Yet | ⏬ Lowest | none yet |",
                         "## Backlog",
                         "[ST1](ST1.md) Waits On Backlog | 🔽 Low | HO:1 · P:1 |",
                         "## Review",
-                        "| <a id=\"st3\"></a>[ST3](ST3.md) Also In Review | ⏫ Highest | SI:1 | A person gains. |",
-                        "[ST10](ST10.md) Same Rank Later Id | ⏫ Highest |",
                         "[ST2](ST2.md) In Review | 🟰 Medium | HO:3 |",
                         "## Rework",
                         "[ST7](ST7.md) Back For Rework | 🔼 High | HO:1 |",
                         "## Finished",
-                        "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |",
-                        "## Rejected",
-                        "[ST6](ST6.md) Not Wanted | 🟰 Medium | P:1 |");
+                        "[ST3](ST3.md) Also In Review | ⏫ Highest | SI:1 |",
+                        "[ST10](ST10.md) Same Rank Later Id | ⏫ Highest |",
+                        "[ST5](ST5.md) Done And Tried | 🔼 High | SI:1 |");
         assertThat(Files.readString(dir.resolve("ST5.md")))
                 .contains("**Priority:** 🔼 High · **State:** Finished (2026-11-08)");
         assertThat(check()).as(said()).isZero();
     }
 
     @Test
-    void refusesAStoryInReviewWhileAnIssueIsOpenAndATestedDayOutOfPlace() throws IOException {
+    void computesAStoryWhileRefusingATestedDayOutOfPlace() throws IOException {
         story(
                 "ST1.md",
                 "ST1",
@@ -277,11 +276,9 @@ class StoriesTest {
         assertThat(check()).isEqualTo(Stop.REFUSED);
 
         assertThat(stderr())
-                .contains("ST1.md: in Review while porelo#P08 is Implementing")
-                .contains("ST1.md: in Review while porelo-host#HO149 is Rework")
-                .doesNotContain("porelo-host#HO146 is Review")
+                .doesNotContain("in Review while")
                 .contains("ST2.md: Finished without a tested day")
-                .contains("ST3.md: a tested day on a story that is Backlog, not Finished")
+                .contains("ST3.md: a tested day on a story that is Backlog, not a completed story")
                 .contains("ST4.md: /tested: 2026-11-31 is no day");
         assertThat(run("index")).as("index refuses what check refuses").isEqualTo(Stop.REFUSED);
     }
@@ -421,7 +418,7 @@ class StoriesTest {
 
         assertThat(run("cut", "0.6.0", "--after", "2026-11-01")).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
-                .contains("ST1.md: a tested day on a story that is Rework, not Finished");
+                .contains("ST1.md: a tested day on a story that is Rework, not a completed story");
         assertThat(stdout()).isEmpty();
     }
 
@@ -437,6 +434,10 @@ class StoriesTest {
 
     private void sets(String repository, String... rows) throws IOException {
         final Path issues = Files.createDirectories(work.resolve(repository).resolve("issues"));
+        Files.copy(
+                Path.of("../stories/src/test/resources/workflow.yml"),
+                issues.resolve("workflow.yml"),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         final Map<String, StringBuilder> sets = new java.util.LinkedHashMap<>();
         for (int i = 0; i < rows.length; i += 3) {
             sets.computeIfAbsent(rows[i], set -> new StringBuilder("# Issues\n"))
@@ -470,6 +471,10 @@ class StoriesTest {
 
     private void index(String repository, String... rows) throws IOException {
         final Path issues = Files.createDirectories(work.resolve(repository).resolve("issues"));
+        Files.copy(
+                Path.of("../stories/src/test/resources/workflow.yml"),
+                issues.resolve("workflow.yml"),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         final StringBuilder text = new StringBuilder("# Issues\n");
         for (int i = 0; i < rows.length; i += 2) {
             text.append("\n## ")

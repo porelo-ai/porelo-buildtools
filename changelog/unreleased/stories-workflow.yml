@@ -1,0 +1,2 @@
+title: Stories and issue indexes read their states and phases from each repository's required, locally signed workflow file, story states are computed from their issues with legacy heads migrated to story-2 without reformatting their other JSON, stage checks use measured states, issue citations and plans share one row parser.
+type: changed

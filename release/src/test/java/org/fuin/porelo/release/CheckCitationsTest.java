@@ -34,11 +34,69 @@ class CheckCitationsTest {
         root = folder.resolve("porelo-sample");
         write("README.md", "# A repository\n");
         write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
                         + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n");
         write("issues/B10-A-Thing.md", "# B10 - A Thing\n");
         write("issues/B11-Another.md", "# B11 - Another\n");
+    }
+
+    // Own-index validation must not permit a missing contract or an invented state.
+    // Prose examples must not invent durable issue rows or demand row anchors.
+    // Prefix consumers such as commit checks must receive the checked read failure they handle.
+    @Test
+    void anInvalidIndexKeepsThePrefixReadersIoContract() throws IOException {
+        write("issues/README.md", "## Alien\n| # | Size | Title |\n");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> CheckCitations.issuePrefixes(root))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("Alien")
+                .hasMessageContaining("issues/README.md:1");
+    }
+
+    @Test
+    void proseExamplesSupplyNeitherRowsNorIssueAnchors() throws Exception {
+        write(
+                "issues/README.md",
+                Files.readString(root.resolve("issues/README.md"))
+                        + "\n## Examples\n| B99 | An unanchored prose example |\n| <a id=\"b98\"></a>B98 | Another prose example |\n");
+        final IssueLinks links = IssueLinks.ownOnly();
+        links.read(root, List.of(root.resolve("issues/README.md")), java.util.Set.of("B"));
+        assertThat(links.rows).containsExactlyInAnyOrder("B10", "B11");
+        assertThat(links.unanchored).isEmpty();
+        write("issues/B10-A-Thing.md", "After [B98](README.md#b98).\n");
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("README.md#b98")
+                .doesNotContain("an index row that does not open");
+    }
+
+    @Test
+    void unknownStateTablesAreCitationFaultsRatherThanReadFailures() throws IOException {
+        write("issues/README.md", "# Issues\n\n## Alien\n| # | Size | Title |\n|---|---|---|\n");
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("issues/README.md:3", "Alien", "workflow.yml")
+                .doesNotContain("could not read");
+    }
+
+    @Test
+    void ownIndexRequiresItsWorkflowAndKnownStates() throws IOException {
+        write(
+                "issues/README.md",
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | S | - | Thing |\n");
+        final Path workflow = root.resolve("issues/workflow.yml");
+        Files.deleteIfExists(workflow);
+        assertThat(check()).isNotZero();
+        assertThat(stderr()).contains(workflow.toString());
+        write("issues/workflow.yml", "states:\n  - {name: Idea, closed: false}\nphases: []\n");
+        write(
+                "issues/README.md",
+                "## Alien\n| # | Size | Blocked by | What it covers |\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | S | - | Thing |\n");
+        assertThat(check()).isNotZero();
+        assertThat(stderr()).contains("Alien", "issues/README.md:1", "workflow.yml");
     }
 
     @Test
@@ -207,26 +265,26 @@ class CheckCitationsTest {
         // The index row or the "blocked by" its deletion missed.
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on the interface's consent"
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on the interface's consent"
                         + " |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/README.md:1 -> B12");
+        assertThat(stderr()).contains("issues/README.md:2 -> B12");
     }
 
     @Test
     void refusesAnIndexRowWithoutItsAnchor() throws IOException {
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
                         + "| [B11](B11-Another.md) | another |\n"
                         + "| <a id=\"b10\"></a>B12 | finished, named wrong |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .contains("an index row that does not open with the anchor of its number")
-                .contains("issues/README.md:2 -> B11")
-                .contains("issues/README.md:3 -> B12");
+                .contains("issues/README.md:3 -> B11")
+                .contains("issues/README.md:4 -> B12");
     }
 
     @Test
@@ -270,19 +328,19 @@ class CheckCitationsTest {
     void acceptsALinkToARowOnTheSamePage() throws IOException {
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
                         + "| <a id=\"b11\"></a>[B11](B11-Another.md) | after [B10](#b10), not"
                         + " [B12](#b12) |\n");
 
         assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/README.md:2 -> #b12").doesNotContain("-> #b10");
+        assertThat(stderr()).contains("issues/README.md:3 -> #b12").doesNotContain("-> #b10");
     }
 
     @Test
     void acceptsAFinishedRowWhoseFileIsGone() throws IOException {
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
                         + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
                         + "| <a id=\"b09\"></a>B09 | Built: the first thing. |\n");
         write("issues/B11-Another.md", "After [B09](README.md#b09).\n");
@@ -338,7 +396,7 @@ class CheckCitationsTest {
         // A number no row names cannot be linked, and would send a reader nowhere.
         write(
                 "issues/README.md",
-                "| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
                         + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
                         + "| <a id=\"xy05\"></a>XY05 | done |\n");
         write("issues/B11-Another.md", "After [XY05](README.md#xy05), and XY06.\n");

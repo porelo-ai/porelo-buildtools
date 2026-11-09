@@ -85,10 +85,16 @@ class IssueSourceTest {
         java.nio.file.Files.writeString(
                 issues.resolve("README.md"),
                 "## Review\n| [AB01](AB01-X.md) | S | - | A title. |\n");
+        java.nio.file.Files.createDirectories(root.resolve("stories"));
+        java.nio.file.Files.copy(
+                Path.of("src/test/resources/workflow.yml"), root.resolve("stories/workflow.yml"));
         assertThat(
                         IssueIndexes.read(
                                         IssueSource.local(root).index("porelo-project"),
-                                        "porelo-project")
+                                        "porelo-project",
+                                        Workflow.read(
+                                                java.nio.file.Path.of(
+                                                        "src/test/resources/workflow.yml")))
                                 .keySet())
                 .as("the owning checkout wins regardless of its directory name")
                 .containsExactly("AB01");
@@ -125,8 +131,14 @@ class IssueSourceTest {
         java.nio.file.Files.writeString(
                 issues.resolve("README.md"),
                 "## Review\n| [AB01](AB01-X.md) | S | - | A title. |\n");
+        java.nio.file.Files.copy(
+                Path.of("src/test/resources/workflow.yml"),
+                issues.getParent().resolve("workflow.yml"));
         final var rows =
-                IssueIndexes.read(IssueSource.local(root).index("porelo-sample"), "porelo-sample");
+                IssueIndexes.read(
+                        IssueSource.local(root).index("porelo-sample"),
+                        "porelo-sample",
+                        Workflow.read(java.nio.file.Path.of("src/test/resources/workflow.yml")));
         assertThat(rows.keySet())
                 .as("each index page has independent fence state")
                 .containsExactly("AB01");

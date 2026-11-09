@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 import org.fuin.porelo.stories.IssueIndex;
 import org.fuin.porelo.stories.IssueIndexes;
 import org.fuin.porelo.stories.IssueSource;
+import org.fuin.porelo.stories.Workflow;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -39,13 +40,6 @@ final class IssueLinks {
     private static final Pattern GITHUB =
             Pattern.compile(
                     "^https://github\\.com/porelo-ai/([\\w.-]+)/blob/main/([^#\\s]+)#([a-z]{1,3}\\d{2,3})$");
-
-    /**
-     * An index row's first cell: an optional anchor, then the number, perhaps linked to its file.
-     */
-    private static final Pattern ROW =
-            Pattern.compile(
-                    "^\\|\\s*(?:<a id=\"([^\"]*)\"></a>)?\\s*\\[?([A-Z]{1,3}\\d{2,3})\\b(?:\\]\\([^)]*\\))?");
 
     /** An anchor anywhere on a page. */
     private static final Pattern ANCHOR = Pattern.compile("<a id=\"([^\"]+)\"></a>");
@@ -183,18 +177,56 @@ final class IssueLinks {
     void read(Path root, List<Path> pages, Set<String> ownPrefixes) throws IOException {
         final Map<Path, Set<String>> anchors = new HashMap<>();
         final Map<Path, String> texts = new LinkedHashMap<>();
+        final Map<Path, Map<Integer, IssueIndex>> pageRows = new HashMap<>();
         prefixes.addAll(ownPrefixes);
         for (final Path page : pages) {
             final String text = Files.readString(page, StandardCharsets.UTF_8);
             texts.put(page, text);
-            anchors.put(page.toAbsolutePath().normalize(), anchorsIn(text));
             if (page.getFileName().toString().equals("README.md")) {
-                readRows(root, page, text);
-                indexRows(text).forEach(row -> prefixes.add(prefixOf(row.number())));
+                final Path workflowFile =
+                        Files.exists(root.resolve("stories/workflow.yml"))
+                                ? root.resolve("stories/workflow.yml")
+                                : root.resolve("issues/workflow.yml");
+                final Workflow workflow = Workflow.read(workflowFile);
+                final Map<String, IssueIndex> parsed =
+                        IssueIndexes.read(
+                                indexPage(relative(root, page), page.toString(), text),
+                                root.toAbsolutePath().normalize().getFileName().toString(),
+                                workflow);
+                final Map<Integer, IssueIndex> positions = new HashMap<>();
+                final Set<String> rowAnchors = new HashSet<>();
+                for (final IssueIndex row : parsed.values()) {
+                    prefixes.add(prefixOf(row.number()));
+                    rows.add(row.number());
+                    final IssueIndex.Location location = row.location();
+                    positions.put(location.line(), row);
+                    if (location.anchor() != null) rowAnchors.add(location.anchor());
+                    if (!row.number()
+                            .toLowerCase(java.util.Locale.ROOT)
+                            .equals(location.anchor())) {
+                        unanchored.add(
+                                relative(root, page)
+                                        + ":"
+                                        + location.line()
+                                        + " -> "
+                                        + row.number());
+                    }
+                }
+                pageRows.put(page, positions);
+                anchors.put(page.toAbsolutePath().normalize(), rowAnchors);
+            } else {
+                anchors.put(page.toAbsolutePath().normalize(), anchorsIn(text));
             }
         }
         for (final Map.Entry<Path, String> page : texts.entrySet()) {
-            readPage(root, page.getKey(), page.getValue(), anchors, prefixes, ownPrefixes);
+            readPage(
+                    root,
+                    page.getKey(),
+                    page.getValue(),
+                    anchors,
+                    prefixes,
+                    ownPrefixes,
+                    pageRows.getOrDefault(page.getKey(), Map.of()));
         }
     }
 
@@ -210,22 +242,14 @@ final class IssueLinks {
                 + " them";
     }
 
-    private void readRows(Path root, Path page, String text) {
-        for (final Row row : indexRows(text)) {
-            rows.add(row.number());
-            if (!row.number().toLowerCase(java.util.Locale.ROOT).equals(row.anchor())) {
-                unanchored.add(relative(root, page) + ":" + row.line() + " -> " + row.number());
-            }
-        }
-    }
-
     private void readPage(
             Path root,
             Path page,
             String text,
             Map<Path, Set<String>> anchors,
             Set<String> prefixes,
-            Set<String> ownPrefixes) {
+            Set<String> ownPrefixes,
+            Map<Integer, IssueIndex> parsedRows) {
         final boolean isIndex = page.getFileName().toString().equals("README.md");
         final String[] lines = text.split("\n", -1);
         boolean fenced = false;
@@ -242,9 +266,10 @@ final class IssueLinks {
             line = blank(CODE_SPAN, line);
             if (isIndex) {
                 // The row's own first cell names its file, as an index does.
-                final Matcher row = ROW.matcher(line);
-                if (row.find()) {
-                    line = " ".repeat(row.end()) + line.substring(row.end());
+                final IssueIndex row = parsedRows.get(i + 1);
+                if (row != null) {
+                    final int end = row.location().numberEnd();
+                    line = " ".repeat(end) + line.substring(end);
                 }
             }
             final Matcher link = LINK.matcher(line);
@@ -348,16 +373,15 @@ final class IssueLinks {
         planIndexSources.computeIfAbsent(repository, key -> new ArrayList<>()).add(source);
         final Map<String, IssueIndex> parsed;
         try {
-            parsed = IssueIndexes.read(indexPage(path, source, text), repository);
+            parsed =
+                    IssueIndexes.read(
+                            indexPage(path, source, text), repository, workflow(root, repository));
         } catch (IllegalArgumentException ex) {
             throw Stop.refused(Objects.requireNonNull(ex.getMessage()), ex);
         }
-        final Map<String, String> files = new HashMap<>();
-        for (final Row row : indexRows(text))
-            if (row.file() != null) files.put(row.number(), row.file());
         for (final IssueIndex row : parsed.values()) {
             String title = row.title();
-            final String file = files.get(row.number());
+            final String file = row.location().file();
             if (file != null) {
                 final String issuePath = indexPath(path, file);
                 if (issuePath != null) {
@@ -387,7 +411,8 @@ final class IssueLinks {
                                     title,
                                     path,
                                     source,
-                                    row.blockedBy()));
+                                    row.blockedBy(),
+                                    row.location()));
             if (previous != null) {
                 throw new IOException(
                         source
@@ -404,6 +429,21 @@ final class IssueLinks {
                 issueIndex(root, repository, child, visited, result);
             }
         }
+    }
+
+    private Workflow workflow(Path root, String repository) throws IOException {
+        final String path =
+                repository.equals("porelo-project")
+                        ? "stories/workflow.yml"
+                        : "issues/workflow.yml";
+        final URI location = sourceLocation(root, repository, path);
+        final Path file =
+                location.getScheme().equals("file")
+                        ? Path.of(location)
+                        : root.resolve("stories/workflow.yml");
+        final Workflow workflow = Workflow.read(file);
+        inputs.add(file.toRealPath());
+        return workflow;
     }
 
     static final class IndexFailure extends RuntimeException {
@@ -425,7 +465,13 @@ final class IssueLinks {
             } catch (Stop stop) {
                 throw new IndexFailure(stop);
             }
-            for (final IssueIndex row : rows.values()) {
+            final Workflow workflow = workflow(root, repository);
+            for (final IssueIndex row :
+                    rows.values().stream()
+                            .sorted(
+                                    java.util.Comparator.comparingInt(
+                                            (IssueIndex row) -> workflow.order(row.state())))
+                            .toList()) {
                 final String page =
                         "## "
                                 + row.state()
@@ -528,21 +574,6 @@ final class IssueLinks {
         return path.startsWith("issues") ? path.toString().replace('\\', '/') : null;
     }
 
-    /** Citation locations and optional issue-file links; metadata is read by IssueIndexes. */
-    private static List<Row> indexRows(String text) {
-        final List<Row> result = new ArrayList<>();
-        final String[] lines = unfenced(text).split("\n", -1);
-        for (int i = 0; i < lines.length; i++) {
-            final Matcher row = ROW.matcher(lines[i]);
-            if (!row.find()) continue;
-            final String[] cells = lines[i].split("(?<!\\\\)\\|", -1);
-            final Matcher link = LINK.matcher(cells[1]);
-            result.add(
-                    new Row(row.group(2), row.group(1), link.find() ? link.group(2) : null, i + 1));
-        }
-        return result;
-    }
-
     private static String unfenced(String text) {
         final StringBuilder result = new StringBuilder();
         String fence = "";
@@ -564,8 +595,6 @@ final class IssueLinks {
         }
         return result.toString();
     }
-
-    private record Row(String number, @Nullable String anchor, @Nullable String file, int line) {}
 
     private static Set<String> anchorsIn(String text) {
         final Set<String> anchors = new HashSet<>();

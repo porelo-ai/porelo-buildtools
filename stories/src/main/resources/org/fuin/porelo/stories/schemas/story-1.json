@@ -47,7 +47,7 @@
     },
     "state": {
       "description": "Where the story stands, written and moved by the same hands as an issue's state.",
-      "enum": ["Idea", "Accepted", "Rejected", "Analyzed", "Estimated", "Backlog", "Implementing", "Review", "Rework", "Finished"]
+      "$ref": "#/$defs/line"
     }
   },
   "$defs": {

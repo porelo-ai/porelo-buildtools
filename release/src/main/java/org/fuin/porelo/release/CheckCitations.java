@@ -228,6 +228,9 @@ final class CheckCitations {
                 read++;
                 numbers.addAll(numbersIn(root, file, text.get(), stories));
             }
+        } catch (IllegalArgumentException ex) {
+            err.println(ex.getMessage());
+            return Stop.REFUSED;
         } catch (IOException | UncheckedIOException ex) {
             err.println("could not read under " + root + ": " + Web.reason(ex));
             return Stop.UNANSWERED;
@@ -335,7 +338,11 @@ final class CheckCitations {
                         .map(match -> match.group(2))
                         .collect(Collectors.toSet());
         final IssueLinks issueLinks = IssueLinks.ownOnly();
-        issueLinks.read(root, pages, own);
+        try {
+            issueLinks.read(root, pages, own);
+        } catch (IllegalArgumentException ex) {
+            throw new IOException(ex.getMessage(), ex);
+        }
         return Set.copyOf(issueLinks.prefixes);
     }
 

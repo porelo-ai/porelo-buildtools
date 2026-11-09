@@ -115,6 +115,9 @@ public final class Main {
                                     ? IssueLinks.Sources.LOCAL_FIRST
                                     : IssueLinks.Sources.FORGE);
             final Plan.Project project = Plan.project(file, links);
+            final org.fuin.porelo.stories.Workflow workflow =
+                    org.fuin.porelo.stories.Workflow.read(
+                            project.root().resolve("stories/workflow.yml"));
             final Plan plan = Plan.read(file, project);
             final Map<String, IssueIndex> issues = PlanRender.indexes(plan, project, links);
             final Path after = Plan.afterFile(file);
@@ -123,15 +126,22 @@ public final class Main {
                 sources.add(after.toUri());
             }
             final PlanRender.Pages pages =
-                    PlanRender.render(plan, issues, PlanStand.read(file, sources, web));
+                    PlanRender.render(plan, issues, PlanStand.read(file, sources, web), workflow);
             if (rest.getFirst().equals("check")) {
                 PlanCheck.check(
-                        file, plan, issues, pages, links, Plan.releases(file, plan, project));
+                        file,
+                        plan,
+                        issues,
+                        pages,
+                        links,
+                        Plan.releases(file, plan, project),
+                        workflow);
                 out.println("plan checked: " + file);
             } else {
                 final String html = options.value("--html");
                 final Set<Path> inputs = new java.util.HashSet<>(links.inputs());
                 inputs.add(file.toRealPath());
+                inputs.add(project.root().resolve("stories/workflow.yml").toRealPath());
                 inputs.add(project.root().resolve("project.yml").toRealPath());
                 if (Files.isRegularFile(after)) {
                     inputs.add(after.toRealPath());
@@ -140,6 +150,9 @@ public final class Main {
                 out.println("plan rendered: " + PlanRender.page(file));
             }
             return 0;
+        } catch (IllegalArgumentException ex) {
+            err.println("plan: " + ex.getMessage());
+            return Stop.REFUSED;
         } catch (Stop stop) {
             err.println("plan: " + stop.getMessage());
             return stop.code();
@@ -366,11 +379,16 @@ public final class Main {
                             ? usage(err, "check-actions [DIRECTORY, default .github]")
                             : new CheckActions(out, err)
                                     .check(Path.of(rest.isEmpty() ? ".github" : rest.getFirst()));
-            case "check-shared" ->
-                    new CheckShared(out, err)
-                            .check(
-                                    (rest.isEmpty() ? List.of("AGENTS.md") : rest)
-                                            .stream().map(Path::of).toList());
+            case "check-shared" -> {
+                final Options options = Options.parse(rest, Set.of(), Set.of());
+                if (options == null) yield usage(err, "check-shared [FILES]");
+                yield new CheckShared(out, err)
+                        .check(
+                                (options.positional().isEmpty()
+                                                ? List.of("AGENTS.md")
+                                                : options.positional())
+                                        .stream().map(Path::of).toList());
+            }
             case "check-citations" -> checkCitations(rest, out, err);
             case "check-providers" ->
                     rest.size() > 1

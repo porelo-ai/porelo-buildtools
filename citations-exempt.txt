@@ -359,3 +359,7 @@ stories/src/test/resources/command-output.zip
 stories/src/test/resources/faulty-heads/missing.json
 stories/src/test/resources/faulty-heads/multiple-faults.json
 stories/src/test/resources/faulty-heads/wrong-types.json
+
+# The workflow tests feed issue indexes and stories sample issue numbers, to watch the states read from the file.
+release/src/test/java/org/fuin/porelo/release/WorkflowTest.java
+stories/src/test/java/org/fuin/porelo/stories/WorkflowTest.java

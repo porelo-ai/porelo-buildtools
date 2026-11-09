@@ -39,7 +39,7 @@ a.chip{text-decoration:none} .row>svg{width:100%;height:20px;display:block} .ic{
 <p class="stand"><em>Stand: ${page.stand()}</em></p>
 <h2 class="section">Sprint progress</h2>
 <div class="legend">
-@for(var state : PlanTemplate.STATES)
+@for(var state : page.states())
 <span><i style="background:var(--${state.color()})"></i>${state.label()}</span>
 @endfor
 </div>

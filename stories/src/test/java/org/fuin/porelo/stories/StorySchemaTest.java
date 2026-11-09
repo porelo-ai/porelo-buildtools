@@ -41,7 +41,10 @@ class StorySchemaTest {
         try (var files =
                 Files.list(Path.of("src/test/resources/checkouts/porelo-project/stories"))) {
             for (final Path file :
-                    files.filter(f -> !f.getFileName().toString().equals("README.md"))
+                    files.filter(
+                                    f ->
+                                            f.getFileName().toString().startsWith("ST")
+                                                    && f.toString().endsWith(".md"))
                             .sorted()
                             .toList()) {
                 final String text = Files.readString(file);
@@ -218,5 +221,86 @@ class StorySchemaTest {
                         .isNotEmpty();
             }
         }
+    }
+
+    // Prevents the new format accepting contradictory heads or refusing valid computed heads.
+    @Test
+    void agreesWithStoryTwoOnFixtureHeadsAndInvalidVariants() throws Exception {
+        final JsonSchema schema;
+        try (var in =
+                getClass().getResourceAsStream("/org/fuin/porelo/stories/schemas/story-2.json")) {
+            schema =
+                    JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+                            .getSchema(
+                                    in,
+                                    SchemaValidatorsConfig.builder()
+                                            .locale(Locale.ENGLISH)
+                                            .pathType(PathType.JSON_POINTER)
+                                            .build());
+        }
+        final List<JsonNode> heads = new ArrayList<>();
+        try (var files =
+                Files.list(Path.of("src/test/resources/checkouts/porelo-project/stories"))) {
+            for (final Path file :
+                    files.filter(
+                                    path ->
+                                            path.getFileName().toString().startsWith("ST")
+                                                    && path.toString().endsWith(".md"))
+                            .sorted()
+                            .toList()) {
+                final String text = Files.readString(file);
+                final ObjectNode data =
+                        (ObjectNode)
+                                JSON.readTree(
+                                        text.substring(
+                                                text.lastIndexOf("```json\n") + 8,
+                                                text.lastIndexOf("```")));
+                data.put("$schema", "story-2.json");
+                if (!data.get("issues").isEmpty()) data.remove("state");
+                assertThat(schema.validate(data)).as("migrated fixture %s", file).isEmpty();
+                heads.add(data);
+            }
+        }
+        assertThat(heads).hasSize(294);
+        final ObjectNode valid = (ObjectNode) heads.getFirst();
+        final List<JsonNode> invalid = new ArrayList<>();
+        for (String field :
+                List.of("id", "title", "priority", "gain", "test", "issues", "tested", "$schema")) {
+            final ObjectNode missing = valid.deepCopy();
+            missing.remove(field);
+            invalid.add(missing);
+            for (String value : List.of("null", "42", "{}", "\"\"")) {
+                if (field.equals("tested") && value.equals("null")) continue;
+                final ObjectNode wrong = valid.deepCopy();
+                wrong.set(field, JSON.readTree(value));
+                invalid.add(wrong);
+            }
+        }
+        final ObjectNode contradictory = valid.deepCopy();
+        contradictory.put("state", "Idea");
+        invalid.add(contradictory);
+        final ObjectNode empty = valid.deepCopy();
+        empty.putArray("issues");
+        invalid.add(empty);
+        final ObjectNode stated = empty.deepCopy();
+        stated.put("state", "In analysis");
+        heads.add(stated);
+        final ObjectNode extra = valid.deepCopy();
+        extra.put("unexpected", true);
+        invalid.add(extra);
+        final ObjectNode version = valid.deepCopy();
+        version.put("$schema", "story-3.json");
+        invalid.add(version);
+        for (JsonNode head : invalid) {
+            assertThat(schema.validate(head))
+                    .as("independent invalid variant %s", head)
+                    .isNotEmpty();
+            assertThat(StorySchema.faults(head, 2)).as("handwritten refusal %s", head).isNotEmpty();
+        }
+        heads.addAll(invalid);
+        for (JsonNode head : heads)
+            assertThat(StorySchema.faults(head, 2).isEmpty())
+                    .as("same verdict for %s", head)
+                    .isEqualTo(schema.validate(head).isEmpty());
     }
 }

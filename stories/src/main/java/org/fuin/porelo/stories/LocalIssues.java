@@ -24,7 +24,14 @@ final class LocalIssues implements IssueSource {
         final StringBuilder text = new StringBuilder();
         read(tree, "issues/README.md", new HashSet<>(), text);
         // A missing or ambiguous row is an unusable source, including across linked pages.
-        IssueIndexes.read(text.toString(), repository);
+        IssueIndexes.read(
+                text.toString(),
+                repository,
+                Workflow.read(
+                        tree.resolve(
+                                repository.equals("porelo-project")
+                                        ? "stories/workflow.yml"
+                                        : "issues/workflow.yml")));
         return text.toString();
     }
 

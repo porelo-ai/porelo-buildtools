@@ -94,8 +94,9 @@ contain complete, closed records: the same field, value, issue-to-filename and t
 `stage` applies. A record whose `end` is null is refused with that commit's short hash. Generated stage JSONL
 files are exempt from `check-citations`; handwritten notes under `stats/` are still checked.
 
-When that tree contains `stats/seed.csv`, changing an issue whose status in that tree is `Implementing`, `Review`
-or `Finished` requires `stats/<ISSUE>.jsonl` in the tree. Issue files are found directly under `issues/` and in
+When that tree contains `stats/seed.csv`, changing an issue whose status is marked `measured: true` in that tree's
+`issues/workflow.yml` requires `stats/<ISSUE>.jsonl` in the tree. The workflow is read from the same commit as the
+issue and records; editing the working tree cannot change a historical check. Issue files are found directly under `issues/` and in
 its subgroups. Deleted issue files and index-only changes need no stats. Changes are compared with the first
 parent of a merge and with the empty tree for a root commit. Bot and web commits exempt from the message rules
 also skip the stats rules. A `NOTE` identifies nonexempt trees without the seed, where the issue-change rule is
@@ -120,8 +121,9 @@ reason; diagnostics do not echo session paths or filesystem exception details. `
 are supplied on end. Model, effort and wait reason are set on begin; repeating them on end must match begin.
 
 `begin` reads the current size and status from the issue file, including files in subgroups, and appends an open
-record with `end: null` to `stats/<issue>.jsonl`. An `Idea` or `Accepted` issue without a size can begin `analyze`
-or `estimate`, recording `size: null` and no estimate. Each later begin reads the size anew; end preserves the
+record with `end: null` to `stats/<issue>.jsonl`. An open, unmeasured issue without a size can begin `analyze`
+or `estimate`, recording `size: null` and no estimate. Issue statuses and record statuses must belong to the required
+local `issues/workflow.yml`. Each later begin reads the size anew; end preserves the
 size captured by its begin. An estimate with a size uses that size's median for `estimate_min`.
 
 The session source, its Codex begin total and a reference to the public record stay under `porelo-stage/` in the
@@ -159,7 +161,7 @@ combines that size's seed with one sum per finished issue of its own stages carr
 `implement`, `test`, `review`, `rework`, and `handover`, including repetitions. Analysis, estimation, waits and
 subagents are excluded. Work recorded under another size is excluded from that size's sum. An issue with work
 under several sizes contributes one sum to each applicable size. An issue is finished only when every record is
-closed and its last record has `status_after: "Finished"`.
+closed and its last record's `status_after` is a closed workflow state other than Rejected.
 
 `stage median` prints the median in minutes, averaging the middle two values for an even sample. `stage p80`
 uses the same samples and prints the nearest-rank 80th percentile. Unfinished issues contribute nothing.
@@ -396,27 +398,84 @@ story tested since the last one. A story's file reads, top to bottom:
 2. the part `stories index` writes from the head: the priority with the state or the tested day, what a user gains,
    the test, and the issues, one a line, each linked to its row in its index with its state;
 3. whatever a person writes by hand;
-4. `## Data` and the head, fenced `json`, by the schema `story-1.json` this tool carries.
+4. `## Data` and the head, fenced `json`, by `story-2.json`; legacy heads also read as `story-1.json`.
 
-The state is written in the head, as an issue's, and moves through the same states: Idea, Accepted or Rejected,
-Analyzed, Estimated, Backlog, Implementing, Review, Rework or Finished. A Finished story carries the `tested` day its
-test held, and no other story does. The issue indexes are read from the checkouts beside the project's, else from the
-forge.
+A story's state is the least advanced open issue state in the order of `stories/workflow.yml`. When all issues
+are closed, it takes the first closed state other than Rejected; if every issue is Rejected, it is Rejected. A story
+without issues keeps its own state. A stated completed story needs its `tested` day; a computed completed story
+may still await that test. A tested day belongs only to a completed story other than Rejected. Issue indexes are
+read from the checkouts beside the project's, else from the forge.
 
 `stories index` writes every story's part 2 and `stories/README.md`: the count in each state, then the stories by state
 in the states' sequence, the higher priority first within one, each with its issues counted by prefix. `stories check`
 refuses, naming the file and the field: a head the schema refuses, a heading other than the head's, a file not named
-after its id, an id twice, a Finished story without a tested day or a tested day on another, a story in Review while one
-of its issues is neither in Review, Finished nor Rejected, an issue no index holds, a repository `project.yml` does not
-name, and a story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's
+after its id, an id twice, a stated completed story without a tested day or a tested day on an open or rejected story,
+an issue no index holds, a repository `project.yml` does not name, and a story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's
 notes, the stories tested after the day of the last release, the earliest first. `check-citations` skips the root's own
 stories and their index as generated, a story being made of issues as a plan was, and takes `ST<n>` elsewhere as a
 story's number where `stories/` holds that story.
 
+### Workflows
+
+`stories/workflow.yml` in porelo-project defines the states of stories and issues, their board order, their
+closed and measured flags, and their display phases. There is no default workflow. Missing files are refused by
+path. A workflow is one YAML document with this shape:
+
+```yaml
+states:
+  - {name: Idea, closed: false}
+  - {name: Implementing, closed: false, measured: true}
+  - {name: Finished, closed: true, measured: true}
+  - {name: Rejected, closed: true}
+phases:
+  - {name: Complete, states: [Finished, Rejected]}
+  - {name: Working, states: [Implementing]}
+  - {name: Early, states: [Idea]}
+```
+
+YAML `#` comments are accepted, both on their own lines and after values. `states` is a nonempty list in board
+order, earliest first. Each state requires `name` and boolean `closed`; omitted `measured` is false. Phase names and state names are unique within their lists and each is one nonempty line without
+surrounding whitespace. Unknown keys, duplicate mapping keys, invalid types, unknown phase members, and a state
+repeated within or across phases are refused with file and line. `phases` is a required list in display order;
+plan bars use it, adding a separate group for any state not assigned a phase. Colors follow phase order using
+the existing palette. The stories index and generated issue-source headings use state order; plan segments and
+both legends use phase order. The shared phases are Ideas, Analysis, Estimation, Backlog, Build, and Done, earliest
+first. Reading and Reworking belong to Build; Finishing belongs to Done but remains open. The done count uses the
+closed flag, rather than the phase name. An index heading or story state absent from the file is refused, naming
+the workflow. Reading a handwritten issue index preserves its rows and metadata; it does not rewrite that file. Plan checks use `closed` and `measured` to recognize completed and started work;
+an open, unmeasured state precedes measured work, and a wait outside every plan must be closed.
+
+The project admin places and signs the workflow file once in each repository, as with `project.yml`.
+Each repository keeps its own signed copy: `stories/workflow.yml` in porelo-project and `issues/workflow.yml`
+elsewhere. Its checks read only that local copy and refuse a missing or invalid file; changes are placed and
+signed by the project admin. The stories library validates supplied issue indexes against the stories'
+workflow, and its local source validates each checkout against that checkout's own copy. The repository's
+own `check-citations` reads its issue index through
+`IssueIndexes.read` with this workflow. An ATX heading at any level from one to six is a state section when
+an issue-table header (`| # | ...`) follows it before the next heading or blank-separated prose, or when its
+text names a workflow state. Empty or unknown headings with issue tables are refused with their file, heading
+line and workflow path, even if the tables have no issue rows. Tables without a state heading are refused at
+the table header. Other headings are prose and are left alone; known states may have empty sections without
+tables. An unknown state in `check-citations` is reported as a validation fault with its original file and line.
+
+`Workflow.read(Path)` returns the immutable workflow or throws `IOException` for missing, unreadable or invalid
+YAML. Its other methods are `states()`, `closed(String)`, `measured(String)`, `rejected(String)`, `phases()`, and `order(String)`;
+`Workflow.Phase` exposes `name()` and `states()`. Unknown state queries throw `IllegalArgumentException` naming the
+workflow; `order` is zero based. `rejected` identifies Rejected, the one closed state that is not done work.
+
+A new head declares `"$schema": "story-2.json"`. It requires `state` when `issues` is empty and refuses it beside
+issues. Legacy heads without `$schema` use story-1. The index command upgrades each legacy head by inserting
+`  "$schema": "story-2.json",` as the object's first property line and removing the `state` line only when the
+story has issues. The other JSON bytes keep their indentation, colon spacing, key order, array layout, nulls,
+and escaping; heads already in story-2 retain their bytes. When a legacy stated state differs from computation,
+the operation returns one NOTE
+naming the story and both states; the command prints it. A subsequent operation on the migrated head has no
+legacy state to compare. No tested day is invented during migration.
+
 ### Stories library
 
 `org.fuin.porelo:porelo-stories` exposes `org.fuin.porelo.stories.StoriesIndex.check(Path, IssueSource)` and
-`write(Path, IssueSource)`. Both return `StoriesIndex.Result` with `faults()` and `written()`; a check writes nothing,
+`write(Path, IssueSource)`. Both return `StoriesIndex.Result` with `faults()`, `written()` and `notes()`; a check writes nothing,
 and a write checks every input before changing files. Symlinked story directories, stories and README.md are
 refused before any writes. Changed files are published through temporary files in the same directory and atomic
 moves; unchanged files are untouched and absent from `written()`. Unreadable inputs or failed writes throw `IOException`.
@@ -426,8 +485,12 @@ The generated bytes and validation messages are the same as the stories commands
 `IssueSource.index(String repository)` supplies an issue index as Markdown. `IssueSource.local(Path projectRoot)`
 reads only the project's checkout and checkouts beside it, including linked indexes, and fails with the local path
 when one is missing. Callers may supply another source; the library opens no connection. `IssueIndexes.read(String
-index, String repository)` reads the text into public `IssueIndex` records: number, state, size, title, index path,
-source and blocked issue numbers. A source can bundle pages by preceding each with
+index, String repository, Workflow workflow)` reads the text into public `IssueIndex` records: number, state, size, title, index path,
+source and blocked issue numbers. `location()` supplies the row's original `anchor()`, optional issue-file
+link `file()`, one-based `line()`, and the character offset `numberEnd()` after its first-cell number and link.
+The original seven-argument constructor remains available for rows constructed without a source location.
+Location data is excluded from metadata JSON. Citation and plan checks use this same parser for every issue
+row, anchor and file link; prose examples supply none of them. A source can bundle pages by preceding each with
 `<!-- porelo-issue-index {"path":"issues/base/README.md","source":"...","length":N} -->` and a newline. Replace `N`
 with the integer number of UTF-16 code units in that page after normalizing CRLF to LF. The parser consumes exactly
 that body before the next header; there is no unframed text between pages other than LF separators. JSON keys must
@@ -437,8 +500,9 @@ in raw pages before framing; the parser also rejects them inside page bodies, ev
 without framing cannot contain marker lines. `source` is only descriptive text for diagnostics and is never opened
 or used in a link.
 
-The head schema remains in the library's resources as `org/fuin/porelo/stories/schemas/story-1.json`; validation is
-hand-written and checked against the schema in tests. The only deliberate differences from the reference validator
+The head schemas ship as `org/fuin/porelo/stories/schemas/story-1.json` and `story-2.json`; validation is
+hand-written and checked against both schemas in tests. State names are checked against the workflow after the
+structural schema check. The only deliberate differences from the reference validator
 are refusal of all undeclared properties, including hash-prefixed ones, and whole-value pattern matching that refuses
 trailing line terminators. Jackson's reachability metadata ships with the jar.
 `./mvnw -B -o -q -s settings.xml -pl stories -am -Pnative verify` builds a test executable with Native Build Tools
@@ -510,15 +574,14 @@ number in a planned issue's cell as a wait on that number in the same repository
 `after.yml` entry. The column is found by its header; an index without it has no waits, and `—` or `-` names none.
 The check reads every release's plan beside this one, ordered by their numbers (0.10 after 0.9), to know where each
 waited-for issue is placed. A wait in either place may not reach a later sprint or a later release; a *Blocked by*
-number planned in no release must be Review, Finished or Rejected. The page shows only the waits of `after.yml`.
+number planned in no release must be closed in the workflow. The page shows only the waits of `after.yml`.
 
 Rendering writes `README.md` beside the plan, so a forge shows it on opening the release's directory. Markdown follows the HTML page's section order: the
 release heading and goal, italic Stand line, Sprint progress, the introduction, and Issues Details. The progress
 section links one self-contained jte-generated image beside it, `progress-<hash>.svg`, with the HTML legend's colored
 boxes, one labeled bar and done count per sprint, and a tested or untested mark per function. Its alt text names
-each sprint and lists each nonzero state separately in legend order. The nine groups, from left to right, are
-Finished / Rejected, Review, Implementing / Rework, Backlog, Estimated, Analyzed, Accepted, Idea, and
-Not filed yet / Missing. The hash is the first eight lowercase hex digits of the image bytes' SHA-256;
+each sprint and lists each nonzero state separately in phase order. Groups come from the workflow, followed
+by Not filed yet / Missing. The hash is the first eight lowercase hex digits of the image bytes' SHA-256;
 rendering removes older `progress-<hash>.svg` files and the legacy `progress.svg` in the plan's directory,
 leaving other names alone.
 
@@ -567,22 +630,21 @@ Repeating an issue within one function is refused as a duplicate in that functio
 - An issue has no row in its repository's index.
 - An issue belongs to more than one function.
 - The Markdown page or its progress SVG is missing or differs from a fresh render, including after an index changes.
-- An issue is Finished but its function has no `tested` date.
+- An issue is closed other than Rejected but its function has no `tested` date.
 - A function has no issue, no note and no `tested` date.
 - A covered parent has no row in its repository's index; the refusal names the index source.
 - A parent is repeated in one function's `covers`, or is also listed under any function's `issues`.
-- A covered parent is Idea, Accepted, Analyzed, Estimated or Backlog while at least one of its function's issues
-  is Implementing, Rework, Review or Finished.
+- A covered parent is open and unmeasured while at least one of its function's issues is measured or closed.
 - An issue in `after.yml`, waiting or waited for, has no row in its repository's index.
 - A number in a planned issue's *Blocked by* cell has no row in that repository's index.
-- An issue is Implementing, Rework, Review or Finished while an issue it waits for has not begun (Idea, Accepted,
-  Analyzed, Estimated, Backlog) or is Rejected; agents build against local results and contracts stated in words, so
+- An issue is measured or closed while an issue it waits for is open and unmeasured; agents build against local
+  results and contracts stated in words, so
   what is waited for need not be published yet. A parent the plan names only under `covers` is left out,
   since it is Implementing while its parts run; every other rule on waits holds for it.
 - Waits form a cycle; the refusal names it in order.
 - An issue waits for one placed in a later sprint of the plan being checked or in a later release, directly or
   through issues outside it.
-- A planned issue's *Blocked by* cell names an issue planned in no release that is not Review, Finished or Rejected.
+- A planned issue's *Blocked by* cell names an issue planned in no release that is not closed.
 - A wait, in `after.yml` or a *Blocked by* cell, names a requirement any release's plan names under `covers`: it is the
   acceptance of the whole, so the wait names the part it waits for instead.
 

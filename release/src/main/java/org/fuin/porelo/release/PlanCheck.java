@@ -9,17 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.fuin.porelo.stories.IssueIndex;
+import org.fuin.porelo.stories.Workflow;
 
 /** Refuses inconsistent progress claims and a page that no longer reflects its inputs. */
 final class PlanCheck {
-    private static final Set<String> BEFORE_IMPLEMENTING =
-            Set.of("Idea", "Accepted", "Analyzed", "Estimated", "Backlog");
-    private static final Set<String> STARTED =
-            Set.of("Implementing", "Rework", "Review", "Finished");
-
-    /** An issue no release plans is no wait once it is published or will never be built. */
-    private static final Set<String> DONE = Set.of("Review", "Finished", "Rejected");
-
     private PlanCheck() {}
 
     static void check(
@@ -28,7 +21,8 @@ final class PlanCheck {
             Map<String, IssueIndex> issues,
             PlanRender.Pages pages,
             IssueLinks links,
-            Plan.Releases releases)
+            Plan.Releases releases,
+            Workflow workflow)
             throws IOException, Stop {
         final List<String> faults = new ArrayList<>();
         final Map<String, String> assigned = new HashMap<>();
@@ -58,14 +52,16 @@ final class PlanCheck {
                                         + named
                                         + " has no row in its index "
                                         + links.issueIndexSource(named));
-                    } else if (row.state().equals("Finished") && function.tested() == null) {
-                        faults.add(where + ": " + named + " is Finished without tested");
+                    } else if (workflow.closed(row.state())
+                            && !workflow.rejected(row.state())
+                            && function.tested() == null) {
+                        faults.add(where + ": " + named + " is " + row.state() + " without tested");
                     }
                 }
             }
         }
-        checkCovers(plan, issues, assigned, links, faults);
-        checkAfter(plan, issues, releases, links, faults);
+        checkCovers(plan, issues, assigned, links, faults, workflow);
+        checkAfter(plan, issues, releases, links, faults, workflow);
         final Map<Path, String> expected = new java.util.LinkedHashMap<>();
         expected.put(PlanRender.page(file), pages.markdown());
         pages.images()
@@ -96,7 +92,8 @@ final class PlanCheck {
             Map<String, IssueIndex> issues,
             Plan.Releases releases,
             IssueLinks links,
-            List<String> faults) {
+            List<String> faults,
+            Workflow workflow) {
         final Map<String, Plan.Placement> placements = releases.placed();
         final Set<String> mine = new java.util.LinkedHashSet<>();
         final Set<String> worked = new java.util.HashSet<>();
@@ -135,10 +132,10 @@ final class PlanCheck {
                     continue;
                 }
                 if (!parents.contains(issue)) {
-                    checkStarted(where, issue, row, target, waited, faults);
+                    checkStarted(where, issue, row, target, waited, faults, workflow);
                 }
                 checkCovered(where, issue, target, releases, faults);
-                if (!placements.containsKey(target) && !DONE.contains(waited.state())) {
+                if (!placements.containsKey(target) && !workflow.closed(waited.state())) {
                     faults.add(
                             where
                                     + ": "
@@ -177,7 +174,7 @@ final class PlanCheck {
                     continue;
                 }
                 if (row != null && !parents.contains(issue)) {
-                    checkStarted(where, issue, row, target, waited, faults);
+                    checkStarted(where, issue, row, target, waited, faults, workflow);
                 }
             }
         }
@@ -256,8 +253,10 @@ final class PlanCheck {
             IssueIndex row,
             String target,
             IssueIndex waited,
-            List<String> faults) {
-        if (STARTED.contains(row.state()) && !STARTED.contains(waited.state())) {
+            List<String> faults,
+            Workflow workflow) {
+        if ((workflow.measured(row.state()) || workflow.closed(row.state()))
+                && !(workflow.measured(waited.state()) || workflow.closed(waited.state()))) {
             faults.add(
                     where
                             + ": "
@@ -332,14 +331,16 @@ final class PlanCheck {
             Map<String, IssueIndex> issues,
             Map<String, String> assigned,
             IssueLinks links,
-            List<String> faults) {
+            List<String> faults,
+            Workflow workflow) {
         for (final Plan.Sprint sprint : plan.sprints()) {
             for (final Plan.Function function : sprint.functions()) {
                 final String where = "sprint " + sprint.id() + " function " + function.title();
                 final List<String> started = new ArrayList<>();
                 for (final String named : function.issues()) {
                     final IssueIndex row = issues.get(named);
-                    if (row != null && STARTED.contains(row.state())) {
+                    if (row != null
+                            && (workflow.measured(row.state()) || workflow.closed(row.state()))) {
                         started.add(named + " is " + row.state());
                     }
                 }
@@ -366,14 +367,16 @@ final class PlanCheck {
                                         + named
                                         + " has no row in its index "
                                         + links.issueIndexSource(named));
-                    } else if (BEFORE_IMPLEMENTING.contains(row.state()) && !started.isEmpty()) {
+                    } else if (!workflow.measured(row.state())
+                            && !workflow.closed(row.state())
+                            && !started.isEmpty()) {
                         faults.add(
                                 where
                                         + ": covered parent "
                                         + named
                                         + " is "
                                         + row.state()
-                                        + " before Implementing while "
+                                        + " before measured work while "
                                         + String.join(", ", started));
                     }
                 }

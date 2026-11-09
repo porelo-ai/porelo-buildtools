@@ -20,22 +20,14 @@ final class StorySchema {
     private static final String DAY = "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$";
     private static final List<String> PRIORITIES =
             List.of("Highest", "High", "Medium", "Low", "Lowest");
-    private static final List<String> STATES =
-            List.of(
-                    "Idea",
-                    "Accepted",
-                    "Rejected",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Rework",
-                    "Finished");
 
     private StorySchema() {}
 
     static List<String> faults(JsonNode data) {
+        return faults(data, data.has("$schema") ? 2 : 1);
+    }
+
+    static List<String> faults(JsonNode data, int version) {
         final List<String> faults = new ArrayList<>();
         if (!data.isObject()) {
             type(data, "object", "", faults);
@@ -59,8 +51,15 @@ final class StorySchema {
                             faults.add(at + ": must be at most " + max + " characters long");
                     }
                 }
-                case "priority", "state" -> {
-                    final List<String> values = field.equals("priority") ? PRIORITIES : STATES;
+                case "state" -> {
+                    if (type(value, "string", at, faults)) {
+                        if (value.asText().isEmpty())
+                            faults.add(at + ": must be at least 1 characters long");
+                        pattern(value, LINE, at, faults);
+                    }
+                }
+                case "priority" -> {
+                    final List<String> values = PRIORITIES;
                     if (!value.isTextual() || !values.contains(value.asText()))
                         faults.add(
                                 at
@@ -99,14 +98,28 @@ final class StorySchema {
         data.fieldNames()
                 .forEachRemaining(
                         field -> {
-                            if (!REQUIRED.contains(field))
+                            if (!PROPERTIES.contains(field)
+                                    && !(version == 2 && field.equals("$schema")))
                                 faults.add(
                                         "/: property '"
                                                 + field
                                                 + "' is not defined in the schema and the schema does not allow additional properties");
                         });
         for (final String field : REQUIRED)
-            if (!data.has(field)) faults.add("/: required property '" + field + "' not found");
+            if (!(version == 2 && field.equals("state")) && !data.has(field))
+                faults.add("/: required property '" + field + "' not found");
+        if (version == 2) {
+            if (!data.has("$schema")) faults.add("/: required property '$schema' not found");
+            else if (!data.path("$schema").asText().equals("story-2.json")
+                    || !data.path("$schema").isTextual())
+                faults.add("/$schema: must be a constant value story-2.json");
+            if (data.path("issues").isArray()
+                    && data.path("issues").isEmpty()
+                    && !data.has("state")) faults.add("/: required property 'state' not found");
+            if (data.path("issues").isArray()
+                    && !data.path("issues").isEmpty()
+                    && data.has("state")) faults.add("/: state is not allowed beside issues");
+        }
         return faults;
     }
 

@@ -28,24 +28,6 @@ public final class StoriesIndex {
     /** The index beside the stories, generated from their heads. */
     static final String INDEX = "README.md";
 
-    /** The index's sections: a story's states in their sequence, as an issue's. */
-    private static final List<String> SHOWN =
-            List.of(
-                    "Idea",
-                    "Accepted",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Rework",
-                    "Finished",
-                    "Rejected");
-
-    /** The states an issue of a story in Review may stand in: none earlier than Review. */
-    private static final java.util.Set<String> DONE_FOR_REVIEW =
-            java.util.Set.of("Review", "Finished", "Rejected");
-
     /** Jira's priorities, the highest first, each with Jira's icon. */
     private static final Map<String, String> PRIORITIES = priorities();
 
@@ -64,9 +46,14 @@ public final class StoriesIndex {
     private record Generated(String index, Map<Path, String> files, int stories) {}
 
     private final IssueSource source;
+    private final Workflow workflow;
+    private final List<String> notes = new ArrayList<>();
     private final Map<String, Map<String, IssueIndex>> indexes = new LinkedHashMap<>();
 
-    private StoriesIndex(IssueSource source) {
+    private StoriesIndex(IssueSource source, Path storiesDir) throws IOException {
+        refuseSymlink(storiesDir);
+        refuseSymlink(storiesDir.resolve("workflow.yml"));
+        this.workflow = Workflow.read(storiesDir.resolve("workflow.yml"));
         this.source = source;
     }
 
@@ -75,10 +62,16 @@ public final class StoriesIndex {
      *
      * @param faults faults relative to the stories directory
      * @param written files changed or created; empty for a check or a refused write
+     * @param notes legacy states that differ from computed states
      */
-    public record Result(List<String> faults, List<Path> written) {
+    public record Result(List<String> faults, List<Path> written, List<String> notes) {
         /** Copies the result so it remains stable after the operation. */
+        public Result(List<String> faults, List<Path> written) {
+            this(faults, written, List.of());
+        }
+
         public Result {
+            notes = List.copyOf(notes);
             faults = List.copyOf(faults);
             written = List.copyOf(written);
         }
@@ -94,7 +87,7 @@ public final class StoriesIndex {
      * @throws IOException when an input cannot be read
      */
     public static Result check(Path storiesDir, IssueSource source) throws IOException {
-        return new StoriesIndex(source).check(storiesDir);
+        return new StoriesIndex(source, storiesDir).check(storiesDir);
     }
 
     /**
@@ -108,13 +101,13 @@ public final class StoriesIndex {
      * @throws IOException when an input cannot be read or an output cannot be written
      */
     public static Result write(Path storiesDir, IssueSource source) throws IOException {
-        return new StoriesIndex(source).write(storiesDir);
+        return new StoriesIndex(source, storiesDir).write(storiesDir);
     }
 
     private Map<String, IssueIndex> index(String repository) throws IOException {
         Map<String, IssueIndex> rows = indexes.get(repository);
         if (rows == null) {
-            rows = IssueIndexes.read(source.index(repository), repository);
+            rows = IssueIndexes.read(source.index(repository), repository, workflow);
             indexes.put(repository, rows);
         }
         return rows;
@@ -128,7 +121,8 @@ public final class StoriesIndex {
      * @return the heads read whole, by id, in the files' order
      * @throws IOException when the directory or a file cannot be read
      */
-    static Map<String, Heads.Head> read(Path dir, List<String> faults) throws IOException {
+    static Map<String, Heads.Head> read(Path dir, List<String> faults, Workflow workflow)
+            throws IOException {
         refuseSymlink(dir);
         if (!Files.isDirectory(dir)) {
             throw new IOException("no such directory");
@@ -144,7 +138,7 @@ public final class StoriesIndex {
         final Map<String, Heads.Head> heads = new LinkedHashMap<>();
         for (final Path file : files) {
             if (file.getFileName().toString().equals(INDEX)) continue;
-            final Heads.Head head = Heads.read(file, faults);
+            final Heads.Head head = Heads.read(file, faults, workflow);
             if (head == null) {
                 continue;
             }
@@ -169,14 +163,14 @@ public final class StoriesIndex {
     private Result write(Path dir) throws IOException {
         final List<String> faults = new ArrayList<>();
         final Generated generated = generate(dir, faults);
-        if (!faults.isEmpty()) return new Result(faults, List.of());
+        if (!faults.isEmpty()) return new Result(faults, List.of(), notes);
         final List<Path> written = new ArrayList<>();
         for (final Map.Entry<Path, String> file : generated.files().entrySet()) {
             if (writeChanged(file.getKey(), file.getValue())) written.add(file.getKey());
         }
         final Path index = dir.resolve(INDEX);
         if (writeChanged(index, generated.index())) written.add(index);
-        return new Result(faults, written);
+        return new Result(faults, written, notes);
     }
 
     private static void refuseSymlink(Path path) throws IOException {
@@ -227,7 +221,7 @@ public final class StoriesIndex {
                 faults.add(INDEX + ": differs from what the stories' heads give" + again);
             }
         }
-        return new Result(faults, List.of());
+        return new Result(faults, List.of(), notes);
     }
 
     private static boolean isDay(String text) {
@@ -245,30 +239,26 @@ public final class StoriesIndex {
 
     /**
      * What the stories' heads give, or nothing to go by when a head or an issue is at fault. A
-     * story in Review waits for none of its issues: each is in Review, finished or rejected.
+     * story takes the earliest open issue state in board order.
      */
     private Generated generate(Path dir, List<String> faults) throws IOException {
-        final Map<String, Heads.Head> heads = read(dir, faults);
+        final Map<String, Heads.Head> heads = read(dir, faults, workflow);
         if (!faults.isEmpty()) {
             return new Generated("", Map.of(), heads.size());
         }
         final Project project = Project.read(dir.resolve(INDEX), this::index);
         final Map<String, List<Heads.Head>> byState = new LinkedHashMap<>();
-        SHOWN.forEach(state -> byState.put(state, new ArrayList<>()));
+        workflow.states().forEach(state -> byState.put(state, new ArrayList<>()));
         final Map<Path, String> files = new LinkedHashMap<>();
         for (final Heads.Head head : heads.values()) {
             final String name = head.file().getFileName().toString();
-            final String state = head.data().get("state").asText();
+            final String stated = head.data().path("state").asText();
             final JsonNode tested = head.data().get("tested");
             if (!tested.isNull() && !isDay(tested.asText())) {
                 faults.add(name + ": /tested: " + tested.asText() + " is no day");
             }
-            if (state.equals("Finished") && head.data().get("tested").isNull()) {
-                faults.add(name + ": Finished without a tested day");
-            } else if (!state.equals("Finished") && !head.data().get("tested").isNull()) {
-                faults.add(name + ": a tested day on a story that is " + state + ", not Finished");
-            }
             final List<String> issues = new ArrayList<>();
+            final List<String> issueStates = new ArrayList<>();
             for (final JsonNode node : head.data().get("issues")) {
                 final String issue = node.asText();
                 final String repository = issue.substring(0, issue.indexOf('#'));
@@ -283,12 +273,30 @@ public final class StoriesIndex {
                     continue;
                 }
                 issues.add("- [" + issue + "](" + row.link(repository) + ") (" + row.state() + ")");
-                if (state.equals("Review") && !DONE_FOR_REVIEW.contains(row.state())) {
-                    faults.add(name + ": in Review while " + issue + " is " + row.state());
-                }
+                issueStates.add(row.state());
             }
 
-            byState.computeIfAbsent(state, unused -> new ArrayList<>()).add(head);
+            if (issueStates.size() != head.data().get("issues").size()) continue;
+            final String state = computed(stated, issueStates);
+            if (!stated.isEmpty() && !issueStates.isEmpty() && !stated.equals(state))
+                notes.add(
+                        "NOTE  "
+                                + head.data().get("id").asText()
+                                + ": stated "
+                                + stated
+                                + ", computed "
+                                + state);
+            final boolean completed = workflow.closed(state) && !workflow.rejected(state);
+            if (completed && issueStates.isEmpty() && head.data().get("tested").isNull()) {
+                faults.add(name + ": " + state + " without a tested day");
+            } else if (!completed && !head.data().get("tested").isNull()) {
+                faults.add(
+                        name
+                                + ": a tested day on a story that is "
+                                + state
+                                + ", not a completed story");
+            }
+            java.util.Objects.requireNonNull(byState.get(state)).add(head);
             files.put(head.file(), text(head, state, issues));
         }
         final StringBuilder page =
@@ -297,9 +305,9 @@ public final class StoriesIndex {
                                 + " head; a change goes into the story's file. Each story is one"
                                 + " function of value to a user, with the test the person runs at"
                                 + " its end and every issue it needs. A story moves through the"
-                                + " same states as an issue, set by the same hands: Idea, Accepted"
-                                + " or Rejected, Analyzed, Estimated, Backlog, Implementing, Review,"
-                                + " Rework or Finished. Work follows the priority.\n\n"
+                                + " same states as an issue, in workflow.yml order: "
+                                + String.join(", ", workflow.states())
+                                + ". Work follows the priority.\n\n"
                                 + "Priority: ");
         page.append(
                 String.join(
@@ -360,11 +368,34 @@ public final class StoriesIndex {
         return new Generated(page.toString(), files, heads.size());
     }
 
+    private String computed(String stated, List<String> issueStates) {
+        if (issueStates.isEmpty()) return stated;
+        return issueStates.stream()
+                .filter(state -> !workflow.closed(state))
+                .min(Comparator.comparingInt(workflow::order))
+                .orElseGet(
+                        () ->
+                                issueStates.stream().allMatch(workflow::rejected)
+                                        ? issueStates.getFirst()
+                                        : workflow.states().stream()
+                                                .filter(
+                                                        state ->
+                                                                workflow.closed(state)
+                                                                        && !workflow.rejected(
+                                                                                state))
+                                                .findFirst()
+                                                .orElseThrow(
+                                                        () ->
+                                                                new IllegalArgumentException(
+                                                                        "workflow.yml has no completed state")));
+    }
+
     /**
      * A story's whole text: its heading, the part its head gives, then what a person wrote below it
      * down to the head, unchanged. The generated part runs from the heading to the issues' line.
      */
-    private static String text(Heads.Head head, String state, List<String> issues) {
+    private static String text(Heads.Head head, String state, List<String> issues)
+            throws IOException {
         final JsonNode data = head.data();
         final String shown =
                 " · **State:** "
@@ -410,7 +441,19 @@ public final class StoriesIndex {
                 + "\n\n"
                 + generated
                 + "\n"
-                + String.join("\n", lines.subList(rest, lines.size()));
+                + String.join("\n", lines.subList(rest, data0))
+                + (rest < data0 ? "\n" : "")
+                + data(head, data0);
+    }
+
+    private static String data(Heads.Head head, int data0) throws IOException {
+        if (head.data().has("$schema"))
+            return String.join("\n", head.lines().subList(data0, head.lines().size()));
+        return String.join("\n", head.lines().subList(data0, head.jsonStart()))
+                + "\n"
+                + Heads.storyTwo(head)
+                + "\n"
+                + String.join("\n", head.lines().subList(head.jsonEnd(), head.lines().size()));
     }
 
     private static String row(Heads.Head head) {

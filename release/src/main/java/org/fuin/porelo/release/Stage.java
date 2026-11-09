@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.fuin.porelo.json.Json;
 import org.fuin.porelo.json.JsonException;
+import org.fuin.porelo.stories.Workflow;
 import org.jspecify.annotations.Nullable;
 
 /** Records public issue stages and keeps their session sources private. */
@@ -48,18 +49,6 @@ final class Stage {
     private static final Set<String> MEASURED =
             Set.of("plan", "implement", "test", "review", "rework", "handover");
     private static final Set<String> SIZES = Set.of("XS", "S", "M", "L", "XL");
-    private static final Set<String> STATES =
-            Set.of(
-                    "Idea",
-                    "Accepted",
-                    "Rejected",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Rework",
-                    "Finished");
     private static final Set<String> REASONS = Set.of("operator", "build", "agent", "vm");
     private static final Set<String> RESULTS = Set.of("done", "returned", "refused", "abandoned");
     private static final Set<String> OPTIONS =
@@ -78,6 +67,7 @@ final class Stage {
                     + " <size>";
 
     private final Path root;
+    private @Nullable Workflow workflow;
     private final Clock clock;
     private final PrintStream out;
     private final PrintStream err;
@@ -94,6 +84,20 @@ final class Stage {
         this.out = out;
         this.err = err;
         this.environment = environment;
+    }
+
+    private Workflow workflow() throws IOException {
+        if (workflow == null) {
+            final Path file = root.resolve("issues/workflow.yml");
+            safe(file);
+            try {
+                workflow = Workflow.read(file);
+            } catch (IOException ex) {
+                throw new IllegalArgumentException(
+                        "could not read " + file + ": " + ex.getMessage(), ex);
+            }
+        }
+        return workflow;
     }
 
     /** Runs a stage operation, returning 2 with a reason on any refusal or unreadable input. */
@@ -190,7 +194,7 @@ final class Stage {
         }
     }
 
-    private static void validateOptions(Main.Options options, String stage) {
+    private void validateOptions(Main.Options options, String stage) throws IOException {
         for (final String value : options.values().values()) {
             require(!value.startsWith("-"), "an option value must not start with a hyphen");
         }
@@ -203,7 +207,9 @@ final class Stage {
         final String result = options.value("--result");
         require(result == null || RESULTS.contains(result), "unknown result");
         final String status = options.value("--status-after");
-        require(status == null || STATES.contains(status), "unknown status-after");
+        require(
+                status == null || workflow().states().contains(status),
+                "unknown status-after in " + root.resolve("issues/workflow.yml"));
         final String reason = options.value("--wait");
         require(
                 reason == null || (stage.equals("wait") && REASONS.contains(reason)),
@@ -279,7 +285,7 @@ final class Stage {
         record.put("wait_reason", reason);
         record.put("note", session == null ? "no-session" : null);
         StageTokens.empty(record);
-        validate(record, false);
+        validate(record, false, workflow());
         final Map<String, @Nullable Object> saved = new LinkedHashMap<>();
         // Only the reference and session accounting stay private; the record lives in stats.
         saved.put("issue", issue);
@@ -321,7 +327,7 @@ final class Stage {
         final Path output = stats(issue);
         final String contents = Files.readString(output);
         final List<Map<String, @Nullable Object>> earlier =
-                records(contents, output.getFileName().toString(), false);
+                records(contents, output.getFileName().toString(), false, workflow());
         int index = -1;
         for (int i = 0; i < earlier.size(); i++) {
             final Map<String, @Nullable Object> candidate = earlier.get(i);
@@ -339,7 +345,7 @@ final class Stage {
             out.println("stage already closed");
             return;
         }
-        validate(record, false);
+        validate(record, false, workflow());
         for (final String field : List.of("model", "effort", "wait_reason")) {
             final String value =
                     options.value(field.equals("wait_reason") ? "--wait" : "--" + field);
@@ -373,7 +379,7 @@ final class Stage {
                     Set.of("abandoned", "refused").contains(string(record, "result")),
                     record);
         }
-        validate(record, true);
+        validate(record, true, workflow());
         record.put("n", integer(record.get("n"), "n"));
         int offset = 0;
         for (int i = 0; i < index; i++) {
@@ -444,7 +450,8 @@ final class Stage {
                 require(Double.isFinite(total), "stage minutes overflow");
                 if (closed
                         && measured
-                        && "Finished".equals(records.getLast().get("status_after"))) {
+                        && workflow().closed(string(records.getLast(), "status_after"))
+                        && !workflow().rejected(string(records.getLast(), "status_after"))) {
                     samples.add(total);
                 }
             }
@@ -478,17 +485,23 @@ final class Stage {
         final Path file = matches.getFirst();
         safe(file);
         final String text = Files.readString(file);
-        final String status = status(text);
+        final String status = status(text, workflow());
         final String size =
-                Set.of("Idea", "Accepted").contains(status)
+                !workflow().measured(status)
+                                && !workflow().closed(status)
                                 && !Pattern.compile("(?m)^\\*\\*Size:").matcher(text).find()
                         ? null
                         : field(text, "Size", "XS|S|M|L|XL");
         return new Issue(size, status);
     }
 
-    static String status(String text) {
-        return field(text, "Status", String.join("|", STATES));
+    static String status(String text, Workflow workflow) {
+        final String allowed =
+                workflow.states().stream()
+                        .sorted(java.util.Comparator.comparingInt(String::length).reversed())
+                        .map(Pattern::quote)
+                        .collect(java.util.stream.Collectors.joining("|"));
+        return field(text, "Status", "(?:" + allowed + ")(?=\\s*(?:[.;](?:\\s|$)|$))");
     }
 
     private static String field(String text, String name, String allowed) {
@@ -514,11 +527,11 @@ final class Stage {
         if (!Files.exists(file)) {
             return List.of();
         }
-        return records(Files.readString(file), file.getFileName().toString(), false);
+        return records(Files.readString(file), file.getFileName().toString(), false, workflow());
     }
 
     static List<Map<String, @Nullable Object>> records(
-            String contents, String filename, boolean closed) {
+            String contents, String filename, boolean closed, Workflow workflow) {
         require(filename.matches("[A-Z]{1,3}\\d{2,3}\\.jsonl"), "invalid stats filename");
         require(!contents.isEmpty(), "empty stats file");
         require(contents.endsWith("\n"), "stats file has an incomplete final line");
@@ -528,7 +541,7 @@ final class Stage {
             require(
                     !closed || record.get("end") != null,
                     "stats file contains a stage without end");
-            validate(record, record.get("end") != null);
+            validate(record, record.get("end") != null, workflow);
             require(
                     filename.equals(string(record, "issue") + ".jsonl"),
                     "record issue disagrees with filename");
@@ -599,7 +612,8 @@ final class Stage {
         }
     }
 
-    private static void validate(Map<String, @Nullable Object> record, boolean closed) {
+    private static void validate(
+            Map<String, @Nullable Object> record, boolean closed, Workflow workflow) {
         final Set<String> fields =
                 new java.util.HashSet<>(
                         List.of(
@@ -633,7 +647,9 @@ final class Stage {
                 size == null && Set.of("analyze", "estimate").contains(stage)
                         || size instanceof String text && SIZES.contains(text),
                 "invalid record size");
-        require(STATES.contains(string(record, "status_before")), "invalid record status_before");
+        require(
+                workflow.states().contains(string(record, "status_before")),
+                "invalid record status_before in issues/workflow.yml");
         require(integer(record.get("n"), "n") > 0, "invalid stage ordinal");
         for (final String key : List.of("model", "effort")) {
             final Object value = record.get(key);
@@ -670,7 +686,9 @@ final class Stage {
         }
         final Instant start = Instant.parse(string(record, "start"));
         if (closed) {
-            require(STATES.contains(string(record, "status_after")), "invalid record status_after");
+            require(
+                    workflow.states().contains(string(record, "status_after")),
+                    "invalid record status_after in issues/workflow.yml");
             require(!Instant.parse(string(record, "end")).isBefore(start), "invalid record end");
             number(record.get("wall_min"), "wall_min");
             number(record.get("vm_min"), "vm_min");

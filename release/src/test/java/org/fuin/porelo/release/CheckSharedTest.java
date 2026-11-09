@@ -375,7 +375,7 @@ class CheckSharedTest {
         return new CheckShared(
                         new PrintStream(out, true, StandardCharsets.UTF_8),
                         new PrintStream(err, true, StandardCharsets.UTF_8))
-                .check(java.util.List.of(file));
+                .check(java.util.List.of(file), file.startsWith("..") ? Path.of("..") : directory);
     }
 
     private int check(List<Path> files, Path root) {

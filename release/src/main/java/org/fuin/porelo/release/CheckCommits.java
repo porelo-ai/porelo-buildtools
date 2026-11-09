@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.fuin.porelo.json.JsonException;
+import org.fuin.porelo.stories.Workflow;
 
 /**
  * Holds each commit of a range to the shared rules on commit messages and stage records.
@@ -25,7 +26,7 @@ import org.fuin.porelo.json.JsonException;
  * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt
  * from these checks: told by the author and committer the commit records, never by what its message
  * says. Other trees' stage records must be closed, and a tree with a seed must hold stats for each
- * changed issue that is Implementing, Review or Finished.
+ * changed issue in a workflow state marked measured.
  */
 final class CheckCommits {
 
@@ -363,12 +364,34 @@ final class CheckCommits {
 
     private List<String> stageFaults(String hash, Set<String> files) throws IOException {
         final List<String> faults = new ArrayList<>();
+        if (!files.contains("stats/seed.csv")
+                && files.stream().noneMatch(path -> path.matches("stats/[^/]+\\.jsonl")))
+            return faults;
+        final Workflow workflow;
+        if (!files.contains("issues/workflow.yml")) {
+            faults.add("issues/workflow.yml is missing from the commit tree");
+            return faults;
+        }
+        final Path temporary = Files.createTempFile("commit-workflow-", ".yml");
+        try {
+            Files.writeString(temporary, git.read(hash, "issues/workflow.yml"));
+            workflow = Workflow.read(temporary);
+        } catch (IOException ex) {
+            faults.add(
+                    "issues/workflow.yml: "
+                            + String.valueOf(ex.getMessage())
+                                    .replace(temporary.toString(), "issues/workflow.yml"));
+            return faults;
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
         for (final String path : files) {
             if (!path.matches("stats/[^/]+\\.jsonl")) {
                 continue;
             }
             try {
-                Stage.records(git.read(hash, path), path.substring("stats/".length()), true);
+                Stage.records(
+                        git.read(hash, path), path.substring("stats/".length()), true, workflow);
             } catch (JsonException ex) {
                 faults.add(path + " contains invalid JSON");
             } catch (DateTimeException ex) {
@@ -384,8 +407,7 @@ final class CheckCommits {
                 final Matcher match = issue.matcher(path);
                 if (match.matches()
                         && files.contains(path)
-                        && Set.of("Implementing", "Review", "Finished")
-                                .contains(Stage.status(git.read(hash, path)))) {
+                        && workflow.measured(Stage.status(git.read(hash, path), workflow))) {
                     final String stats = "stats/" + match.group(1) + ".jsonl";
                     if (!files.contains(stats)) {
                         faults.add(path + " changed without " + stats + " in its tree");

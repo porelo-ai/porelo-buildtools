@@ -1,0 +1,20 @@
+states:
+  - {name: Idea, closed: false}
+  - {name: Accepted, closed: false}
+  - {name: Analyzed, closed: false}
+  - {name: Estimated, closed: false}
+  - {name: Backlog, closed: false}
+  - {name: Implementing, closed: false, measured: true}
+  - {name: Review, closed: false, measured: true}
+  - {name: Rework, closed: false}
+  - {name: Finished, closed: true, measured: true}
+  - {name: Rejected, closed: true}
+phases:
+  - {name: Finished / Rejected, states: [Finished, Rejected]}
+  - {name: Review, states: [Review]}
+  - {name: Implementing / Rework, states: [Implementing, Rework]}
+  - {name: Backlog, states: [Backlog]}
+  - {name: Estimated, states: [Estimated]}
+  - {name: Analyzed, states: [Analyzed]}
+  - {name: Accepted, states: [Accepted]}
+  - {name: Idea, states: [Idea]}

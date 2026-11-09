@@ -43,6 +43,90 @@ class PlanCommandsTest {
                 "# Issues\n\n## Idea\n\n| <a id=\"pj01\"></a>PJ01 | - | - | Release |\n");
     }
 
+    // Prevents the six shared phases from being rendered with the old Finished-first legend.
+    // A prose example must not replace the actual issue-file link used to resolve a plan title.
+    @Test
+    void proseExamplesCannotOverrideAnIssueFile() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        final Path index = directory.resolve("porelo-sample/issues/README.md");
+        write(directory.resolve("porelo-sample/issues/SA01-Real.md"), "# SA01 — Real work\n");
+        write(directory.resolve("porelo-sample/issues/SA01-Fake.md"), "# SA01 — Forged title\n");
+        write(
+                index,
+                "## Backlog\n| # | Size | Blocked by | What it covers |\n"
+                        + "| <a id=\"sa01\"></a>[SA01](SA01-Real.md) | S | - | Indexed title |\n"
+                        + "## Examples\n| [SA01](SA01-Fake.md) | A prose example |\n");
+        assertThat(run("render")).as(errors.toString()).isZero();
+        assertThat(Files.readString(PlanRender.page(file)))
+                .contains("Real work")
+                .doesNotContain("Forged title");
+    }
+
+    @Test
+    void rejectedPlanWorkNeedsNoTestedDate() throws IOException {
+        plan(function("One", "issues: [porelo-sample#SA01]"));
+        write(
+                directory.resolve("porelo-sample/issues/README.md"),
+                "## Rejected\n| # | Title | Why |\n| <a id=\"sa01\"></a>SA01 | Abandoned | Not needed |\n");
+        assertThat(run("render")).as(errors.toString()).isZero();
+        assertThat(run("check")).as(errors.toString()).isZero();
+    }
+
+    @Test
+    void theSettledWorkflowOrdersPlanGroupsAndBothLegends() throws Exception {
+        final Path settled =
+                Path.of(
+                        "../stories/src/test/resources/checkouts/porelo-project/stories/workflow.yml");
+        Files.copy(
+                settled,
+                root.resolve("stories/workflow.yml"),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(
+                settled,
+                directory.resolve("porelo-sample/issues/workflow.yml"),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        final var workflow = org.fuin.porelo.stories.Workflow.read(settled);
+        final StringBuilder index = new StringBuilder();
+        final java.util.List<String> issues = new java.util.ArrayList<>();
+        int number = 10;
+        for (String state : workflow.states().reversed()) {
+            final String issue = "SA" + number++;
+            issues.add("porelo-sample#" + issue);
+            index.append("## ")
+                    .append(state)
+                    .append("\n| # | Size | Blocked by | What it covers | Title |\n| ")
+                    .append(issue)
+                    .append(" | S | - | Sample | Sample |\n");
+        }
+        write(directory.resolve("porelo-sample/issues/README.md"), index.toString());
+        plan(function("One", "issues: [" + String.join(", ", issues) + "]"));
+        final Path html = root.resolve("plan.html");
+        assertThat(run("render", "--html", html.toString())).as(errors.toString()).isZero();
+        final String image = Files.readString(progressImage());
+        final String page = Files.readString(html);
+        final java.util.List<String> phases =
+                workflow.phases().stream()
+                        .map(org.fuin.porelo.stories.Workflow.Phase::name)
+                        .toList();
+        assertThat(image).containsSubsequence(phases.toArray(String[]::new));
+        assertThat(page).containsSubsequence(phases.toArray(String[]::new));
+        assertThat(image)
+                .containsSubsequence(
+                        "<title>Ideas: 2</title>",
+                        "<title>Analysis: 2</title>",
+                        "<title>Estimation: 2</title>",
+                        "<title>Backlog: 1</title>",
+                        "<title>Build: 5</title>",
+                        "<title>Done: 3</title>");
+        assertThat(page).contains("2 of 15 done");
+        final String counts =
+                workflow.states().stream()
+                        .map(state -> state + " 1")
+                        .collect(java.util.stream.Collectors.joining(", "));
+        assertThat(Files.readString(file.resolveSibling("README.md")))
+                .contains("![Sprint s: " + counts + "](");
+    }
+
     // Prevents the plan pages going red when project.yml names a repository's central remote.
     @ParameterizedTest
     @ValueSource(strings = {"central", "upstream"})
@@ -430,7 +514,7 @@ class PlanCommandsTest {
     @CsvSource({
         "Accepted, Implementing",
         "Backlog, Review",
-        "Idea, Rework",
+        "Idea, Implementing",
         "Analyzed, Finished",
         "Estimated, Implementing"
     })
@@ -589,7 +673,7 @@ class PlanCommandsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"Idea", "Accepted", "Analyzed", "Estimated", "Backlog", "Rejected"})
+    @ValueSource(strings = {"Idea", "Accepted", "Analyzed", "Estimated", "Backlog", "Rework"})
     void aStartedIssueWaitingForOneNotBegunIsRefused(String state) throws IOException {
         plan(function("One", "issues: [porelo-sample#SA01]"));
         writeSample("Implementing");
@@ -600,7 +684,7 @@ class PlanCommandsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"Implementing", "Rework", "Review", "Finished"})
+    @ValueSource(strings = {"Implementing", "Review", "Finished", "Rejected"})
     void workMayStartOnceWhatItWaitsForHasBegun(String state) throws IOException {
         plan(function("One", "issues: [porelo-sample#SA01]"));
         writeSample("Implementing");
@@ -736,7 +820,7 @@ class PlanCommandsTest {
         assertThat(run("render")).as("an unplanned wait renders: %s", errors).isZero();
         refused("porelo-project#PJ01", "porelo-project#PJ02", "planned in no release", "Idea");
 
-        for (final String state : java.util.List.of("Review", "Finished", "Rejected")) {
+        for (final String state : java.util.List.of("Finished", "Rejected")) {
             index("Idea", row("PJ01", "PJ02"));
             write(
                     root.resolve("issues/README.md"),

@@ -156,8 +156,12 @@ final class PlanRender {
                 || (Files.exists(first) && Files.exists(second) && Files.isSameFile(first, second));
     }
 
-    static Pages render(Plan plan, Map<String, IssueIndex> issues, String stand) {
-        final PlanTemplate model = PlanTemplate.from(plan, issues, stand);
+    static Pages render(
+            Plan plan,
+            Map<String, IssueIndex> issues,
+            String stand,
+            org.fuin.porelo.stories.Workflow workflow) {
+        final PlanTemplate model = PlanTemplate.from(plan, issues, stand, workflow);
         final Map<String, String> images = new LinkedHashMap<>();
         final String svg = template("progress.jte", model);
         final String image = "progress-" + imageHash(svg) + ".svg";

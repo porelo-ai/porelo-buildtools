@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
@@ -36,12 +35,14 @@ public final class IssueIndexes {
      * @param index Markdown text, or frames headed by {@code <!-- porelo-issue-index
      *     {"path":"issues/README.md","source":"...","length":N} -->} and a newline; N counts UTF-16
      *     code units in the following page after CRLF is normalized to LF
+     * @param workflow the states and their meanings
      * @param repository the repository owning the rows
      * @return immutable rows keyed by issue number
      * @throws IOException when a row occurs more than once or provenance is malformed
      * @throws IllegalArgumentException when a row has an unknown state heading
      */
-    public static Map<String, IssueIndex> read(String index, String repository) throws IOException {
+    public static Map<String, IssueIndex> read(String index, String repository, Workflow workflow)
+            throws IOException {
         index = index.replace("\r\n", "\n");
         final Map<String, IssueIndex> result = new LinkedHashMap<>();
         if (!index.startsWith(MARKER)) {
@@ -52,7 +53,8 @@ public final class IssueIndexes {
                     "https://raw.githubusercontent.com/porelo-ai/"
                             + repository
                             + "/main/issues/README.md",
-                    result);
+                    result,
+                    workflow);
             return Collections.unmodifiableMap(result);
         }
         int offset = 0;
@@ -90,7 +92,7 @@ public final class IssueIndexes {
                 throw new IOException("invalid issue index page boundary after " + path);
             final String page = index.substring(start, end);
             refuseMarkers(page, path);
-            rows(page, path, metadata.path("source").asText(), result);
+            rows(page, path, metadata.path("source").asText(), result, workflow);
             offset = next;
         }
         return Collections.unmodifiableMap(result);
@@ -103,12 +105,14 @@ public final class IssueIndexes {
     }
 
     private static void rows(
-            String text, String path, String source, Map<String, IssueIndex> result)
+            String text,
+            String path,
+            String source,
+            Map<String, IssueIndex> result,
+            Workflow workflow)
             throws IOException {
-        for (final Row row : indexRows(text)) {
-            if (!STATES.contains(row.state()))
-                throw new IllegalArgumentException(
-                        source + ": unknown state heading: " + row.state());
+        for (final Row row : indexRows(text, workflow, source)) {
+            workflow.order(row.state());
             final IssueIndex previous =
                     result.put(
                             row.number(),
@@ -119,7 +123,12 @@ public final class IssueIndexes {
                                     row.title(),
                                     path,
                                     source,
-                                    row.blockedBy()));
+                                    row.blockedBy(),
+                                    new IssueIndex.Location(
+                                            row.anchor(),
+                                            row.file(),
+                                            row.line(),
+                                            row.numberEnd())));
             if (previous != null)
                 throw new IOException(
                         source
@@ -156,19 +165,8 @@ public final class IssueIndexes {
     /** A code span on one line. */
     private static final Pattern CODE_SPAN = Pattern.compile("`[^`\\n]*`");
 
-    private static final Set<String> STATES =
-            Set.of(
-                    "Idea",
-                    "Accepted",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Rework",
-                    "Finished",
-                    "Rejected");
-    private static final Pattern STATE_HEADING = Pattern.compile("^ {0,3}#{2,6}\\s+(.+)$");
+    private static final Pattern HEADING = Pattern.compile("^ {0,3}#{1,6}(?:[ \t]+(.*))?$");
+    private static final Pattern ISSUE_TABLE = Pattern.compile("^\\s*\\|\\s*#\\s*\\|.*$");
     private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
     static @Nullable String indexPath(String index, String target) {
@@ -181,21 +179,33 @@ public final class IssueIndexes {
     }
 
     /** The citation check and plan reader share one interpretation of an index row. */
-    static List<Row> indexRows(String text) {
+    static List<Row> indexRows(String text, Workflow workflow, String source) {
         final List<Row> result = new ArrayList<>();
-        String state = "Unknown";
+        String state = "";
+        boolean stateSection = false;
         Map<String, Integer> columns = Map.of();
         final String[] lines = unfenced(text).split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
             final String line = lines[i];
-            final Matcher heading = STATE_HEADING.matcher(line);
+            final Matcher heading = HEADING.matcher(line);
             if (heading.matches()) {
-                state = heading.group(1).strip().replaceFirst("\\s+#+$", "").stripTrailing();
+                state =
+                        heading.group(1) == null
+                                ? ""
+                                : heading.group(1)
+                                        .strip()
+                                        .replaceFirst("(?:^|\\s+)#+\\s*$", "")
+                                        .stripTrailing();
+                stateSection = workflow.states().contains(state) || issueTableFollows(lines, i);
+                if (stateSection) requireState(state, source, i + 1, workflow);
                 columns = Map.of();
             }
+            if (ISSUE_TABLE.matcher(line).matches() && !stateSection) {
+                requireState("", source, i + 1, workflow);
+            }
+            if (!stateSection) continue;
             final String[] cells = line.split("(?<!\\\\)\\|", -1);
-            if (line.startsWith("|")
-                    && java.util.Arrays.stream(cells).anyMatch(cell -> cell.strip().equals("#"))) {
+            if (ISSUE_TABLE.matcher(line).matches()) {
                 final Map<String, Integer> header = new HashMap<>();
                 for (int column = 1; column < cells.length - 1; column++) {
                     header.put(cells[column].strip().toLowerCase(java.util.Locale.ROOT), column);
@@ -208,7 +218,20 @@ public final class IssueIndexes {
             }
             final Matcher link = LINK.matcher(cells[1]);
             final String file = link.find() ? link.group(2) : null;
-            final boolean closed = state.equals("Finished") || state.equals("Rejected");
+            final boolean closed;
+            try {
+                closed = workflow.closed(state);
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                        source
+                                + ":"
+                                + (i + 1)
+                                + ": unknown state heading: "
+                                + state
+                                + "; "
+                                + ex.getMessage(),
+                        ex);
+            }
             final String size = closed ? "-" : cell(cells, columns.getOrDefault("size", 2));
             final String title =
                     cell(
@@ -235,9 +258,39 @@ public final class IssueIndexes {
                             title,
                             file,
                             i + 1,
+                            row.end(),
                             List.copyOf(blockedBy)));
         }
         return result;
+    }
+
+    private static void requireState(String state, String source, int line, Workflow workflow) {
+        try {
+            workflow.order(state);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    source
+                            + ":"
+                            + line
+                            + ": "
+                            + (state.isEmpty()
+                                    ? "issue table has no state heading"
+                                    : "unknown state heading: " + state)
+                            + "; "
+                            + ex.getMessage(),
+                    ex);
+        }
+    }
+
+    private static boolean issueTableFollows(String[] lines, int heading) {
+        boolean separated = false;
+        for (int i = heading + 1; i < lines.length; i++) {
+            if (HEADING.matcher(lines[i]).matches()) return false;
+            if (ISSUE_TABLE.matcher(lines[i]).matches()) return true;
+            if (lines[i].isBlank()) separated = true;
+            else if (separated) return false;
+        }
+        return false;
     }
 
     private static String cell(String[] cells, int column) {
@@ -274,6 +327,7 @@ public final class IssueIndexes {
             String title,
             @Nullable String file,
             int line,
+            int numberEnd,
             List<String> blockedBy) {}
 
     private static String blank(Pattern pattern, String text) {

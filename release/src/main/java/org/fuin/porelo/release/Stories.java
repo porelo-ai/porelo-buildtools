@@ -63,6 +63,7 @@ final class Stories {
         final List<String> faults = new ArrayList<>();
         try {
             final StoriesIndex.Result result = StoriesIndex.write(dir, source(dir));
+            result.notes().forEach(out::println);
             faults.addAll(result.faults());
             if (report(dir, faults)) return Stop.REFUSED;
             out.println(
@@ -95,7 +96,9 @@ final class Stories {
         final List<String> faults = new ArrayList<>();
         final int stories;
         try {
-            faults.addAll(StoriesIndex.check(dir, source(dir)).faults());
+            final StoriesIndex.Result result = StoriesIndex.check(dir, source(dir));
+            result.notes().forEach(out::println);
+            faults.addAll(result.faults());
             stories = count(dir);
         } catch (IOException ex) {
             return unreadable("could not read ", dir, ex);
@@ -205,7 +208,9 @@ final class Stories {
     }
 
     private List<String> inputFaults(Path checked, Path original) throws IOException {
-        return StoriesIndex.check(checked, source(original)).faults().stream()
+        final StoriesIndex.Result result = StoriesIndex.check(checked, source(original));
+        result.notes().forEach(out::println);
+        return result.faults().stream()
                 .filter(fault -> !fault.endsWith("; run porelo-release stories index " + checked))
                 .toList();
     }
@@ -219,6 +224,7 @@ final class Stories {
         try {
             Files.copy(root.resolve("project.yml"), temporary.resolve("project.yml"));
             final Path stories = Files.createDirectory(temporary.resolve("stories"));
+            Files.copy(dir.resolve("workflow.yml"), stories.resolve("workflow.yml"));
             try (var files = Files.list(dir)) {
                 for (final Path file :
                         files.filter(path -> path.getFileName().toString().endsWith(".md"))

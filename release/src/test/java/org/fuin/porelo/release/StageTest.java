@@ -32,7 +32,67 @@ class StageTest {
         write(
                 "issues/EX12-Sample.md",
                 "# Sample\n\n**Status:** Implementing.\n**Size:** M - sample.\n");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
         write("stats/seed.csv", "size,minutes\nXS,8\nS,27\nM,53\nL,80\n");
+    }
+
+    // Prevents a newly configured state from making accounting impossible.
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+            strings = {
+                "Reading",
+                "In analysis",
+                "Under estimation",
+                "Reworking",
+                "Finishing",
+                "Review (local)"
+            })
+    void recordsConfiguredStatesWithoutARelease(String state) throws Exception {
+        final Path workflow = directory.resolve("issues/workflow.yml");
+        if (!org.fuin.porelo.stories.Workflow.read(workflow).states().contains(state))
+            Files.writeString(
+                    workflow,
+                    Files.readString(workflow)
+                            .replace(
+                                    "states:\n",
+                                    "states:\n  - {name: '" + state + "', closed: false}\n"));
+        write("issues/EX12-Sample.md", "**Status:** " + state + ".\n**Size:** M - sample.\n");
+        assertThat(run("begin", "EX12", "review")).as(errors()).isZero();
+        time = "2026-01-01T10:04:00Z";
+        assertThat(run("end", "EX12", "review", "--status-after", state)).as(errors()).isZero();
+        assertThat(record().get("status_before")).isEqualTo(state);
+        assertThat(record().get("status_after")).isEqualTo(state);
+    }
+
+    // Prevents an unmeasured prefix from being recorded instead of the full configured state.
+    // Rejected effort must not bias either estimate statistic.
+    @ParameterizedTest
+    @ValueSource(strings = {"median", "p80"})
+    void rejectedWorkDoesNotCountAsACompletedSample(String statistic) throws Exception {
+        write("stats/EX13.jsonl", measured("EX13", "implement", "agent", 1000, "Rejected"));
+        write("stats/EX14.jsonl", measured("EX14", "implement", "agent", 1200, "Rejected"));
+        assertThat(run(statistic, "M")).as(errors()).isZero();
+        assertThat(out.toString(StandardCharsets.UTF_8).strip()).isEqualTo("53");
+    }
+
+    @Test
+    void doesNotMistakeAPrefixForTheState() throws Exception {
+        write(
+                "issues/workflow.yml",
+                "states:\n  - {name: Read, closed: false}\n  - {name: Read work, closed: false, measured: true}\nphases: []\n");
+        write("issues/EX12-Sample.md", "**Status:** Read work.\n**Size:** M - sample.\n");
+        assertThat(run("begin", "EX12", "review")).as(errors()).isZero();
+        assertThat(record().get("status_before")).isEqualTo("Read work");
+        time = "2026-01-01T10:04:00Z";
+        assertThat(run("end", "EX12", "review")).as(errors()).isZero();
+        for (String unknown : List.of("Read elsewhere", "Read.work", "Read;work")) {
+            write("issues/EX12-Sample.md", "**Status:** " + unknown + ".\n**Size:** M - sample.\n");
+            assertThat(run("begin", "EX12", "review"))
+                    .as("unknown state %s cannot pass as a known prefix", unknown)
+                    .isEqualTo(2);
+        }
     }
 
     @Test

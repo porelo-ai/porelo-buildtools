@@ -9,23 +9,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.fuin.porelo.stories.IssueIndex;
+import org.fuin.porelo.stories.Workflow;
 
 /** The immutable data exposed to the compiled release-page templates. */
 public record PlanTemplate(
-        String release, String goal, String stand, List<Sprint> sprints, List<Wait> waits) {
+        String release,
+        String goal,
+        String stand,
+        List<Sprint> sprints,
+        List<Wait> waits,
+        List<State> states) {
     /** Explains how the plan's issue states and operator tests are related. */
     public static final String INTRODUCTION =
             "Each sprint ends in functions the operator tests by hand; a bar shows the states of a sprint's issues, and a mark per function shows whether it is tested.";
 
     /** A state group in the reference page's color order. */
-    public record State(String color, String label) {}
+    public record State(String color, String label, List<String> members) {}
 
     /**
      * A state's colour as the light palette writes it, for an SVG shown as an image, where no
      * stylesheet of the page and no CSS variable reaches its attributes; the image's own style
      * switches it for a dark scheme.
      *
-     * @param color a state's colour name, as {@link #STATES} names it
+     * @param color a state's colour name, as the workflow legend names it
      * @return the colour as {@code #rrggbb}
      */
     public static String hex(String color) {
@@ -43,18 +49,45 @@ public record PlanTemplate(
         };
     }
 
-    /** The legend also fixes the order of the segments in every sprint bar. */
-    public static final List<State> STATES =
+    private static final List<String> PALETTE =
             List.of(
-                    new State("done", "Finished / Rejected"),
-                    new State("review", "Review"),
-                    new State("impl", "Implementing / Rework"),
-                    new State("backlog", "Backlog"),
-                    new State("estimated", "Estimated"),
-                    new State("analyzed", "Analyzed"),
-                    new State("accepted", "Accepted"),
-                    new State("idea", "Idea"),
-                    new State("new", "Not filed yet / Missing"));
+                    "done",
+                    "review",
+                    "impl",
+                    "backlog",
+                    "estimated",
+                    "analyzed",
+                    "accepted",
+                    "idea");
+
+    private static List<State> groups(Workflow workflow) {
+        final List<State> groups = new ArrayList<>();
+        for (final Workflow.Phase phase : workflow.phases()) {
+            groups.add(
+                    new State(
+                            PALETTE.get(groups.size() % PALETTE.size()),
+                            phase.name(),
+                            phase.states()));
+        }
+        for (final String state : workflow.states()) {
+            if (groups.stream().noneMatch(group -> group.members().contains(state)))
+                groups.add(
+                        new State(
+                                PALETTE.get(groups.size() % PALETTE.size()),
+                                state,
+                                List.of(state)));
+        }
+        groups.add(
+                new State("new", "Not filed yet / Missing", List.of("Not filed yet", "Missing")));
+        return List.copyOf(groups);
+    }
+
+    private static State group(String state, List<State> groups) {
+        return groups.stream()
+                .filter(group -> group.members().contains(state))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No workflow phase for " + state));
+    }
 
     /** An issue link or a note that has not been filed. */
     public record Chip(String text, String detail, String color, String link) {
@@ -108,34 +141,39 @@ public record PlanTemplate(
         }
     }
 
-    static PlanTemplate from(Plan plan, Map<String, IssueIndex> issues, String stand) {
+    static PlanTemplate from(
+            Plan plan, Map<String, IssueIndex> issues, String stand, Workflow workflow) {
+        final List<State> groups = groups(workflow);
         final List<Sprint> sprints = new ArrayList<>();
         for (final Plan.Sprint sprint : plan.sprints()) {
             final List<Function> functions = new ArrayList<>();
-            final Map<String, Integer> counts = new LinkedHashMap<>();
+            final Map<State, Integer> counts = new LinkedHashMap<>();
             final var counted = new LinkedHashSet<String>();
             final Map<String, Integer> states = new LinkedHashMap<>();
             int done = 0;
             for (final Plan.Function function : sprint.functions()) {
                 final List<Chip> chips = new ArrayList<>();
                 for (final String named : function.issues()) {
-                    final Chip chip = chip(named, issues.get(named));
+                    final Chip chip = chip(named, issues.get(named), groups);
                     chips.add(chip);
                     if (counted.add(named)) {
-                        counts.merge(chip.color(), 1, Integer::sum);
                         final IssueIndex row = issues.get(named);
+                        counts.merge(
+                                group(row == null ? "Missing" : row.state(), groups),
+                                1,
+                                Integer::sum);
                         states.merge(row == null ? "Missing" : row.state(), 1, Integer::sum);
-                        if (chip.color().equals("done")) done++;
+                        if (row != null && workflow.closed(row.state())) done++;
                     }
                 }
                 for (final String note : function.notes()) {
                     chips.add(new Chip(note, "Not filed yet", "new", ""));
-                    counts.merge("new", 1, Integer::sum);
+                    counts.merge(groups.getLast(), 1, Integer::sum);
                     states.merge("Not filed yet", 1, Integer::sum);
                 }
                 final List<Parent> covers = new ArrayList<>();
                 for (final String named : function.covers()) {
-                    covers.add(parent(named, issues));
+                    covers.add(parent(named, issues, groups));
                 }
                 functions.add(
                         new Function(
@@ -148,8 +186,8 @@ public record PlanTemplate(
             final int total = counts.values().stream().mapToInt(Integer::intValue).sum();
             final List<Segment> segments = new ArrayList<>();
             int offset = 0;
-            for (final State state : STATES) {
-                final int count = counts.getOrDefault(state.color(), 0);
+            for (final State state : groups) {
+                final int count = counts.getOrDefault(state, 0);
                 if (count > 0) {
                     segments.add(
                             new Segment(
@@ -162,8 +200,8 @@ public record PlanTemplate(
                 }
             }
             final String stateCounts =
-                    STATES.stream()
-                            .flatMap(state -> java.util.Arrays.stream(state.label().split(" / ")))
+                    groups.stream()
+                            .flatMap(state -> state.members().stream())
                             .filter(states::containsKey)
                             .map(state -> state + " " + states.get(state))
                             .collect(java.util.stream.Collectors.joining(", "));
@@ -204,19 +242,28 @@ public record PlanTemplate(
                             if (placed.contains(issue)) {
                                 waits.add(
                                         new Wait(
-                                                parent(issue, issues),
+                                                parent(issue, issues, groups),
                                                 targets.stream()
-                                                        .map(target -> parent(target, issues))
+                                                        .map(
+                                                                target ->
+                                                                        parent(
+                                                                                target, issues,
+                                                                                groups))
                                                         .toList()));
                             }
                         });
         return new PlanTemplate(
-                plan.release(), plan.goal(), stand, List.copyOf(sprints), List.copyOf(waits));
+                plan.release(),
+                plan.goal(),
+                stand,
+                List.copyOf(sprints),
+                List.copyOf(waits),
+                groups);
     }
 
-    private static Parent parent(String named, Map<String, IssueIndex> issues) {
+    private static Parent parent(String named, Map<String, IssueIndex> issues, List<State> groups) {
         final IssueIndex row = issues.get(named);
-        final Chip chip = chip(named, row);
+        final Chip chip = chip(named, row, groups);
         return new Parent(
                 named.split("#")[1],
                 row == null ? "Missing index row" : row.state(),
@@ -224,22 +271,10 @@ public record PlanTemplate(
                 chip.detail());
     }
 
-    private static Chip chip(String named, @org.jspecify.annotations.Nullable IssueIndex row) {
+    private static Chip chip(
+            String named, @org.jspecify.annotations.Nullable IssueIndex row, List<State> groups) {
         if (row == null) return new Chip(named, "Missing index row", "new", "");
-        final String color =
-                switch (row.state()) {
-                    case "Finished", "Rejected" -> "done";
-                    case "Review" -> "review";
-                    case "Implementing", "Rework" -> "impl";
-                    case "Backlog" -> "backlog";
-                    case "Estimated" -> "estimated";
-                    case "Analyzed" -> "analyzed";
-                    case "Accepted" -> "accepted";
-                    case "Idea" -> "idea";
-                    default ->
-                            throw new IllegalArgumentException(
-                                    "Unknown issue state: " + row.state());
-                };
+        final String color = group(row.state(), groups).color();
         return new Chip(
                 row.number(),
                 named + " · " + row.state() + " · " + row.size() + " · " + row.title(),

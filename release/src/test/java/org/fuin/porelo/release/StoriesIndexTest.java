@@ -45,7 +45,8 @@ class StoriesIndexTest {
             assertThat(status).as(said.toString(StandardCharsets.UTF_8)).isZero();
             final Map<Path, byte[]> expected = new LinkedHashMap<>();
             try (var files = Files.list(stories)) {
-                for (final Path file : files.sorted().toList())
+                for (final Path file :
+                        files.filter(path -> path.toString().endsWith(".md")).sorted().toList())
                     expected.put(file, Files.readAllBytes(file));
             }
             final java.util.zip.ZipFile golden =
@@ -64,9 +65,10 @@ class StoriesIndexTest {
                     try (var entry =
                             golden.getInputStream(
                                     golden.getEntry(file.getKey().getFileName().toString()))) {
-                        assertThat(entry.readAllBytes())
-                                .as("the command's original output: %s", file.getKey())
-                                .isEqualTo(file.getValue());
+                        assertMigration(
+                                new String(entry.readAllBytes(), StandardCharsets.UTF_8),
+                                new String(file.getValue(), StandardCharsets.UTF_8),
+                                file.getKey().getFileName().toString());
                     }
                 }
                 final StoriesIndex.Result checked =
@@ -84,6 +86,9 @@ class StoriesIndexTest {
     @Test
     void keepsProjectFailuresAsCommandFailures() throws Exception {
         final Path stories = Files.createDirectories(work.resolve("stories"));
+        Files.copy(
+                Path.of("../stories/src/test/resources/workflow.yml"),
+                stories.resolve("workflow.yml"));
         Files.writeString(
                 stories.resolve("ST1.md"),
                 """
@@ -123,6 +128,9 @@ class StoriesIndexTest {
     @Test
     void cutIgnoresAnUnreadableGeneratedIndex() throws Exception {
         final Path stories = Files.createDirectories(work.resolve("stories"));
+        Files.copy(
+                Path.of("../stories/src/test/resources/workflow.yml"),
+                stories.resolve("workflow.yml"));
         Files.createDirectories(work.resolve("issues"));
         Files.writeString(work.resolve("issues/README.md"), "# Issues\n");
         Files.writeString(
@@ -164,6 +172,9 @@ class StoriesIndexTest {
     @Test
     void keepsMissingProjectAsAnUnansweredCommand() throws Exception {
         final Path stories = Files.createDirectories(work.resolve("stories"));
+        Files.copy(
+                Path.of("../stories/src/test/resources/workflow.yml"),
+                stories.resolve("workflow.yml"));
         try (final ByteArrayOutputStream said = new ByteArrayOutputStream();
                 final PrintStream output = new PrintStream(said, true, StandardCharsets.UTF_8)) {
             final Web web =
@@ -177,5 +188,103 @@ class StoriesIndexTest {
                     .as("missing-project diagnostics keep their original form")
                     .isEqualTo(stories.resolve("README.md") + ": no project.yml above the plan\n");
         }
+    }
+
+    private static final Map<String, String> COMPUTED_CHANGES =
+            Map.ofEntries(
+                    Map.entry("ST2", "Finished"),
+                    Map.entry("ST5", "Review"),
+                    Map.entry("ST12", "Review"),
+                    Map.entry("ST26", "Rework"),
+                    Map.entry("ST42", "Rejected"),
+                    Map.entry("ST105", "Rejected"),
+                    Map.entry("ST118", "Finished"),
+                    Map.entry("ST145", "Finished"),
+                    Map.entry("ST193", "Backlog"),
+                    Map.entry("ST194", "Backlog"),
+                    Map.entry("ST196", "Rejected"),
+                    Map.entry("ST201", "Rejected"),
+                    Map.entry("ST290", "Idea"),
+                    Map.entry("ST292", "Implementing"),
+                    Map.entry("ST294", "Analyzed"));
+
+    private static void assertMigration(String original, String actual, String name)
+            throws Exception {
+        if (name.equals("README.md")) {
+            final Map<String, String> oldStates = new LinkedHashMap<>();
+            final Map<String, String> newStates = new LinkedHashMap<>();
+            assertThat(storyRows(actual, newStates))
+                    .as("all 294 durable rows retain their bytes")
+                    .isEqualTo(storyRows(original, oldStates))
+                    .hasSize(294);
+            final Map<String, String> expected = new LinkedHashMap<>(oldStates);
+            expected.putAll(COMPUTED_CHANGES);
+            assertThat(newStates).as("exactly the measured state changes").isEqualTo(expected);
+            final java.util.List<String> counts =
+                    actual.lines()
+                            .filter(line -> line.startsWith("| [") && !line.startsWith("| [ST"))
+                            .toList();
+            final var workflow =
+                    org.fuin.porelo.stories.Workflow.read(
+                            Path.of("../stories/src/test/resources/workflow.yml"));
+            assertThat(counts)
+                    .isEqualTo(
+                            workflow.states().stream()
+                                    .filter(state -> expected.containsValue(state))
+                                    .map(
+                                            state ->
+                                                    "| ["
+                                                            + state
+                                                            + "](#"
+                                                            + state.toLowerCase(
+                                                                    java.util.Locale.ROOT)
+                                                            + ") | "
+                                                            + expected.values().stream()
+                                                                    .filter(state::equals)
+                                                                    .count()
+                                                            + " |")
+                                    .toList());
+            return;
+        }
+        final var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        final var before =
+                (com.fasterxml.jackson.databind.node.ObjectNode)
+                        json.readTree(
+                                original.substring(
+                                        original.lastIndexOf("```json\n") + 8,
+                                        original.lastIndexOf("```")));
+        final var after =
+                json.readTree(
+                        actual.substring(
+                                actual.lastIndexOf("```json\n") + 8, actual.lastIndexOf("```")));
+        final String id = before.get("id").asText();
+        final String stated = before.get("state").asText();
+        final String expectedState = COMPUTED_CHANGES.getOrDefault(id, stated);
+        assertThat(actual.substring(0, actual.lastIndexOf("## Data")))
+                .as("readable bytes retained except computed state: %s", name)
+                .isEqualTo(
+                        original.substring(0, original.lastIndexOf("## Data"))
+                                .replace("**State:** " + stated, "**State:** " + expectedState));
+        if (!before.get("issues").isEmpty()) before.remove("state");
+        before.put("$schema", "story-2.json");
+        assertThat(after)
+                .as("head only drops state and declares story-2: %s", name)
+                .isEqualTo(before);
+    }
+
+    private static Map<String, String> storyRows(String page, Map<String, String> states) {
+        String state = "";
+        final Map<String, String> rows = new LinkedHashMap<>();
+        for (String line : page.split("\n")) {
+            if (line.startsWith("## ")) state = line.substring(3);
+            final var id =
+                    java.util.regex.Pattern.compile("^\\| <a id=\"st[0-9]+\"></a>\\[(ST[0-9]+)]")
+                            .matcher(line);
+            if (id.find()) {
+                rows.put(id.group(1), line);
+                states.put(id.group(1), state);
+            }
+        }
+        return rows;
     }
 }

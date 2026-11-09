@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt55"></a>[BT55](BT55-Stories-Read-Their-Workflow-From-A-File.md) | L | - | One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused. |
 | <a id="bt54"></a>[BT54](BT54-The-Stories-Index-As-A-Library.md) | L | - | The stories index, its heads and the issue index reading become a small published library, native-image friendly and opening no connection unless given one, which `porelo-release` and an adapter both call. |
 | <a id="bt46"></a>[BT46](BT46-The-Plan-Pages-Read-Stories.md) | M | - | A story's data in a JSON head of its file, checked by a schema held here, `stories/README.md` generated from the heads and checked equal; `plan render` and `plan check` read a release as stories in place of sprints, each story's state its least advanced issue's. |
 | <a id="bt53"></a>[BT53](BT53-Check-Shared-Holds-The-Pinned-Rule.md) | XS | - | `check-shared` refuses a repository's `pinned.sh` that differs from porelo-buildtools' own, named in the call or not. |
@@ -31,7 +32,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt55"></a>[BT55](BT55-Stories-Read-Their-Workflow-From-A-File.md) | L | - | One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused. |
 
 ## Backlog
 
