@@ -30,6 +30,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt54"></a>[BT54](BT54-The-Stories-Index-As-A-Library.md) | L | - | The stories index, its heads and the issue index reading become a small published library, native-image friendly and opening no connection unless given one, which `porelo-release` and an adapter both call. |
 
 ## Backlog
 
@@ -39,7 +40,6 @@ left out.
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
-| <a id="bt54"></a>[BT54](BT54-The-Stories-Index-As-A-Library.md) | L | - | The stories index, its heads and the issue index reading become a small published library, native-image friendly and opening no connection unless given one, which `porelo-release` and an adapter both call. |
 | <a id="bt55"></a>[BT55](BT55-Stories-Read-Their-Workflow-From-A-File.md) | L | [BT54](#bt54) | One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused. |
 
 ## Analyzed
