@@ -652,6 +652,21 @@ class CheckCitationsTest {
     }
 
     @Test
+    void aLinkAmongTheBriefsIsRefusedWhereverItPoints() throws IOException {
+        write("issues/B11.sub/tester.md", "Tests it.\n");
+        Files.createDirectories(root.resolve("issues/B10.sub"));
+        Files.createSymbolicLink(root.resolve("issues/B10.sub/builder.md"), Path.of("nowhere.md"));
+        Files.createSymbolicLink(root.resolve("issues/B10.sub/reader.md"), Path.of("../B11.sub"));
+        Files.createSymbolicLink(root.resolve("issues/B12.sub"), Path.of("B11.sub"));
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("issues/B10.sub/builder.md -> a link")
+                .contains("issues/B10.sub/reader.md -> a link")
+                .contains("issues/B12.sub -> a link");
+    }
+
+    @Test
     void aBriefsOwnIssueNumberMustBeALink() throws IOException {
         write("issues/B10.sub/builder.md", "Build B10 first.\n");
 

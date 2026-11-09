@@ -8,6 +8,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -137,13 +138,15 @@ final class CheckCitations {
      */
     int check(Path root) {
         final List<Path> files;
+        final List<Path> listed;
         final Set<String> exempt;
         // porelo-project's stories, each a number of its own, cited as an issue is.
         final Set<String> stories = new java.util.HashSet<>();
         int generatedFiles = 0;
         try {
             final List<Path> handwritten = new ArrayList<>();
-            for (final Path path : committed(root)) {
+            listed = entries(root);
+            for (final Path path : listed.stream().filter(Files::isRegularFile).toList()) {
                 if (generated(root, path)) continue;
                 if (generatedPlan(path)) generatedFiles++;
                 else if (generatedStory(root, path)) {
@@ -194,7 +197,7 @@ final class CheckCitations {
         final List<String> pointers = new ArrayList<>();
         final List<String> numbers = new ArrayList<>();
         final List<String> gone = new ArrayList<>();
-        final List<String> briefs = briefsOutOfPlace(root, files);
+        final List<String> briefs = briefsOutOfPlace(root, files, listed);
         final IssueLinks issueLinks = IssueLinks.ownOnly();
         int read = 0;
         int binary = 0;
@@ -375,6 +378,14 @@ final class CheckCitations {
      * every file.
      */
     static List<Path> committed(Path root) throws IOException {
+        return entries(root).stream().filter(Files::isRegularFile).toList();
+    }
+
+    /**
+     * Lists every committed entry, a link among them wherever it points or whether it points
+     * anywhere at all; {@link #committed} keeps the files of them.
+     */
+    private static List<Path> entries(Path root) throws IOException {
         if (Files.exists(root.resolve(".git"))) {
             final Process git =
                     new ProcessBuilder("git", "-C", root.toString(), "ls-files", "-z")
@@ -393,11 +404,11 @@ final class CheckCitations {
             return Stream.of(listed.split("\0"))
                     .filter(name -> !name.isEmpty())
                     .map(root::resolve)
-                    .filter(Files::isRegularFile)
                     .toList();
         }
         try (Stream<Path> tree = Files.walk(root)) {
-            return tree.filter(Files::isRegularFile).toList();
+            return tree.filter(path -> !Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .toList();
         }
     }
 
@@ -521,7 +532,6 @@ final class CheckCitations {
         return pattern.matcher(text).replaceAll(found -> " ".repeat(found.group().length()));
     }
 
-    /** Whether a file is in the root's own {@code issues/}, not a fixture's deeper down. */
     /**
      * Finds what lies in an issue's brief directory without being one of its briefs: a brief of an
      * issue whose file is gone or was never there, a file of another name, a nested directory, or a
@@ -529,9 +539,10 @@ final class CheckCitations {
      *
      * @param root the repository's root
      * @param files the committed files
+     * @param entries every committed entry, links among them
      * @return each fault, naming the path
      */
-    private static List<String> briefsOutOfPlace(Path root, List<Path> files) {
+    private static List<String> briefsOutOfPlace(Path root, List<Path> files, List<Path> entries) {
         final Set<String> issueFiles =
                 files.stream()
                         .filter(path -> ownIssue(root, path))
@@ -543,11 +554,23 @@ final class CheckCitations {
                                                 "$1$2"))
                         .collect(Collectors.toSet());
         final List<String> faults = new ArrayList<>();
+        for (final Path entry : entries) {
+            final String name = relative(root, entry);
+            if (ownIssue(root, entry)
+                    && !Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS)
+                    && (BRIEFS.matcher(name).matches()
+                            || name.matches("(.*/)?[A-Z]{1,3}\\d{2,3}\\.sub"))) {
+                faults.add(name + " -> a link, not a file");
+            }
+        }
         for (final Path file : files) {
             if (!ownIssue(root, file)) {
                 continue;
             }
             final String name = relative(root, file);
+            if (Files.isSymbolicLink(file)) {
+                continue;
+            }
             final Matcher brief = BRIEFS.matcher(name);
             if (!brief.matches()) {
                 continue;
@@ -557,13 +580,12 @@ final class CheckCitations {
                 faults.add(name + " -> no issue file " + brief.group(2) + "-*.md beside it");
             } else if (!BRIEF.matcher(brief.group(3)).matches()) {
                 faults.add(name + " -> not a brief's name");
-            } else if (Files.isSymbolicLink(file)) {
-                faults.add(name + " -> a link, not a file");
             }
         }
         return faults;
     }
 
+    /** Whether a file is in the root's own {@code issues/}, not a fixture's deeper down. */
     private static boolean ownIssue(Path root, Path path) {
         return relative(root, path).startsWith("issues/");
     }
