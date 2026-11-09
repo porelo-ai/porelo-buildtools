@@ -1,6 +1,6 @@
 # BT56 — Sub-Agent Briefs Beside Their Issue
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - one shape of path learnt by three checks of `porelo-release`, with their tests; no new command and no
 contract another repository reads, beyond the path itself.
 
