@@ -595,6 +595,70 @@ class CheckCitationsTest {
                 .isEqualTo(Stop.UNANSWERED);
     }
 
+    @Test
+    void acceptsBriefsBesideTheirIssue() throws IOException {
+        write("issues/B10.sub/builder.md", "Builds [B10](../README.md#b10).\n");
+        write("issues/B10.sub/builder-2.md", "Also builds [B10](../README.md#b10).\n");
+        write("issues/B10.sub/tester.md", "Tests it.\n");
+        write("issues/B10.sub/reader-12.md", "Reads it.\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+        assertThat(stdout()).contains("2 issue(s)");
+    }
+
+    @Test
+    void aBriefWithoutItsIssueIsRefused() throws IOException {
+        // B13 is finished: its row stays, its file is gone, and its briefs must have gone with it.
+        write(
+                "issues/README.md",
+                Files.readString(root.resolve("issues/README.md"))
+                        + "| <a id=\"b13\"></a>B13 | a finished thing |\n");
+        write("issues/B13.sub/tester.md", "Tests it.\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B13.sub/tester.md");
+    }
+
+    @Test
+    void aSubDirectoryBesideNoIssueIsRefused() throws IOException {
+        write("issues/B12.sub/builder.md", "Builds it.\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B12.sub/builder.md");
+    }
+
+    @Test
+    void aLastingPageMayNotLinkIntoABrief() throws IOException {
+        write("issues/B10.sub/builder.md", "Builds it.\n");
+        write("doc/guide.md", "See [the brief](../issues/B10.sub/builder.md).\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("doc/guide.md:1 -> ../issues/B10.sub/builder.md");
+    }
+
+    @Test
+    void aBriefOfAnotherNameIsRefused() throws IOException {
+        write("issues/B10.sub/planner.md", "Plans it.\n");
+        write("issues/B10.sub/builder-1.md", "Builds it.\n");
+        write("issues/B10.sub/more/builder.md", "Builds more.\n");
+        write("issues/B10.sub/builder.txt", "Builds it.\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("issues/B10.sub/planner.md")
+                .contains("issues/B10.sub/builder-1.md")
+                .contains("issues/B10.sub/more/builder.md")
+                .contains("issues/B10.sub/builder.txt");
+    }
+
+    @Test
+    void aBriefsOwnIssueNumberMustBeALink() throws IOException {
+        write("issues/B10.sub/builder.md", "Build B10 first.\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B10.sub/builder.md:1 -> B10");
+    }
+
     private int check() {
         out.reset();
         err.reset();

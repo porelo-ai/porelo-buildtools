@@ -780,6 +780,26 @@ class CheckCommitsTest {
     }
 
     @Test
+    void aBriefOfAnIssueInAnActiveStateNeedsNoStats() throws Exception {
+        // A brief is part of its issue, never an issue: changing it alone records no stage.
+        git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/core/EX12-Sample.md", "**Status:** Implementing.\n**Size:** M - sample.\n");
+        write("stats/EX12.jsonl", StageFixtures.closed("EX12"));
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+        git("rm", "-q", "stats/EX12.jsonl");
+        write("issues/core/EX12.sub/builder.md", "Builds it.\n");
+        git("add", "issues");
+        git("commit", "-q", "-m", "Brief the builder");
+
+        assertThat(checkRepository()).as(stderr()).isZero();
+    }
+
+    @Test
     void skipsDeletedIssues() throws Exception {
         git("init", "-q", "-b", "main");
         write(

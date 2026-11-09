@@ -42,11 +42,19 @@ final class CheckCitations {
     static final String EXEMPT = "citations-exempt.txt";
 
     /**
-     * A file under {@code issues/} that is deleted when its subject is settled: a numbered issue or
-     * a design.
+     * A file under {@code issues/} that is deleted when its subject is settled: a numbered issue, a
+     * design, or a brief of the issue's sub-agents.
      */
     private static final Pattern DIES =
-            Pattern.compile("/[A-Z]+\\d{2,3}-[^/]*\\.md$|_design\\.md$");
+            Pattern.compile("/[A-Z]+\\d{2,3}-[^/]*\\.md$|_design\\.md$|/[A-Z]{1,3}\\d{2,3}\\.sub/");
+
+    /** The directory of an issue's sub-agent briefs, beside its file: {@code <ID>.sub}. */
+    private static final Pattern BRIEFS =
+            Pattern.compile("^(.*/)?([A-Z]{1,3}\\d{2,3})\\.sub/(.+)$");
+
+    /** A brief's name: the sub-agent's role, or a numbered variant of it from two on. */
+    private static final Pattern BRIEF =
+            Pattern.compile("^(builder|tester|reader)(-[2-9]|-[1-9][0-9]+)?\\.md$");
 
     /** A Markdown link's target, without the title some links carry. */
     private static final Pattern LINK = Pattern.compile("\\]\\(([^)\\s]+)");
@@ -186,6 +194,7 @@ final class CheckCitations {
         final List<String> pointers = new ArrayList<>();
         final List<String> numbers = new ArrayList<>();
         final List<String> gone = new ArrayList<>();
+        final List<String> briefs = briefsOutOfPlace(root, files);
         final IssueLinks issueLinks = IssueLinks.ownOnly();
         int read = 0;
         int binary = 0;
@@ -245,6 +254,7 @@ final class CheckCitations {
                 && pointers.isEmpty()
                 && numbers.isEmpty()
                 && gone.isEmpty()
+                && briefs.isEmpty()
                 && unanchored.isEmpty()
                 && unlinked.isEmpty()
                 && broken.isEmpty()
@@ -285,6 +295,11 @@ final class CheckCitations {
                 "a number of this repository's own issues, among the issues, that names no issue"
                         + " file: the mention its deletion missed");
         report(
+                briefs,
+                "a sub-agent brief out of place: briefs lie in <ID>.sub/ beside the issue's own file,"
+                        + " named builder, tester or reader, or builder-2 and on, each a plain .md file;"
+                        + " they go with their issue");
+        report(
                 numbers,
                 "an issue number outside the issues: name the constraint, not the issue that"
                         + " recorded it; a line holding the shape on purpose says not-a-citation, a"
@@ -307,6 +322,7 @@ final class CheckCitations {
                                 + pointers.size()
                                 + numbers.size()
                                 + gone.size()
+                                + briefs.size()
                                 + unanchored.size()
                                 + unlinked.size()
                                 + broken.size()
@@ -506,6 +522,48 @@ final class CheckCitations {
     }
 
     /** Whether a file is in the root's own {@code issues/}, not a fixture's deeper down. */
+    /**
+     * Finds what lies in an issue's brief directory without being one of its briefs: a brief of an
+     * issue whose file is gone or was never there, a file of another name, a nested directory, or a
+     * link.
+     *
+     * @param root the repository's root
+     * @param files the committed files
+     * @return each fault, naming the path
+     */
+    private static List<String> briefsOutOfPlace(Path root, List<Path> files) {
+        final Set<String> issueFiles =
+                files.stream()
+                        .filter(path -> ownIssue(root, path))
+                        .map(path -> relative(root, path))
+                        .map(
+                                name ->
+                                        name.replaceFirst(
+                                                "^(.*/)?(([A-Z]{1,3})\\d{2,3})-[^/]*\\.md$",
+                                                "$1$2"))
+                        .collect(Collectors.toSet());
+        final List<String> faults = new ArrayList<>();
+        for (final Path file : files) {
+            if (!ownIssue(root, file)) {
+                continue;
+            }
+            final String name = relative(root, file);
+            final Matcher brief = BRIEFS.matcher(name);
+            if (!brief.matches()) {
+                continue;
+            }
+            final String issue = (brief.group(1) == null ? "" : brief.group(1)) + brief.group(2);
+            if (!issueFiles.contains(issue)) {
+                faults.add(name + " -> no issue file " + brief.group(2) + "-*.md beside it");
+            } else if (!BRIEF.matcher(brief.group(3)).matches()) {
+                faults.add(name + " -> not a brief's name");
+            } else if (Files.isSymbolicLink(file)) {
+                faults.add(name + " -> a link, not a file");
+            }
+        }
+        return faults;
+    }
+
     private static boolean ownIssue(Path root, Path path) {
         return relative(root, path).startsWith("issues/");
     }

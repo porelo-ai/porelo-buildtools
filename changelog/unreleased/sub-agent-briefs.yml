@@ -1,0 +1,2 @@
+title: "`check-citations` takes `issues/<group>/<ID>.sub/<name>.md` as briefs of their issue, refusing one beside no issue file or of another name; `check-commits` asks no stats file for a brief."
+type: added

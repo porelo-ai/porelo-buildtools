@@ -43,6 +43,11 @@ repository's state never decides this one's check.
   index has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
   Which prefixes are issue numbers is read from the root's own issue files and index rows, so `SHA256` or a
   guideline's `LLM03` is none, and neither is a prefix a test's fixture deeper down carries.
+- **An issue's sub-agent briefs** lie beside its file in `issues/<group>/<ID>.sub/<name>.md`, `<name>` one of
+  `builder`, `tester` and `reader`, or a numbered variant from `-2` on, such as `builder-2`. A brief is read as a page
+  under `issues/`, never as an issue: it has no row and no stats file, its own issue's number is a link to the row,
+  and it dies with its issue, so no lasting page links to it. A brief beside no issue file, a file of another name,
+  a nested directory or a link in `<ID>.sub/` is refused, naming the path.
 - **Left to a check across repositories:** a link into another repository's index is counted, not followed, and a
   citation of another repository's issue is not looked for. One `NOTE` line says so, with the count, and does not
   fail the check.
