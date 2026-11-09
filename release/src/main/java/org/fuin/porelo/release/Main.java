@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.fuin.porelo.stories.IssueIndex;
 import org.jspecify.annotations.Nullable;
 
 /**

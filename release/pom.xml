@@ -24,6 +24,10 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.fuin.porelo</groupId>
+            <artifactId>porelo-stories</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>gg.jte</groupId>
@@ -52,10 +56,6 @@
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>com.networknt</groupId>
-            <artifactId>json-schema-validator</artifactId>
-        </dependency>
         <!-- The validator's log goes nowhere: a command says what it found itself. -->
         <dependency>
             <groupId>org.slf4j</groupId>

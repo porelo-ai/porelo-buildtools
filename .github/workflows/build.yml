@@ -62,7 +62,7 @@ jobs:
             # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
             # It is also where porelo's snapshot libraries come from.
             - name: Build and unit tests
-              run: ./mvnw -B verify -s settings.xml
+              run: ./mvnw -B -Pnative verify -s settings.xml
 
             # A direct push to main never meets the pull request's check, so the push's own range is read here, by the
             # rule this commit carries. A tag checks the commit it names. A new branch or a branch pushed over has no start

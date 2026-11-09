@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.fuin.porelo.stories.IssueIndex;
 
 /** Refuses inconsistent progress claims and a page that no longer reflects its inputs. */
 final class PlanCheck {

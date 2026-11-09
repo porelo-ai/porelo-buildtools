@@ -8,6 +8,8 @@ The build and test tooling the Porelo repositories share, published to Central a
   acceptance legs on them, and the pinned GraalVM a CI job installs. `porelo`'s own leg and the deploy of a handover
   live in `porelo` (`acceptance/legs`), and so does its package check (`dist/package-check`): they know its module
   layout, which no released tool may.
+- `stories/` - **porelo-stories**: checking story heads and issue indexes and generating stories and their index,
+  using caller-supplied issue sources or local checkouts without a network fallback.
 - `release/` - **porelo-release**: release and pin checks - what an agent package may publish without a person,
   moving a named pin, `check-actions` and `check-shared`.
 - `ffm-check/` - **porelo-ffm-check**: every FFM downcall a test makes is registered for the native image.

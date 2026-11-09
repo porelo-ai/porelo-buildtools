@@ -1,5 +1,6 @@
 package org.fuin.porelo.release;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -18,6 +19,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.fuin.porelo.stories.IssueIndex;
+import org.fuin.porelo.stories.IssueIndexes;
+import org.fuin.porelo.stories.IssueSource;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -68,19 +72,6 @@ final class IssueLinks {
     /** Names of an issue number's shape that are something else. */
     private static final Set<String> NOT_ISSUES = Set.of("S256");
 
-    private static final Set<String> STATES =
-            Set.of(
-                    "Idea",
-                    "Accepted",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Rework",
-                    "Finished",
-                    "Rejected");
-    private static final Pattern STATE_HEADING = Pattern.compile("^ {0,3}#{2,6}\\s+(.+)$");
     private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
     /**
@@ -355,13 +346,20 @@ final class IssueLinks {
             throw new IOException(source + ": index not readable: " + Web.reason(ex), ex);
         }
         planIndexSources.computeIfAbsent(repository, key -> new ArrayList<>()).add(source);
-        for (final Row row : indexRows(text)) {
-            if (!STATES.contains(row.state())) {
-                throw Stop.refused(source + ": unknown state heading: " + row.state());
-            }
+        final Map<String, IssueIndex> parsed;
+        try {
+            parsed = IssueIndexes.read(indexPage(path, source, text), repository);
+        } catch (IllegalArgumentException ex) {
+            throw Stop.refused(Objects.requireNonNull(ex.getMessage()), ex);
+        }
+        final Map<String, String> files = new HashMap<>();
+        for (final Row row : indexRows(text))
+            if (row.file() != null) files.put(row.number(), row.file());
+        for (final IssueIndex row : parsed.values()) {
             String title = row.title();
-            if (row.file() != null) {
-                final String issuePath = indexPath(path, row.file());
+            final String file = files.get(row.number());
+            if (file != null) {
+                final String issuePath = indexPath(path, file);
                 if (issuePath != null) {
                     final Optional<String> issue = issueSource(root, repository, issuePath);
                     if (issue.isPresent()) {
@@ -406,6 +404,62 @@ final class IssueLinks {
                 issueIndex(root, repository, child, visited, result);
             }
         }
+    }
+
+    static final class IndexFailure extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        final Stop stop;
+
+        IndexFailure(Stop stop) {
+            super(stop);
+            this.stop = stop;
+        }
+    }
+
+    IssueSource storySource(Path root) {
+        return repository -> {
+            final StringBuilder index = new StringBuilder();
+            final Map<String, IssueIndex> rows;
+            try {
+                rows = issueIndex(root, repository);
+            } catch (Stop stop) {
+                throw new IndexFailure(stop);
+            }
+            for (final IssueIndex row : rows.values()) {
+                final String page =
+                        "## "
+                                + row.state()
+                                + "\n| # | Size | Blocked by | What it covers | Title |\n"
+                                + "| ["
+                                + row.number()
+                                + "](#"
+                                + row.number().toLowerCase(java.util.Locale.ROOT)
+                                + ") | "
+                                + row.size()
+                                + " | "
+                                + String.join(", ", row.blockedBy())
+                                + " | "
+                                + row.title().replace("|", "\\|")
+                                + " | "
+                                + row.title().replace("|", "\\|")
+                                + " |\n";
+                index.append(indexPage(row.path(), row.source(), page));
+            }
+            return index.toString();
+        };
+    }
+
+    private static String indexPage(String path, String source, String text) throws IOException {
+        text = text.replace("\r\n", "\n");
+        if (text.lines()
+                .anyMatch(line -> line.stripLeading().startsWith("<!-- porelo-issue-index "))) {
+            throw new IOException("marker inside index page: " + path);
+        }
+        final String metadata =
+                new ObjectMapper()
+                        .writeValueAsString(
+                                Map.of("path", path, "source", source, "length", text.length()));
+        return "<!-- porelo-issue-index " + metadata + " -->\n" + text;
     }
 
     private Optional<String> issueSource(Path root, String repository, String path) {
@@ -474,68 +528,19 @@ final class IssueLinks {
         return path.startsWith("issues") ? path.toString().replace('\\', '/') : null;
     }
 
-    /** The citation check and plan reader share one interpretation of an index row. */
+    /** Citation locations and optional issue-file links; metadata is read by IssueIndexes. */
     private static List<Row> indexRows(String text) {
         final List<Row> result = new ArrayList<>();
-        String state = "Unknown";
-        Map<String, Integer> columns = Map.of();
         final String[] lines = unfenced(text).split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
-            final String line = lines[i];
-            final Matcher heading = STATE_HEADING.matcher(line);
-            if (heading.matches()) {
-                state = heading.group(1).strip().replaceFirst("\\s+#+$", "").stripTrailing();
-                columns = Map.of();
-            }
-            final String[] cells = line.split("(?<!\\\\)\\|", -1);
-            if (line.startsWith("|")
-                    && java.util.Arrays.stream(cells).anyMatch(cell -> cell.strip().equals("#"))) {
-                final Map<String, Integer> header = new HashMap<>();
-                for (int column = 1; column < cells.length - 1; column++) {
-                    header.put(cells[column].strip().toLowerCase(java.util.Locale.ROOT), column);
-                }
-                columns = header;
-            }
-            final Matcher row = ROW.matcher(line);
-            if (!row.find()) {
-                continue;
-            }
+            final Matcher row = ROW.matcher(lines[i]);
+            if (!row.find()) continue;
+            final String[] cells = lines[i].split("(?<!\\\\)\\|", -1);
             final Matcher link = LINK.matcher(cells[1]);
-            final String file = link.find() ? link.group(2) : null;
-            final boolean closed = state.equals("Finished") || state.equals("Rejected");
-            final String size = closed ? "-" : cell(cells, columns.getOrDefault("size", 2));
-            final String title =
-                    cell(
-                            cells,
-                            columns.getOrDefault(
-                                    closed ? "title" : "what it covers", closed ? 2 : 4));
-            // Only a column so headed holds waits; an index without it has none.
-            final Integer blocked = columns.get("blocked by");
-            final List<String> blockedBy = new ArrayList<>();
-            if (blocked != null) {
-                final Matcher number = NUMBER.matcher(blank(CODE_SPAN, cell(cells, blocked)));
-                while (number.find()) {
-                    if (!blockedBy.contains(number.group())) {
-                        blockedBy.add(number.group());
-                    }
-                }
-            }
             result.add(
-                    new Row(
-                            row.group(2),
-                            row.group(1),
-                            state,
-                            size,
-                            title,
-                            file,
-                            i + 1,
-                            List.copyOf(blockedBy)));
+                    new Row(row.group(2), row.group(1), link.find() ? link.group(2) : null, i + 1));
         }
         return result;
-    }
-
-    private static String cell(String[] cells, int column) {
-        return column < cells.length - 1 ? cells[column].strip() : "";
     }
 
     private static String unfenced(String text) {
@@ -560,15 +565,7 @@ final class IssueLinks {
         return result.toString();
     }
 
-    private record Row(
-            String number,
-            @Nullable String anchor,
-            String state,
-            String size,
-            String title,
-            @Nullable String file,
-            int line,
-            List<String> blockedBy) {}
+    private record Row(String number, @Nullable String anchor, @Nullable String file, int line) {}
 
     private static Set<String> anchorsIn(String text) {
         final Set<String> anchors = new HashSet<>();

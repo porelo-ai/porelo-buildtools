@@ -524,7 +524,7 @@ final class CheckCitations {
             return false;
         }
         return story
-                ? lines.contains(Heads.DATA)
+                ? lines.contains("## Data")
                 : !lines.isEmpty()
                         && lines.getFirst().equals("# Stories")
                         && lines.stream()

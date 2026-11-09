@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import org.fuin.porelo.stories.IssueIndex;
 import org.jspecify.annotations.Nullable;
 
 /** Builds both pages from the same ordered plan and issue snapshot. */

@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.fuin.porelo.stories.IssueIndex;
 
 /** The immutable data exposed to the compiled release-page templates. */
 public record PlanTemplate(
@@ -243,6 +244,11 @@ public record PlanTemplate(
                 row.number(),
                 named + " · " + row.state() + " · " + row.size() + " · " + row.title(),
                 color,
-                row.link(named.split("#")[0]));
+                "https://github.com/porelo-ai/"
+                        + named.split("#")[0]
+                        + "/blob/main/"
+                        + row.path()
+                        + "#"
+                        + row.number().toLowerCase(java.util.Locale.ROOT));
     }
 }

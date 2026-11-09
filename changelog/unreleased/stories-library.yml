@@ -1,0 +1,2 @@
+title: porelo-stories provides story checks and index generation as a library with caller-supplied issue indexes, a local source without network fallback, and native-image metadata.
+type: added

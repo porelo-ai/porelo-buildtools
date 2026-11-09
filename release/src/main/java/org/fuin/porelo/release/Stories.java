@@ -1,22 +1,19 @@
 package org.fuin.porelo.release;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.networknt.schema.JsonSchema;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import org.fuin.porelo.stories.IssueSource;
+import org.fuin.porelo.stories.StoriesIndex;
 
 /**
  * porelo-project's {@code stories/}: one file a story, its readable part generated from the JSON
@@ -24,51 +21,9 @@ import java.util.stream.Stream;
  */
 final class Stories {
 
-    /** The schema of a story's head. */
-    static final String SCHEMA = "/org/fuin/porelo/release/schemas/story-1.json";
-
-    /** The index beside the stories, generated from their heads. */
     static final String INDEX = "README.md";
-
-    /** The index's sections: a story's states in their sequence, as an issue's. */
-    private static final List<String> SHOWN =
-            List.of(
-                    "Idea",
-                    "Accepted",
-                    "Analyzed",
-                    "Estimated",
-                    "Backlog",
-                    "Implementing",
-                    "Review",
-                    "Rework",
-                    "Finished",
-                    "Rejected");
-
-    /** The states an issue of a story in Review may stand in: none earlier than Review. */
-    private static final java.util.Set<String> DONE_FOR_REVIEW =
-            java.util.Set.of("Review", "Finished", "Rejected");
-
-    /** Jira's priorities, the highest first, each with Jira's icon. */
-    private static final Map<String, String> PRIORITIES = priorities();
-
-    /** The line that starts the last paragraph of a story's generated part, the list of issues. */
-    private static final String ISSUES = "**Issues:** ";
-
-    private static final Pattern FILE = Pattern.compile("(ST[0-9]+)(-[^/]*)?\\.md");
-
-    /**
-     * What the stories' heads give.
-     *
-     * @param index the index
-     * @param files each story's whole text, its generated part as its head gives it
-     * @param stories how many stories there are
-     */
-    private record Generated(String index, Map<Path, String> files, int stories) {}
-
     private final PrintStream out;
-
     private final PrintStream err;
-
     private final IssueLinks links;
 
     Stories(PrintStream out, PrintStream err, Web web) {
@@ -77,49 +32,24 @@ final class Stories {
         this.links = new IssueLinks(web, IssueLinks.Sources.LOCAL_FIRST);
     }
 
-    /**
-     * Reads every story's head in a directory.
-     *
-     * @param dir the stories' directory
-     * @param faults where each fault is added
-     * @return the heads read whole, by id, in the files' order
-     * @throws IOException when the directory or a file cannot be read
-     */
-    static Map<String, Heads.Head> read(Path dir, List<String> faults) throws IOException {
-        if (!Files.isDirectory(dir)) {
-            throw new IOException("no such directory");
-        }
-        final JsonSchema schema = Heads.schema(SCHEMA);
-        final List<Path> files;
-        try (Stream<Path> listed = Files.list(dir)) {
-            files =
-                    listed.filter(file -> file.getFileName().toString().endsWith(".md"))
+    private IssueSource source(Path dir) {
+        return repository -> {
+            try {
+                final Plan.Project project = Plan.project(dir.resolve(INDEX), links);
+                return links.storySource(project.root()).index(repository);
+            } catch (Stop stop) {
+                throw new IssueLinks.IndexFailure(stop);
+            }
+        };
+    }
+
+    private static int count(Path dir) throws IOException {
+        try (var files = Files.list(dir)) {
+            return (int)
+                    files.filter(file -> file.getFileName().toString().endsWith(".md"))
                             .filter(file -> !file.getFileName().toString().equals(INDEX))
-                            .sorted()
-                            .toList();
+                            .count();
         }
-        final Map<String, Heads.Head> heads = new LinkedHashMap<>();
-        for (final Path file : files) {
-            final Heads.Head head = Heads.read(file, schema, faults);
-            if (head == null) {
-                continue;
-            }
-            final String name = file.getFileName().toString();
-            final String id = head.data().get("id").asText();
-            final String heading = "# " + id + " — " + head.data().get("title").asText();
-            if (!head.heading().equals(heading)) {
-                faults.add(name + ": the heading is not '" + heading + "'");
-            }
-            final Matcher named = FILE.matcher(name);
-            if (!named.matches() || !named.group(1).equals(id)) {
-                faults.add(name + ": the file is not named after its id " + id);
-            }
-            final Heads.Head before = heads.putIfAbsent(id, head);
-            if (before != null) {
-                faults.add(name + ": id " + id + " also stands in " + before.file().getFileName());
-            }
-        }
-        return heads;
     }
 
     /**
@@ -132,30 +62,24 @@ final class Stories {
     int index(Path dir) {
         final List<String> faults = new ArrayList<>();
         try {
-            final Generated generated = generate(dir, faults);
-            if (report(dir, faults)) {
-                return Stop.REFUSED;
-            }
-            for (final Map.Entry<Path, String> file : generated.files().entrySet()) {
-                if (!Files.readString(file.getKey(), StandardCharsets.UTF_8)
-                        .equals(file.getValue())) {
-                    Files.writeString(file.getKey(), file.getValue(), StandardCharsets.UTF_8);
-                }
-            }
-            Files.writeString(dir.resolve(INDEX), generated.index(), StandardCharsets.UTF_8);
+            final StoriesIndex.Result result = StoriesIndex.write(dir, source(dir));
+            faults.addAll(result.faults());
+            if (report(dir, faults)) return Stop.REFUSED;
             out.println(
                     "OK    "
-                            + generated.stories()
+                            + count(dir)
                             + " story file(s) and "
                             + dir.resolve(INDEX)
                             + " written from the stories' heads");
             return 0;
         } catch (IOException ex) {
-            err.println("could not read or write " + dir + ": " + Web.reason(ex));
-            return Stop.UNANSWERED;
-        } catch (Stop stop) {
-            err.println(stop.getMessage());
-            return stop.code();
+            return unreadable("could not read or write ", dir, ex);
+        } catch (IllegalArgumentException ex) {
+            err.println(ex.getMessage());
+            return Stop.REFUSED;
+        } catch (IssueLinks.IndexFailure ex) {
+            err.println(ex.stop.getMessage());
+            return ex.stop.code();
         }
     }
 
@@ -169,42 +93,25 @@ final class Stories {
      */
     int check(Path dir) {
         final List<String> faults = new ArrayList<>();
-        final Generated generated;
+        final int stories;
         try {
-            generated = generate(dir, faults);
-            if (faults.isEmpty()) {
-                final String again = "; run porelo-release stories index " + dir;
-                for (final Map.Entry<Path, String> file : generated.files().entrySet()) {
-                    if (!Files.readString(file.getKey(), StandardCharsets.UTF_8)
-                            .equals(file.getValue())) {
-                        faults.add(
-                                file.getKey().getFileName()
-                                        + ": the text above "
-                                        + Heads.DATA
-                                        + " is not what its head gives"
-                                        + again);
-                    }
-                }
-                final Path index = dir.resolve(INDEX);
-                if (!Files.isRegularFile(index)
-                        || !Files.readString(index, StandardCharsets.UTF_8)
-                                .equals(generated.index())) {
-                    faults.add(INDEX + ": differs from what the stories' heads give" + again);
-                }
-            }
+            faults.addAll(StoriesIndex.check(dir, source(dir)).faults());
+            stories = count(dir);
         } catch (IOException ex) {
-            err.println("could not read " + dir + ": " + Web.reason(ex));
-            return Stop.UNANSWERED;
-        } catch (Stop stop) {
-            err.println(stop.getMessage());
-            return stop.code();
+            return unreadable("could not read ", dir, ex);
+        } catch (IllegalArgumentException ex) {
+            err.println(ex.getMessage());
+            return Stop.REFUSED;
+        } catch (IssueLinks.IndexFailure ex) {
+            err.println(ex.stop.getMessage());
+            return ex.stop.code();
         }
         if (report(dir, faults)) {
             return Stop.REFUSED;
         }
         out.println(
                 "OK    "
-                        + generated.stories()
+                        + stories
                         + " story head(s) in "
                         + dir
                         + ", each by the schema, each issue in its index, each story's text and "
@@ -225,26 +132,23 @@ final class Stories {
     int cut(String version, Path dir, LocalDate after) {
         final List<String> faults = new ArrayList<>();
         try {
-            // The heads as check holds them, so a cut never lists a story its state and day
-            // dispute.
-            generate(dir, faults);
+            faults.addAll(cutFaults(dir));
             if (report(dir, faults)) {
                 return Stop.REFUSED;
             }
-            final Map<String, Heads.Head> heads = read(dir, new ArrayList<>());
+            final List<Story> heads = read(dir);
             final String own = Plan.project(dir.resolve(INDEX), links).own();
             final StringBuilder notes =
                     new StringBuilder(
                             "## " + version + "\n\nThe stories tested after " + after + ":\n\n");
-            heads.values().stream()
+            heads.stream()
                     .filter(head -> !head.data().get("tested").isNull())
                     .filter(
                             head ->
                                     LocalDate.parse(head.data().get("tested").asText())
                                             .isAfter(after))
                     .sorted(
-                            Comparator.comparing(
-                                            (Heads.Head head) -> head.data().get("tested").asText())
+                            Comparator.comparing((Story head) -> head.data().get("tested").asText())
                                     .thenComparingInt(Stories::number))
                     .forEach(
                             head ->
@@ -264,24 +168,75 @@ final class Stories {
             out.print(notes);
             return 0;
         } catch (IOException ex) {
-            err.println("could not read " + dir + ": " + Web.reason(ex));
-            return Stop.UNANSWERED;
+            return unreadable("could not read ", dir, ex);
+        } catch (IllegalArgumentException ex) {
+            err.println(ex.getMessage());
+            return Stop.REFUSED;
+        } catch (IssueLinks.IndexFailure ex) {
+            err.println(ex.stop.getMessage());
+            return ex.stop.code();
         } catch (Stop stop) {
             err.println(stop.getMessage());
             return stop.code();
         }
     }
 
-    private static boolean isDay(String text) {
+    private int unreadable(String operation, Path dir, IOException ex) {
+        if (ex instanceof NoSuchFileException missing
+                && "no project.yml above the plan".equals(missing.getReason())) {
+            err.println(ex.getMessage());
+        } else err.println(operation + dir + ": " + Web.reason(ex));
+        return Stop.UNANSWERED;
+    }
+
+    private List<String> cutFaults(Path dir) throws IOException {
         try {
-            LocalDate.parse(text);
-            return true;
-        } catch (java.time.format.DateTimeParseException ex) {
-            return false;
+            return inputFaults(dir, dir);
+        } catch (IOException ex) {
+            // A cut has never depended on the generated index being readable.
+            if (!Files.isRegularFile(dir.resolve(INDEX))) throw ex;
+            try {
+                Files.readString(dir.resolve(INDEX), StandardCharsets.UTF_8);
+            } catch (IOException output) {
+                return cutWithoutIndex(dir, ex);
+            }
+            throw ex;
         }
     }
 
-    private static int number(Heads.Head head) {
+    private List<String> inputFaults(Path checked, Path original) throws IOException {
+        return StoriesIndex.check(checked, source(original)).faults().stream()
+                .filter(fault -> !fault.endsWith("; run porelo-release stories index " + checked))
+                .toList();
+    }
+
+    private List<String> cutWithoutIndex(Path dir, IOException original) throws IOException {
+        Path root = dir.toAbsolutePath().normalize().getParent();
+        while (root != null && !Files.isRegularFile(root.resolve("project.yml")))
+            root = root.getParent();
+        if (root == null) throw original;
+        final Path temporary = Files.createTempDirectory("porelo-stories-cut-");
+        try {
+            Files.copy(root.resolve("project.yml"), temporary.resolve("project.yml"));
+            final Path stories = Files.createDirectory(temporary.resolve("stories"));
+            try (var files = Files.list(dir)) {
+                for (final Path file :
+                        files.filter(path -> path.getFileName().toString().endsWith(".md"))
+                                .filter(path -> !path.getFileName().toString().equals(INDEX))
+                                .toList()) {
+                    Files.copy(file, stories.resolve(file.getFileName()));
+                }
+            }
+            return inputFaults(stories, dir);
+        } finally {
+            try (var files = Files.walk(temporary)) {
+                for (final Path file : files.sorted(Comparator.reverseOrder()).toList())
+                    Files.delete(file);
+            }
+        }
+    }
+
+    private static int number(Story head) {
         return Integer.parseInt(head.data().get("id").asText().substring(2));
     }
 
@@ -295,232 +250,25 @@ final class Stories {
         return true;
     }
 
-    /**
-     * What the stories' heads give, or nothing to go by when a head or an issue is at fault. A
-     * story in Review waits for none of its issues: each is in Review, finished or rejected.
-     */
-    private Generated generate(Path dir, List<String> faults) throws IOException, Stop {
-        final Map<String, Heads.Head> heads = read(dir, faults);
-        if (!faults.isEmpty()) {
-            return new Generated("", Map.of(), heads.size());
-        }
-        final Plan.Project project = Plan.project(dir.resolve(INDEX), links);
-        final Map<String, List<Heads.Head>> byState = new LinkedHashMap<>();
-        SHOWN.forEach(state -> byState.put(state, new ArrayList<>()));
-        final Map<Path, String> files = new LinkedHashMap<>();
-        for (final Heads.Head head : heads.values()) {
-            final String name = head.file().getFileName().toString();
-            final String state = head.data().get("state").asText();
-            final JsonNode tested = head.data().get("tested");
-            if (!tested.isNull() && !isDay(tested.asText())) {
-                faults.add(name + ": /tested: " + tested.asText() + " is no day");
-            }
-            if (state.equals("Finished") && head.data().get("tested").isNull()) {
-                faults.add(name + ": Finished without a tested day");
-            } else if (!state.equals("Finished") && !head.data().get("tested").isNull()) {
-                faults.add(name + ": a tested day on a story that is " + state + ", not Finished");
-            }
-            final List<String> issues = new ArrayList<>();
-            for (final JsonNode node : head.data().get("issues")) {
-                final String issue = node.asText();
-                final String repository = issue.substring(0, issue.indexOf('#'));
-                final String number = issue.substring(issue.indexOf('#') + 1);
-                if (!project.repositories().containsKey(repository)) {
-                    faults.add(name + ": " + issue + " names a repository project.yml does not");
-                    continue;
-                }
-                final IssueIndex row = links.issueIndex(project.root(), repository).get(number);
-                if (row == null) {
-                    faults.add(name + ": " + issue + " is in no issue index of " + repository);
-                    continue;
-                }
-                issues.add("- [" + issue + "](" + row.link(repository) + ") (" + row.state() + ")");
-                if (state.equals("Review") && !DONE_FOR_REVIEW.contains(row.state())) {
-                    faults.add(name + ": in Review while " + issue + " is " + row.state());
-                }
-            }
+    private record Story(Path file, JsonNode data) {}
 
-            byState.computeIfAbsent(state, unused -> new ArrayList<>()).add(head);
-            files.put(head.file(), text(head, state, issues));
-        }
-        final StringBuilder page =
-                new StringBuilder(
-                        "# Stories\n\nWritten by `porelo-release stories index` from each story's"
-                                + " head; a change goes into the story's file. Each story is one"
-                                + " function of value to a user, with the test the person runs at"
-                                + " its end and every issue it needs. A story moves through the"
-                                + " same states as an issue, set by the same hands: Idea, Accepted"
-                                + " or Rejected, Analyzed, Estimated, Backlog, Implementing, Review,"
-                                + " Rework or Finished. Work follows the priority.\n\n"
-                                + "Priority: ");
-        page.append(
-                String.join(
-                        " · ",
-                        PRIORITIES.entrySet().stream()
-                                .map(priority -> priority.getValue() + " " + priority.getKey())
-                                .toList()));
-        page.append(". Issues are counted by their prefix (");
-        page.append(
-                String.join(
-                        ", ",
-                        project.repositories().entrySet().stream()
-                                .flatMap(
-                                        repository ->
-                                                repository.getValue().stream()
-                                                        .map(
-                                                                prefix ->
-                                                                        Map.entry(
-                                                                                prefix,
-                                                                                repository
-                                                                                        .getKey())))
-                                .sorted(Map.Entry.comparingByKey())
-                                .map(prefix -> "`" + prefix.getKey() + "` " + prefix.getValue())
-                                .toList()));
-        page.append(").\n\n| State | Stories |\n|---|---|\n");
-        byState.forEach(
-                (state, stories) -> {
-                    if (!stories.isEmpty()) {
-                        page.append("| [")
-                                .append(state)
-                                .append("](#")
-                                .append(state.toLowerCase(Locale.ROOT).replace(' ', '-'))
-                                .append(") | ")
-                                .append(stories.size())
-                                .append(" |\n");
-                    }
-                });
-        for (final Map.Entry<String, List<Heads.Head>> state : byState.entrySet()) {
-            if (state.getValue().isEmpty()) {
-                continue;
-            }
-            page.append("\n## ")
-                    .append(state.getKey())
-                    .append("\n\n| Story | Priority | Issues | What a user gains |\n")
-                    .append("|---|---|---|---|\n");
-            state.getValue().stream()
-                    .sorted(
-                            Comparator.comparingInt(
-                                            (Heads.Head head) ->
-                                                    List.copyOf(PRIORITIES.keySet())
-                                                            .indexOf(
-                                                                    head.data()
-                                                                            .get("priority")
-                                                                            .asText()))
-                                    .thenComparingInt(Stories::number))
-                    .forEach(head -> page.append(row(head)));
-        }
-        return new Generated(page.toString(), files, heads.size());
-    }
-
-    /**
-     * A story's whole text: its heading, the part its head gives, then what a person wrote below it
-     * down to the head, unchanged. The generated part runs from the heading to the issues' line.
-     */
-    private static String text(Heads.Head head, String state, List<String> issues) {
-        final JsonNode data = head.data();
-        final String shown =
-                " · **State:** "
-                        + state
-                        + (data.get("tested").isNull()
-                                ? ""
-                                : " (" + data.get("tested").asText() + ")");
-        final String generated =
-                "**Priority:** "
-                        + priority(data)
-                        + shown
-                        + "\n\n**What a user gains.** "
-                        + data.get("gain").asText()
-                        + "\n\n**The test.** "
-                        + data.get("test").asText()
-                        + "\n\n"
-                        + (issues.isEmpty()
-                                ? ISSUES + "none yet"
-                                : ISSUES.strip() + "\n\n" + String.join("\n", issues))
-                        + "\n";
-        final List<String> lines = head.lines();
-        final int data0 = lines.lastIndexOf(Heads.DATA);
-        // The generated part ends with the issues' line, or with the list below it.
-        int rest = 1;
-        for (int i = 1; i < data0; i++) {
-            if (lines.get(i).startsWith(ISSUES.strip())) {
-                rest = i + 1;
-                if (lines.get(i).equals(ISSUES.strip())) {
-                    while (rest < data0 && lines.get(rest).isBlank()) {
-                        rest++;
-                    }
-                    while (rest < data0 && lines.get(rest).startsWith("- ")) {
-                        rest++;
-                    }
-                }
-                break;
+    private static List<Story> read(Path dir) throws IOException {
+        final List<Story> result = new ArrayList<>();
+        final ObjectMapper json = new ObjectMapper();
+        try (var files = Files.list(dir)) {
+            for (final Path file :
+                    files.filter(path -> path.getFileName().toString().endsWith(".md"))
+                            .filter(path -> !path.getFileName().toString().equals(INDEX))
+                            .sorted()
+                            .toList()) {
+                final String text = Files.readString(file, StandardCharsets.UTF_8);
+                final int start = text.lastIndexOf("```json\n") + "```json\n".length();
+                result.add(
+                        new Story(
+                                file,
+                                json.readTree(text.substring(start, text.lastIndexOf("```")))));
             }
         }
-        while (rest < data0 && lines.get(rest).isBlank()) {
-            rest++;
-        }
-        return lines.getFirst()
-                + "\n\n"
-                + generated
-                + "\n"
-                + String.join("\n", lines.subList(rest, lines.size()));
-    }
-
-    private static String row(Heads.Head head) {
-        final JsonNode data = head.data();
-        final String id = data.get("id").asText();
-        final Map<String, Integer> counts = new LinkedHashMap<>();
-        data.get("issues")
-                .forEach(
-                        issue ->
-                                counts.merge(
-                                        issue.asText()
-                                                .substring(issue.asText().indexOf('#') + 1)
-                                                .replaceAll("[0-9]+$", ""),
-                                        1,
-                                        Integer::sum));
-        final String issues =
-                String.join(
-                        " · ",
-                        counts.entrySet().stream()
-                                .sorted(
-                                        Map.Entry.<String, Integer>comparingByValue()
-                                                .reversed()
-                                                .thenComparing(Map.Entry.comparingByKey()))
-                                .map(count -> count.getKey() + ":" + count.getValue())
-                                .toList());
-        return "| <a id=\""
-                + id.toLowerCase(Locale.ROOT)
-                + "\"></a>["
-                + id
-                + "]("
-                + head.file().getFileName()
-                + ") "
-                + cell(data.get("title").asText())
-                + " | "
-                + priority(data)
-                + " | "
-                + (issues.isEmpty() ? "none yet" : issues)
-                + " | "
-                + cell(data.get("gain").asText())
-                + " |\n";
-    }
-
-    private static String cell(String text) {
-        return text.replace("|", "\\|");
-    }
-
-    private static String priority(JsonNode data) {
-        final String priority = data.get("priority").asText();
-        return PRIORITIES.get(priority) + " " + priority;
-    }
-
-    private static Map<String, String> priorities() {
-        final Map<String, String> priorities = new LinkedHashMap<>();
-        priorities.put("Highest", "⏫");
-        priorities.put("High", "🔼");
-        priorities.put("Medium", "🟰");
-        priorities.put("Low", "🔽");
-        priorities.put("Lowest", "⏬");
-        return java.util.Collections.unmodifiableMap(priorities);
+        return result;
     }
 }

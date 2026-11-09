@@ -16,6 +16,7 @@ The build and test tooling shared by the Porelo repositories, published to Maven
 | `porelo-release` | [`release/`](release/README.md) | Decides what an agent package may publish without a person, moves named pins, and checks that every workflow step is pinned by commit. |
 | `porelo-ffm-check` | [`ffm-check/`](ffm-check/README.md) | Checks that every FFM downcall a test makes is registered for the native image. |
 | `porelo-cpu-check` | [`cpu-check/`](cpu-check/README.md) | Checks that a native image runs on any x86-64 CPU. |
+| `porelo-stories` | [`stories/`](stories/README.md) | Checks story heads and issue indexes and generates stories and their index without a network connection. |
 | `porelo-json` | [`json/`](json/README.md) | The JSON reader and writer the tools above share. |
 | `porelo-pinned-rule` | [`pinned-rule/`](pinned-rule/README.md) | The one rule by which a pinned download or an upload is tried again. |
 

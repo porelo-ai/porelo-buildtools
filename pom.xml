@@ -73,6 +73,7 @@
 
     <modules>
         <module>json</module>
+        <module>stories</module>
         <module>pinned-rule</module>
         <module>machines</module>
         <module>release</module>
@@ -170,6 +171,12 @@
             <dependency>
                 <groupId>org.fuin.porelo</groupId>
                 <artifactId>porelo-json</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.porelo</groupId>
+                <artifactId>porelo-stories</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
