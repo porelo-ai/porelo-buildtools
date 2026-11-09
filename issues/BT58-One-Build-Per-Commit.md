@@ -1,6 +1,8 @@
 # BT58 — One Build Per Commit
 
-**Status:** Backlog.
+**Status:** Implementing.
+**Size:** S - one rule in `check-actions` with its tests, and this repository's Build taking it; every other repository
+takes it with its next `porelo-release`.
 
 **What must be true.** A commit is built once: on a task's branch by its pull request alone, on `main` by its push
 alone, so the two Builds of one commit never hold a host's runner slots side by side and a push's verdict is final after

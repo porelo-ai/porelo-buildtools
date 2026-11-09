@@ -219,6 +219,14 @@ checkout's `.git/config`, where every later step can read it. No step is excepte
 hands the token to that one command from the environment, as `machines.yml` does, and a repository that cannot
 names it in the channel.
 
+## What `check-actions` reads about triggers
+
+A commit is built once: `main` by its push, a task's branch by its pull request. A workflow under
+`.github/workflows` that runs on `pull_request` and also on a `push` of every branch is refused, naming the file:
+a push without a branch filter, with `branches-ignore`, or with branches other than `main`. Under `push`, give
+`branches: [main]`, with `tags:` where a release is built from one; a push of tags alone builds no branch. A
+workflow on a schedule and on pull requests, as the Shared rules check runs, is not touched.
+
 ## What `check-readmes` reads
 
 ```

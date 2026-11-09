@@ -1,0 +1,2 @@
+title: "`check-actions` refuses a workflow that builds a branch's commit on its push and its pull request both; the Build runs on `main`'s pushes and on pull requests."
+type: changed

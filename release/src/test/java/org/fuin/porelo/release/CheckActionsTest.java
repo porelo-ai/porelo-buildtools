@@ -1473,6 +1473,79 @@ class CheckActionsTest {
         assertThat(stderr()).contains("'contents: write'").contains("allows only actions there");
     }
 
+    private int triggered(String on) throws IOException {
+        named(
+                "build.yml",
+                "on:\n"
+                        + on
+                        + "permissions: {}\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+                        + STEP);
+        return check(directory);
+    }
+
+    @Test
+    void refusesABuildOfEveryBranchsPushBesideItsPullRequest() throws IOException {
+        // The same commit of a task branch would be built twice, side by side on the host's runner.
+        assertThat(
+                        triggered(
+                                "    push:\n        branches: ['**']\n    pull_request:\n        branches: ['**']\n"))
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "workflows/build.yml: builds a branch's commit on its 'push' and its 'pull_request' both")
+                .contains("branches: [main]");
+    }
+
+    @Test
+    void refusesAPushWithoutABranchFilterBesideAPullRequest() throws IOException {
+        named(
+                "build.yml",
+                "on: [push, pull_request]\npermissions: {}\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+                        + STEP);
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("workflows/build.yml: builds a branch's commit");
+    }
+
+    @Test
+    void refusesAPushThatIgnoresSomeBranchesBesideAPullRequest() throws IOException {
+        assertThat(
+                        triggered(
+                                "    push:\n        branches-ignore: ['dependabot/**']\n    pull_request:\n"))
+                .isEqualTo(Stop.REFUSED);
+    }
+
+    @Test
+    void acceptsMainsPushAndATagBesidePullRequests() throws IOException {
+        assertThat(
+                        triggered(
+                                "    push:\n        branches: [main]\n        tags: ['v*']\n"
+                                        + "    pull_request:\n        branches: ['**']\n    workflow_dispatch:\n"))
+                .as(stderr())
+                .isEqualTo(0);
+    }
+
+    @Test
+    void acceptsATagOnlyPushBesideAPullRequest() throws IOException {
+        assertThat(triggered("    push:\n        tags: ['v*']\n    pull_request:\n"))
+                .as(stderr())
+                .isEqualTo(0);
+    }
+
+    @Test
+    void acceptsTheSharedRulesOnAScheduleAndOnPullRequests() throws IOException {
+        assertThat(
+                        triggered(
+                                "    schedule:\n        - cron: '17 3 * * *'\n    pull_request:\n    workflow_dispatch:\n"))
+                .as(stderr())
+                .isEqualTo(0);
+    }
+
+    @Test
+    void acceptsEveryBranchsPushWithoutAPullRequest() throws IOException {
+        assertThat(triggered("    push:\n        branches: ['**']\n")).as(stderr()).isEqualTo(0);
+    }
+
     private void workflow(String text) throws IOException {
         if (!Files.exists(directory.resolve("dependabot.yml"))) {
             Files.writeString(

@@ -209,6 +209,7 @@ final class CheckActions {
         int permissionFaults = 0;
         int checkoutFaults = 0;
         int writingJobFaults = 0;
+        int doubleBuildFaults = 0;
         try (Stream<Path> files = Files.walk(directory)) {
             for (final Path file : files.filter(CheckActions::isYaml).sorted().toList()) {
                 final List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
@@ -226,6 +227,11 @@ final class CheckActions {
                             fetchedByWritingJobs(file.getFileName().toString(), lines)) {
                         faults.add(directory.relativize(file) + ":" + fetched);
                         writingJobFaults++;
+                    }
+                    final String twice = buildsTwice(String.join("\n", lines));
+                    if (twice != null) {
+                        faults.add(directory.relativize(file) + ": " + twice);
+                        doubleBuildFaults++;
                     }
                 }
                 for (int at = 0; at < lines.size(); at++) {
@@ -259,6 +265,14 @@ final class CheckActions {
                 err.println(
                         faults.size()
                                 + " fault(s) in jobs with a writing token; keep these jobs to known runner commands.");
+                return Stop.REFUSED;
+            }
+            if (doubleBuildFaults == faults.size()) {
+                err.println(
+                        faults.size()
+                                + " workflow(s) that build one commit twice. Build a task's branch by its pull"
+                                + " request alone and main by its push alone: under 'push', 'branches: [main]', with"
+                                + " 'tags:' where a release is built from one.");
                 return Stop.REFUSED;
             }
             if (forkFaults == faults.size()) {
@@ -302,6 +316,73 @@ final class CheckActions {
                         + directory
                         + ", each pinned to a commit or its own");
         return 0;
+    }
+
+    /**
+     * Finds a workflow that builds a branch's commit twice: once for its push and once for its pull
+     * request.
+     *
+     * <p>Two Builds of one commit hold a host's runner slots side by side, and a push's verdict is
+     * not final after one of them. A push filtered to {@code main}, or to tags alone, builds no
+     * task branch; a push without a branch filter, with a pattern, or with {@code branches-ignore}
+     * builds every one of them.
+     *
+     * @param text the workflow's YAML
+     * @return the fault, or {@code null} when the workflow builds each commit once or cannot be
+     *     read
+     */
+    static @org.jspecify.annotations.Nullable String buildsTwice(String text) {
+        final JsonNode data;
+        try {
+            data = YAML.readTree(text);
+        } catch (IOException ex) {
+            // An unreadable workflow is refused by the check that reads its jobs, naming why.
+            return null;
+        }
+        if (data == null || !data.isObject()) {
+            return null;
+        }
+        // YAML 1.1 reads a bare 'on' as true; the parser here keeps it as the key "on" or "true".
+        final JsonNode on = data.has("on") ? data.get("on") : data.path("true");
+        if (!triggers(on, "pull_request")) {
+            return null;
+        }
+        if (!triggers(on, "push")) {
+            return null;
+        }
+        final JsonNode push = on.path("push");
+        if (push.isObject()) {
+            final JsonNode branches = push.path("branches");
+            if (!push.has("branches") && !push.has("branches-ignore") && push.has("tags")) {
+                return null;
+            }
+            if (branches.isArray() && !branches.isEmpty()) {
+                boolean mainOnly = true;
+                for (final JsonNode branch : branches) {
+                    mainOnly &= branch.isTextual() && branch.asText().equals("main");
+                }
+                if (mainOnly) {
+                    return null;
+                }
+            }
+        }
+        return "builds a branch's commit on its 'push' and its 'pull_request' both";
+    }
+
+    /** Whether a workflow's {@code on} names an event, in any of its three forms. */
+    private static boolean triggers(JsonNode on, String event) {
+        if (on.isTextual()) {
+            return on.asText().equals(event);
+        }
+        if (on.isArray()) {
+            for (final JsonNode name : on) {
+                if (name.isTextual() && name.asText().equals(event)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return on.isObject() && on.has(event);
     }
 
     /**
