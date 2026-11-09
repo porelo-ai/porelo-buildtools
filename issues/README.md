@@ -30,7 +30,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt35"></a>[BT35](BT35-Main-Read-By-Its-Pushes-Not-Its-Commit-Dates.md) | M | - | The scheduled check reads `main` by the day's pushes from the repository's activity, not by committer date, so an old commit in a push the Build skips is checked too. |
 
 ## Backlog
 
@@ -69,6 +68,7 @@ left out.
 |---|---|---|
 | <a id="bt17"></a>BT17 | Commit Messages Checked Before And On A Push | `porelo-release check-commits` holds each commit of a range to the shared rule on commit messages; every repository runs it before a push, on its pushed range, on a pull request and on main's last day, from one template. |
 | <a id="bt34"></a>BT34 | The Own Update Workflow's Pull Request Counts As Inside | A pull request the repository's own workflow opens as `github-actions[bot]` from a branch of the same repository is checked as from inside, with no sign-off asked. |
+| <a id="bt35"></a>BT35 | Main Read By Its Pushes, Not Its Commit Dates | `porelo-release check-pushes` reads the day's pushes to `main` from the repository's activity and holds each by its own range, so an old commit in a push the Build skips is checked too; the scheduled step calls it, and each repository takes it from the template. |
 | <a id="bt13"></a>BT13 | Action Moves Merged Without A Build | A push of only `.github/` starts no Build, and an action move is merged by hand on a light pull-request check that rents nothing and is not required; no auto-merge. |
 | <a id="bt10"></a>BT10 | A Leg Takes No IPv6 Address | Every server the tools rent is created with an IPv4 address and no IPv6 one, so it holds one primary IP; measured on the project's primary IPs and green in every leg kind. |
 | <a id="bt32"></a>BT32 | Snapshots On The Forge's Own Registry | The same workflows resolve and deploy snapshots on Sonatype on GitHub and on the forge's Maven registry on Forgejo, chosen by variables and secrets alone, with release tags published only to Sonatype. |
