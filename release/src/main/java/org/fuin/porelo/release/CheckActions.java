@@ -352,8 +352,14 @@ final class CheckActions {
         }
         final JsonNode push = on.path("push");
         if (push.isObject()) {
+            // A push filtered by tags alone fires for no branch.
+            if (!push.has("branches")
+                    && !push.has("branches-ignore")
+                    && (push.has("tags") || push.has("tags-ignore"))) {
+                return null;
+            }
             final JsonNode branches = push.path("branches");
-            if (!push.has("branches") && !push.has("branches-ignore") && push.has("tags")) {
+            if (branches.isTextual() && branches.asText().equals("main")) {
                 return null;
             }
             if (branches.isArray() && !branches.isEmpty()) {

@@ -1533,6 +1533,20 @@ class CheckActionsTest {
     }
 
     @Test
+    void acceptsAPushOfTagsNamedByWhatItIgnoresBesideAPullRequest() throws IOException {
+        assertThat(triggered("    push:\n        tags-ignore: ['nightly-*']\n    pull_request:\n"))
+                .as(stderr())
+                .isEqualTo(0);
+    }
+
+    @Test
+    void acceptsMainWrittenAsOneBranchBesideAPullRequest() throws IOException {
+        assertThat(triggered("    push:\n        branches: main\n    pull_request:\n"))
+                .as(stderr())
+                .isEqualTo(0);
+    }
+
+    @Test
     void acceptsTheSharedRulesOnAScheduleAndOnPullRequests() throws IOException {
         assertThat(
                         triggered(
