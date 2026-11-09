@@ -1,6 +1,6 @@
 # BT58 — One Build Per Commit
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - one rule in `check-actions` with its tests, and this repository's Build taking it; every other repository
 takes it with its next `porelo-release`.
 
