@@ -42,12 +42,7 @@ left out.
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 | <a id="bt58"></a>[BT58](BT58-One-Build-Per-Commit.md) | - | - | A commit is built once: on a task branch by its pull request, on `main` by its push; the shared template says so and the shared check refuses a workflow that builds both. |
-
-## Analyzed
-
-| # | Size | Blocked by | Open questions | What it covers |
-|---|---|---|---|---|
-| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | S | - | 2 | The checks take `issues/<group>/<ID>.sub/<name>.md` as briefs of their issue, never as issues: no index row, no stats file, links into them refused like links into an issue's file, and a brief beside no issue refused. |
+| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | S | - | The checks take `issues/<group>/<ID>.sub/<name>.md` as briefs of their issue, never as issues: no index row, no stats file, links into them refused like links into an issue's file, and a brief beside no issue refused. |
 
 ## Accepted
 

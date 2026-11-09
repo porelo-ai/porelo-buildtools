@@ -1,15 +1,15 @@
 # BT56 — Sub-Agent Briefs Beside Their Issue
 
-**Status:** Analyzed.
+**Status:** Backlog.
 **Size:** S - one shape of path learnt by three checks of `porelo-release`, with their tests; no new command and no
 contract another repository reads, beyond the path itself.
 
 **What must be true.** An issue may keep the briefs of its proposed sub-agents in a directory beside it,
-`issues/<group>/<ID>.sub/<name>.md` (`<name>` for instance `builder`, `tester`, `reader`). The shared checks treat a
-brief as part of its issue, never as an issue of its own:
+`issues/<group>/<ID>.sub/<name>.md`, `<name>` one of `builder`, `tester` and `reader`, or a numbered variant such as
+`builder-2`. The shared checks treat a brief as part of its issue, never as an issue of its own:
 - the index reading takes no brief for an issue;
-- `check-citations` holds a brief's text to the rules of a page under `issues/`, and treats it as a file that dies with
-  its issue, so no lasting page may link to it;
+- `check-citations` holds a brief's text to the rules of a page under `issues/`, its own issue's number a link to that
+  issue's row like every other, and treats it as a file that dies with its issue, so no lasting page may link to it;
 - `check-commits`' stats rule does not ask for `stats/<name>.jsonl` because a brief changed.
 
 A brief whose issue file is gone, or a `.sub` directory beside no issue, is refused, naming it. So briefs are deleted
@@ -30,7 +30,7 @@ Read in porelo-buildtools 5582aee, `release/src/main/java/org/fuin/porelo/releas
     lasting page's link into a brief is then refused as a link into an issue's file is.
   - `ISSUE_FILE` (line 62) matches on the file name alone and already does not take `builder.md`. A test pins that.
   - New check: every `<ID>.sub/` under the root's own `issues/` lies beside an issue file `<ID>-*.md` in the same
-    directory, and holds only regular `*.md` files whose name is `[a-z][a-z0-9-]*`. Anything else is a fault naming
+    directory, and holds only regular `*.md` files whose name is `(builder|tester|reader)(-[2-9]|-[1-9][0-9]+)?`. Anything else is a fault naming
     the path: a brief of a gone issue, a nested directory, a link.
 - **`CheckCommits`:** the stats rule's issue path (line 382, `issues/(?:[^/]+/)*([A-Z]{1,3}\d{2,3})-[^/]+\.md`)
   already misses `…/B560.sub/builder.md`, since the last segment must start with the number. A test pins that a commit
@@ -40,17 +40,12 @@ Read in porelo-buildtools 5582aee, `release/src/main/java/org/fuin/porelo/releas
 - **Tests that go red first:**
   - `CheckCitationsTest.aBriefWithoutItsIssueIsRefused`;
   - `aSubDirectoryBesideNoIssueIsRefused`;
-  - `aLastingPageMayNotLinkIntoABrief`.
+  - `aLastingPageMayNotLinkIntoABrief`;
+  - `aBriefOfAnotherNameIsRefused`;
+  - `aBriefsOwnIssueNumberMustBeALink`.
 
   The pins above are green at once and stay so.
 - **Docs:** `doc/index.md` names the brief path under the citation rules; changelog under *Added*.
-
-## Open questions
-
-1. Whether a brief's own issue number must be a link to its row, as on every page under `issues/`. That is today's
-   rule, which this plan keeps. The other choice exempts a brief's own number, since a brief always sits beside its
-   issue.
-2. Whether `<name>` is free, or limited to `builder`, `tester` and `reader` (and numbered variants such as `builder-2`).
 
 ## Acceptance
 
