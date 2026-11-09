@@ -46,6 +46,7 @@ left out.
 
 | # | Size | Blocked by | Open questions | What it covers |
 |---|---|---|---|---|
+| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | S | - | 2 | The checks take `issues/<group>/<ID>.sub/<name>.md` as briefs of their issue, never as issues: no index row, no stats file, links into them refused like links into an issue's file, and a brief beside no issue refused. |
 
 ## Accepted
 
