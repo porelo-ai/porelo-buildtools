@@ -9,7 +9,7 @@ may publish, and checks the native images before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
@@ -404,6 +404,46 @@ Both must carry the project's version as the packaging promises: `0.4.2-SNAPSHOT
 `0.4.2~snapshot.7`, below its release and above the run before; a release is its own version. The rpm's release is
 `1`, so the two say the same. Refused, each named: a deb of another name or version, and an rpm whose name, version
 or release differs, such as the timestamp release the rpm plugin gives a snapshot unless told not to.
+
+## What `third-party-notices` writes
+
+A package with third-party code compiled into a native executable ships the licenses of that code. One file holds
+them, written from the jars of the runtime classpath, the build's CycloneDX bill and the JDK the executable is built
+with:
+
+```
+porelo-release third-party-notices target/classpath.txt target/bom.json "$JAVA_HOME" target/THIRD-PARTY-NOTICES \
+    --own 'org\.fuin\.porelo:porelo-planner.*'
+```
+
+The classpath is what `dependency:build-classpath -DincludeScope=runtime` writes, after `package`, so the reactor's
+modules are jars; `--own` leaves out the project's own modules by `groupId:artifactId`.
+
+- **Each jar is one section, headed by its coordinates**: from the `pom.properties` its file is named after,
+  `<artifact>-<version>.jar` or `<artifact>-<version>-<classifier>.jar` with a classifier that begins with a letter
+  and is not `SNAPSHOT`; otherwise - a fat jar, or one Gradle built without, as Spring Boot's - from the bill entry
+  that carries its SHA-256. A classifier heads the section too, as the bill's purl names it, so netty's
+  `linux-x86_64` and `linux-aarch_64` jars are two sections, each held to its own hash.
+- **A section holds the standard text of every license and exception the jar's bill entry names**, the effective
+  POM's, a parent's included, and in full every file of the jar named for a license, notice or copying (`LICENSE.txt`,
+  `NOTICE`, `LICENSES.txt`, `LICENSE-notice.md`, `FastDoubleParser-LICENSE`) and every file under a `license` or `licenses` directory,
+  anywhere in the jar: that is where a jar names the licenses of what it embeds, such as jackson-core's
+  FastDoubleParser or plexus-utils' Extreme! Lab code. A class, a source, a properties file or an image is never read.
+  `A OR B` and `A AND B` give every text named, in any case; `A WITH exception` gives the license and the exception.
+  The standard texts are pinned in `porelo-release`, taken unchanged from one tag of the SPDX license list, which
+  `licenses/SOURCE.txt` names; a test holds each to its SHA-256. A license the set lacks is added there.
+- **The runtime is one more section**: the JDK's own license files and its whole `legal/` directory. Which of its
+  modules an image reaches no build output says, and every one is never less than the image needs.
+- **A text that stood once is named, not repeated**, and the same input gives the same bytes. The file is readable by
+  everyone.
+
+Refused, each named, and nothing written: a jar the bill has no entry for, one whose SHA-256 differs from the bill's,
+one jar twice on the classpath, a bill naming one component twice differently, a classes directory instead of a jar,
+and a jar whose bill entry names no license, a license or an exception the pinned set lacks, or a license by its URL
+alone.
+
+A package ships the file as `/usr/share/doc/<package>/THIRD-PARTY-NOTICES`, named in the Debian `copyright` file, and
+as `%license` in the rpm.
 
 
 ## Issues

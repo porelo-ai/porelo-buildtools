@@ -49,6 +49,7 @@ public final class Main {
                     "check-deploy",
                     "check-linkage",
                     "check-package-version",
+                    "third-party-notices",
                     "check-snapshot-filter",
                     "prune-snapshots",
                     "artifactory");
@@ -450,6 +451,7 @@ public final class Main {
                                             rest.get(1),
                                             rest.get(2),
                                             Path.of(rest.get(3)));
+            case "third-party-notices" -> thirdPartyNotices(rest, out, err);
             case "prune-snapshots" -> pruneSnapshots(rest, out, err, env);
             case "artifactory" -> artifactory(rest, out, err, env);
             default -> unknown(command, err);
@@ -557,6 +559,26 @@ public final class Main {
                             + " [--ceiling PREFIX=VERSION]... BINARY...");
         }
         return new CheckLinkage(out, err).check(binaries, declared, ceilings, declaredOnly);
+    }
+
+    private static final String NOTICES_USAGE =
+            "third-party-notices CLASSPATH-FILE BILL JDK-HOME OUT [--own GROUP:ARTIFACT-REGEX]";
+
+    private static int thirdPartyNotices(List<String> rest, PrintStream out, PrintStream err) {
+        final Options options = Options.parse(rest, Set.of("--own"), Set.of());
+        if (options == null || options.positional().size() != 4) {
+            return usage(err, NOTICES_USAGE);
+        }
+        final String own = options.value("--own");
+        final java.util.regex.Pattern pattern;
+        try {
+            pattern = java.util.regex.Pattern.compile(own == null ? "(?!)" : own);
+        } catch (java.util.regex.PatternSyntaxException ex) {
+            return usage(err, NOTICES_USAGE);
+        }
+        final List<Path> paths = options.positional().stream().map(Path::of).toList();
+        return new ThirdPartyNotices(out, err)
+                .write(paths.get(0), paths.get(1), paths.get(2), paths.get(3), pattern);
     }
 
     private static int checkReleases(List<String> rest, PrintStream out, PrintStream err) {

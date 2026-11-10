@@ -1,0 +1,2 @@
+title: porelo-release third-party-notices writes a package's notices from the jars compiled into its native executable, its CycloneDX bill and the JDK, each license in full, refusing a jar whose license it cannot tell.
+type: added
