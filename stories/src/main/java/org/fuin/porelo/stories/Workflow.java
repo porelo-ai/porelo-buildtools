@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.MarkedYAMLException;
 import org.yaml.snakeyaml.nodes.MappingNode;
@@ -186,7 +187,7 @@ public final class Workflow {
      *     guard "workflow.yml has no completed state" is kept, though a workflow this class reads
      *     always has the closed, not rejected state an issue then stands in
      */
-    public String storyState(String stated, List<String> issueStates) {
+    public @Nullable String storyState(@Nullable String stated, List<String> issueStates) {
         if (issueStates.isEmpty()) return stated;
         return issueStates.stream()
                 .filter(state -> !closed(state))

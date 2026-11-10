@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -279,7 +280,9 @@ public final class StoriesIndex {
             if (issueStates.size() != head.data().get("issues").size()) continue;
             // A legacy head's state beside issues is no one's word: the migration drops it.
             final boolean given = head.data().has("$schema") && head.data().has("state");
-            final String byIssues = workflow.storyState(stated, issueStates);
+            // A stated state is given, so the rule gives one too.
+            final String byIssues =
+                    Objects.requireNonNull(workflow.storyState(stated, issueStates));
             final String state = given ? stated : byIssues;
             if (given && !issueStates.isEmpty() && !stated.equals(byIssues))
                 notes.add(
