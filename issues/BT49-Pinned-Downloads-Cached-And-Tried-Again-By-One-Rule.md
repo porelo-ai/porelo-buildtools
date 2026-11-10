@@ -1,7 +1,20 @@
 # BT49 — Pinned Downloads Cached And Tried Again By One Rule
 
-**Status:** Review.
-**Size:** S - the cache and the rule in `porelo-machines jdk`, a shell twin for the action, buildtools' own copy of the
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT49",
+  "title": "Pinned Downloads Cached And Tried Again By One Rule",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 13,
+  "blockedBy": [],
+  "covers": "Every pinned download of a Build is cached by its digest and checked again after a hit, and tried again by one rule (15 min of growing pauses) when it must be fetched; a 4xx or a wrong digest fails at once."
+}
+```
+
+**Why this size.** the cache and the rule in `porelo-machines jdk`, a shell twin for the action, buildtools' own copy of the
 action, and the text the other copies take.
 
 **What must be true.** Every pinned download a Build makes is cached with `actions/cache`, keyed by its digest, and

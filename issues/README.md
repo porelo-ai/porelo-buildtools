@@ -5,10 +5,44 @@ issue, and who sets which state, are in [AGENTS.md](../AGENTS.md). *Open questio
 waits on the operator: the items under an issue's own *Open questions*. Its prefix is `BT`. A group with nothing in it is
 left out.
 
+## Idea
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt50"></a>[BT50](BT50-A-Pin-Names-Fallback-Sources.md) | - | - | A pinned download names several sources, each checked against the same sha256, asked in order when the first cannot answer. |
+| <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
+| <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
+| <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
+
+## Accepted
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
+| <a id="bt41"></a>[BT41](BT41-Mutation-Testing-With-PIT.md) | - | - | A `pit` profile run by hand, PIT and its JUnit 5 plugin pinned, on a VM where tests call real tools, and a report sorting survivors into real gaps and harmless ones. |
+| <a id="bt30"></a>[BT30](BT30-Check-Actions-Reads-Workflows-As-YAML.md) | - | - | `check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one. |
+| <a id="bt09"></a>[BT09](BT09-A-Limit-Wait-Names-The-Limit.md) | - | - | The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit. |
+
+## Analyzed
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | M | - | A sub-agent's work is a sub-issue `<parent>.<n>` with its own state, its file beside the parent and its row in the same index; the index reading, the checks and the stories count it, and the briefs-as-files rules go. |
+
+## Backlog
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
+| <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
+| <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
+| <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
+
 ## Review
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
 | <a id="bt62"></a>[BT62](BT62-An-Issues-Data-In-A-Head.md) | M | - | An issue's data in a JSON head by `issue-1.json`; `porelo-release issues index`, `check` and `convert`; the stories library, `stage` and check-commits read the head. |
 | <a id="bt61"></a>[BT61](BT61-The-Stories-Library-Under-The-LGPL.md) | XS | - | `porelo-stories` is published under LGPL-3.0-or-later, so a program under another license may link it; the rest stays GPL. |
 | <a id="bt60"></a>[BT60](BT60-A-Story-Takes-The-State-It-Is-Given.md) | S | - | A story whose head states a state has it, whatever its issues; `stories index` and `stories check` warn where the issues give another, and a story without one keeps the automatic rule. |
@@ -31,40 +65,6 @@ left out.
 | <a id="bt24"></a>[BT24](BT24-An-Account-Rented-From-The-Local-Pool.md) | M | - | `porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back. |
 | <a id="bt38"></a>[BT38](BT38-One-Directory-Per-Release-Plan.md) | S | - | A release plan is `plan/<release>/plan.yml`, its page `README.md` and its progress image beside it, so the forge shows the page on opening the directory; the old layout is not read. |
 | <a id="bt36"></a>[BT36](BT36-A-Forge-Pull-Request-From-The-Same-Repository-Counts-As-Inside.md) | S | - | A pull request on the host's forge from a branch of the same repository is checked as one from inside, told apart by `github.server_url`, since Forgejo sends no `author_association`; GitHub keeps its rule. |
-
-## Backlog
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
-| <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
-| <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
-| <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
-| <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
-
-## Analyzed
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | M | - | A sub-agent's work is a sub-issue `<parent>.<n>` with its own state, its file beside the parent and its row in the same index; the index reading, the checks and the stories count it, and the briefs-as-files rules go. |
-
-## Accepted
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
-| <a id="bt41"></a>[BT41](BT41-Mutation-Testing-With-PIT.md) | - | - | A `pit` profile run by hand, PIT and its JUnit 5 plugin pinned, on a VM where tests call real tools, and a report sorting survivors into real gaps and harmless ones. |
-| <a id="bt30"></a>[BT30](BT30-Check-Actions-Reads-Workflows-As-YAML.md) | - | - | `check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one. |
-| <a id="bt09"></a>[BT09](BT09-A-Limit-Wait-Names-The-Limit.md) | - | - | The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit. |
-
-## Idea
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt50"></a>[BT50](BT50-A-Pin-Names-Fallback-Sources.md) | - | - | A pinned download names several sources, each checked against the same sha256, asked in order when the first cannot answer. |
-| <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
-| <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
-| <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
 
 ## Finished
 

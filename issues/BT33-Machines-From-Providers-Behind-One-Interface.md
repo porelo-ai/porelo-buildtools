@@ -1,6 +1,18 @@
 # BT33 — Machines From Providers Behind One Interface
 
-**Status:** Idea.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT33",
+  "title": "Machines From Providers Behind One Interface",
+  "state": "Idea",
+  "size": "-",
+  "priority": "Medium",
+  "rank": 3,
+  "blockedBy": [],
+  "covers": "One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values."
+}
+```
 
 **What must be true.** `porelo-machines` asks for a machine through one interface, and each place a machine can come
 from is a provider behind it that knows what providing one takes. A workflow names only the kind

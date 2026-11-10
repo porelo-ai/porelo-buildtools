@@ -1,7 +1,20 @@
 # BT42 — Snapshots From Central And What The Host Built
 
-**Status:** Review.
-**Size:** M - `settings.xml`, its check and every Maven workflow here; each other repository takes its own copy.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT42",
+  "title": "Snapshots From Central And What The Host Built",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 18,
+  "blockedBy": [],
+  "covers": "A build on a host's forge reads snapshots from the project's central source and the host's registry, newest first, with a private group's names kept from the central source."
+}
+```
+
+**Why this size.** `settings.xml`, its check and every Maven workflow here; each other repository takes its own copy.
 
 **What must be true.** A build on a host's forge reads snapshots from the project's central source, Sonatype or its
 Artifactory, and from the host's registry, which holds only what was built there and has not yet gone through the push and

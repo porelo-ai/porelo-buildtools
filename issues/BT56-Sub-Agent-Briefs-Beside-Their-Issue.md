@@ -1,7 +1,20 @@
 # BT56 — Sub-Agent Briefs Beside Their Issue
 
-**Status:** Analyzed.
-**Size:** M - was S for briefs as files beside an issue; the operator's decision of 2026-11-10 makes a sub-agent's
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT56",
+  "title": "Sub-Agent Briefs Beside Their Issue",
+  "state": "Analyzed",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 1,
+  "blockedBy": [],
+  "covers": "A sub-agent's work is a sub-issue `<parent>.<n>` with its own state, its file beside the parent and its row in the same index; the index reading, the checks and the stories count it, and the briefs-as-files rules go."
+}
+```
+
+**Why this size.** was S for briefs as files beside an issue; the operator's decision of 2026-11-10 makes a sub-agent's
 work a sub-issue with its own state, which the index reading, three checks and the stories count all learn, and the
 brief files already on main go again.
 

@@ -1,6 +1,18 @@
 # BT18 — A Runner Named By Its Version
 
-**Status:** Idea.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT18",
+  "title": "A Runner Named By Its Version",
+  "state": "Idea",
+  "size": "-",
+  "priority": "Medium",
+  "rank": 4,
+  "blockedBy": [],
+  "covers": "`check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes."
+}
+```
 
 **What must be true.** `check-actions` refuses a job whose `runs-on` names a moving runner label such as
 `ubuntu-latest`, `macos-latest` or `windows-latest`, naming the file and the job, so the system under a Build does not

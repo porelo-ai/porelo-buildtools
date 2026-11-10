@@ -1,7 +1,20 @@
 # BT01 — A Release Leg Installs The Release
 
-**Status:** Review.
-**Size:** S - one module (`hetzner`): the channel into `AgentLeg.install`, the name check moved behind `--candidate`, two
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT01",
+  "title": "A Release Leg Installs The Release",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 1,
+  "blockedBy": [],
+  "covers": "A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name."
+}
+```
+
+**Why this size.** one module (`hetzner`): the channel into `AgentLeg.install`, the name check moved behind `--candidate`, two
 unit tests; no contract another repository reads beyond one new option.
 
 **What must be true.** A leg on a rented machine for a release tests that release: `porelo-machines acceptance` and

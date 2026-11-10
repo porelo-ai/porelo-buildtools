@@ -1,6 +1,18 @@
 # BT30 — Check Actions Reads Workflows As YAML
 
-**Status:** Accepted.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT30",
+  "title": "Check Actions Reads Workflows As YAML",
+  "state": "Accepted",
+  "size": "-",
+  "priority": "Medium",
+  "rank": 3,
+  "blockedBy": [],
+  "covers": "`check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one."
+}
+```
 
 **What must be true.** `porelo-release check-actions` judges every workflow as GitHub reads it, as parsed YAML, so
 a write granted in quotes (`contents: 'write'`) or in flow style, and a step written in flow style

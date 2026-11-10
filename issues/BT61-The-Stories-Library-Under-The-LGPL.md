@@ -1,7 +1,20 @@
 # BT61 — The Stories Library Under The LGPL
 
-**Status:** Review.
-**Size:** XS - the `porelo-stories` module's license block, its own license file and a changelog entry; no code.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT61",
+  "title": "The Stories Library Under The LGPL",
+  "state": "Review",
+  "size": "XS",
+  "priority": "Medium",
+  "rank": 3,
+  "blockedBy": [],
+  "covers": "`porelo-stories` is published under LGPL-3.0-or-later, so a program under another license may link it; the rest stays GPL."
+}
+```
+
+**Why this size.** the `porelo-stories` module's license block, its own license file and a changelog entry; no code.
 
 **What must be true.** `org.fuin.porelo:porelo-stories` is published under LGPL-3.0-or-later. A program under another
 license, porelo-planner (LGPL-3.0-or-later) first, may link it into its native executable without becoming a work under

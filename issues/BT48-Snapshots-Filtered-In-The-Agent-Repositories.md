@@ -1,7 +1,20 @@
 # BT48 — Snapshots Filtered In The Agent Repositories
 
-**Status:** Backlog.
-**Size:** S - three files and a Build step in each of five repositories, by Agent Smith there; XS here.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT48",
+  "title": "Snapshots Filtered In The Agent Repositories",
+  "state": "Backlog",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 1,
+  "blockedBy": [],
+  "covers": "The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there."
+}
+```
+
+**Why this size.** three files and a Build step in each of five repositories, by Agent Smith there; XS here.
 
 **What must be true.** porelo-claude-code, porelo-pi, porelo-omp, porelo-codex and porelo-agy read Sonatype's
 snapshots only for the groups they list in `.mvn/rrf/groupId-central.sonatype.snapshots.txt`, in the shape

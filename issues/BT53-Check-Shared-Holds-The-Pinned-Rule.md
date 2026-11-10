@@ -1,7 +1,20 @@
 # BT53 — Check Shared Holds The Pinned Rule
 
-**Status:** Review.
-**Size:** XS - `CheckShared` and its tests, `pinned.sh` carried in porelo-release, the doc.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT53",
+  "title": "Check Shared Holds The Pinned Rule",
+  "state": "Review",
+  "size": "XS",
+  "priority": "Medium",
+  "rank": 9,
+  "blockedBy": [],
+  "covers": "`check-shared` refuses a repository's `pinned.sh` that differs from porelo-buildtools' own, named in the call or not."
+}
+```
+
+**Why this size.** `CheckShared` and its tests, `pinned.sh` carried in porelo-release, the doc.
 
 **What must be true.** `check-shared` refuses a repository's `.github/actions/pinned-jdk/pinned.sh` that differs from
 the one porelo-buildtools' own action runs, whether the call names it or not. It refuses one that is named but

@@ -1,7 +1,20 @@
 # BT57 — The Buildtools' Tests Follow The Pyramid
 
-**Status:** Accepted.
-**Size:** L - ten fixes, each XS, S or M, sized below; they come one after another, not as one change.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT57",
+  "title": "The Buildtools' Tests Follow The Pyramid",
+  "state": "Accepted",
+  "size": "L",
+  "priority": "Medium",
+  "rank": 1,
+  "blockedBy": [],
+  "covers": "The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test."
+}
+```
+
+**Why this size.** ten fixes, each XS, S or M, sized below; they come one after another, not as one change.
 
 **What must be true.** porelo-buildtools' tests follow the test pyramid as AGENTS.md "Testing and machines" and
 porelo-project's `doc/test-pyramid.md` set it out (story ST296). Each command's flow is plain logic behind a small

@@ -1,7 +1,20 @@
 # BT52 — A Pinned Download From github.com Goes With The Job's Token
 
-**Status:** Review.
-**Size:** S - the token in `PinnedJdk` and `pinned.sh`, the action's steps, the pinned rule in porelo-release's reader,
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT52",
+  "title": "A Pinned Download From github.com Goes With The Job's Token",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 10,
+  "blockedBy": [],
+  "covers": "A pinned download from github.com goes with the job's token, to there alone; the release reader asks again by the pinned rule."
+}
+```
+
+**Why this size.** the token in `PinnedJdk` and `pinned.sh`, the action's steps, the pinned rule in porelo-release's reader,
 their tests, the doc and the text the copies take.
 
 **What must be true.** On GitHub, a pinned download from `https://github.com` goes with the job's token, and the token

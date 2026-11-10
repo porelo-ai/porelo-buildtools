@@ -1,7 +1,20 @@
 # BT62 — An Issue's Data In A Head
 
-**Status:** Review.
-**Size:** M - a schema, three `porelo-release issues` commands, the stories library and two readers of today's prose
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT62",
+  "title": "An Issue's Data In A Head",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 2,
+  "blockedBy": [],
+  "covers": "An issue's data in a JSON head by `issue-1.json`; `porelo-release issues index`, `check` and `convert`; the stories library, `stage` and check-commits read the head."
+}
+```
+
+**Why this size.** a schema, three `porelo-release issues` commands, the stories library and two readers of today's prose
 lines learn the head; docs, the shared rule text and the document checks follow.
 
 **What must be true.** An issue's data stands in a JSON head right below its title, checked by `issue-1.json`, and the

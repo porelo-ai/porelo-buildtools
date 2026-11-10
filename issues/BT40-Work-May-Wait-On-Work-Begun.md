@@ -1,7 +1,20 @@
 # BT40 — Work May Wait On Work Begun
 
-**Status:** Review.
-**Size:** S - one rule of `plan check`, its test and its documentation.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT40",
+  "title": "Work May Wait On Work Begun",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 19,
+  "blockedBy": [],
+  "covers": "`plan check` lets work wait for an issue that is Implementing, Rework, Review or Finished, and refuses only a wait for one not yet begun or Rejected."
+}
+```
+
+**Why this size.** one rule of `plan check`, its test and its documentation.
 
 **What must be true.** An issue that is Implementing, Rework, Review or Finished may wait for one that is Implementing,
 Rework, Review or Finished. Only a wait for one not yet begun, Idea, Accepted, Analyzed, Estimated or Backlog, is

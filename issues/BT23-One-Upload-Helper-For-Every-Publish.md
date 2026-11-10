@@ -1,7 +1,20 @@
 # BT23 — One Upload Helper For Every Publish
 
-**Status:** Review.
-**Size:** S - the `artifactory` command of porelo-release on its Artifactory client, the retry rule in a module of its
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT23",
+  "title": "One Upload Helper For Every Publish",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 11,
+  "blockedBy": [],
+  "covers": "One upload helper for Artifactory, published here and taken by digest in every Publish job, in place of the seven copies of `.github/scripts/artifactory.sh` (porelo, porelo-pi, porelo-omp, porelo-claude-code, porelo-codex, porelo-agy, porelo-message-matrix) and the own curl calls of porelo-message-sluice, porelo-intellij, porelo-frontend and porelo-adapters."
+}
+```
+
+**Why this size.** the `artifactory` command of porelo-release on its Artifactory client, the retry rule in a module of its
 own, the doc page.
 
 **What must be true.** Every Porelo repository that publishes to Artifactory uploads through one helper that

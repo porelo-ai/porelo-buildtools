@@ -1,6 +1,18 @@
 # BT09 — A Limit Wait Names The Limit
 
-**Status:** Accepted.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT09",
+  "title": "A Limit Wait Names The Limit",
+  "state": "Accepted",
+  "size": "-",
+  "priority": "Medium",
+  "rank": 4,
+  "blockedBy": [],
+  "covers": "The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit."
+}
+```
 
 **What must be true.** When the cloud provider refuses a server create with `resource_limit_exceeded`, the waiting
 line says which limit the API names - its own `message`, such as dedicated vCPUs, shared vCPUs or primary IPs - and

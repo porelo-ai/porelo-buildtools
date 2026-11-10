@@ -1,6 +1,18 @@
 # BT50 — A Pin Names Fallback Sources
 
-**Status:** Idea.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT50",
+  "title": "A Pin Names Fallback Sources",
+  "state": "Idea",
+  "size": "-",
+  "priority": "Medium",
+  "rank": 1,
+  "blockedBy": [],
+  "covers": "A pinned download names several sources, each checked against the same sha256, asked in order when the first cannot answer."
+}
+```
 
 **What must be true.** A pinned download names more than one source, each checked against the same sha256: the
 GraalVM archive, shfmt and the like. When the first source cannot answer after the retry rule of

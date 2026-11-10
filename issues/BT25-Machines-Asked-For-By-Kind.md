@@ -1,7 +1,20 @@
 # BT25 — Machines Asked For By Kind
 
-**Status:** Review.
-**Size:** L - the module and `Spec` by kind (M), a provider-name check (S), and the old call routed onto the new one with its test (S); the callers move later, through their own issues.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT25",
+  "title": "Machines Asked For By Kind",
+  "state": "Review",
+  "size": "L",
+  "priority": "Medium",
+  "rank": 20,
+  "blockedBy": [],
+  "covers": "`Spec` and `Main` ask for a machine by kind instead of a provider's server types, the setup chooses the local pool or the cloud provider, and a check in `porelo-buildtools` refuses a provider's name outside its implementation; the old call keeps working, routed onto the new one, until every caller has moved."
+}
+```
+
+**Why this size.** the module and `Spec` by kind (M), a provider-name check (S), and the old call routed onto the new one with its test (S); the callers move later, through their own issues.
 
 **What must be true.** A caller of `porelo-machines` asks for a machine by kind, operating system, and account count, never by a provider's name or server types; the setup decides whether the local VM pool ([BT24](README.md#bt24)) or a cloud provider meets that kind; and a check in `porelo-buildtools` fails whenever a repository outside the provider implementation names a provider or its server types.
 

@@ -1,7 +1,20 @@
 # BT03 — A Rebuilt Snapshot Removes Its Predecessors
 
-**Status:** Backlog.
-**Size:** S - one module (`hetzner`): a listing and a delete after `snapshot`, a stand-in API test; no contract.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT03",
+  "title": "A Rebuilt Snapshot Removes Its Predecessors",
+  "state": "Backlog",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 2,
+  "blockedBy": [],
+  "covers": "A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said."
+}
+```
+
+**Why this size.** one module (`hetzner`): a listing and a delete after `snapshot`, a stand-in API test; no contract.
 
 **What must be true.** After `porelo-machines snapshot` has taken a new CI snapshot for an `os` and seen it available,
 it deletes the older snapshots of that `os` labelled `porelo=ci`, keeping the newest one before it as a fallback. It

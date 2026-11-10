@@ -1,6 +1,18 @@
 # BT59 — The Stories Library Names No Host Of Its Own
 
-**Status:** Backlog.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT59",
+  "title": "The Stories Library Names No Host Of Its Own",
+  "state": "Backlog",
+  "size": "-",
+  "priority": "Medium",
+  "rank": 4,
+  "blockedBy": [],
+  "covers": "The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host."
+}
+```
 
 **What must be true.** A program that is not porelo-ai's own, the planning adapter stories-git among them, regenerates
 a project's story texts and index with the stories library, and every link and repository it names comes from that

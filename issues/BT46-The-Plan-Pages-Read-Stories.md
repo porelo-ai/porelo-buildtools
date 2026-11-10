@@ -1,7 +1,20 @@
 # BT46 — The Plan Pages Read Stories
 
-**Status:** Review.
-**Size:** M - an administrative tool the coordinator alone runs: the schema, the head reader and `stories check`; the
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT46",
+  "title": "The Plan Pages Read Stories",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 8,
+  "blockedBy": [],
+  "covers": "A story's data in a JSON head of its file, checked by a schema held here, `stories/README.md` generated from the heads and checked equal; `plan render` and `plan check` read a release as stories in place of sprints, each story's state its least advanced issue's."
+}
+```
+
+**Why this size.** an administrative tool the coordinator alone runs: the schema, the head reader and `stories check`; the
 index and each story's readable part; the cut for a release's notes. Tests for what it decides, no more; one reading
 at the end.
 

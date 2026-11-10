@@ -1,7 +1,20 @@
 # BT24 — An Account Rented From The Local Pool
 
-**Status:** Review.
-**Size:** M - one new `Machines` beside `LocalVms` and `Hetzner`, a file format porelo-host writes, and the option
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT24",
+  "title": "An Account Rented From The Local Pool",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 21,
+  "blockedBy": [],
+  "covers": "`porelo-machines` rents one run account of the host's local VM pool per run from the file porelo-host's `vm_pool` writes, waits or refuses beyond the pool's size, and resets the account when it is given back."
+}
+```
+
+**Why this size.** one new `Machines` beside `LocalVms` and `Hetzner`, a file format porelo-host writes, and the option
 that picks it; no provider is touched.
 
 **What must be true.** `porelo-machines` rents a run account of the host's local VM pool as it rents a server: it

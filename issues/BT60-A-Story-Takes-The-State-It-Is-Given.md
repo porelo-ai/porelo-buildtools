@@ -1,7 +1,20 @@
 # BT60 — A Story Takes The State It Is Given
 
-**Status:** Review.
-**Size:** S - the story-2 schema and its check allow `state` beside issues, `stories index` and `stories check` keep
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT60",
+  "title": "A Story Takes The State It Is Given",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 4,
+  "blockedBy": [],
+  "covers": "A story whose head states a state has it, whatever its issues; `stories index` and `stories check` warn where the issues give another, and a story without one keeps the automatic rule."
+}
+```
+
+**Why this size.** the story-2 schema and its check allow `state` beside issues, `stories index` and `stories check` keep
 it and warn of a mismatch; the docs say the rule.
 
 **What must be true.** A story whose head states a state has that state, whatever its issues' states are, as

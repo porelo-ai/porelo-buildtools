@@ -1,7 +1,20 @@
 # BT47 — Check Commits Takes Porelo's Own Trailers
 
-**Status:** Review.
-**Size:** XS - one pattern in `check-commits`, its tests and a changelog entry.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT47",
+  "title": "Check Commits Takes Porelo's Own Trailers",
+  "state": "Review",
+  "size": "XS",
+  "priority": "Medium",
+  "rank": 14,
+  "blockedBy": [],
+  "covers": "`check-commits` takes `Porelo-Change-Id` and `Porelo-Signs-Anew`, each in its own form, which Porelo writes on its own commits; due before Porelo's next commit is pushed."
+}
+```
+
+**Why this size.** one pattern in `check-commits`, its tests and a changelog entry.
 
 **What must be true.** `porelo-release check-commits` takes the trailers Porelo writes on the commits it makes
 itself: `Porelo-Change-Id: <id>` on each, and `Porelo-Signs-Anew: <path>` on a commit that signs a file anew. Each

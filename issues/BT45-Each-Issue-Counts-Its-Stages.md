@@ -1,7 +1,20 @@
 # BT45 — Each Issue Counts Its Stages
 
-**Status:** Review.
-**Size:** M - a new `porelo-release stage` command, a file format other repositories commit, and a rule in
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT45",
+  "title": "Each Issue Counts Its Stages",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 15,
+  "blockedBy": [],
+  "covers": "`porelo-release stage begin` and `end` record each stage of an issue with its time and tokens in `stats/<issue>.jsonl`, `check-commits` refuses an open stage, and `stage median` reads the estimate."
+}
+```
+
+**Why this size.** a new `porelo-release stage` command, a file format other repositories commit, and a rule in
 `check-commits`.
 
 **What must be true.** An agent records each stage of an issue - its start, end, time and tokens - with one command,

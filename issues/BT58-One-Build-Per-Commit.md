@@ -1,7 +1,20 @@
 # BT58 — One Build Per Commit
 
-**Status:** Review.
-**Size:** S - one rule in `check-actions` with its tests, and this repository's Build taking it; every other repository
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT58",
+  "title": "One Build Per Commit",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 5,
+  "blockedBy": [],
+  "covers": "A commit is built once: on a task branch by its pull request, on `main` by its push; the shared template says so and the shared check refuses a workflow that builds both."
+}
+```
+
+**Why this size.** one rule in `check-actions` with its tests, and this repository's Build taking it; every other repository
 takes it with its next `porelo-release`.
 
 **What must be true.** A commit is built once: on a task's branch by its pull request alone, on `main` by its push

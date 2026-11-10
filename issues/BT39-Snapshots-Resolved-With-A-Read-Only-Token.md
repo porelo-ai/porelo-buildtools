@@ -1,7 +1,20 @@
 # BT39 — Snapshots Resolved With A Read-Only Token
 
-**Status:** Review.
-**Size:** M - `settings.xml`, every Maven workflow and their registry tests; the settings' names are a contract other
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT39",
+  "title": "Snapshots Resolved With A Read-Only Token",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 17,
+  "blockedBy": [],
+  "covers": "Builds resolve the forge's snapshots with `PORELO_PACKAGES_READ_TOKEN`, only the deploying step holds the publisher's token, and a missing `MAVEN_SNAPSHOTS_URL` fails on any forge but github.com."
+}
+```
+
+**Why this size.** `settings.xml`, every Maven workflow and their registry tests; the settings' names are a contract other
 repositories read.
 
 **What must be true.** On the host's forge a build resolves snapshots with a token that can only read them; the

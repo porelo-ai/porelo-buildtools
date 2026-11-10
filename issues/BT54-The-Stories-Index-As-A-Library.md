@@ -1,7 +1,20 @@
 # BT54 — The Stories Index As A Library
 
-**Status:** Review.
-**Size:** L - a new published module with a public API carved out of four package-private classes of
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT54",
+  "title": "The Stories Index As A Library",
+  "state": "Review",
+  "size": "L",
+  "priority": "Medium",
+  "rank": 7,
+  "blockedBy": [],
+  "covers": "The stories index, its heads and the issue index reading become a small published library, native-image friendly and opening no connection unless given one, which `porelo-release` and an adapter both call."
+}
+```
+
+**Why this size.** a new published module with a public API carved out of four package-private classes of
 `porelo-release`, its native-image metadata and a native test, while `porelo-release stories …` keeps its behaviour.
 
 **What must be true.** A program other than `porelo-release` can regenerate porelo-project's stories index after it

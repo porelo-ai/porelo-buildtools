@@ -1,7 +1,20 @@
 # BT55 — Stories Read Their Workflow From A File
 
-**Status:** Review.
-**Size:** L - grown from M by the operator's decisions of 2026-11-09. The states written in five classes of
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT55",
+  "title": "Stories Read Their Workflow From A File",
+  "state": "Review",
+  "size": "L",
+  "priority": "Medium",
+  "rank": 6,
+  "blockedBy": [],
+  "covers": "One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused."
+}
+```
+
+**Why this size.** grown from M by the operator's decisions of 2026-11-09. The states written in five classes of
 `porelo-release` give way to one file: stories and every repository's issue index read it. A story's state is
 computed from its issues. A second schema version.
 

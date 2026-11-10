@@ -1,7 +1,20 @@
 # BT44 — Old Snapshot Packages Deleted Daily
 
-**Status:** Idea.
-**Size:** M - one command in `release` with a stand-in Artifactory for its tests, a workflow, its documentation and
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT44",
+  "title": "Old Snapshot Packages Deleted Daily",
+  "state": "Idea",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 2,
+  "blockedBy": [],
+  "covers": "A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live."
+}
+```
+
+**Why this size.** one command in `release` with a stand-in Artifactory for its tests, a workflow, its documentation and
 one dry run on GitHub.
 
 **What must be true.** Once a day, a workflow of `porelo-buildtools` deletes every snapshot package file older than

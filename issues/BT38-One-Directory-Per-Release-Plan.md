@@ -1,7 +1,20 @@
 # BT38 — One Directory Per Release Plan
 
-**Status:** Review.
-**Size:** S - paths in `PlanRender`, `Plan` and `CheckCitations`, and the tests' layout; no other reader.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT38",
+  "title": "One Directory Per Release Plan",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 22,
+  "blockedBy": [],
+  "covers": "A release plan is `plan/<release>/plan.yml`, its page `README.md` and its progress image beside it, so the forge shows the page on opening the directory; the old layout is not read."
+}
+```
+
+**Why this size.** paths in `PlanRender`, `Plan` and `CheckCitations`, and the tests' layout; no other reader.
 
 **What must be true.** A release plan is `plan/<release>/plan.yml`; `plan render` writes its page as `README.md` and
 its progress image beside it, so the forge shows the page on opening `plan/<release>/`, and `plan check` checks that

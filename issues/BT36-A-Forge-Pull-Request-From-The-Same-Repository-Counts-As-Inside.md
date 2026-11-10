@@ -1,7 +1,20 @@
 # BT36 — A Forge Pull Request From The Same Repository Counts As Inside
 
-**Status:** Review.
-**Size:** S - one condition and one environment binding in the template's pull-request step, its cases in
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT36",
+  "title": "A Forge Pull Request From The Same Repository Counts As Inside",
+  "state": "Review",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 23,
+  "blockedBy": [],
+  "covers": "A pull request on the host's forge from a branch of the same repository is checked as one from inside, told apart by `github.server_url`, since Forgejo sends no `author_association`; GitHub keeps its rule."
+}
+```
+
+**Why this size.** one condition and one environment binding in the template's pull-request step, its cases in
 `WorkflowCommitsTest`, and every repository with the template takes it, as with the own update workflow's rule before it.
 
 **What must be true.** On the host's forge, a pull request from a branch of the same repository is checked as one from

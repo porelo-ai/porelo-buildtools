@@ -1,7 +1,20 @@
 # BT51 — The Pinned Rule Keeps A Deadline
 
-**Status:** Review.
-**Size:** XS - the deadline in `PinnedRetry`, `PinnedJdk` and `pinned.sh`, their tests, and the text the copies take.
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT51",
+  "title": "The Pinned Rule Keeps A Deadline",
+  "state": "Review",
+  "size": "XS",
+  "priority": "Medium",
+  "rank": 12,
+  "blockedBy": [],
+  "covers": "A pinned download starts no attempt later than 15 minutes after its first, the attempts' own time counted with the pauses, in Java and in `pinned.sh` alike."
+}
+```
+
+**Why this size.** the deadline in `PinnedRetry`, `PinnedJdk` and `pinned.sh`, their tests, and the text the copies take.
 
 **What must be true.** A pinned download starts no attempt later than 15 minutes after its first attempt started, the
 attempts' own time counted with the pauses, in Java and in `pinned.sh` alike, and a pause is cut so the next attempt

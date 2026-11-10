@@ -1,7 +1,20 @@
 # BT37 — The Buildtools' Agent Works In A Porelo Task
 
-**Status:** Backlog.
-**Size:** S - two scheduled workflows held to the central forge, with their workflow test, before the move; then the
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "BT37",
+  "title": "The Buildtools' Agent Works In A Porelo Task",
+  "state": "Backlog",
+  "size": "S",
+  "priority": "Medium",
+  "rank": 3,
+  "blockedBy": [],
+  "covers": "porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry."
+}
+```
+
+**Why this size.** two scheduled workflows held to the central forge, with their workflow test, before the move; then the
 trial move's steps, this issue worked to Review inside the task, and the way back.
 
 **What must be true.** porelo-buildtools' own agent, `Agent Buildtools` in the project's room, works in a Porelo task on
