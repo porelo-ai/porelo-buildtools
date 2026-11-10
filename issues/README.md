@@ -37,6 +37,7 @@ left out.
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
+| <a id="bt65"></a>[BT65](BT65-The-Public-Readers-Give-The-Centrals-And-A-Storys-State.md) | S | - | `porelo-stories`' public `Project` also gives each repository's central address from the same reading of `project.yml`, and the rule the stories index gives a story its state by is public, so porelo-planner clones every repository and shows the index's state without a second implementation. |
 
 ## Review
 
