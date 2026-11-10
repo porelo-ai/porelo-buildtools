@@ -34,6 +34,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt61"></a>[BT61](BT61-The-Stories-Library-Under-The-LGPL.md) | XS | - | `porelo-stories` is published under LGPL-3.0-or-later, so a program under another license may link it; the rest stays GPL. |
 
 ## Backlog
 
