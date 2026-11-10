@@ -35,6 +35,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt62"></a>[BT62](BT62-An-Issues-Data-In-A-Head.md) | M | - | An issue's data in a JSON head by `issue-1.json`; `porelo-release issues index`, `check` and `convert`; the stories library, `stage` and check-commits read the head. |
 
 ## Backlog
 
