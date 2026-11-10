@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT66",
   "title": "The Notices Hold The LGPL-3.0 Text",
-  "state": "Backlog",
+  "state": "Implementing",
   "size": "XS",
   "priority": "High",
   "rank": 1,
