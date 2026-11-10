@@ -63,11 +63,15 @@ final class ThirdPartyNotices {
                     "GPL-2.0-only", List.of("GPL-2.0-only"),
                     "GPL-2.0-with-classpath-exception",
                             List.of("GPL-2.0-only", "Classpath-exception-2.0"),
+                    "GPL-3.0-or-later", List.of("GPL-3.0"),
                     "LGPL-2.1-only", List.of("LGPL-2.1-only"),
                     "MIT", List.of("MIT"));
 
     /** The license exceptions whose standard texts are pinned, by SPDX id. */
     static final Set<String> EXCEPTIONS = Set.of("Classpath-exception-2.0");
+
+    /** The LGPL library no GPL-3.0 component may sit below, by {@code groupId:artifactId}. */
+    private static final String STORIES = "org.fuin.porelo:porelo-stories";
 
     /** A text larger than this is no license file, and is refused rather than read. */
     private static final int MOST_BYTES = 1 << 20;
@@ -236,7 +240,79 @@ final class ThirdPartyNotices {
         }
         final Map<String, Component> licenses = new HashMap<>();
         components(document.get("components"), licenses);
+        refuseGplBelowStories(document);
         return licenses;
+    }
+
+    /**
+     * Refuses a GPL-3.0 component porelo-stories reaches in the bill's dependency graph: the
+     * library is LGPL so that others may link it, and a GPL jar below it would take that away.
+     */
+    private static void refuseGplBelowStories(Map<?, ?> document) throws Stop {
+        final Map<String, String> keys = new HashMap<>();
+        final Map<String, List<String>> named = new HashMap<>();
+        refs(document.get("components"), keys, named);
+        final Map<String, List<String>> edges = new HashMap<>();
+        if (document.get("dependencies") instanceof List<?> dependencies) {
+            for (Object one : dependencies) {
+                if (one instanceof Map<?, ?> dependency
+                        && dependency.get("ref") instanceof String ref
+                        && dependency.get("dependsOn") instanceof List<?> on) {
+                    final List<String> to = edges.computeIfAbsent(ref, r -> new ArrayList<>());
+                    on.stream()
+                            .filter(String.class::isInstance)
+                            .map(String.class::cast)
+                            .forEach(to::add);
+                }
+            }
+        }
+        for (Map.Entry<String, String> root : keys.entrySet()) {
+            if (!root.getValue().startsWith(STORIES + ":")) {
+                continue;
+            }
+            final java.util.Deque<String> open =
+                    new java.util.ArrayDeque<>(edges.getOrDefault(root.getKey(), List.of()));
+            final Set<String> seen = new java.util.HashSet<>();
+            while (!open.isEmpty()) {
+                final String ref = open.pop();
+                if (!seen.add(ref)) {
+                    continue;
+                }
+                for (String license : named.getOrDefault(ref, List.of())) {
+                    if (license.startsWith("GPL-3.0")) {
+                        throw Stop.refused(
+                                keys.getOrDefault(ref, ref)
+                                        + " is under "
+                                        + license
+                                        + " and below "
+                                        + root.getValue()
+                                        + ", which is LGPL-3.0-or-later so that others may link it");
+                    }
+                }
+                open.addAll(edges.getOrDefault(ref, List.of()));
+            }
+        }
+    }
+
+    private static void refs(
+            @Nullable Object list, Map<String, String> keys, Map<String, List<String>> named) {
+        if (!(list instanceof List<?> components)) {
+            return;
+        }
+        for (Object one : components) {
+            if (one instanceof Map<?, ?> component
+                    && component.get("bom-ref") instanceof String ref) {
+                if (component.get("group") instanceof String group
+                        && component.get("name") instanceof String name
+                        && component.get("version") instanceof String version) {
+                    keys.put(ref, group + ":" + name + ":" + version);
+                }
+                named.put(ref, component(component.get("licenses"), null).licenses());
+            }
+            if (one instanceof Map<?, ?> component) {
+                refs(component.get("components"), keys, named);
+            }
+        }
     }
 
     private static void components(@Nullable Object list, Map<String, Component> licenses)

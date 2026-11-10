@@ -430,8 +430,9 @@ modules are jars; `--own` leaves out the project's own modules by `groupId:artif
   anywhere in the jar: that is where a jar names the licenses of what it embeds, such as jackson-core's
   FastDoubleParser or plexus-utils' Extreme! Lab code. A class, a source, a properties file or an image is never read.
   `A OR B` and `A AND B` give every text named, in any case; `A WITH exception` gives the license and the exception.
-  The standard texts are pinned in `porelo-release`, taken unchanged from one tag of the SPDX license list, which
-  `licenses/SOURCE.txt` names; a test holds each to its SHA-256. A license the set lacks is added there.
+  The standard texts are pinned in `porelo-release`, taken unchanged from one tag of the SPDX license list, and
+  GPL-3.0-or-later's from gnu.org's `gpl-3.0.txt`, as `licenses/SOURCE.txt` names; a test holds each to its SHA-256.
+  A license the set lacks is added there.
 - **The runtime is one more section**: the JDK's own license files and its whole `legal/` directory. Which of its
   modules an image reaches no build output says, and every one is never less than the image needs.
 - **A text that stood once is named, not repeated**, and the same input gives the same bytes. The file is readable by
@@ -439,8 +440,9 @@ modules are jars; `--own` leaves out the project's own modules by `groupId:artif
 
 Refused, each named, and nothing written: a jar the bill has no entry for, one whose SHA-256 differs from the bill's,
 one jar twice on the classpath, a bill naming one component twice differently, a classes directory instead of a jar,
-and a jar whose bill entry names no license, a license or an exception the pinned set lacks, or a license by its URL
-alone.
+a jar whose bill entry names no license, a license or an exception the pinned set lacks, or a license by its URL
+alone, and a GPL-3.0 component that `porelo-stories` reaches in the bill's dependencies: the library is LGPL so that
+others may link it.
 
 A package ships the file as `/usr/share/doc/<package>/THIRD-PARTY-NOTICES`, named in the Debian `copyright` file, and
 as `%license` in the rpm.

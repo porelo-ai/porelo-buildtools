@@ -49,8 +49,10 @@ adapters and others) file an issue of their own each, after this one is on main.
   (plexus-utils' `licenses/thoughtworks.TXT`), anywhere in the jar; never a class, source, properties file or image.
 - **The pinned set:** Apache-2.0, BSD-2-Clause, BSD-3-Clause, EPL-1.0, EPL-2.0, GPL-2.0-only, LGPL-2.1-only, MIT
   (and GPL-2.0-with-classpath-exception as GPL-2.0-only with the exception), the exception Classpath-exception-2.0, as
-  resources of `porelo-release`, unchanged from SPDX license-list-data tag v3.29.0, which `licenses/SOURCE.txt`
-  names; a test holds each file to its SHA-256.
+  resources of `porelo-release`, unchanged from SPDX license-list-data tag v3.29.0, and GPL-3.0-or-later, Porelo's own
+  libraries' license, unchanged from gnu.org's `gpl-3.0.txt`, as `licenses/SOURCE.txt` names; a test holds each file
+  to its SHA-256. A GPL-3.0 component that `porelo-stories` reaches in the bill's dependencies is refused, since the
+  library is LGPL so that others may link it.
 - **The GraalVM runtime is one more section:** the JDK's root license files and its whole `legal/` directory. Which
   modules an image reaches no build output says; all of them is never less than the image needs.
 - **Same text once, stable, readable:** a text that stood once is named; the same input gives the same bytes,

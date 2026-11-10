@@ -1,1 +1,2 @@
 SPDX license-list-data, tag v3.29.0, commit 31ba1a50e5397e00a304dbadc76531740e89ee48: each text/<id>.txt, unchanged.
+GPL-3.0.txt: https://www.gnu.org/licenses/gpl-3.0.txt, unchanged, SHA-256 3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986.

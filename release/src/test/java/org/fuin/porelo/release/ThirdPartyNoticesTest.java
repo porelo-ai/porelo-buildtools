@@ -523,6 +523,75 @@ class ThirdPartyNoticesTest {
     }
 
     @Test
+    void aJarUnderTheGplGetsTheGnuText() throws Exception {
+        // Porelo's own GPL libraries reach the agents' executables; refused, they are left unnamed.
+        final Path jar = jar("api-1.0.jar", "org.example", "api", "1.0", Map.of("README", "x\n"));
+
+        final String text =
+                ThirdPartyNotices.notices(
+                        List.of(jar),
+                        licensed("org.example:api:1.0", "GPL-3.0-or-later"),
+                        jdk(),
+                        NONE_OWN);
+
+        assertThat(text)
+                .as("the GNU General Public License in full")
+                .contains("License: GPL-3.0-or-later")
+                .contains(ThirdPartyNotices.standardText("GPL-3.0"));
+    }
+
+    @Test
+    void refusesAGplComponentInTheClosureOfTheLgplStoriesLibrary() throws Exception {
+        // porelo-stories is LGPL so that others may link it; a GPL jar below it would break that.
+        final Path bill =
+                Files.writeString(
+                        dir.resolve("bom.json"),
+                        """
+                        {"bomFormat": "CycloneDX", "components": [
+                          {"bom-ref": "s", "group": "org.fuin.porelo", "name": "porelo-stories", "version": "1",
+                           "licenses": [{"license": {"id": "LGPL-3.0-or-later"}}]},
+                          {"bom-ref": "m", "group": "g", "name": "middle", "version": "1",
+                           "licenses": [{"license": {"id": "MIT"}}]},
+                          {"bom-ref": "x", "group": "g", "name": "gpl", "version": "2",
+                           "licenses": [{"expression": "GPL-3.0-or-later"}]}
+                        ], "dependencies": [
+                          {"ref": "s", "dependsOn": ["m"]},
+                          {"ref": "m", "dependsOn": ["x"]}
+                        ]}
+                        """);
+
+        assertThatThrownBy(() -> ThirdPartyNotices.licenses(bill))
+                .as("a GPL jar porelo-stories reaches through another")
+                .isInstanceOf(Stop.class)
+                .hasMessageContaining("g:gpl:2")
+                .hasMessageContaining("porelo-stories");
+    }
+
+    @Test
+    void takesAGplComponentOutsideTheClosureOfTheStoriesLibrary() throws Exception {
+        final Path bill =
+                Files.writeString(
+                        dir.resolve("bom.json"),
+                        """
+                        {"bomFormat": "CycloneDX", "components": [
+                          {"bom-ref": "a", "group": "g", "name": "app", "version": "1",
+                           "licenses": [{"license": {"id": "MIT"}}]},
+                          {"bom-ref": "s", "group": "org.fuin.porelo", "name": "porelo-stories", "version": "1",
+                           "licenses": [{"license": {"id": "LGPL-3.0-or-later"}}]},
+                          {"bom-ref": "x", "group": "g", "name": "gpl", "version": "2",
+                           "licenses": [{"license": {"id": "GPL-3.0-or-later"}}]}
+                        ], "dependencies": [
+                          {"ref": "a", "dependsOn": ["s", "x"]},
+                          {"ref": "s", "dependsOn": []}
+                        ]}
+                        """);
+
+        assertThat(ThirdPartyNotices.licenses(bill))
+                .as("a GPL jar beside porelo-stories, not below it, is the executable's own affair")
+                .containsKey("g:gpl:2");
+    }
+
+    @Test
     void refusesAJarWithoutTextWhoseLicenseHasNoPinnedText() throws Exception {
         final Path jar = jar("bare-2.0.jar", "org.example", "bare", "2.0", Map.of("README", "x\n"));
 
@@ -599,6 +668,8 @@ class ThirdPartyNoticesTest {
         expected.put("EPL-2.0", "61616a4066701bc7888ad910de1633dbc55eb4d4d30d930feef55afb9492e33c");
         expected.put(
                 "GPL-2.0-only", "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3");
+        // gnu.org's gpl-3.0.txt, the same bytes as this repository's own LICENSE.
+        expected.put("GPL-3.0", "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986");
         expected.put(
                 "LGPL-2.1-only",
                 "5749785c8bdefafcb5d798270ed0a967036fe2ca63dcedade1627565dfef81d2");
@@ -626,6 +697,7 @@ class ThirdPartyNoticesTest {
                         "EPL-2.0",
                         "GPL-2.0-only",
                         "GPL-2.0-with-classpath-exception",
+                        "GPL-3.0-or-later",
                         "LGPL-2.1-only",
                         "MIT");
     }
