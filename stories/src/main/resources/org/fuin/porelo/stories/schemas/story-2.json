@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/porelo-ai/porelo-buildtools/schemas/story-2.json",
   "title": "A story's head",
-  "description": "A story head whose state comes from its issues and the workflow; only an issue-free story keeps a stated state.",
+  "description": "A story head whose state is the one it states, else the one its issues give by the workflow; an issue-free story states one.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -61,7 +61,7 @@
       "$ref": "#/$defs/day"
     },
     "state": {
-      "description": "The workflow state of a story with no issues.",
+      "description": "The workflow state the story is given: required with no issues; beside issues it stands over the state they give, and a mismatch is warned of.",
       "$ref": "#/$defs/line"
     },
     "$schema": {
@@ -102,13 +102,6 @@
         "required": [
           "state"
         ]
-      },
-      "else": {
-        "not": {
-          "required": [
-            "state"
-          ]
-        }
       }
     }
   ]

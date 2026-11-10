@@ -413,11 +413,13 @@ story tested since the last one. A story's file reads, top to bottom:
 3. whatever a person writes by hand;
 4. `## Data` and the head, fenced `json`, by `story-2.json`; legacy heads also read as `story-1.json`.
 
-A story's state is the least advanced open issue state in the order of `stories/workflow.yml`. When all issues
-are closed, it takes the first closed state other than Rejected; if every issue is Rejected, it is Rejected. A story
-without issues keeps its own state. A stated completed story needs its `tested` day; a computed completed story
-may still await that test. A tested day belongs only to a completed story other than Rejected. Issue indexes are
-read from the checkouts beside the project's, else from the forge.
+A story whose story-2 head states a state has that state, with issues or without. Where its issues give another state by
+the rule below, `stories index` and `stories check` print one line on standard output and still succeed:
+`WARN  ST<n>: stated Backlog, its issues give Accepted (<repository>#<issue> Accepted, ...)`. A story without a stated
+state takes the least advanced open issue state in the order of `stories/workflow.yml`. When all issues are closed, it
+takes the first closed state other than Rejected; if every issue is Rejected, it is Rejected. A stated completed story
+needs its `tested` day; a computed completed story may still await that test. A tested day belongs only to a completed
+story other than Rejected. Issue indexes are read from the checkouts beside the project's, else from the forge.
 
 `stories index` writes every story's part 2 and `stories/README.md`: the count in each state, then the stories by state
 in the states' sequence, the higher priority first within one, each with its issues counted by prefix. `stories check`
@@ -476,7 +478,7 @@ YAML. Its other methods are `states()`, `closed(String)`, `measured(String)`, `r
 `Workflow.Phase` exposes `name()` and `states()`. Unknown state queries throw `IllegalArgumentException` naming the
 workflow; `order` is zero based. `rejected` identifies Rejected, the one closed state that is not done work.
 
-A new head declares `"$schema": "story-2.json"`. It requires `state` when `issues` is empty and refuses it beside
+A new head declares `"$schema": "story-2.json"`. It requires `state` when `issues` is empty and allows it beside
 issues. Legacy heads without `$schema` use story-1. The index command upgrades each legacy head by inserting
 `  "$schema": "story-2.json",` as the object's first property line and removing the `state` line only when the
 story has issues. The other JSON bytes keep their indentation, colon spacing, key order, array layout, nulls,

@@ -62,7 +62,8 @@ public final class StoriesIndex {
      *
      * @param faults faults relative to the stories directory
      * @param written files changed or created; empty for a check or a refused write
-     * @param notes legacy states that differ from computed states
+     * @param notes legacy states that differ from computed states, and warnings where a stated
+     *     state differs from the one its issues give
      */
     public record Result(List<String> faults, List<Path> written, List<String> notes) {
         /** Copies the result so it remains stable after the operation. */
@@ -239,7 +240,8 @@ public final class StoriesIndex {
 
     /**
      * What the stories' heads give, or nothing to go by when a head or an issue is at fault. A
-     * story takes the earliest open issue state in board order.
+     * story-2 head's stated state is the story's, with a warning where its issues give another;
+     * otherwise a story takes the earliest open issue state in board order.
      */
     private Generated generate(Path dir, List<String> faults) throws IOException {
         final Map<String, Heads.Head> heads = read(dir, faults, workflow);
@@ -259,6 +261,7 @@ public final class StoriesIndex {
             }
             final List<String> issues = new ArrayList<>();
             final List<String> issueStates = new ArrayList<>();
+            final List<String> issuesWithStates = new ArrayList<>();
             for (final JsonNode node : head.data().get("issues")) {
                 final String issue = node.asText();
                 final String repository = issue.substring(0, issue.indexOf('#'));
@@ -274,11 +277,26 @@ public final class StoriesIndex {
                 }
                 issues.add("- [" + issue + "](" + row.link(repository) + ") (" + row.state() + ")");
                 issueStates.add(row.state());
+                issuesWithStates.add(issue + " " + row.state());
             }
 
             if (issueStates.size() != head.data().get("issues").size()) continue;
-            final String state = computed(stated, issueStates);
-            if (!stated.isEmpty() && !issueStates.isEmpty() && !stated.equals(state))
+            // A legacy head's state beside issues is no one's word: the migration drops it.
+            final boolean given = head.data().has("$schema") && head.data().has("state");
+            final String byIssues = computed(stated, issueStates);
+            final String state = given ? stated : byIssues;
+            if (given && !issueStates.isEmpty() && !stated.equals(byIssues))
+                notes.add(
+                        "WARN  "
+                                + head.data().get("id").asText()
+                                + ": stated "
+                                + stated
+                                + ", its issues give "
+                                + byIssues
+                                + " ("
+                                + String.join(", ", issuesWithStates)
+                                + ")");
+            else if (!given && !stated.isEmpty() && !issueStates.isEmpty() && !stated.equals(state))
                 notes.add(
                         "NOTE  "
                                 + head.data().get("id").asText()
@@ -287,7 +305,9 @@ public final class StoriesIndex {
                                 + ", computed "
                                 + state);
             final boolean completed = workflow.closed(state) && !workflow.rejected(state);
-            if (completed && issueStates.isEmpty() && head.data().get("tested").isNull()) {
+            if (completed
+                    && (issueStates.isEmpty() || given)
+                    && head.data().get("tested").isNull()) {
                 faults.add(name + ": " + state + " without a tested day");
             } else if (!completed && !head.data().get("tested").isNull()) {
                 faults.add(

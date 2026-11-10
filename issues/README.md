@@ -9,6 +9,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt60"></a>[BT60](BT60-A-Story-Takes-The-State-It-Is-Given.md) | S | - | A story whose head states a state has it, whatever its issues; `stories index` and `stories check` warn where the issues give another, and a story without one keeps the automatic rule. |
 | <a id="bt58"></a>[BT58](BT58-One-Build-Per-Commit.md) | S | - | A commit is built once: on a task branch by its pull request, on `main` by its push; the shared template says so and the shared check refuses a workflow that builds both. |
 | <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | S | - | The checks take `issues/<group>/<ID>.sub/<name>.md` as briefs of their issue, never as issues: no index row, no stats file, links into them refused like links into an issue's file, and a brief beside no issue refused. |
 | <a id="bt55"></a>[BT55](BT55-Stories-Read-Their-Workflow-From-A-File.md) | L | - | One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused. |
@@ -34,7 +35,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt60"></a>[BT60](BT60-A-Story-Takes-The-State-It-Is-Given.md) | S | - | A story whose head states a state has it, whatever its issues; `stories index` and `stories check` warn where the issues give another, and a story without one keeps the automatic rule. |
 
 ## Backlog
 

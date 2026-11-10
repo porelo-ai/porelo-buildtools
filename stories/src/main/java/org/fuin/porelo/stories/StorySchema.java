@@ -116,9 +116,6 @@ final class StorySchema {
             if (data.path("issues").isArray()
                     && data.path("issues").isEmpty()
                     && !data.has("state")) faults.add("/: required property 'state' not found");
-            if (data.path("issues").isArray()
-                    && !data.path("issues").isEmpty()
-                    && data.has("state")) faults.add("/: state is not allowed beside issues");
         }
         return faults;
     }

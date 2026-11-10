@@ -283,6 +283,49 @@ class StoriesTest {
         assertThat(run("index")).as("index refuses what check refuses").isEqualTo(Stop.REFUSED);
     }
 
+    // Prevents the operator's state being overruled by the issues, or a mismatch being refused.
+    @Test
+    void keepsAStatedStateBesideIssuesAndWarnsWhereTheIssuesGiveAnother() throws IOException {
+        storyTwo("ST1.md", "ST1", "Put Back", "Backlog", "[\"porelo-host#HO146\"]", "null");
+        storyTwo("ST2.md", "ST2", "Left To Its Issues", null, "[\"porelo-host#HO146\"]", "null");
+        storyTwo(
+                "ST3.md", "ST3", "Stated As Computed", "Review", "[\"porelo-host#HO146\"]", "null");
+
+        assertThat(run("index")).as(said()).isZero();
+
+        assertThat(stdout())
+                .as("one warning for the story whose issues give another state")
+                .contains(
+                        "WARN  ST1: stated Backlog, its issues give Review (porelo-host#HO146 Review)")
+                .doesNotContain("WARN  ST2")
+                .doesNotContain("WARN  ST3");
+        assertThat(Files.readString(dir.resolve("ST1.md")))
+                .contains("**State:** Backlog")
+                .contains("\"state\": \"Backlog\"");
+        assertThat(Files.readString(dir.resolve("ST2.md"))).contains("**State:** Review");
+        assertThat(Files.readString(dir.resolve("README.md")))
+                .containsSubsequence(
+                        "## Backlog", "[ST1](ST1.md) Put Back", "## Review", "[ST2](ST2.md)");
+        out.reset();
+        assertThat(check()).as(said()).isZero();
+        assertThat(stdout())
+                .contains(
+                        "WARN  ST1: stated Backlog, its issues give Review (porelo-host#HO146 Review)");
+    }
+
+    // Prevents a stated completed story escaping its test because it has issues.
+    @Test
+    void refusesAStatedFinishedStoryBesideIssuesWithoutATestedDay() throws IOException {
+        storyTwo("ST1.md", "ST1", "Said Done", "Finished", "[\"porelo-host#HO147\"]", "null");
+        storyTwo("ST2.md", "ST2", "Done By Issues", null, "[\"porelo-host#HO147\"]", "null");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+
+        assertThat(stderr())
+                .contains("ST1.md: Finished without a tested day")
+                .doesNotContain("ST2.md");
+    }
+
     @Test
     void refusesAnIndexThatDiffersFromItsGeneration() throws IOException {
         story("ST1.md", "ST1", "A Title", "[]", "null");
@@ -575,6 +618,29 @@ class StoriesTest {
                 + ",\n  \"tested\": "
                 + tested
                 + "\n}\n```\n";
+    }
+
+    /** A story-2 head, with a stated state or, given null, none. */
+    private void storyTwo(
+            String file, String id, String title, String state, String issues, String tested)
+            throws IOException {
+        write(
+                file,
+                "# "
+                        + id
+                        + " — "
+                        + title
+                        + "\n\nA gain.\n\n## Data\n\n```json\n{\n  \"$schema\": \"story-2.json\",\n  \"id\": \""
+                        + id
+                        + "\",\n  \"title\": \""
+                        + title
+                        + (state == null ? "" : "\",\n  \"state\": \"" + state)
+                        + "\",\n  \"priority\": \"High\",\n  \"gain\": \"A person gains.\",\n"
+                        + "  \"test\": \"Run it.\",\n  \"issues\": "
+                        + issues
+                        + ",\n  \"tested\": "
+                        + tested
+                        + "\n}\n```\n");
     }
 
     private void write(String file, String text) throws IOException {

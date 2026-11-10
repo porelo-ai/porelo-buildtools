@@ -223,7 +223,7 @@ class StorySchemaTest {
         }
     }
 
-    // Prevents the new format accepting contradictory heads or refusing valid computed heads.
+    // Prevents the new format refusing a state given beside issues, or accepting a faulty head.
     @Test
     void agreesWithStoryTwoOnFixtureHeadsAndInvalidVariants() throws Exception {
         final JsonSchema schema;
@@ -276,9 +276,15 @@ class StorySchemaTest {
                 invalid.add(wrong);
             }
         }
-        final ObjectNode contradictory = valid.deepCopy();
-        contradictory.put("state", "Idea");
-        invalid.add(contradictory);
+        assertThat(valid.get("issues")).as("the first fixture head has issues").isNotEmpty();
+        final ObjectNode given = valid.deepCopy();
+        given.put("state", "Idea");
+        heads.add(given);
+        assertThat(schema.validate(given)).as("a state given beside issues").isEmpty();
+        assertThat(StorySchema.faults(given, 2)).as("a state given beside issues").isEmpty();
+        final ObjectNode unknown = valid.deepCopy();
+        unknown.set("state", JSON.readTree("42"));
+        invalid.add(unknown);
         final ObjectNode empty = valid.deepCopy();
         empty.putArray("issues");
         invalid.add(empty);

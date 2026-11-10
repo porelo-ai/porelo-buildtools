@@ -1,6 +1,6 @@
 # BT60 — A Story Takes The State It Is Given
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** S - the story-2 schema and its check allow `state` beside issues, `stories index` and `stories check` keep
 it and warn of a mismatch; the docs say the rule.
 
@@ -36,3 +36,11 @@ earliest open issue state in board order. The operator cannot put ST25 into Back
 - ST25 with `"state": "Backlog"` beside its issues: `stories index` writes it as Backlog, prints the warning naming
   its issues' state, and `stories check` passes with the same warning.
 - A story without a stated state is written exactly as today.
+
+## Checked
+
+- On a copy of porelo-project's main with every repository's main beside it, ST25 given `"state": "Backlog"`:
+  `stories index` wrote it as Backlog with `WARN  ST25: stated Backlog, its issues give Accepted (...)`, naming each
+  issue with its state, and `stories check` passed with the same warning. The copy's other faults (five stories' texts
+  and the index behind their issues' states) stand on main before this change as well; `stories index` clears them.
+- The old test that refused a state beside issues in a new head now asserts the state kept and the warning.

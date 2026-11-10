@@ -302,19 +302,21 @@ class WorkflowTest {
         assertThat(StoriesIndex.check(dir, source).faults()).isEmpty();
     }
 
-    // Prevents a migrated head from reintroducing a second, conflicting state.
+    // Prevents a state given in a new head being overruled by its issues, or refused beside them.
     @Test
-    void refusesStateBesideIssuesInANewHead() throws Exception {
+    void keepsAStateGivenBesideIssuesInANewHeadAndWarns() throws Exception {
         final Path dir = stories(workflow(), "Idea", "[\"porelo-project#PJ01\"]");
         final Path story = dir.resolve("ST1.md");
         Files.writeString(
                 story,
                 Files.readString(story).replace("{\"id\"", "{\"$schema\":\"story-2.json\",\"id\""));
-        assertThat(
-                        StoriesIndex.write(dir, repo -> "## Rework\n| PJ01 | S | - | Sample |\n")
-                                .faults())
-                .anyMatch(fault -> fault.contains("ST1") && fault.contains("state"));
-        assertThat(dir.resolve("README.md")).doesNotExist();
+        final StoriesIndex.Result result =
+                StoriesIndex.write(dir, repo -> "## Rework\n| PJ01 | S | - | Sample |\n");
+        assertThat(result.faults()).isEmpty();
+        assertThat(result.notes())
+                .containsExactly(
+                        "WARN  ST1: stated Idea, its issues give Rework (porelo-project#PJ01 Rework)");
+        assertThat(Files.readString(story)).contains("**State:** Idea").contains("\"state\"");
     }
 
     // Prevents new workflow spellings from disappearing between issue parsing and story grouping.
