@@ -71,7 +71,8 @@ record of what was built first.
 - **Index row:** a row in the parent's index (`README.md` of the same directory), in the table of its own state, with
   the anchor `<id in lower case>` (`b560.1`) and a link to its file; columns as an issue's, the size `-`.
 - **Lifetime:** it is finished or rejected on its own. A sub-issue whose parent's file and row are gone is refused,
-  naming it. A parent may be Finished only when every sub-issue under it is Finished (the operator, 2026-11-10).
+  naming it. A parent may be Finished only when every sub-issue under it is Finished or Rejected; a Rejected
+  sub-issue counts as done (the operator, 2026-11-10).
 
 **How the checks and the stories count it:**
 - **Index reading (`IssueIndexes`, `IssueLinks`):** the row pattern takes `<parent>.<n>` and gives each row its parent;
@@ -85,5 +86,5 @@ record of what was built first.
   parent to write instead. Sub-issues do not count in a story's state, nor in the index's count by prefix.
 - **Docs:** `doc/index.md` says the format; the changelog says the briefs' rules removed and sub-issues added.
 - **Red first:** a sub-issue row read with its parent; a sub-issue without its parent refused; a parent Finished with
-  a sub-issue not Finished refused; a story naming a sub-issue refused; a sub-issue's change satisfied by its parent's
-  stats; every index without a dot read as today.
+  a sub-issue neither Finished nor Rejected refused, and with one Rejected accepted; a story naming a sub-issue
+  refused; a sub-issue's change satisfied by its parent's stats; every index without a dot read as today.
