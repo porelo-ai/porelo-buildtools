@@ -453,14 +453,16 @@ each directory's `README.md` under `issues/`, is generated from the heads and ne
   head of that state counts them; a wait is a link to its row, another repository's a link to its row in that
   repository's index, after the repository's name. A prose section between the tables, such as *What was
   decided along the way*, stays after the state it followed. The rows of a closed state stay as the file has them,
-  since their files are gone; a head in a closed state adds its row there, and a kept row of an issue that has a head
-  goes. The workflow is `issues/workflow.yml`, or in porelo-project `stories/workflow.yml`.
+  since their files are gone; a head in a closed state adds its row there, in the form of the table's header (the open
+  form where the table keeps it), and a kept row of an issue that has a head goes. The workflow is
+  `issues/workflow.yml`, or in porelo-project `stories/workflow.yml`.
 - **`issues check`** writes nothing and refuses, each by file: a file without a head, a fence right below the heading
   other than exactly ```` ```json ````, a head the schema or the workflow refuses, a size of `-` in a state that is
   measured or done, a heading other than `# <id> — <title>`, a file not named after its id, an id twice, a wait or a
   parent that is no issue of the repository (a file, or a closed state's row), a sub-issue's parent other than its id
-  before the dot, a parent on an issue that is no sub-issue, an open state's row with no file, and an index other than
-  the one `issues index` writes, naming its first differing line. Outside porelo-project a wait on another
+  before the dot, a parent on an issue that is no sub-issue, an open state's row with no file, a closed state's row
+  whose cells do not fit its table's header (a bar in a code span must be escaped as `\|`, or GitHub splits the
+  cell), and an index other than the one `issues index` writes, naming its first differing line. Outside porelo-project a wait on another
   repository's issue is refused.
 - **`issues convert`** reads, for each file without a head, the first paragraph below its heading, its `**Status:**`,
   `**Size:**`, `**Blocked by:**`, `**Priority:**`, `**Role:**` and `**Parent:**` lines, and its index row. Where

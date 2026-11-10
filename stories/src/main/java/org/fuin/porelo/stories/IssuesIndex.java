@@ -421,6 +421,7 @@ public final class IssuesIndex {
             }
             if (workflow.closed(current)) {
                 closed.putIfAbsent(current, chunk);
+                misfits(dir, chunk, byLine, faults);
                 continue;
             }
             for (int i = 0; i < chunk.lines().size(); i++) {
@@ -451,7 +452,8 @@ public final class IssuesIndex {
             final List<IssueHead.Located> inState =
                     heads.stream().filter(head -> head.head().state().equals(state)).toList();
             if (workflow.closed(state)) {
-                final List<String> table = closedTable(dir, state, inState, closed.get(state));
+                final List<String> table =
+                        closedTable(dir, state, inState, closed.get(state), places);
                 if (!table.isEmpty()) blocks.add(table);
             } else {
                 final boolean questions =
@@ -489,9 +491,19 @@ public final class IssuesIndex {
     }
 
     private List<String> closedTable(
-            Path dir, String state, List<IssueHead.Located> heads, @Nullable Chunk chunk) {
+            Path dir,
+            String state,
+            List<IssueHead.Located> heads,
+            @Nullable Chunk chunk,
+            Map<String, Path> places) {
+        // A table kept in the open form gets rows of that form: its header stays, so must its
+        // cells.
+        final List<String> header = chunk == null ? List.of() : header(chunk);
+        final boolean open = header.stream().anyMatch("size"::equalsIgnoreCase);
+        final boolean questions = header.stream().anyMatch("open questions"::equalsIgnoreCase);
         final List<String> generated = new ArrayList<>();
-        for (final IssueHead.Located head : heads) generated.add(closedRow(head));
+        for (final IssueHead.Located head : heads)
+            generated.add(open ? openRow(dir, head, questions, places) : closedRow(head));
         final Set<String> headed = new HashSet<>();
         for (final Issue issue : all())
             if (issue.head() != null) headed.add(issue.head().head().id());
@@ -534,6 +546,47 @@ public final class IssuesIndex {
             table.addAll(generated);
         }
         return count + generated.size() == 0 ? List.of() : table;
+    }
+
+    /** The cells of the header line above a chunk's first table separator, or none. */
+    private static List<String> header(Chunk chunk) {
+        for (int i = 1; i < chunk.lines().size(); i++)
+            if (SEPARATOR.matcher(chunk.lines().get(i)).matches())
+                return cells(chunk.lines().get(i - 1));
+        return List.of();
+    }
+
+    /** Faults each row of a closed chunk whose count of cells differs from its table's header. */
+    private void misfits(
+            Path dir, Chunk chunk, Map<Integer, IssueIndexes.Row> byLine, List<String> faults) {
+        int width = -1;
+        for (int i = 0; i < chunk.lines().size(); i++) {
+            final String line = chunk.lines().get(i);
+            if (i > 0 && SEPARATOR.matcher(line).matches())
+                width = cells(chunk.lines().get(i - 1)).size();
+            final IssueIndexes.Row row = byLine.get(chunk.start() + i + 1);
+            if (row == null || width < 0) continue;
+            final int count = cells(line).size();
+            if (count != width)
+                faults.add(
+                        relative(dir.resolve(INDEX))
+                                + ":"
+                                + row.line()
+                                + ": "
+                                + row.number()
+                                + " has "
+                                + count
+                                + " cells under a header of "
+                                + width);
+        }
+    }
+
+    /** The stripped cells of a table line; an escaped bar stays inside its cell. */
+    private static List<String> cells(String line) {
+        final String inner = line.strip().replaceAll("^\\|", "").replaceAll("(?<!\\\\)\\|$", "");
+        final List<String> cells = new ArrayList<>();
+        for (final String cell : inner.split("(?<!\\\\)\\|", -1)) cells.add(cell.strip());
+        return cells;
     }
 
     private static Comparator<IssueHead.Located> order() {
