@@ -19,6 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.fuin.porelo.stories.IssueHead;
 
 /**
  * Refuses the four ways a page or a file can cite an issue and go stale.
@@ -68,7 +69,8 @@ final class CheckCitations {
             Pattern.compile("\\b([A-Z]{1,3}\\d{2,3})\\b[\\s*_`]{0,10}\\(?\\[index\\]\\(([^)\\s]+)");
 
     /** An issue's own file, named by its number: its prefix, then its digits. */
-    private static final Pattern ISSUE_FILE = Pattern.compile("^(([A-Z]{1,3})\\d{2,3})-.*\\.md$");
+    private static final Pattern ISSUE_FILE =
+            Pattern.compile("^(([A-Z]{1,3})\\d{2,3}(?:\\.[1-9]\\d{0,2})?)-.*\\.md$");
 
     /** A story's file in the root's own {@code stories/}, named by its number. */
     private static final Pattern STORY_FILE = Pattern.compile("^stories/(ST\\d+)(-[^/]*)?\\.md$");
@@ -221,7 +223,10 @@ final class CheckCitations {
                     final Optional<String> text =
                             ownIssue(root, file) ? text(file) : Optional.empty();
                     if (text.isPresent()) {
-                        gone.addAll(ownNumbersThatAreGone(root, file, text.get(), prefixes, named));
+                        gone.addAll(referencesThatAreGone(root, file, text.get(), named));
+                        gone.addAll(
+                                ownNumbersThatAreGone(
+                                        root, file, withoutHead(text.get()), prefixes, named));
                     }
                     continue;
                 }
@@ -526,6 +531,49 @@ final class CheckCitations {
             }
         }
         return faults;
+    }
+
+    /**
+     * The ids an issue's head names as data, its waits and its parent, each of which must be an
+     * issue of this repository: a file or a row. They are data, so no link is asked of them.
+     */
+    private static List<String> referencesThatAreGone(
+            Path root, Path file, String text, Set<String> issues) {
+        final List<String> faults = new ArrayList<>();
+        final List<String> references;
+        try {
+            references = IssueHead.references(text);
+        } catch (final IllegalArgumentException e) {
+            // A head whose ids cannot be read is named on its fence, never passed as empty.
+            final int fence = text.indexOf("\n```");
+            faults.add(
+                    relative(root, file)
+                            + ":"
+                            + lineOf(text, fence < 0 ? 0 : fence + 1)
+                            + " -> "
+                            + e.getMessage());
+            return faults;
+        }
+        for (final String id : references) {
+            // Another repository's issue is data its own repository answers for.
+            if (id.contains("#")) continue;
+            if (!issues.contains(id)) {
+                final int at = text.indexOf("\"" + id + "\"");
+                faults.add(
+                        relative(root, file) + ":" + lineOf(text, Math.max(at, 0)) + " -> " + id);
+            }
+        }
+        return faults;
+    }
+
+    /** The text with the heading and the head blanked, its lines kept for their numbers. */
+    private static String withoutHead(String text) {
+        final int lines = IssueHead.lines(text);
+        if (lines == 0) return text;
+        int end = 0;
+        for (int i = 0; i < lines; i++) end = text.indexOf('\n', end) + 1;
+        if (end <= 0) end = text.length();
+        return text.substring(0, end).replaceAll("[^\n]", " ") + text.substring(end);
     }
 
     private static String blank(Pattern pattern, String text) {

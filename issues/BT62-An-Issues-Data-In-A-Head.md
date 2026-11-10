@@ -1,6 +1,6 @@
 # BT62 — An Issue's Data In A Head
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** M - a schema, three `porelo-release issues` commands, the stories library and two readers of today's prose
 lines learn the head; docs, the shared rule text and the document checks follow.
 
@@ -40,3 +40,23 @@ porelo-buildtools' part of porelo-project's PJ105 (plan in its 88f1d9d), in ST31
   fixes writes every head; `issues index` then gives an index `issues check` accepts.
 - `stories check` in porelo-project passes over a repository converted and one not.
 - `stage begin` and check-commits read a converted issue's state and size.
+
+## For the Shared Area
+
+The rule sentence, word for word:
+
+> An issue's data stands in its head; the index is never edited by hand.
+
+The step for the shared workflows' document check, after the one for check-citations, in the same form:
+
+```yaml
+            - name: The issues' heads and their index
+              run: '"$JAVA_HOME/bin/java" -cp "$(cat "$RUNNER_TEMP/tools-cp.txt")" org.fuin.porelo.release.Main issues check issues'
+```
+
+In a repository whose issues have no heads yet the step fails and names each file, so a repository adds it once
+its issues are converted.
+
+## To be checked
+
+- The plan was not read by another model before the build; another model's reading of the code stood in for it.

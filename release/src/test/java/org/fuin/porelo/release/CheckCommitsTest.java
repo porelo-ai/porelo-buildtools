@@ -598,6 +598,48 @@ class CheckCommitsTest {
                 .contains(bad, "stats/EX12.jsonl");
     }
 
+    // Prevents work on a converted issue from bypassing stage recording.
+    @Test
+    void refusesAConvertedIssueChangeWithoutItsStats() throws Exception {
+        git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write(
+                "issues/EX12-Sample.md",
+                "# EX12 — Sample\n\n```json\n{\"$schema\": \"issue-1.json\", \"id\": \"EX12\","
+                        + " \"title\": \"Sample\", \"state\": \"Implementing\", \"size\": \"M\","
+                        + " \"priority\": \"Medium\", \"rank\": 1, \"blockedBy\": [],"
+                        + " \"covers\": \"A sample.\"}\n```\n");
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+        final String bad = git("rev-parse", "--short", "HEAD").strip();
+
+        assertThat(checkRepository())
+                .as("the head's measured state asks for stats")
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains(bad, "stats/EX12.jsonl");
+    }
+
+    // Prevents a faulty head from passing the stats rule as an issue with no state.
+    @Test
+    void cannotAnswerForAnIssueWhoseHeadIsFaulty() throws Exception {
+        git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write(
+                "issues/EX12-Sample.md",
+                "# EX12 — Sample\n\n```json\n{\"state\": \"Implementing\"}\n```\n");
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+
+        assertThat(checkRepository()).isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("issue head", "required property 'id'");
+    }
+
     @Test
     void allowsAnIndexOnlyChangeAndAnIssueWithExistingClosedStats() throws Exception {
         git("init", "-q", "-b", "main");

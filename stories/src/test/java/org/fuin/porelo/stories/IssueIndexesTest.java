@@ -52,6 +52,28 @@ class IssueIndexesTest {
                 .isEqualTo("A title with a \\| pipe.");
     }
 
+    // Prevents a sub-issue's row from being read as a second row of its parent.
+    @Test
+    void readsASubIssueRowBesideItsParent() throws IOException {
+        final String index =
+                """
+                ## Review
+                | # | Size | Blocked by | What it covers |
+                | <a id="bt56"></a>[BT56](BT56-X.md) | M | [BT56.1](README.md#bt56.1) | The parent. |
+                | <a id="bt56.1"></a>[BT56.1](BT56.1-X.md) | - | - | The builder's part. |
+                """;
+        final var rows =
+                IssueIndexes.read(
+                        index,
+                        "porelo-sample",
+                        Workflow.read(java.nio.file.Path.of("src/test/resources/workflow.yml")));
+        assertThat(rows.keySet()).as("both rows, each by its id").containsExactly("BT56", "BT56.1");
+        assertThat(rows.get("BT56").blockedBy())
+                .as("a wait on a sub-issue names it whole")
+                .containsExactly("BT56.1");
+        assertThat(rows.get("BT56.1").location().anchor()).isEqualTo("bt56.1");
+    }
+
     // Prevents an ambiguous source from silently selecting one of two durable rows.
     @Test
     void refusesDuplicateRowsAcrossPages() throws IOException {

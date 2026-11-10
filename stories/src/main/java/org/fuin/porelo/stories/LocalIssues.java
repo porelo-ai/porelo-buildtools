@@ -21,17 +21,15 @@ final class LocalIssues implements IssueSource {
         if (!repository.matches("[A-Za-z0-9][A-Za-z0-9_.-]*"))
             throw new IOException("invalid repository: " + repository);
         final Path tree = repository.equals(own()) ? root : root.resolveSibling(repository);
+        final Path workflow =
+                tree.resolve(
+                        repository.equals("porelo-project")
+                                ? "stories/workflow.yml"
+                                : "issues/workflow.yml");
         final StringBuilder text = new StringBuilder();
-        read(tree, "issues/README.md", new HashSet<>(), text);
+        read(tree, "issues/README.md", new HashSet<>(), text, workflow);
         // A missing or ambiguous row is an unusable source, including across linked pages.
-        IssueIndexes.read(
-                text.toString(),
-                repository,
-                Workflow.read(
-                        tree.resolve(
-                                repository.equals("porelo-project")
-                                        ? "stories/workflow.yml"
-                                        : "issues/workflow.yml")));
+        IssueIndexes.read(text.toString(), repository, Workflow.read(workflow));
         return text.toString();
     }
 
@@ -41,7 +39,8 @@ final class LocalIssues implements IssueSource {
         return Project.own(file);
     }
 
-    private static void read(Path tree, String path, Set<String> visited, StringBuilder text)
+    private static void read(
+            Path tree, String path, Set<String> visited, StringBuilder text, Path workflow)
             throws IOException {
         if (!visited.add(path)) return;
         final Path file = tree.resolve(path);
@@ -50,12 +49,21 @@ final class LocalIssues implements IssueSource {
         if (!file.toRealPath().startsWith(tree.toRealPath().resolve("issues"))) {
             throw new IOException(file + ": index is outside the checkout's issues directory");
         }
-        final String page = Files.readString(file, StandardCharsets.UTF_8);
+        final String written = Files.readString(file, StandardCharsets.UTF_8);
+        // Where a file has a head, the head is the issue's data and the row only its copy.
+        final Path directory = java.util.Objects.requireNonNull(file.getParent());
+        final String generated =
+                IssuesIndex.headed(directory)
+                        ? IssuesIndex.render(
+                                tree.resolve("issues"), directory, Workflow.read(workflow))
+                        : null;
+        final String page = generated == null ? written : generated;
         text.append(IssueIndexes.page(path, file.toString(), page)).append('\n');
         final var links = LINK.matcher(IssueIndexes.unfenced(page));
         while (links.find()) {
             final String child = IssueIndexes.indexPath(path, links.group(2));
-            if (child != null && child.endsWith("/README.md")) read(tree, child, visited, text);
+            if (child != null && child.endsWith("/README.md"))
+                read(tree, child, visited, text, workflow);
         }
     }
 }

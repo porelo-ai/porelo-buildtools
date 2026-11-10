@@ -39,6 +39,7 @@ public final class Main {
                     "check-providers",
                     "plan",
                     "stories",
+                    "issues",
                     "check-commits",
                     "stage",
                     "check-pushes",
@@ -84,6 +85,19 @@ public final class Main {
             }
         }
         return usage(err, expected);
+    }
+
+    private static int issues(List<String> rest, PrintStream out, PrintStream err) {
+        final String expected = "issues index <dir> | issues check <dir> | issues convert <dir>";
+        if (rest.size() != 2) return usage(err, expected);
+        final Issues issues = new Issues(out, err);
+        final Path dir = Path.of(rest.get(1));
+        return switch (rest.getFirst()) {
+            case "index" -> issues.index(dir);
+            case "check" -> issues.check(dir);
+            case "convert" -> issues.convert(dir);
+            default -> usage(err, expected);
+        };
     }
 
     private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
@@ -397,6 +411,7 @@ public final class Main {
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "plan" -> plan(rest, out, err, web);
             case "stories" -> stories(rest, out, err, web);
+            case "issues" -> issues(rest, out, err);
             case "check-commits" -> checkCommits(rest, out, err);
             case "stage" ->
                     new Stage(Path.of("."), java.time.Clock.systemUTC(), out, err, env).run(rest);

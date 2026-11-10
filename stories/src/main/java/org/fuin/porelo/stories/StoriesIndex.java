@@ -174,12 +174,12 @@ public final class StoriesIndex {
         return new Result(faults, written, notes);
     }
 
-    private static void refuseSymlink(Path path) throws IOException {
+    static void refuseSymlink(Path path) throws IOException {
         if (Files.isSymbolicLink(path))
             throw new IOException("symbolic link is not allowed: " + path);
     }
 
-    private static boolean writeChanged(Path file, String content) throws IOException {
+    static boolean writeChanged(Path file, String content) throws IOException {
         refuseSymlink(file);
         final byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)

@@ -154,18 +154,19 @@ public final class IssueIndexes {
      */
     private static final Pattern ROW =
             Pattern.compile(
-                    "^\\|\\s*(?:<a id=\"([^\"]*)\"></a>)?\\s*\\[?([A-Z]{1,3}\\d{2,3})\\b(?:\\]\\([^)]*\\))?");
+                    "^\\|\\s*(?:<a id=\"([^\"]*)\"></a>)?\\s*\\[?([A-Z]{1,3}\\d{2,3}(?:\\.[1-9]\\d{0,2})?)\\b(?:\\]\\([^)]*\\))?");
 
     /** A Markdown link with its text and target. */
     private static final Pattern LINK = Pattern.compile("\\[([^\\]\\n]*)\\]\\(([^)\\s]+)\\)");
 
-    /** An issue number with its prefix apart. */
-    private static final Pattern NUMBER = Pattern.compile("\\b([A-Z]{1,3})\\d{2,3}\\b");
+    /** An issue number with its prefix apart, a sub-issue's with its dot and number. */
+    private static final Pattern NUMBER =
+            Pattern.compile("\\b([A-Z]{1,3})\\d{2,3}(?:\\.[1-9]\\d{0,2})?\\b");
 
     /** A code span on one line. */
     private static final Pattern CODE_SPAN = Pattern.compile("`[^`\\n]*`");
 
-    private static final Pattern HEADING = Pattern.compile("^ {0,3}#{1,6}(?:[ \t]+(.*))?$");
+    static final Pattern HEADING = Pattern.compile("^ {0,3}#{1,6}(?:[ \t]+(.*))?$");
     private static final Pattern ISSUE_TABLE = Pattern.compile("^\\s*\\|\\s*#\\s*\\|.*$");
     private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
@@ -249,6 +250,8 @@ public final class IssueIndexes {
                     }
                 }
             }
+            final Map<String, String> named = new HashMap<>();
+            columns.forEach((header, column) -> named.put(header, cell(cells, column)));
             result.add(
                     new Row(
                             row.group(2),
@@ -259,7 +262,8 @@ public final class IssueIndexes {
                             file,
                             i + 1,
                             row.end(),
-                            List.copyOf(blockedBy)));
+                            List.copyOf(blockedBy),
+                            Map.copyOf(named)));
         }
         return result;
     }
@@ -282,7 +286,7 @@ public final class IssueIndexes {
         }
     }
 
-    private static boolean issueTableFollows(String[] lines, int heading) {
+    static boolean issueTableFollows(String[] lines, int heading) {
         boolean separated = false;
         for (int i = heading + 1; i < lines.length; i++) {
             if (HEADING.matcher(lines[i]).matches()) return false;
@@ -328,7 +332,8 @@ public final class IssueIndexes {
             @Nullable String file,
             int line,
             int numberEnd,
-            List<String> blockedBy) {}
+            List<String> blockedBy,
+            Map<String, String> cells) {}
 
     private static String blank(Pattern pattern, String text) {
         return pattern.matcher(text).replaceAll(found -> " ".repeat(found.group().length()));

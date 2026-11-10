@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.fuin.porelo.json.Json;
 import org.fuin.porelo.json.JsonException;
+import org.fuin.porelo.stories.IssueHead;
 import org.fuin.porelo.stories.Workflow;
 import org.jspecify.annotations.Nullable;
 
@@ -485,6 +486,16 @@ final class Stage {
         final Path file = matches.getFirst();
         safe(file);
         final String text = Files.readString(file);
+        final IssueHead head = IssueHead.read(text, workflow());
+        if (head != null) {
+            final String size = head.size().equals("-") ? null : head.size();
+            require(
+                    size != null
+                            || (!workflow().measured(head.state())
+                                    && !workflow().closed(head.state())),
+                    "issue has no valid Size");
+            return new Issue(size, head.state());
+        }
         final String status = status(text, workflow());
         final String size =
                 !workflow().measured(status)
@@ -496,6 +507,9 @@ final class Stage {
     }
 
     static String status(String text, Workflow workflow) {
+        // A converted issue's state stands in its head; a line below it is only prose.
+        final IssueHead head = IssueHead.read(text, workflow);
+        if (head != null) return head.state();
         final String allowed =
                 workflow.states().stream()
                         .sorted(java.util.Comparator.comparingInt(String::length).reversed())

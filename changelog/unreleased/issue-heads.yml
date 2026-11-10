@@ -1,0 +1,2 @@
+title: An issue's data stands in a JSON head right below its heading, checked by issue-1.json; porelo-release issues index writes each issue index from the heads, issues check refuses a faulty head or a hand-edited index, and issues convert writes the heads from today's lines where they agree with the index, while stage, check-commits, check-citations and the stories library read the head where a file has one.
+type: added

@@ -38,6 +38,52 @@ class StageTest {
         write("stats/seed.csv", "size,minutes\nXS,8\nS,27\nM,53\nL,80\n");
     }
 
+    // Prevents a converted issue's stage from being recorded with a state or size it does not have.
+    @Test
+    void readsTheStateAndSizeOfAConvertedIssueFromItsHead() throws Exception {
+        write("issues/EX12-Sample.md", head("Implementing", "S") + "\n**What must be true.** X.\n");
+        assertThat(run("begin", "EX12", "implement")).as(errors()).isZero();
+        assertThat(record().get("status_before")).isEqualTo("Implementing");
+        assertThat(record().get("size")).as("the head's size, not a line's").isEqualTo("S");
+        time = "2026-01-01T10:04:00Z";
+        write("issues/EX12-Sample.md", head("Review", "S"));
+        assertThat(run("end", "EX12", "implement")).as(errors()).isZero();
+        assertThat(record().get("status_after")).isEqualTo("Review");
+
+        write("issues/EX12-Sample.md", head("Accepted", "-"));
+        assertThat(run("begin", "EX12", "analyze")).as(errors()).isZero();
+        assertThat(record().get("size")).as("a dash is no size yet").isNull();
+        assertThat(run("end", "EX12", "analyze")).as(errors()).isZero();
+
+        write("issues/EX12-Sample.md", head("Implementing", "-"));
+        assertThat(run("begin", "EX12", "implement"))
+                .as("measured work without a size is refused, as without a Size line")
+                .isEqualTo(2);
+        write("issues/EX12-Sample.md", head("Implementing", "XXL"));
+        assertThat(run("begin", "EX12", "implement")).as("a head the schema refuses").isEqualTo(2);
+        write(
+                "issues/EX12-Sample.md",
+                "# EX12 — Sample\n\n```json\n{\"state\": \"Implementing\"\n```\n");
+        assertThat(run("begin", "EX12", "implement")).as("a head that is no JSON").isEqualTo(2);
+        assertThat(errors()).contains("issue head");
+        write(
+                "issues/EX12-Sample.md",
+                "# EX12 — Sample\n\n```JSON\n{}\n```\n\n**Status:** Implementing.\n**Size:** M.\n");
+        assertThat(run("begin", "EX12", "implement"))
+                .as("a fence that is no head fence is no way back to the prose lines")
+                .isEqualTo(2);
+    }
+
+    private static String head(String state, String size) {
+        return "# EX12 — Sample\n\n```json\n{\"$schema\": \"issue-1.json\", \"id\": \"EX12\","
+                + " \"title\": \"Sample\", \"state\": \""
+                + state
+                + "\", \"size\": \""
+                + size
+                + "\", \"priority\": \"Medium\", \"rank\": 1, \"blockedBy\": [], \"covers\":"
+                + " \"A sample.\"}\n```\n";
+    }
+
     // Prevents a newly configured state from making accounting impossible.
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(

@@ -13,6 +13,11 @@ stats/BT45.jsonl
 release/src/test/java/org/fuin/porelo/release/StoriesTest.java
 release/src/test/java/org/fuin/porelo/release/StoriesIndexTest.java
 
+# The issues' tests write issue heads, files and indexes of sample issues, to watch the commands convert and refuse them.
+release/src/test/java/org/fuin/porelo/release/IssuesTest.java
+stories/src/test/java/org/fuin/porelo/stories/IssueSchemaTest.java
+stories/src/test/java/org/fuin/porelo/stories/IssuesIndexTest.java
+
 # Release-plan fixtures preserve real issue references and exercise reference validation.
 release/src/test/java/org/fuin/porelo/release/PlanCommandsTest.java
 release/src/test/java/org/fuin/porelo/release/PlanStandTest.java

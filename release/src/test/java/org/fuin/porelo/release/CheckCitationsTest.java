@@ -208,6 +208,67 @@ class CheckCitationsTest {
         assertThat(stdout()).contains("citations in").contains("2 issue(s)");
     }
 
+    // Prevents a head's wait or parent on an issue that is not there from passing as a citation.
+    @Test
+    void takesAHeadsWaitsAndParentAsDataNamingOneThatIsNoIssue() throws IOException {
+        write(
+                "issues/README.md",
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                        + "| <a id=\"b10.1\"></a>[B10.1](B10.1-Part.md) | a part |\n"
+                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n");
+        write(
+                "issues/B10.1-Part.md",
+                head("B10.1", "[\"B11\"]", ", \"parent\": \"B10\"") + "Text.\n");
+        write("issues/B11-Another.md", head("B11", "[\"B10.1\"]", "") + "Needs no link here.\n");
+
+        assertThat(check()).as("waits and a parent that are there: " + stderr()).isEqualTo(0);
+
+        write("issues/B11-Another.md", head("B11", "[\"B10.1\", \"B10.2\"]", ""));
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the one id of the head that names nothing, on its line")
+                .contains("issues/B11-Another.md:4 -> B10.2")
+                .doesNotContain("-> B10.1")
+                .doesNotContain("B11-Another.md:4 -> B10\n");
+    }
+
+    // Prevents a head whose waits cannot be read from escaping the check of what it names.
+    @Test
+    void refusesAHeadWhoseWaitsCannotBeReadOnItsLine() throws IOException {
+        for (final String body :
+                List.of(
+                        "{\"blockedBy\": [\"B10.2\"",
+                        "{\"blockedBy\": \"B10.2\"}",
+                        "{\"parent\": 10}")) {
+            write("issues/B11-Another.md", "# B11 — Another\n\n```json\n" + body + "\n```\n");
+            err.reset();
+            assertThat(check()).as("head %s", body).isEqualTo(Stop.REFUSED);
+            assertThat(stderr()).contains("issues/B11-Another.md:3 -> ");
+        }
+    }
+
+    // Prevents another repository's issue named by porelo-project as data from failing the check.
+    @Test
+    void takesAWaitOnAnotherRepositoryAsData() throws IOException {
+        write(
+                "issues/B11-Another.md",
+                head("B11", "[\"B10\", \"porelo-frontend#F12\"]", "") + "Text.\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+    }
+
+    private static String head(String id, String waits, String more) {
+        return "# "
+                + id
+                + " — Title\n\n```json\n{\"$schema\": \"issue-1.json\", \"id\": \""
+                + id
+                + "\", \"blockedBy\": "
+                + waits
+                + more
+                + "}\n```\n\n";
+    }
+
     @Test
     void acceptsTheIndexNamingIssueFilesAndAnIssueItsDesign() throws IOException {
         // The index names files by being one; a design is deleted together with its issue.

@@ -147,6 +147,47 @@ class IssueSourceTest {
                 .isEqualTo("issues/base/README.md");
     }
 
+    // Prevents the stories from counting an issue by a row its head has moved on from.
+    @Test
+    void readsTheHeadWhereAFileHasOneAndTheRowElse() throws IOException {
+        final Path root = java.nio.file.Files.createDirectories(work.resolve("porelo-project"));
+        final Path issues =
+                java.nio.file.Files.createDirectories(work.resolve("porelo-sample/issues"));
+        java.nio.file.Files.copy(
+                Path.of("src/test/resources/workflow.yml"), issues.resolve("workflow.yml"));
+        java.nio.file.Files.writeString(
+                issues.resolve("README.md"),
+                "# Issues\n\n## Review\n\n| # | Size | Blocked by | What it covers |\n"
+                        + "|---|---|---|---|\n"
+                        + "| <a id=\"ab01\"></a>[AB01](AB01-X.md) | S | - | One. |\n"
+                        + "| <a id=\"ab02\"></a>[AB02](AB02-X.md) | S | - | Two. |\n");
+        java.nio.file.Files.writeString(
+                issues.resolve("AB01-X.md"),
+                "# AB01 — X\n\n```json\n{\"$schema\": \"issue-1.json\", \"id\": \"AB01\","
+                        + " \"title\": \"X\", \"state\": \"Finishing\", \"size\": \"M\","
+                        + " \"priority\": \"High\", \"rank\": 1, \"blockedBy\": [\"AB02\"],"
+                        + " \"covers\": \"One, as its head says.\"}\n```\n");
+        java.nio.file.Files.writeString(
+                issues.resolve("AB02-X.md"), "# AB02 — X\n\n**Status:** Review.\n**Size:** S.\n");
+        final var rows =
+                IssueIndexes.read(
+                        IssueSource.local(root).index("porelo-sample"),
+                        "porelo-sample",
+                        Workflow.read(java.nio.file.Path.of("src/test/resources/workflow.yml")));
+        assertThat(rows.keySet()).containsExactlyInAnyOrder("AB01", "AB02");
+        assertThat(
+                        List.of(
+                                rows.get("AB01").state(),
+                                rows.get("AB01").size(),
+                                rows.get("AB01").title(),
+                                rows.get("AB01").blockedBy()))
+                .as("the head's data, not the row's")
+                .isEqualTo(List.of("Finishing", "M", "One, as its head says.", List.of("AB02")));
+        assertThat(List.of(rows.get("AB02").state(), rows.get("AB02").title()))
+                .as("a file without a head keeps its row")
+                .isEqualTo(List.of("Review", "Two."));
+    }
+
     // Prevents a checkout's own text from posing as provenance supplied by the caller.
     @Test
     void refusesProvenanceInsideALocalIndexPage() throws IOException {

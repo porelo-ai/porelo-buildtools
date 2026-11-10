@@ -9,7 +9,7 @@ may publish, and checks the native images before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
@@ -43,6 +43,9 @@ repository's state never decides this one's check.
   index has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
   Which prefixes are issue numbers is read from the root's own issue files and index rows, so `SHA256` or a
   guideline's `LLM03` is none, and neither is a prefix a test's fixture deeper down carries.
+- **An issue's head**, the JSON fenced right below its heading, is data: its `blockedBy` and `parent` ids are not
+  asked to be links, and each must name an issue file or an index row of the repository, else it is refused on its
+  line. Issue files and rows of a sub-issue, `<parent>.<n>`, count.
 - **An issue's sub-agent briefs** lie beside its file in `issues/<group>/<ID>.sub/<name>.md`, `<name>` one of
   `builder`, `tester` and `reader`, or a numbered variant from `-2` on, such as `builder-2`. A brief is read as a page
   under `issues/`, never as an issue: it has no row and no stats file, its own issue's number is a link to the row,
@@ -100,7 +103,7 @@ contain complete, closed records: the same field, value, issue-to-filename and t
 files are exempt from `check-citations`; handwritten notes under `stats/` are still checked.
 
 When that tree contains `stats/seed.csv`, changing an issue whose status is marked `measured: true` in that tree's
-`issues/workflow.yml` requires `stats/<ISSUE>.jsonl` in the tree. The workflow is read from the same commit as the
+`issues/workflow.yml` requires `stats/<ISSUE>.jsonl` in the tree; the status is the head's where the issue has one. The workflow is read from the same commit as the
 issue and records; editing the working tree cannot change a historical check. Issue files are found directly under `issues/` and in
 its subgroups. Deleted issue files and index-only changes need no stats. Changes are compared with the first
 parent of a merge and with the empty tree for a root commit. Bot and web commits exempt from the message rules
@@ -125,7 +128,8 @@ underscores, or hyphens. An option value cannot start with a hyphen. Invalid inp
 reason; diagnostics do not echo session paths or filesystem exception details. `--result` and `--status-after`
 are supplied on end. Model, effort and wait reason are set on begin; repeating them on end must match begin.
 
-`begin` reads the current size and status from the issue file, including files in subgroups, and appends an open
+`begin` reads the current size and status from the issue file, including files in subgroups - from its head where it
+has one, a size of `-` read as none, else from its `**Size:**` and `**Status:**` lines - and appends an open
 record with `end: null` to `stats/<issue>.jsonl`. An open, unmeasured issue without a size can begin `analyze`
 or `estimate`, recording `size: null` and no estimate. Issue statuses and record statuses must belong to the required
 local `issues/workflow.yml`. Each later begin reads the size anew; end preserves the
@@ -395,6 +399,77 @@ Both must carry the project's version as the packaging promises: `0.4.2-SNAPSHOT
 or release differs, such as the timestamp release the rpm plugin gives a snapshot unless told not to.
 
 
+## Issues
+
+```
+porelo-release issues index issues
+porelo-release issues check issues
+porelo-release issues convert issues
+```
+
+An issue's data stands in a JSON head right below the heading of its file, checked by `issue-1.json`; the index,
+each directory's `README.md` under `issues/`, is generated from the heads and never edited by hand. A file reads:
+
+````markdown
+# <ID> — <Title>
+
+```json
+{
+  "$schema": "issue-1.json",
+  "id": "<ID>",
+  "title": "<Title>",
+  "state": "Review",
+  "size": "M",
+  "priority": "Medium",
+  "rank": 1,
+  "blockedBy": [],
+  "covers": "What the index row says it covers."
+}
+```
+
+**What must be true.** ...
+````
+
+- **The fields:** `id` is the prefix and the number as the file name writes it, a sub-issue's `<parent>.<n>`;
+  `title` is what the heading repeats; `state` a state of the repository's `workflow.yml`; `size` one of `XS`, `S`,
+  `M`, `L`, `XL` or `-`; `priority` Jira's, `Highest` to `Lowest`; `rank` a whole number from 1, the order within one
+  priority; `blockedBy` the ids of the same repository it waits on, and in porelo-project alone also another
+  repository's as `<repository>#<id>`, such as `<repository>#<ID>`, which no check reads against local files;
+  `covers` the index row's text. Optional are
+  `parent`, which a sub-issue requires and which is its id before the dot, `role` (`builder`, `tester` or `reader`),
+  `severity` (`Blocker`, `Critical`, `Major`, `Minor`, `Trivial`), `kind` (`Feature`, `Bug`, `Task`) and
+  `openQuestions`, a count. Nothing else is allowed. The schema ships as
+  `org/fuin/porelo/stories/schemas/issue-1.json`; the check is hand-written and held to the schema by a test.
+- **`issues index`** writes each directory's index: the text above the first state's table as it was, then one table
+  for each state in the workflow's order, its rows by priority, then rank, then id, and a group with nothing in it left
+  out; a state's heading twice is refused, naming the second's line. An open state's table is `| # | Size | Blocked by | What it covers |`, with `Open questions` after it where a
+  head of that state counts them; a wait is a link to its row, another repository's a link to its row in that
+  repository's index, after the repository's name. A prose section between the tables, such as *What was
+  decided along the way*, stays after the state it followed. The rows of a closed state stay as the file has them,
+  since their files are gone; a head in a closed state adds its row there, and a kept row of an issue that has a head
+  goes. The workflow is `issues/workflow.yml`, or in porelo-project `stories/workflow.yml`.
+- **`issues check`** writes nothing and refuses, each by file: a file without a head, a fence right below the heading
+  other than exactly ```` ```json ````, a head the schema or the workflow refuses, a size of `-` in a state that is
+  measured or done, a heading other than `# <id> — <title>`, a file not named after its id, an id twice, a wait or a
+  parent that is no issue of the repository (a file, or a closed state's row), a sub-issue's parent other than its id
+  before the dot, a parent on an issue that is no sub-issue, an open state's row with no file, and an index other than
+  the one `issues index` writes, naming its first differing line. Outside porelo-project a wait on another
+  repository's issue is refused.
+- **`issues convert`** reads, for each file without a head, the first paragraph below its heading, its `**Status:**`,
+  `**Size:**`, `**Blocked by:**`, `**Priority:**`, `**Role:**` and `**Parent:**` lines, and its index row. Where
+  they agree on state, size and waits, it writes the head and drops those lines; a size's reason stays as the
+  paragraph `**Why this size.**`. The priority is `Medium` without a line, the rank the row's place in its table, and
+  `covers` the row's text. Where they do not agree, where a line says more than ids, links, punctuation, `none` or
+  `-`, where the heading is not the one the head gives, or where measured work has no size, it names every
+  difference and leaves that file as it was; exit 1. A second run finds nothing to do. Then `issues index` writes the
+  index.
+
+Exit 0 when nothing is refused, 1 when something is, 2 when a file cannot be read or written or the call is mistyped.
+
+Readers of an issue take the head where a file has one and today's lines or row otherwise: `stage` its state and size,
+the stats rule of `check-commits` its state, the stories library's local issue source the whole row, and
+`check-citations` the waits and parent as data.
+
 ## Stories
 
 ```
@@ -499,7 +574,10 @@ The generated bytes and validation messages are the same as the stories commands
 
 `IssueSource.index(String repository)` supplies an issue index as Markdown. `IssueSource.local(Path projectRoot)`
 reads only the project's checkout and checkouts beside it, including linked indexes, and fails with the local path
-when one is missing. Callers may supply another source; the library opens no connection. `IssueIndexes.read(String
+when one is missing. Where an issue file of a directory has a head, it supplies that directory's index as the heads
+give it, a file without a head keeping its row, and fails on a head the schema refuses. `IssueHead.read(String,
+Workflow)` reads an issue file's head, null without one; `IssuesIndex.write`, `check` and `convert` take an issues
+directory and return `IssuesIndex.Result` with `faults()`, `written()` and `notes()`, as the commands do. Callers may supply another source; the library opens no connection. `IssueIndexes.read(String
 index, String repository, Workflow workflow)` reads the text into public `IssueIndex` records: number, state, size, title, index path,
 source and blocked issue numbers. `location()` supplies the row's original `anchor()`, optional issue-file
 link `file()`, one-based `line()`, and the character offset `numberEnd()` after its first-cell number and link.
