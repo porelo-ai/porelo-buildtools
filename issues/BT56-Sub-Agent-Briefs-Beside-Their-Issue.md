@@ -1,8 +1,9 @@
 # BT56 — Sub-Agent Briefs Beside Their Issue
 
-**Status:** Review.
-**Size:** S - one shape of path learnt by three checks of `porelo-release`, with their tests; no new command and no
-contract another repository reads, beyond the path itself.
+**Status:** Analyzed.
+**Size:** M - was S for briefs as files beside an issue; the operator's decision of 2026-11-10 makes a sub-agent's
+work a sub-issue with its own state, which the index reading, three checks and the stories count all learn, and the
+brief files already on main go again.
 
 **What must be true.** An issue may keep the briefs of its proposed sub-agents in a directory beside it,
 `issues/<group>/<ID>.sub/<name>.md`, `<name>` one of `builder`, `tester` and `reader`, or a numbered variant such as
@@ -52,3 +53,39 @@ Read in porelo-buildtools 5582aee, `release/src/main/java/org/fuin/porelo/releas
 - The red-first tests above, seen red, then green; the pins green.
 - In a copy of porelo-buildtools with a brief added beside [BT55](README.md#bt55): `check-citations` and `check-commits`
   are clean. With that issue's file deleted and the brief left, `check-citations` names the brief.
+
+## Rework (the operator, 2026-11-10, ST311)
+
+**What was found.** ST294 is closed; the planning moves into a new app, porelo-planner (ST311). Its store holds only
+stories (the project repository) and issues with optional sub-issues (each repository). A sub-agent's work is a
+sub-issue with its own state, and its text is the brief. There are no briefs as files of their own. The briefs-as-files
+rules above are on main (2d73e6f, 574afbb) and go with this rework; the plan and acceptance above are kept only as the
+record of what was built first.
+
+**The sub-issue, as porelo-buildtools defines it:**
+- **Id:** the parent's id, a dot and a number from 1, never reused within the parent: `B560.1`, `B560.2`. Its role
+  (`builder`, `tester` or `reader`) is a field of its head, not part of the id.
+- **Place:** a file beside its parent, in the same `issues/` directory or group: `<parent>.<n>-<Title-Words>.md`. It
+  starts `# <id> — <title>`, then `**Status:**`, `**Role:**` and `**Parent:** [<parent>](README.md#<parent anchor>)`;
+  the rest is the brief, written as an issue's text and held to the same citation rules.
+- **Index row:** a row in the parent's index (`README.md` of the same directory), in the table of its own state, with
+  the anchor `<id in lower case>` (`b560.1`) and a link to its file; columns as an issue's, the size `-`.
+- **Lifetime:** it is finished or rejected on its own. A sub-issue whose parent's file and row are gone is refused,
+  naming it; a parent may not be Finished while one of its sub-issues is open.
+
+**How the checks and the stories count it:**
+- **Index reading (`IssueIndexes`, `IssueLinks`):** the row pattern takes `<parent>.<n>` and gives each row its parent;
+  a dotless id reads as today, so an index without sub-issues reads unchanged.
+- **`check-citations`:** a sub-issue's number is a link to its row like an issue's; its file dies with it at Finished.
+  The `.sub/` brief rules are removed.
+- **`check-commits`:** a sub-issue's stages are recorded in its parent's `stats/<parent>.jsonl`, with `--actor
+  subagent`; changing a sub-issue's file in a measured state needs that file, not one of its own.
+- **Stories:** a story names parent issues only; a sub-issue named in a story's `issues` is refused, naming the
+  parent to write instead. Sub-issues do not count in a story's state, nor in the index's count by prefix.
+- **Docs:** `doc/index.md` says the format; the changelog says the briefs' rules removed and sub-issues added.
+- **Red first:** a sub-issue row read with its parent; a sub-issue without its parent refused; a parent Finished with
+  an open sub-issue refused; a story naming a sub-issue refused; a sub-issue's change satisfied by its parent's stats;
+  every index without a dot read as today.
+
+**Open for the operator:** that a parent may not be Finished while a sub-issue is open, and that sub-issues' stages go
+to the parent's stats file, are proposals of this analysis, not decisions yet.
