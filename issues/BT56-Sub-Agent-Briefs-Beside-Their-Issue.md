@@ -71,7 +71,7 @@ record of what was built first.
 - **Index row:** a row in the parent's index (`README.md` of the same directory), in the table of its own state, with
   the anchor `<id in lower case>` (`b560.1`) and a link to its file; columns as an issue's, the size `-`.
 - **Lifetime:** it is finished or rejected on its own. A sub-issue whose parent's file and row are gone is refused,
-  naming it; a parent may not be Finished while one of its sub-issues is open.
+  naming it. A parent may be Finished only when every sub-issue under it is Finished (the operator, 2026-11-10).
 
 **How the checks and the stories count it:**
 - **Index reading (`IssueIndexes`, `IssueLinks`):** the row pattern takes `<parent>.<n>` and gives each row its parent;
@@ -79,13 +79,11 @@ record of what was built first.
 - **`check-citations`:** a sub-issue's number is a link to its row like an issue's; its file dies with it at Finished.
   The `.sub/` brief rules are removed.
 - **`check-commits`:** a sub-issue's stages are recorded in its parent's `stats/<parent>.jsonl`, with `--actor
-  subagent`; changing a sub-issue's file in a measured state needs that file, not one of its own.
+  subagent` (the operator, 2026-11-10); changing a sub-issue's file in a measured state needs that file, not one of
+  its own.
 - **Stories:** a story names parent issues only; a sub-issue named in a story's `issues` is refused, naming the
   parent to write instead. Sub-issues do not count in a story's state, nor in the index's count by prefix.
 - **Docs:** `doc/index.md` says the format; the changelog says the briefs' rules removed and sub-issues added.
 - **Red first:** a sub-issue row read with its parent; a sub-issue without its parent refused; a parent Finished with
-  an open sub-issue refused; a story naming a sub-issue refused; a sub-issue's change satisfied by its parent's stats;
-  every index without a dot read as today.
-
-**Open for the operator:** that a parent may not be Finished while a sub-issue is open, and that sub-issues' stages go
-to the parent's stats file, are proposals of this analysis, not decisions yet.
+  a sub-issue not Finished refused; a story naming a sub-issue refused; a sub-issue's change satisfied by its parent's
+  stats; every index without a dot read as today.
