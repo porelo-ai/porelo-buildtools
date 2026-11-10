@@ -38,12 +38,6 @@ left out.
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt65"></a>[BT65](BT65-The-Public-Readers-Give-The-Centrals-And-A-Storys-State.md) | S | - | `porelo-stories`' public `Project` also gives each repository's central address from the same reading of `project.yml`, and the rule the stories index gives a story its state by is public, so porelo-planner clones every repository and shows the index's state without a second implementation. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
@@ -57,6 +51,7 @@ left out.
 | <a id="bt55"></a>[BT55](BT55-Stories-Read-Their-Workflow-From-A-File.md) | L | - | One `stories/workflow.yml` in porelo-project gives every state, its board order and phases; stories and every repository's issue index check against it, a story's state is computed from its issues, and a project without the file is refused. |
 | <a id="bt64"></a>[BT64](BT64-Public-Readers-Of-A-Project-And-A-Story.md) | M | - | `porelo-stories` reads a project's repositories from the text of `project.yml` and a story from its file's text through public readers, the very code the stories index uses, so porelo-planner reads its board without a second parser. |
 | <a id="bt54"></a>[BT54](BT54-The-Stories-Index-As-A-Library.md) | L | - | The stories index, its heads and the issue index reading become a small published library, native-image friendly and opening no connection unless given one, which `porelo-release` and an adapter both call. |
+| <a id="bt65"></a>[BT65](BT65-The-Public-Readers-Give-The-Centrals-And-A-Storys-State.md) | S | - | `porelo-stories`' public `Project` also gives each repository's central address from the same reading of `project.yml`, and the rule the stories index gives a story its state by is public, so porelo-planner clones every repository and shows the index's state without a second implementation. |
 | <a id="bt46"></a>[BT46](BT46-The-Plan-Pages-Read-Stories.md) | M | - | A story's data in a JSON head of its file, checked by a schema held here, `stories/README.md` generated from the heads and checked equal; `plan render` and `plan check` read a release as stories in place of sprints, each story's state its least advanced issue's. |
 | <a id="bt53"></a>[BT53](BT53-Check-Shared-Holds-The-Pinned-Rule.md) | XS | - | `check-shared` refuses a repository's `pinned.sh` that differs from porelo-buildtools' own, named in the call or not. |
 | <a id="bt52"></a>[BT52](BT52-A-Pinned-Download-From-Github-Goes-With-The-Jobs-Token.md) | S | - | A pinned download from github.com goes with the job's token, to there alone; the release reader asks again by the pinned rule. |

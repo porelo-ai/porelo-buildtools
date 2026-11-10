@@ -631,13 +631,18 @@ A program that reads a board without the index takes the index's own readers, so
 with `IllegalArgumentException` in the same words, the file named `workflow.yml`. `Project.read(String text,
 Set<String> ownPrefixes)` reads the text of `project.yml` into a `Project`: `own()`, the project's own repository,
 and `repositories()`, every repository it names with its issue prefixes, the own one with the prefixes given, since
-`project.yml` names none for it. `Story.read(String text, Workflow workflow)` reads a story's file into a `Story`:
+`project.yml` names none for it, and `centrals()`, each repository's central address by name in the same order, as
+`project.yml` writes it under `central` or a not yet renamed `upstream`; `central(String name)` gives one and throws
+`IllegalArgumentException` for a name the project does not hold. `Workflow.storyState(String stated, List<String>
+issueStates)` is the rule the index gives a story its state by: the stated one (which may be null) without issues,
+else the earliest open issue state in board order, else the first issue's state when all are rejected, else the
+workflow's first closed state that is not rejected. `Story.read(String text, Workflow workflow)` reads a story's file into a `Story`:
 `id()`, `title()`, `state()` (null where a story-2 head leaves it to its issues), `priority()`, `issues()` and
 `body()`, the text between the heading and `## Data` with its leading and trailing blank lines dropped and every other
 line kept as it stands, indentation included. Both refuse with `IllegalArgumentException` in the words the index
 reports its faults with; a story's message is each fault without the file name, joined by `; `. `Project.read` throws
 `NullPointerException` for null prefixes. The values are immutable, and their constructors refuse a missing field and
-a project whose repositories do not hold its own.
+a project whose repositories do not hold its own or whose centrals name other repositories.
 
 `IssueSource.index(String repository)` supplies an issue index as Markdown. `IssueSource.local(Path projectRoot)`
 reads only the project's checkout and checkouts beside it, including linked indexes, and fails with the local path

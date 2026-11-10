@@ -279,7 +279,7 @@ public final class StoriesIndex {
             if (issueStates.size() != head.data().get("issues").size()) continue;
             // A legacy head's state beside issues is no one's word: the migration drops it.
             final boolean given = head.data().has("$schema") && head.data().has("state");
-            final String byIssues = computed(stated, issueStates);
+            final String byIssues = workflow.storyState(stated, issueStates);
             final String state = given ? stated : byIssues;
             if (given && !issueStates.isEmpty() && !stated.equals(byIssues))
                 notes.add(
@@ -382,28 +382,6 @@ public final class StoriesIndex {
                     .forEach(head -> page.append(row(head)));
         }
         return new Generated(page.toString(), files, heads.size());
-    }
-
-    private String computed(String stated, List<String> issueStates) {
-        if (issueStates.isEmpty()) return stated;
-        return issueStates.stream()
-                .filter(state -> !workflow.closed(state))
-                .min(Comparator.comparingInt(workflow::order))
-                .orElseGet(
-                        () ->
-                                issueStates.stream().allMatch(workflow::rejected)
-                                        ? issueStates.getFirst()
-                                        : workflow.states().stream()
-                                                .filter(
-                                                        state ->
-                                                                workflow.closed(state)
-                                                                        && !workflow.rejected(
-                                                                                state))
-                                                .findFirst()
-                                                .orElseThrow(
-                                                        () ->
-                                                                new IllegalArgumentException(
-                                                                        "workflow.yml has no completed state")));
     }
 
     /**

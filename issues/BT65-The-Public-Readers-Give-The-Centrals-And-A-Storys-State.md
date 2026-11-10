@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT65",
   "title": "The Public Readers Give The Centrals And A Story's State",
-  "state": "Implementing",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 7,
@@ -43,3 +43,15 @@ story's state on its board, and may implement neither a second time.
 
 - The test from outside the package, seen failing to compile before and passing after.
 - `./mvnw verify` green.
+
+## To be checked
+
+- Built by a sub-agent of Agent Machines (claude-opus-5-5) from the plan, red first: the outside-package test did not
+  compile before. `Project(own, repositories, centrals)` with `central(name)`; `Workflow.storyState(stated,
+  issueStates)`, which the index now calls in place of its own.
+- "workflow.yml has no completed state" cannot be reached through a workflow `Workflow` reads: every issue being
+  closed and not all rejected, one of them stands in a closed, not rejected state the workflow names. The guard stays
+  as the index had it, and the javadoc says so; it has no test.
+- A code reading by another model (sonnet) found no change in the index's behaviour; its one finding, that javadoc,
+  is fixed.
+- `./mvnw -B -s settings.xml clean verify` green: stories 125 (1 skipped, the native test), release 962, machines 263.

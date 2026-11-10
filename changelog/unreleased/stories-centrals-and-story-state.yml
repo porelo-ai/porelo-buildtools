@@ -1,0 +1,2 @@
+title: porelo-stories' `Project` gives each repository's central address as `project.yml` writes it, `centrals()` and `central(String)`, and `Workflow.storyState(String, List)` is the public rule the stories index gives a story its state by, so a program that links the library implements neither a second time.
+type: added

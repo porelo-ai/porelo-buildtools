@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -167,6 +168,40 @@ public final class Workflow {
     public int order(String state) {
         state(state);
         return states.indexOf(state);
+    }
+
+    /**
+     * The state a story's issues give it, the rule the stories index applies to a story whose head
+     * leaves its state to its issues and checks a stated one against: the stated state when it has
+     * no issues; otherwise the earliest open issue state in board order; otherwise, every issue
+     * being closed, the first issue's state when all are rejected, else the workflow's first closed
+     * state that is not rejected, its first completed state.
+     *
+     * @param stated the state the story's head states, or null when it states none; returned as
+     *     given when there are no issues, and otherwise not read
+     * @param issueStates the states of the story's issues, in the order its head names them
+     * @return the story's state, null only when there are no issues and none is stated
+     * @throws NullPointerException when {@code issueStates} or one of its states is null
+     * @throws IllegalArgumentException when an issue state is unknown to the workflow; the index's
+     *     guard "workflow.yml has no completed state" is kept, though a workflow this class reads
+     *     always has the closed, not rejected state an issue then stands in
+     */
+    public String storyState(String stated, List<String> issueStates) {
+        if (issueStates.isEmpty()) return stated;
+        return issueStates.stream()
+                .filter(state -> !closed(state))
+                .min(Comparator.comparingInt(this::order))
+                .orElseGet(
+                        () ->
+                                issueStates.stream().allMatch(this::rejected)
+                                        ? issueStates.getFirst()
+                                        : states.stream()
+                                                .filter(state -> closed(state) && !rejected(state))
+                                                .findFirst()
+                                                .orElseThrow(
+                                                        () ->
+                                                                new IllegalArgumentException(
+                                                                        "workflow.yml has no completed state")));
     }
 
     private State state(String name) {

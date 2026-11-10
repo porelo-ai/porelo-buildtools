@@ -91,6 +91,80 @@ class PublicReadersTest {
                 .containsKey("porelo-frontend");
     }
 
+    // Prevents a board from cloning a repository from an address project.yml does not give.
+    @Test
+    void aProjectsCentralsAreReadAsWritten() {
+        final Project project =
+                Project.read(
+                        """
+                        project:
+                          central: "https://github.com/porelo-ai/porelo-project"
+                        repositories:
+                          core:
+                            central: "git@github.com:porelo-ai/porelo.git"
+                            issues: [B]
+                          frontend:
+                            upstream: "https://github.com/porelo-ai/porelo-frontend.git"
+                            issues: [F]
+                        """,
+                        Set.of("ST"));
+
+        assertThat(project.centrals())
+                .as("each repository's central address as written, the own one first")
+                .containsExactly(
+                        Map.entry("porelo-project", "https://github.com/porelo-ai/porelo-project"),
+                        Map.entry("porelo", "git@github.com:porelo-ai/porelo.git"),
+                        Map.entry(
+                                "porelo-frontend",
+                                "https://github.com/porelo-ai/porelo-frontend.git"));
+        assertThat(project.central("porelo-frontend"))
+                .as("a repository's central address, given by a not yet renamed upstream")
+                .isEqualTo("https://github.com/porelo-ai/porelo-frontend.git");
+        assertThat(project.central("porelo-project"))
+                .as("the own repository's central address")
+                .isEqualTo("https://github.com/porelo-ai/porelo-project");
+        assertThatThrownBy(() -> project.central("porelo-x"))
+                .as("a repository the project does not name")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("porelo-x is not among the repositories");
+    }
+
+    // Prevents a board from showing a story's state by a rule other than the index's.
+    @Test
+    void aStorysStateIsGivenByItsIssuesAsTheIndexGivesIt() throws IOException {
+        final Workflow workflow = workflow();
+
+        assertThat(workflow.storyState("Idea", List.of()))
+                .as("no issues: the state stated")
+                .isEqualTo("Idea");
+        assertThat(workflow.storyState(null, List.of()))
+                .as("no issues and none stated: none")
+                .isNull();
+        assertThat(workflow.storyState("Idea", List.of("Review", "Finished", "Analyzed")))
+                .as("the earliest open issue state in board order")
+                .isEqualTo("Analyzed");
+        assertThat(workflow.storyState(null, List.of("Rejected", "Rejected")))
+                .as("every issue rejected: the first rejected one")
+                .isEqualTo("Rejected");
+        assertThat(
+                        Workflow.read(
+                                        """
+                                        states:
+                                          - {name: Idea, closed: false}
+                                          - {name: Done, closed: true}
+                                          - {name: Shipped, closed: true}
+                                          - {name: Rejected, closed: true}
+                                        phases: []
+                                        """)
+                                .storyState("Idea", List.of("Shipped", "Rejected")))
+                .as("every issue closed, not all rejected: the workflow's first completed state")
+                .isEqualTo("Done");
+        assertThatThrownBy(() -> workflow.storyState("Idea", List.of("Nowhere")))
+                .as("an issue state the workflow does not hold")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("src/test/resources/workflow.yml: unknown state: Nowhere");
+    }
+
     // Prevents a malformed project file from being read as a project with no repositories.
     @Test
     void aMalformedProjectFileIsRefusedInTheIndexsWords() {
@@ -132,18 +206,38 @@ class PublicReadersTest {
     // Prevents a project built by hand from naming an own repository it does not hold.
     @Test
     void aProjectIsBuiltOnlyWhole() {
-        assertThatThrownBy(() -> new Project(null, Map.of()))
+        final String central = "git@github.com:porelo-ai/porelo.git";
+        assertThatThrownBy(() -> new Project(null, Map.of(), Map.of()))
                 .as("no own repository")
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("own");
-        assertThatThrownBy(() -> new Project("porelo-project", null))
+        assertThatThrownBy(() -> new Project("porelo-project", null, Map.of()))
                 .as("no repositories")
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("repositories");
-        assertThatThrownBy(() -> new Project("porelo-project", Map.of("porelo", Set.of("B"))))
+        assertThatThrownBy(() -> new Project("porelo", Map.of("porelo", Set.of("B")), null))
+                .as("no centrals")
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("centrals");
+        assertThatThrownBy(
+                        () ->
+                                new Project(
+                                        "porelo-project",
+                                        Map.of("porelo", Set.of("B")),
+                                        Map.of("porelo", central)))
                 .as("an own repository the repositories do not hold")
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("own repository porelo-project is not among the repositories");
+        assertThatThrownBy(
+                        () ->
+                                new Project(
+                                        "porelo",
+                                        Map.of("porelo", Set.of("B")),
+                                        Map.of("porelo-frontend", central)))
+                .as("centrals named other than the repositories")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "centrals [porelo-frontend] are not those of the repositories [porelo]");
     }
 
     // Prevents a story built by hand from carrying a missing field to a board.
@@ -318,6 +412,9 @@ class PublicReadersTest {
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> project.repositories().put("porelo-x", Set.of()))
                 .as("the project's repositories")
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> project.centrals().put("porelo-x", "git@github.com:porelo-ai/x"))
+                .as("the project's centrals")
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 }

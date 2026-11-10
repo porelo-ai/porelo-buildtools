@@ -22,12 +22,15 @@ import java.util.regex.Pattern;
 
 /**
  * The repositories a project names in its {@code project.yml}: its own, under {@code project}, and
- * each one under {@code repositories} with the issue prefixes it owns.
+ * each one under {@code repositories} with the issue prefixes it owns and its central address.
  *
  * @param own the name of the project's own repository
  * @param repositories every repository by name, the own one first, each with its issue prefixes
+ * @param centrals every repository's central address by name, in the order of the repositories, as
+ *     {@code project.yml} writes it under {@code central} (or a not yet renamed {@code upstream})
  */
-public record Project(String own, Map<String, Set<String>> repositories) {
+public record Project(
+        String own, Map<String, Set<String>> repositories, Map<String, String> centrals) {
 
     /** Where the index finds the issues of a repository, to learn the own repository's prefixes. */
     interface Indexes {
@@ -43,26 +46,59 @@ public record Project(String own, Map<String, Set<String>> repositories) {
                     "^(?:git@github\\.com:|https://github\\.com/)porelo-ai/([A-Za-z0-9][A-Za-z0-9_.-]*?)(?:\\.git)?$");
 
     /**
-     * Refuses a project that does not hold its own repository and copies the repositories and their
-     * prefixes to keep it immutable.
+     * Refuses a project that does not hold its own repository or whose centrals name other
+     * repositories, and copies the repositories, their prefixes and their centrals to keep it
+     * immutable, the centrals in the order of the repositories.
      *
-     * @throws NullPointerException when the own repository, the repositories, or a repository's
-     *     prefixes are null
-     * @throws IllegalArgumentException when the repositories do not hold the own one
+     * @throws NullPointerException when the own repository, the repositories, the centrals, a
+     *     repository's prefixes or a central address are null
+     * @throws IllegalArgumentException when the repositories do not hold the own one, or the
+     *     centrals' names are not the repositories'
      */
     public Project {
         Objects.requireNonNull(own, "own");
         Objects.requireNonNull(repositories, "repositories");
+        Objects.requireNonNull(centrals, "centrals");
         if (!repositories.containsKey(own))
             throw new IllegalArgumentException(
                     "own repository " + own + " is not among the repositories");
+        if (!centrals.keySet().equals(repositories.keySet()))
+            throw new IllegalArgumentException(
+                    "centrals "
+                            + centrals.keySet()
+                            + " are not those of the repositories "
+                            + repositories.keySet());
         final Map<String, Set<String>> copied = new LinkedHashMap<>();
-        repositories.forEach((name, prefixes) -> copied.put(name, Set.copyOf(prefixes)));
+        final Map<String, String> addresses = new LinkedHashMap<>();
+        for (final var entry : repositories.entrySet()) {
+            copied.put(entry.getKey(), Set.copyOf(entry.getValue()));
+            addresses.put(
+                    entry.getKey(),
+                    Objects.requireNonNull(centrals.get(entry.getKey()), "central"));
+        }
         repositories = Collections.unmodifiableMap(copied);
+        centrals = Collections.unmodifiableMap(addresses);
     }
 
+    /**
+     * A repository's central address, as {@code project.yml} writes it.
+     *
+     * @param name the name of a repository of the project
+     * @return its central address
+     * @throws IllegalArgumentException when the project names no repository {@code name}
+     */
+    public String central(String name) {
+        final String central = centrals.get(name);
+        if (central == null)
+            throw new IllegalArgumentException(name + " is not among the repositories");
+        return central;
+    }
+
+    /** A repository's name, derived from its central address, and the address as written. */
+    private record Repository(String name, String central) {}
+
     static String own(Path file) throws IOException {
-        return repository(required(yaml(file), "project", FILE), "project");
+        return repository(required(yaml(file), "project", FILE), "project").name();
     }
 
     /**
@@ -91,21 +127,23 @@ public record Project(String own, Map<String, Set<String>> repositories) {
             throw new NoSuchFileException(file.toString(), null, "no project.yml above the plan");
         }
         final JsonNode project = yaml(root.resolve(FILE));
-        final String own = own(project);
+        final Repository own = own(project);
         final Set<String> ownPrefixes = new HashSet<>();
-        indexes.read(own)
+        indexes.read(own.name())
                 .keySet()
                 .forEach(number -> ownPrefixes.add(number.replaceAll("\\d+$", "")));
         return of(project, own, ownPrefixes);
     }
 
-    private static String own(JsonNode project) {
+    private static Repository own(JsonNode project) {
         return repository(required(project, "project", FILE), "project");
     }
 
-    private static Project of(JsonNode project, String own, Set<String> ownPrefixes) {
+    private static Project of(JsonNode project, Repository own, Set<String> ownPrefixes) {
         final Map<String, Set<String>> repositories = new LinkedHashMap<>();
-        repositories.put(own, Set.copyOf(ownPrefixes));
+        final Map<String, String> centrals = new LinkedHashMap<>();
+        repositories.put(own.name(), Set.copyOf(ownPrefixes));
+        centrals.put(own.name(), own.central());
         final JsonNode declared = required(project, "repositories", FILE);
         if (!declared.isObject()) {
             throw new IllegalArgumentException("project.yml repositories: expected a mapping");
@@ -114,7 +152,8 @@ public record Project(String own, Map<String, Set<String>> repositories) {
         while (entries.hasNext()) {
             final var entry = entries.next();
             final String where = "project.yml repositories." + entry.getKey();
-            final String name = repository(entry.getValue(), where);
+            final Repository repository = repository(entry.getValue(), where);
+            final String name = repository.name();
             final Set<String> prefixes = new HashSet<>(strings(entry.getValue(), "issues", where));
             if (prefixes.isEmpty()
                     || prefixes.stream().anyMatch(prefix -> !prefix.matches("[A-Z]{1,3}"))) {
@@ -123,8 +162,9 @@ public record Project(String own, Map<String, Set<String>> repositories) {
             if (repositories.putIfAbsent(name, Set.copyOf(prefixes)) != null) {
                 throw new IllegalArgumentException(where + ": duplicate repository " + name);
             }
+            centrals.put(name, repository.central());
         }
-        return new Project(own, repositories);
+        return new Project(own.name(), repositories, centrals);
     }
 
     // Parsed from the bytes, so the parser skips a byte order mark and refuses bad UTF-8 as YAML.
@@ -202,7 +242,8 @@ public record Project(String own, Map<String, Set<String>> repositories) {
         return List.copyOf(values);
     }
 
-    private static String repository(JsonNode data, String where) throws IllegalArgumentException {
+    private static Repository repository(JsonNode data, String where)
+            throws IllegalArgumentException {
         // A project.yml not yet renamed still names the central remote "upstream".
         final String key = data.has("central") ? "central" : "upstream";
         final String central = string(data, key, where);
@@ -211,6 +252,6 @@ public record Project(String own, Map<String, Set<String>> repositories) {
             throw new IllegalArgumentException(
                     where + ": unsupported repository " + key + " " + central);
         }
-        return match.group(1);
+        return new Repository(match.group(1), central);
     }
 }
