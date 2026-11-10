@@ -34,6 +34,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt60"></a>[BT60](BT60-A-Story-Takes-The-State-It-Is-Given.md) | S | - | A story whose head states a state has it, whatever its issues; `stories index` and `stories check` warn where the issues give another, and a story without one keeps the automatic rule. |
 
 ## Backlog
 
