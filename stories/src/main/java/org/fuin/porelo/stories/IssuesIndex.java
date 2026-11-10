@@ -421,7 +421,7 @@ public final class IssuesIndex {
             }
             if (workflow.closed(current)) {
                 closed.putIfAbsent(current, chunk);
-                misfits(dir, chunk, byLine, faults);
+                misfits(dir, chunk, byLine, headed, faults);
                 continue;
             }
             for (int i = 0; i < chunk.lines().size(); i++) {
@@ -556,16 +556,23 @@ public final class IssuesIndex {
         return List.of();
     }
 
-    /** Faults each row of a closed chunk whose count of cells differs from its table's header. */
+    /**
+     * Faults each row of a closed chunk whose count of cells differs from its table's header; a row
+     * of an issue with a head is left to the head, which writes it anew.
+     */
     private void misfits(
-            Path dir, Chunk chunk, Map<Integer, IssueIndexes.Row> byLine, List<String> faults) {
+            Path dir,
+            Chunk chunk,
+            Map<Integer, IssueIndexes.Row> byLine,
+            Set<String> headed,
+            List<String> faults) {
         int width = -1;
         for (int i = 0; i < chunk.lines().size(); i++) {
             final String line = chunk.lines().get(i);
             if (i > 0 && SEPARATOR.matcher(line).matches())
                 width = cells(chunk.lines().get(i - 1)).size();
             final IssueIndexes.Row row = byLine.get(chunk.start() + i + 1);
-            if (row == null || width < 0) continue;
+            if (row == null || width < 0 || headed.contains(row.number())) continue;
             final int count = cells(line).size();
             if (count != width)
                 faults.add(

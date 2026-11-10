@@ -537,6 +537,38 @@ class IssuesIndexTest {
         assertThat(IssuesIndex.check(issues).faults()).isEmpty();
     }
 
+    // Prevents index from refusing a misfit row it rewrites from the issue's head anyway.
+    @Test
+    void rewritesAMisfitRowOfAnIssueWithAHead() throws IOException {
+        Files.writeString(
+                issues.resolve("EX03-Three.md"),
+                "# EX03 — Three\n\n**Status:** Finished.\n**Size:** M - two modules.\n\nText.\n");
+        final Path index = issues.resolve("README.md");
+        Files.writeString(
+                index,
+                Files.readString(index)
+                        .replace(
+                                "| <a id=\"ex01\"></a>EX01 | One | The first. |\n",
+                                "| <a id=\"ex01\"></a>EX01 | One | The first. |\n"
+                                        + "| <a id=\"ex03\"></a>[EX03](EX03-Three.md) | Three |"
+                                        + " The third. |\n"));
+        assertThat(IssuesIndex.convert(issues).faults()).isEmpty();
+        Files.writeString(
+                index,
+                Files.readString(index)
+                        .replace(
+                                "| # | Title | What was built |\n|---|---|---|\n",
+                                "| # | Size | Blocked by | What it covers |\n|---|---|---|---|\n")
+                        .replace(
+                                "| <a id=\"ex01\"></a>EX01 | One | The first. |\n",
+                                "| <a id=\"ex01\"></a>EX01 | S | - | The first. |\n"));
+
+        assertThat(IssuesIndex.write(issues).faults()).isEmpty();
+        assertThat(Files.readString(index))
+                .contains("| <a id=\"ex03\"></a>[EX03](EX03-Three.md) | M | - | The third. |\n");
+        assertThat(IssuesIndex.check(issues).faults()).isEmpty();
+    }
+
     // Prevents a closed row whose cells do not fit its table's header from passing the check.
     @Test
     void refusesAClosedRowThatDoesNotFitItsHeader() throws IOException {
