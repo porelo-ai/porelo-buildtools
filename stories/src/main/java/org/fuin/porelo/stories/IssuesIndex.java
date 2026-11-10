@@ -868,9 +868,17 @@ public final class IssuesIndex {
                                 + state
                                 + ", the index row stands under "
                                 + row.state());
-            final String rowSize =
-                    row.size().isBlank() || row.size().equals("—") ? "-" : row.size();
-            if (!rowSize.equals(size))
+            // A closed row of the finished form says no size, and the file's stands; one of the
+            // open
+            // form keeps its Size column, which the library reads as a dash for any closed row.
+            final @Nullable String sizeCell = row.cells().get("size");
+            final boolean rowSized = !workflow.closed(row.state()) || sizeCell != null;
+            final String given =
+                    workflow.closed(row.state()) && sizeCell != null
+                            ? sizeCell.strip()
+                            : row.size();
+            final String rowSize = given.isBlank() || given.equals("—") ? "-" : given;
+            if (rowSized && !rowSize.equals(size))
                 differences.add(
                         (sized == null ? "no **Size:** line" : "**Size:** says " + size)
                                 + ", the index row "
@@ -888,7 +896,13 @@ public final class IssuesIndex {
                                     ? row.cells()
                                             .getOrDefault(
                                                     "what was built",
-                                                    row.cells().getOrDefault("why", row.title()))
+                                                    row.cells()
+                                                            .getOrDefault(
+                                                                    "why",
+                                                                    row.cells()
+                                                                            .getOrDefault(
+                                                                                    "what it covers",
+                                                                                    row.title())))
                                     : row.title())
                             .replace("\\|", "|");
             final String asked = row.cells().get("open questions");

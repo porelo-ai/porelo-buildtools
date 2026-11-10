@@ -443,6 +443,51 @@ class IssuesIndexTest {
         assertThat(Files.readAllBytes(issues.resolve("EX12-Twelve.md"))).isEqualTo(before);
     }
 
+    // Prevents a finished issue's size from being refused, or dropped, for a row without one.
+    @Test
+    void aFinishedFileKeepsItsSizeBesideARowOfTheFinishedForm() throws IOException {
+        Files.writeString(
+                issues.resolve("README.md"),
+                INDEX.replace(
+                        "| <a id=\"ex01\"></a>EX01 | One | The first. |",
+                        "| <a id=\"ex01\"></a>[EX01](EX01-One.md) | One | The first. |"));
+        Files.writeString(
+                issues.resolve("EX01-One.md"),
+                "# EX01 — One\n\n**Status:** Finished.\n**Size:** M - two modules.\n\nText.\n");
+
+        assertThat(IssuesIndex.convert(issues).faults()).isEmpty();
+        assertThat(Files.readString(issues.resolve("EX01-One.md")))
+                .contains(
+                        "\"state\": \"Finished\"", "\"size\": \"M\"", "\"covers\": \"The first.\"");
+    }
+
+    // Prevents a finished row's own size column from being read as no size at all.
+    @Test
+    void aFinishedRowWithASizeColumnIsComparedByIt() throws IOException {
+        final String open =
+                "## Finished\n\n| # | Size | Blocked by | What it covers |\n|---|---|---|---|\n"
+                        + "| <a id=\"ex01\"></a>[EX01](EX01-One.md) | M | - | The first. |\n";
+        Files.writeString(
+                issues.resolve("README.md"),
+                INDEX.replace(
+                        "## Finished\n\n| # | Title | What was built |\n|---|---|---|\n"
+                                + "| <a id=\"ex01\"></a>EX01 | One | The first. |\n",
+                        open));
+        Files.writeString(
+                issues.resolve("EX01-One.md"),
+                "# EX01 — One\n\n**Status:** Finished.\n**Size:** S - one module.\n\nText.\n");
+
+        assertThat(IssuesIndex.convert(issues).faults())
+                .containsExactly("EX01-One.md: **Size:** says S, the index row M");
+
+        Files.writeString(
+                issues.resolve("EX01-One.md"),
+                "# EX01 — One\n\n**Status:** Finished.\n**Size:** M - two modules.\n\nText.\n");
+        assertThat(IssuesIndex.convert(issues).faults()).isEmpty();
+        assertThat(Files.readString(issues.resolve("EX01-One.md")))
+                .contains("\"size\": \"M\"", "\"covers\": \"The first.\"");
+    }
+
     // Prevents a second table under one state from being dropped without a word.
     @Test
     void refusesAStateHeadingTwice() throws IOException {
