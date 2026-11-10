@@ -1,0 +1,2 @@
+title: porelo-stories reads a workflow, a project and a story from the text of their files through public readers, `Workflow.read(String)`, `Project.read(String, Set)` and `Story.read(String, Workflow)`, the very parsers the stories index uses, refusing in its words.
+type: added

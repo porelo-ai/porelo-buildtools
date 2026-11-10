@@ -212,4 +212,28 @@ class StoriesIndexTest {
                 .as("no story changed before refusal")
                 .isEqualTo(before);
     }
+
+    // Prevents a story whose heading names another title from reaching the index unnoticed.
+    @Test
+    void aHeadingTheHeadDoesNotGiveIsAFaultBeforeTheFileName() throws IOException {
+        final Path dir = fixture("heading");
+        Files.delete(dir.resolve("ST1.md"));
+        Files.writeString(
+                dir.resolve("ST9.md"),
+                """
+                # ST1 — Another title
+
+                ## Data
+
+                ```json
+                {"id":"ST1","title":"A title","state":"Idea","priority":"High","gain":"A gain.","test":"A test.","issues":[],"tested":null}
+                ```
+                """);
+
+        assertThat(StoriesIndex.check(dir, SOURCE).faults())
+                .as("the heading's fault, then the file name's, both naming the file")
+                .containsExactly(
+                        "ST9.md: the heading is not '# ST1 — A title'",
+                        "ST9.md: the file is not named after its id ST1");
+    }
 }

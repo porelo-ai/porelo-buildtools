@@ -1,6 +1,8 @@
 package org.fuin.porelo.stories;
 
 import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,12 +31,12 @@ public final class Workflow {
 
     private record State(boolean closed, boolean measured) {}
 
-    private final Path file;
+    private final String file;
     private final Map<String, State> definitions;
     private final List<String> states;
     private final List<Phase> phases;
 
-    private Workflow(Path file, Map<String, State> definitions, List<Phase> phases) {
+    private Workflow(String file, Map<String, State> definitions, List<Phase> phases) {
         this.file = file;
         this.definitions = Map.copyOf(definitions);
         this.states = List.copyOf(definitions.keySet());
@@ -49,8 +51,29 @@ public final class Workflow {
      * @throws IOException when the file is missing, unreadable or invalid
      */
     public static Workflow read(Path file) throws IOException {
-        try (var input = Files.newBufferedReader(file)) {
-            final Node document = new Yaml().compose(input);
+        return parse(file.toString(), Files.readString(file, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Reads the text of a workflow file, one strict YAML document, as {@link #read(Path)} reads the
+     * file.
+     *
+     * @param text the text of {@code workflow.yml}
+     * @return the immutable workflow
+     * @throws IllegalArgumentException when the text is invalid, in the words {@link #read(Path)}
+     *     gives with the file named {@code workflow.yml}
+     */
+    public static Workflow read(String text) {
+        try {
+            return parse("workflow.yml", text);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException(ex.getMessage(), ex);
+        }
+    }
+
+    private static Workflow parse(String file, String text) throws IOException {
+        try {
+            final Node document = new Yaml().compose(new StringReader(text));
             if (document == null) throw new IOException(file + ":1: expected a workflow mapping");
             final Map<String, Node> root = mapping(file, document, Set.of("states", "phases"));
             final Map<String, State> definitions = new LinkedHashMap<>();
@@ -152,11 +175,11 @@ public final class Workflow {
         return state;
     }
 
-    private static IOException fault(Path file, Node node, String message) {
+    private static IOException fault(String file, Node node, String message) {
         return new IOException(file + ":" + (node.getStartMark().getLine() + 1) + ": " + message);
     }
 
-    private static Map<String, Node> mapping(Path file, Node node, Set<String> allowed)
+    private static Map<String, Node> mapping(String file, Node node, Set<String> allowed)
             throws IOException {
         if (!(node instanceof MappingNode mapping) || !node.getTag().equals(Tag.MAP))
             throw fault(file, node, "expected a mapping");
@@ -170,20 +193,20 @@ public final class Workflow {
         return result;
     }
 
-    private static Node required(Path file, Node node, Map<String, Node> values, String key)
+    private static Node required(String file, Node node, Map<String, Node> values, String key)
             throws IOException {
         final Node value = values.get(key);
         if (value == null) throw fault(file, node, "missing " + key);
         return value;
     }
 
-    private static List<Node> sequence(Path file, Node node) throws IOException {
+    private static List<Node> sequence(String file, Node node) throws IOException {
         if (!(node instanceof SequenceNode list) || !node.getTag().equals(Tag.SEQ))
             throw fault(file, node, "expected a list");
         return list.getValue();
     }
 
-    private static String name(Path file, Node node) throws IOException {
+    private static String name(String file, Node node) throws IOException {
         if (!(node instanceof ScalarNode scalar)
                 || !node.getTag().equals(Tag.STR)
                 || scalar.getValue().isBlank()
@@ -203,7 +226,7 @@ public final class Workflow {
         return scalar.getValue();
     }
 
-    private static boolean bool(Path file, Node node) throws IOException {
+    private static boolean bool(String file, Node node) throws IOException {
         if (!(node instanceof ScalarNode scalar)
                 || !node.getTag().equals(Tag.BOOL)
                 || !(scalar.getValue().equals("true") || scalar.getValue().equals("false")))

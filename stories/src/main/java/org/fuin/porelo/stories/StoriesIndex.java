@@ -145,10 +145,6 @@ public final class StoriesIndex {
             }
             final String name = file.getFileName().toString();
             final String id = head.data().get("id").asText();
-            final String heading = "# " + id + " — " + head.data().get("title").asText();
-            if (!head.heading().equals(heading)) {
-                faults.add(name + ": the heading is not '" + heading + "'");
-            }
             final Matcher named = FILE.matcher(name);
             if (!named.matches() || !named.group(1).equals(id)) {
                 faults.add(name + ": the file is not named after its id " + id);

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -50,7 +51,18 @@ final class Heads {
     private Heads() {}
 
     /**
-     * Reads a file's head and checks it against the schema.
+     * A text's head, without the file it stands in.
+     *
+     * @param heading its first line
+     * @param data the head
+     * @param lines the text's lines
+     * @param jsonStart first line inside the JSON fence
+     * @param jsonEnd closing fence line, excluded from the JSON
+     */
+    record Parsed(String heading, JsonNode data, List<String> lines, int jsonStart, int jsonEnd) {}
+
+    /**
+     * Reads a file's head and checks it against the schema and its heading against the head.
      *
      * @param file the file
      * @param faults where each fault is added, naming the file and the field
@@ -60,10 +72,34 @@ final class Heads {
     static @Nullable Head read(Path file, List<String> faults, Workflow workflow)
             throws IOException {
         final String name = String.valueOf(file.getFileName());
-        final List<String> lines =
-                List.of(Files.readString(file, StandardCharsets.UTF_8).split("\n", -1));
+        final List<String> found = new ArrayList<>();
+        final Parsed parsed =
+                parse(Files.readString(file, StandardCharsets.UTF_8), found, workflow);
+        for (final String fault : found) faults.add(name + ": " + fault);
+        return parsed == null
+                ? null
+                : new Head(
+                        file,
+                        parsed.heading(),
+                        parsed.data(),
+                        parsed.lines(),
+                        parsed.jsonStart(),
+                        parsed.jsonEnd());
+    }
+
+    /**
+     * Reads a story's head from its text and checks it against the schema and its heading against
+     * the head; the one parser of story heads.
+     *
+     * @param text the story file's text
+     * @param faults where each fault is added, naming the field but no file
+     * @return the head, or {@code null} when it could not be read or failed the schema; a head
+     *     whose heading differs is returned with that fault added
+     */
+    static @Nullable Parsed parse(String text, List<String> faults, Workflow workflow) {
+        final List<String> lines = List.of(text.split("\n", -1));
         if (!lines.getFirst().startsWith("# ")) {
-            faults.add(name + ": the first line is no heading");
+            faults.add("the first line is no heading");
             return null;
         }
         int end = lines.size();
@@ -80,7 +116,7 @@ final class Heads {
                 || !lines.get(open).equals("```json")
                 || !lines.get(end - 1).equals("```")
                 || end - 1 <= open) {
-            faults.add(name + ": no ```json head under " + DATA + " at the end");
+            faults.add("no ```json head under " + DATA + " at the end");
             return null;
         }
         // A JSON string holds no raw line break, so no line of the head is three backticks alone.
@@ -89,7 +125,7 @@ final class Heads {
         try {
             data = JSON.readTree(String.join("\n", lines.subList(open + 1, open + 1 + close)));
         } catch (JacksonException ex) {
-            faults.add(name + ": the head is no JSON: " + ex.getOriginalMessage());
+            faults.add("the head is no JSON: " + ex.getOriginalMessage());
             return null;
         }
         final List<String> errors = StorySchema.faults(data);
@@ -101,10 +137,13 @@ final class Heads {
                 errors.add("/state: " + ex.getMessage());
             }
         }
-        for (final String error : errors) faults.add(name + ": " + error);
-        return errors.isEmpty()
-                ? new Head(file, lines.getFirst(), data, lines, open + 1, end - 1)
-                : null;
+        faults.addAll(errors);
+        if (!errors.isEmpty()) return null;
+        final String heading = "# " + data.get("id").asText() + " — " + data.get("title").asText();
+        if (!lines.getFirst().equals(heading)) {
+            faults.add("the heading is not '" + heading + "'");
+        }
+        return new Parsed(lines.getFirst(), data, lines, open + 1, end - 1);
     }
 
     /** Inserts the schema marker without serializing or rearranging the existing JSON. */

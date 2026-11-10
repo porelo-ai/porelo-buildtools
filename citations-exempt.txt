@@ -43,6 +43,7 @@ stories/src/test/java/org/fuin/porelo/stories/IssueSourceTest.java
 stories/src/test/java/org/fuin/porelo/stories/NativeStoriesMain.java
 stories/src/test/java/org/fuin/porelo/stories/NativeStoriesTest.java
 stories/src/test/java/org/fuin/porelo/stories/StoriesIndexTest.java
+stories/src/test/java/org/fuin/porelo/stories/api/PublicReadersTest.java
 stories/src/test/java/org/fuin/porelo/stories/StorySchemaTest.java
 stories/src/test/resources/checkouts/porelo-adapters/issues/README.md
 stories/src/test/resources/checkouts/porelo-agy/issues/README.md

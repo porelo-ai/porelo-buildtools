@@ -5,23 +5,36 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-record Project(Path root, String own, Map<String, Set<String>> repositories) {
+/**
+ * The repositories a project names in its {@code project.yml}: its own, under {@code project}, and
+ * each one under {@code repositories} with the issue prefixes it owns.
+ *
+ * @param own the name of the project's own repository
+ * @param repositories every repository by name, the own one first, each with its issue prefixes
+ */
+public record Project(String own, Map<String, Set<String>> repositories) {
+
+    /** Where the index finds the issues of a repository, to learn the own repository's prefixes. */
     interface Indexes {
         Map<String, IssueIndex> read(String repository) throws IOException;
     }
 
+    private static final String FILE = "project.yml";
     private static final ObjectMapper YAML =
             new ObjectMapper(
                     new YAMLFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
@@ -29,27 +42,71 @@ record Project(Path root, String own, Map<String, Set<String>> repositories) {
             Pattern.compile(
                     "^(?:git@github\\.com:|https://github\\.com/)porelo-ai/([A-Za-z0-9][A-Za-z0-9_.-]*?)(?:\\.git)?$");
 
+    /**
+     * Refuses a project that does not hold its own repository and copies the repositories and their
+     * prefixes to keep it immutable.
+     *
+     * @throws NullPointerException when the own repository, the repositories, or a repository's
+     *     prefixes are null
+     * @throws IllegalArgumentException when the repositories do not hold the own one
+     */
+    public Project {
+        Objects.requireNonNull(own, "own");
+        Objects.requireNonNull(repositories, "repositories");
+        if (!repositories.containsKey(own))
+            throw new IllegalArgumentException(
+                    "own repository " + own + " is not among the repositories");
+        final Map<String, Set<String>> copied = new LinkedHashMap<>();
+        repositories.forEach((name, prefixes) -> copied.put(name, Set.copyOf(prefixes)));
+        repositories = Collections.unmodifiableMap(copied);
+    }
+
     static String own(Path file) throws IOException {
-        return repository(required(yaml(file), "project", "project.yml"), "project");
+        return repository(required(yaml(file), "project", FILE), "project");
+    }
+
+    /**
+     * Reads a project from the text of its {@code project.yml}, as the stories index does.
+     *
+     * @param text the text of {@code project.yml}
+     * @param ownPrefixes the issue prefixes of the project's own repository, which {@code
+     *     project.yml} does not name
+     * @return the project
+     * @throws IllegalArgumentException when the text is no project, in the words the stories index
+     *     refuses it with
+     * @throws NullPointerException when {@code ownPrefixes} is null, with that message
+     */
+    public static Project read(String text, Set<String> ownPrefixes) {
+        Objects.requireNonNull(ownPrefixes, "ownPrefixes");
+        final JsonNode project = yaml(text, FILE);
+        return of(project, own(project), ownPrefixes);
     }
 
     static Project read(Path file, Indexes indexes) throws IOException {
         Path root = file.toAbsolutePath().normalize().getParent();
-        while (root != null && !Files.isRegularFile(root.resolve("project.yml"))) {
+        while (root != null && !Files.isRegularFile(root.resolve(FILE))) {
             root = root.getParent();
         }
         if (root == null) {
             throw new NoSuchFileException(file.toString(), null, "no project.yml above the plan");
         }
-        final JsonNode project = yaml(root.resolve("project.yml"));
-        final String own = repository(required(project, "project", "project.yml"), "project");
-        final Map<String, Set<String>> repositories = new LinkedHashMap<>();
+        final JsonNode project = yaml(root.resolve(FILE));
+        final String own = own(project);
         final Set<String> ownPrefixes = new HashSet<>();
         indexes.read(own)
                 .keySet()
                 .forEach(number -> ownPrefixes.add(number.replaceAll("\\d+$", "")));
+        return of(project, own, ownPrefixes);
+    }
+
+    private static String own(JsonNode project) {
+        return repository(required(project, "project", FILE), "project");
+    }
+
+    private static Project of(JsonNode project, String own, Set<String> ownPrefixes) {
+        final Map<String, Set<String>> repositories = new LinkedHashMap<>();
         repositories.put(own, Set.copyOf(ownPrefixes));
-        final JsonNode declared = required(project, "repositories", "project.yml");
+        final JsonNode declared = required(project, "repositories", FILE);
         if (!declared.isObject()) {
             throw new IllegalArgumentException("project.yml repositories: expected a mapping");
         }
@@ -67,12 +124,27 @@ record Project(Path root, String own, Map<String, Set<String>> repositories) {
                 throw new IllegalArgumentException(where + ": duplicate repository " + name);
             }
         }
-        return new Project(root, own, Map.copyOf(repositories));
+        return new Project(own, repositories);
     }
 
+    // Parsed from the bytes, so the parser skips a byte order mark and refuses bad UTF-8 as YAML.
     private static JsonNode yaml(Path file) throws IOException {
         try (var input = Files.newInputStream(file);
                 var parser = YAML.createParser(input)) {
+            return yaml(parser, file.toString());
+        }
+    }
+
+    private static JsonNode yaml(String text, String file) {
+        try (var parser = YAML.createParser(text)) {
+            return yaml(parser, file);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private static JsonNode yaml(JsonParser parser, String file) throws IOException {
+        try {
             final JsonNode data = YAML.readTree(parser);
             if (parser.nextToken() != null) {
                 throw new IllegalArgumentException(file + ": expected exactly one YAML document");
