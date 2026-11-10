@@ -13,6 +13,7 @@ left out.
 | <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
+| <a id="bt63"></a>[BT63](BT63-Third-Party-Notices-From-The-Compiled-In-Jars.md) | M | - | One generator writes a package's THIRD-PARTY-NOTICES from the jars compiled into its executable: each jar's LICENSE and NOTICE, the licenses it embeds and the GraalVM runtime's, as full texts; a jar with no license text found is refused. |
 
 ## Accepted
 
