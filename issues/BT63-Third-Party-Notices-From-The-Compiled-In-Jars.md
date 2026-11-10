@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT63",
   "title": "Third-Party Notices From The Compiled-In Jars",
-  "state": "Idea",
+  "state": "Review",
   "size": "M",
   "priority": "Medium",
   "rank": 5,
