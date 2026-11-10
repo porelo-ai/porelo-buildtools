@@ -33,4 +33,4 @@ their own JSON reader, and `porelo-pinned-rule` their one rule for asking again.
 
 ## License
 
-GPL-3.0-or-later, see [LICENSE](LICENSE).
+GPL-3.0-or-later, see [LICENSE](LICENSE); `porelo-stories` alone is LGPL-3.0-or-later, see [its license](stories/LICENSE).

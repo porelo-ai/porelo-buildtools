@@ -16,6 +16,17 @@
     <name>Porelo Stories</name>
     <description>Porelo - The stories index as a library (BUILD)</description>
 
+    <!-- The one module under the LGPL, so a program under another license may link it; it replaces the GPL block
+         the parent gives every other module. -->
+    <licenses>
+        <license>
+            <name>LGPL-3.0-or-later</name>
+            <url>https://www.gnu.org/licenses/lgpl-3.0.html</url>
+            <distribution>repo</distribution>
+            <comments>GNU Lesser General Public License v3.0 or later</comments>
+        </license>
+    </licenses>
+
     <properties>
         <!-- Published: callers regenerate story indexes without the release CLI. -->
         <maven.deploy.skip>false</maven.deploy.skip>

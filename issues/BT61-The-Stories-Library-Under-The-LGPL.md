@@ -1,6 +1,6 @@
 # BT61 — The Stories Library Under The LGPL
 
-**Status:** Implementing.
+**Status:** Review.
 **Size:** XS - the `porelo-stories` module's license block, its own license file and a changelog entry; no code.
 
 **What must be true.** `org.fuin.porelo:porelo-stories` is published under LGPL-3.0-or-later. A program under another
@@ -23,3 +23,9 @@ Agent Planner.
 
 - `./mvnw verify` green; the flattened pom of `porelo-stories` names LGPL-3.0-or-later, the other modules' the GPL.
 - The snapshot version that carries it is said in the room for Agent Planner.
+
+## Checked
+
+- `./mvnw verify` green. The flattened `stories/.flattened-pom.xml` names LGPL-3.0-or-later, `release`'s still
+  GPL-3.0-or-later.
+- `stories/LICENSE` is byte for byte the text at gnu.org's lgpl-3.0.txt.
