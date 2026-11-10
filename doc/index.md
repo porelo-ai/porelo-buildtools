@@ -102,11 +102,18 @@ contain complete, closed records: the same field, value, issue-to-filename and t
 `stage` applies. A record whose `end` is null is refused with that commit's short hash. Generated stage JSONL
 files are exempt from `check-citations`; handwritten notes under `stats/` are still checked.
 
-When that tree contains `stats/seed.csv`, changing an issue whose status is marked `measured: true` in that tree's
-`issues/workflow.yml` requires `stats/<ISSUE>.jsonl` in the tree; the status is the head's where the issue has one. The workflow is read from the same commit as the
+When that tree contains `stats/seed.csv`, a commit that adds an issue in a state marked `measured: true` in that
+tree's `issues/workflow.yml`, or changes an issue's state or size while it ends in such a state, requires
+`stats/<ISSUE>.jsonl` in the tree. State and size are read as `stage` reads them, from the head where the file has
+one and from its `**Status:**` and `**Size:**` lines otherwise, in the commit and in its parent; an edit that keeps
+both, such as prose or moving the lines into a head, needs no stats. A parent version that cannot be read or has no
+valid state or size is refused with the reason, never taken as unchanged; the parent is read with the commit's own
+workflow, so a commit that renames a state refuses until each measured issue it touches has its stats. A file is
+followed by its path: a renamed or moved issue in a measured state counts as added and needs its stats. The workflow
+is read from the same commit as the
 issue and records; editing the working tree cannot change a historical check. Issue files are found directly under `issues/` and in
 its subgroups. Deleted issue files and index-only changes need no stats. Changes are compared with the first
-parent of a merge and with the empty tree for a root commit. Bot and web commits exempt from the message rules
+parent of a merge, and every issue of a root commit counts as added. Bot and web commits exempt from the message rules
 also skip the stats rules. A `NOTE` identifies nonexempt trees without the seed, where the issue-change rule is
 not yet enforced. A later commit closing a stage does not repair an earlier open stage in the checked range.
 
@@ -459,7 +466,9 @@ each directory's `README.md` under `issues/`, is generated from the heads and ne
   `**Size:**`, `**Blocked by:**`, `**Priority:**`, `**Role:**` and `**Parent:**` lines, and its index row. Where
   they agree on state, size and waits, it writes the head and drops those lines; a size's reason stays as the
   paragraph `**Why this size.**`. The priority is `Medium` without a line, the rank the row's place in its table, and
-  `covers` the row's text. Where they do not agree, where a line says more than ids, links, punctuation, `none` or
+  `covers` the row's text. A closed row of the finished form (`| # | Title | What was built |`) gives no size, so the
+  file's stands; a closed table kept in the open form is compared by its Size column and gives `covers` from its
+  "What it covers". Where they do not agree, where a line says more than ids, links, punctuation, `none` or
   `-`, where the heading is not the one the head gives, or where measured work has no size, it names every
   difference and leaves that file as it was; exit 1. A second run finds nothing to do. Then `issues index` writes the
   index.
@@ -467,7 +476,7 @@ each directory's `README.md` under `issues/`, is generated from the heads and ne
 Exit 0 when nothing is refused, 1 when something is, 2 when a file cannot be read or written or the call is mistyped.
 
 Readers of an issue take the head where a file has one and today's lines or row otherwise: `stage` its state and size,
-the stats rule of `check-commits` its state, the stories library's local issue source the whole row, and
+the stats rule of `check-commits` its state and size, the stories library's local issue source the whole row, and
 `check-citations` the waits and parent as data.
 
 ## Stories

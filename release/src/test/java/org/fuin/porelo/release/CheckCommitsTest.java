@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.fuin.porelo.json.Json;
 import org.junit.jupiter.api.Test;
@@ -841,6 +842,134 @@ class CheckCommitsTest {
         assertThat(checkRepository()).as(stderr()).isZero();
     }
 
+    // Moving an issue's lines into a head touches every issue file, older ones without stats too.
+    @Test
+    void passesAConversionToAHeadThatKeepsStateAndSizeWithoutStats() throws Exception {
+        commitIssueWithoutStats("# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n");
+        write("issues/EX12-Sample.md", head("Review", "M") + "\nSome prose.\n");
+        git("add", "issues");
+        git("commit", "-q", "-m", "Convert the issue");
+
+        assertThat(checkLast()).as(stderr()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "Backlog,M,state from Backlog to Review",
+                "Implementing,M,state from Implementing to Review",
+                "Review,L,size from L to M"
+            })
+    void refusesAStateOrSizeChangeIntoAMeasuredStateWithoutStats(String change) throws Exception {
+        final String[] parts = change.split(",");
+        commitIssueWithoutStats(
+                "# EX12 — Sample\n\n**Status:** "
+                        + parts[0]
+                        + ".\n**Size:** "
+                        + parts[1]
+                        + " - sample.\n");
+        write("issues/EX12-Sample.md", head("Review", "M"));
+        git("add", "issues");
+        git("commit", "-q", "-m", "Convert the issue");
+
+        assertThat(checkLast()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the change that asks for stats is named")
+                .contains("issues/EX12-Sample.md", parts[2], "stats/EX12.jsonl");
+    }
+
+    @Test
+    void refusesANewIssueInAMeasuredStateWithoutStats() throws Exception {
+        commitIssueWithoutStats("# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n");
+        write("issues/EX13-Other.md", "# EX13 — Other\n\n**Status:** Review.\n**Size:** S - x.\n");
+        git("add", "issues");
+        git("commit", "-q", "-m", "Describe other work");
+
+        assertThat(checkLast()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("a new issue has no earlier state to keep")
+                .contains("issues/EX13-Other.md", "new in Review", "stats/EX13.jsonl");
+    }
+
+    @Test
+    void passesAProseOnlyEditOfAMeasuredIssueWithoutStats() throws Exception {
+        commitIssueWithoutStats("# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n");
+        write(
+                "issues/EX12-Sample.md",
+                "# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n\nMore prose.\n");
+        git("add", "issues");
+        git("commit", "-q", "-m", "Explain the issue");
+
+        assertThat(checkLast()).as(stderr()).isZero();
+    }
+
+    // A parent that cannot be read must never let a change through as unchanged.
+    @ParameterizedTest
+    @ValueSource(strings = {"unreadable", "no-status", "faulty-head"})
+    void refusesWhenTheParentsVersionCannotBeRead(String defect) throws Exception {
+        commitIssueWithoutStats(
+                switch (defect) {
+                    case "no-status" -> "# EX12 — Sample\n\n**Size:** M - sample.\n";
+                    case "faulty-head" ->
+                            "# EX12 — Sample\n\n```json\n{\"state\": \"Review\"}\n```\n";
+                    default -> "# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n";
+                });
+        final String parent = git("rev-parse", "HEAD").strip();
+        write("issues/EX12-Sample.md", head("Review", "M"));
+        git("add", "issues");
+        git("commit", "-q", "-m", "Convert the issue");
+        final CheckCommits.Git real = CheckCommits.Git.in(directory, isolated());
+        final CheckCommits.Git reader =
+                new CheckCommits.Git() {
+                    @Override
+                    public String log(String range) throws IOException {
+                        return real.log(range);
+                    }
+
+                    @Override
+                    public List<String> files(String hash) throws IOException {
+                        return real.files(hash);
+                    }
+
+                    @Override
+                    public List<String> changed(String hash) throws IOException {
+                        return real.changed(hash);
+                    }
+
+                    @Override
+                    public Optional<String> parent(String hash) throws IOException {
+                        return real.parent(hash);
+                    }
+
+                    @Override
+                    public String read(String hash, String path) throws IOException {
+                        if (defect.equals("unreadable") && parent.startsWith(hash)) {
+                            throw new IOException("the object store is damaged");
+                        }
+                        return real.read(hash, path);
+                    }
+                };
+
+        assertThat(
+                        new CheckCommits(stream(out), stream(err), reader, () -> prefixes)
+                                .check("HEAD^..HEAD", false))
+                .as(stderr())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the refusal says why the parent could not be compared")
+                .contains("issues/EX12-Sample.md", "parent")
+                .contains(
+                        switch (defect) {
+                            case "unreadable" -> "the object store is damaged";
+                            case "no-status" -> "issue has no valid Status";
+                            default -> "issue head";
+                        })
+                .contains(
+                        defect.equals("unreadable")
+                                ? "which cannot be read"
+                                : "which is no valid issue");
+    }
+
     @Test
     void skipsDeletedIssues() throws Exception {
         git("init", "-q", "-b", "main");
@@ -926,6 +1055,39 @@ class CheckCommitsTest {
                         CheckCommits.Git.in(directory, isolated()),
                         () -> prefixes)
                 .check("HEAD", false);
+    }
+
+    /** Checks only the last commit, so its parent may hold what the rule refuses. */
+    private int checkLast() {
+        return new CheckCommits(
+                        stream(out),
+                        stream(err),
+                        CheckCommits.Git.in(directory, isolated()),
+                        () -> prefixes)
+                .check("HEAD^..HEAD", false);
+    }
+
+    /** Commits a repository with the rule rolled out and one issue, EX12, with no stats file. */
+    private void commitIssueWithoutStats(String issue) throws Exception {
+        git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        write("stats/seed.csv", "size,minutes\nM,53\n");
+        write("issues/EX12-Sample.md", issue);
+        git("add", "issues", "stats");
+        git("commit", "-q", "-m", "Describe work");
+    }
+
+    /** EX12's file with its data in a head. */
+    private static String head(String state, String size) {
+        return "# EX12 — Sample\n\n```json\n{\"$schema\": \"issue-1.json\", \"id\": \"EX12\","
+                + " \"title\": \"Sample\", \"state\": \""
+                + state
+                + "\", \"size\": \""
+                + size
+                + "\", \"priority\": \"Medium\", \"rank\": 1, \"blockedBy\": [],"
+                + " \"covers\": \"A sample.\"}\n```\n";
     }
 
     private void write(String name, String text) throws IOException {

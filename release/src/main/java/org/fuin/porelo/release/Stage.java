@@ -467,7 +467,13 @@ final class Stage {
                 : samples.get(middle - 1) / 2 + samples.get(middle) / 2;
     }
 
-    private record Issue(@Nullable String size, String status) {}
+    /**
+     * An issue's state and size, as its head or its lines say.
+     *
+     * @param size {@code XS} to {@code XL}, or null when it has none yet
+     * @param status a state of the workflow
+     */
+    record Issue(@Nullable String size, String status) {}
 
     private Issue issue(String issue) throws IOException {
         final Path directory = root.resolve("issues");
@@ -485,21 +491,33 @@ final class Stage {
         require(matches.size() == 1, "expected exactly one issue file");
         final Path file = matches.getFirst();
         safe(file);
-        final String text = Files.readString(file);
-        final IssueHead head = IssueHead.read(text, workflow());
+        return issue(Files.readString(file), workflow());
+    }
+
+    /**
+     * Reads an issue's state and size: from its head where it has one, else from its {@code
+     * **Status:**} and {@code **Size:**} lines.
+     *
+     * @param text the issue file's text
+     * @param workflow the repository's states
+     * @return the state and size
+     * @throws IllegalArgumentException when neither can be read, or a measured or closed state has
+     *     no size, naming why
+     */
+    static Issue issue(String text, Workflow workflow) {
+        final IssueHead head = IssueHead.read(text, workflow);
         if (head != null) {
             final String size = head.size().equals("-") ? null : head.size();
             require(
                     size != null
-                            || (!workflow().measured(head.state())
-                                    && !workflow().closed(head.state())),
+                            || (!workflow.measured(head.state()) && !workflow.closed(head.state())),
                     "issue has no valid Size");
             return new Issue(size, head.state());
         }
-        final String status = status(text, workflow());
+        final String status = status(text, workflow);
         final String size =
-                !workflow().measured(status)
-                                && !workflow().closed(status)
+                !workflow.measured(status)
+                                && !workflow.closed(status)
                                 && !Pattern.compile("(?m)^\\*\\*Size:").matcher(text).find()
                         ? null
                         : field(text, "Size", "XS|S|M|L|XL");

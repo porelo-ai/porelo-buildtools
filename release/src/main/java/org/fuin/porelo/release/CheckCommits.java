@@ -10,12 +10,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.fuin.porelo.json.JsonException;
 import org.fuin.porelo.stories.Workflow;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Holds each commit of a range to the shared rules on commit messages and stage records.
@@ -26,7 +29,10 @@ import org.fuin.porelo.stories.Workflow;
  * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt
  * from these checks: told by the author and committer the commit records, never by what its message
  * says. Other trees' stage records must be closed, and a tree with a seed must hold stats for each
- * changed issue in a workflow state marked measured.
+ * issue it adds in a workflow state marked measured, and for each whose state or size it changes
+ * while that issue ends in such a state; both are read as {@link Stage#issue} reads them, in the
+ * commit and in its first parent, and a parent's version that cannot be read is refused, never
+ * taken as unchanged.
  */
 final class CheckCommits {
 
@@ -102,6 +108,14 @@ final class CheckCommits {
             return List.of();
         }
 
+        /**
+         * Names the parent {@link #changed} compares against: a merge's first, none for a root.
+         * Without one, every issue file of the commit counts as new.
+         */
+        default Optional<String> parent(String hash) throws IOException {
+            return Optional.empty();
+        }
+
         /** Reads a file from that commit, never from the working tree. */
         default String read(String hash, String path) throws IOException {
             throw new IOException("commit tree contents are unavailable");
@@ -135,13 +149,7 @@ final class CheckCommits {
                 /** Lists that commit's changed paths. */
                 @Override
                 public List<String> changed(String hash) throws IOException {
-                    final String[] ancestry =
-                            execute(
-                                            directory,
-                                            environment,
-                                            List.of("rev-list", "--parents", "-n", "1", hash, "--"))
-                                    .strip()
-                                    .split("\\s+");
+                    final Optional<String> parent = parent(hash);
                     final List<String> arguments =
                             new ArrayList<>(
                                     List.of(
@@ -151,12 +159,23 @@ final class CheckCommits {
                                             "--name-only",
                                             "-r",
                                             "-z"));
-                    if (ancestry.length > 1) {
-                        arguments.add(ancestry[1]);
-                    }
+                    parent.ifPresent(arguments::add);
                     arguments.add(hash);
                     arguments.add("--");
                     return paths(execute(directory, environment, arguments));
+                }
+
+                /** Names that commit's first parent. */
+                @Override
+                public Optional<String> parent(String hash) throws IOException {
+                    final String[] ancestry =
+                            execute(
+                                            directory,
+                                            environment,
+                                            List.of("rev-list", "--parents", "-n", "1", hash, "--"))
+                                    .strip()
+                                    .split("\\s+");
+                    return ancestry.length > 1 ? Optional.of(ancestry[1]) : Optional.empty();
                 }
 
                 /** Reads a file from that commit's tree. */
@@ -403,19 +422,79 @@ final class CheckCommits {
         if (files.contains("stats/seed.csv")) {
             final Pattern issue =
                     Pattern.compile("issues/(?:[^/]+/)*([A-Z]{1,3}\\d{2,3})-[^/]+\\.md");
+            Optional<String> parent = null;
+            Set<String> before = Set.of();
             for (final String path : git.changed(hash)) {
                 final Matcher match = issue.matcher(path);
-                if (match.matches()
-                        && files.contains(path)
-                        && workflow.measured(Stage.status(git.read(hash, path), workflow))) {
-                    final String stats = "stats/" + match.group(1) + ".jsonl";
-                    if (!files.contains(stats)) {
-                        faults.add(path + " changed without " + stats + " in its tree");
+                if (!match.matches() || !files.contains(path)) {
+                    continue;
+                }
+                final String text = git.read(hash, path);
+                final String status = Stage.status(text, workflow);
+                final String stats = "stats/" + match.group(1) + ".jsonl";
+                if (!workflow.measured(status) || files.contains(stats)) {
+                    continue;
+                }
+                if (parent == null) {
+                    parent = git.parent(hash);
+                    if (parent.isPresent()) {
+                        before = Set.copyOf(git.files(parent.get()));
                     }
+                }
+                if (parent.isEmpty() || !before.contains(path)) {
+                    faults.add(
+                            path + " is new in " + status + " without " + stats + " in its tree");
+                    continue;
+                }
+                final String change = change(parent.get(), path, text, workflow);
+                if (change != null) {
+                    faults.add(path + " " + change + " without " + stats + " in its tree");
                 }
             }
         }
         return faults;
+    }
+
+    /**
+     * Compares an issue's state and size with its first parent's, as {@link Stage#issue} reads
+     * both.
+     *
+     * @return null when both are the same, else what changed or why it cannot be told
+     */
+    private @Nullable String change(String parent, String path, String text, Workflow workflow) {
+        final String before;
+        try {
+            before = git.read(parent, path);
+        } catch (IOException ex) {
+            return "cannot be compared with its parent's version, which cannot be read: "
+                    + ex.getMessage();
+        }
+        final Stage.Issue earlier;
+        try {
+            earlier = Stage.issue(before, workflow);
+        } catch (IllegalArgumentException ex) {
+            return "cannot be compared with its parent's version, which is no valid issue under"
+                    + " this commit's workflow: "
+                    + ex.getMessage();
+        }
+        final Stage.Issue now;
+        try {
+            now = Stage.issue(text, workflow);
+        } catch (IllegalArgumentException ex) {
+            return "cannot be compared with its parent's version: " + ex.getMessage();
+        }
+        final List<String> changes = new ArrayList<>();
+        if (!earlier.status().equals(now.status())) {
+            changes.add("its state from " + earlier.status() + " to " + now.status());
+        }
+        if (!Objects.equals(earlier.size(), now.size())) {
+            changes.add(
+                    "its size from "
+                            + Objects.requireNonNullElse(earlier.size(), "none")
+                            + " to "
+                            + Objects.requireNonNullElse(now.size(), "none"));
+        }
+        return changes.isEmpty() ? null : "changes " + String.join(" and ", changes);
     }
 
     private static List<String> faults(Commit commit, Set<String> known, boolean outside) {

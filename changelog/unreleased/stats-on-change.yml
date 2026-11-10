@@ -1,0 +1,2 @@
+title: check-commits asks for an issue's stats file only when a commit adds the issue in a measured state or changes its state or size, so moving an issue's lines into a head or editing its prose passes; a parent version that cannot be read is refused with the reason.
+type: changed

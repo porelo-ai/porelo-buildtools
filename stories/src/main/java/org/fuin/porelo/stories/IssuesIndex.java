@@ -868,9 +868,8 @@ public final class IssuesIndex {
                                 + state
                                 + ", the index row stands under "
                                 + row.state());
-            // A closed row of the finished form says no size, and the file's stands; one of the
-            // open
-            // form keeps its Size column, which the library reads as a dash for any closed row.
+            // A closed row of the finished form says no size, so the file's stands. One of the open
+            // form keeps a Size column, which the library reads as a dash for any closed row.
             final @Nullable String sizeCell = row.cells().get("size");
             final boolean rowSized = !workflow.closed(row.state()) || sizeCell != null;
             final String given =
