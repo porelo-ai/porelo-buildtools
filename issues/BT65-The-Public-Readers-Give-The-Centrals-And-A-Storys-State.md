@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT65",
   "title": "The Public Readers Give The Centrals And A Story's State",
-  "state": "Backlog",
+  "state": "Implementing",
   "size": "S",
   "priority": "Medium",
   "rank": 7,
