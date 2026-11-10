@@ -54,18 +54,21 @@ final class ThirdPartyNotices {
      * The licenses whose standard texts are pinned, by SPDX id, each to the texts it consists of.
      */
     static final Map<String, List<String>> STANDARD =
-            Map.of(
-                    "Apache-2.0", List.of("Apache-2.0"),
-                    "BSD-2-Clause", List.of("BSD-2-Clause"),
-                    "BSD-3-Clause", List.of("BSD-3-Clause"),
-                    "EPL-1.0", List.of("EPL-1.0"),
-                    "EPL-2.0", List.of("EPL-2.0"),
-                    "GPL-2.0-only", List.of("GPL-2.0-only"),
-                    "GPL-2.0-with-classpath-exception",
-                            List.of("GPL-2.0-only", "Classpath-exception-2.0"),
-                    "GPL-3.0-or-later", List.of("GPL-3.0"),
-                    "LGPL-2.1-only", List.of("LGPL-2.1-only"),
-                    "MIT", List.of("MIT"));
+            Map.ofEntries(
+                    Map.entry("Apache-2.0", List.of("Apache-2.0")),
+                    Map.entry("BSD-2-Clause", List.of("BSD-2-Clause")),
+                    Map.entry("BSD-3-Clause", List.of("BSD-3-Clause")),
+                    Map.entry("EPL-1.0", List.of("EPL-1.0")),
+                    Map.entry("EPL-2.0", List.of("EPL-2.0")),
+                    Map.entry("GPL-2.0-only", List.of("GPL-2.0-only")),
+                    Map.entry(
+                            "GPL-2.0-with-classpath-exception",
+                            List.of("GPL-2.0-only", "Classpath-exception-2.0")),
+                    Map.entry("GPL-3.0-or-later", List.of("GPL-3.0")),
+                    Map.entry("LGPL-2.1-only", List.of("LGPL-2.1-only")),
+                    // LGPL-3.0 adds permissions to the GPL-3.0, whose text ships with it.
+                    Map.entry("LGPL-3.0-or-later", List.of("LGPL-3.0", "GPL-3.0")),
+                    Map.entry("MIT", List.of("MIT")));
 
     /** The license exceptions whose standard texts are pinned, by SPDX id. */
     static final Set<String> EXCEPTIONS = Set.of("Classpath-exception-2.0");

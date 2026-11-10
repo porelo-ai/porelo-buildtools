@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT66",
   "title": "The Notices Hold The LGPL-3.0 Text",
-  "state": "Implementing",
+  "state": "Review",
   "size": "XS",
   "priority": "High",
   "rank": 1,
@@ -24,7 +24,7 @@ Agent Planner on 2026-11-10 for PL03's hand-over.
 
 ## Plan
 
-- **The text:** `licenses/LGPL-3.0.txt` beside `GPL-3.0.txt`, the SPDX list's text of the same release as the others,
+- **The text:** `licenses/LGPL-3.0.txt` beside `GPL-3.0.txt`, gnu.org's `lgpl-3.0.txt` as `GPL-3.0.txt` is gnu.org's,
   its digest checked as theirs are.
 - **The map:** `STANDARD` gains `"LGPL-3.0-or-later" -> ["LGPL-3.0", "GPL-3.0"]`.
 - **Red first:** a bill with `porelo-stories` under LGPL-3.0-or-later passes, and the notices hold both texts once each.

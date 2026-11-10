@@ -541,6 +541,35 @@ class ThirdPartyNoticesTest {
     }
 
     @Test
+    void aJarUnderTheLgplGetsTheLesserTextAndTheGplItBuildsOn() throws Exception {
+        // porelo-stories is LGPL-3.0-or-later; a program that links it ships both texts.
+        final Path jar =
+                jar(
+                        "porelo-stories-1.jar",
+                        "org.fuin.porelo",
+                        "porelo-stories",
+                        "1",
+                        Map.of("README", "x\n"));
+
+        final String text =
+                ThirdPartyNotices.notices(
+                        List.of(jar),
+                        licensed("org.fuin.porelo:porelo-stories:1", "LGPL-3.0-or-later"),
+                        jdk(),
+                        NONE_OWN);
+
+        assertThat(text)
+                .as(
+                        "the GNU Lesser General Public License with the GPL its permissions are added to")
+                .contains("License: LGPL-3.0-or-later")
+                .contains(ThirdPartyNotices.standardText("LGPL-3.0"))
+                .contains(ThirdPartyNotices.standardText("GPL-3.0"));
+        assertThat(text.split("GNU LESSER GENERAL PUBLIC LICENSE", -1))
+                .as("the lesser text stands once")
+                .hasSize(2);
+    }
+
+    @Test
     void refusesAGplComponentInTheClosureOfTheLgplStoriesLibrary() throws Exception {
         // porelo-stories is LGPL so that others may link it; a GPL jar below it would break that.
         final Path bill =
@@ -673,6 +702,9 @@ class ThirdPartyNoticesTest {
         expected.put(
                 "LGPL-2.1-only",
                 "5749785c8bdefafcb5d798270ed0a967036fe2ca63dcedade1627565dfef81d2");
+        // gnu.org's lgpl-3.0.txt, the same bytes as porelo-stories' own LICENSE.
+        expected.put(
+                "LGPL-3.0", "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118");
         expected.put("MIT", "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5");
         final Map<String, String> actual = new TreeMap<>();
         for (List<String> files : ThirdPartyNotices.STANDARD.values()) {
@@ -699,6 +731,7 @@ class ThirdPartyNoticesTest {
                         "GPL-2.0-with-classpath-exception",
                         "GPL-3.0-or-later",
                         "LGPL-2.1-only",
+                        "LGPL-3.0-or-later",
                         "MIT");
     }
 
