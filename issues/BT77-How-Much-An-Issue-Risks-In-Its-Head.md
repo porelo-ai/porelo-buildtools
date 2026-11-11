@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT77",
   "title": "How Much An Issue Risks In Its Head",
-  "state": "Accepted",
+  "state": "Estimated",
   "size": "XS",
   "priority": "High",
   "rank": 30,
@@ -35,3 +35,23 @@ taken; `Harm` and `high` refused) and a head test that reads `risk` and writes i
 `IssueSchema`'s enum and field list, the record, the reader, the writer and doc/index.md, with a changelog entry. Run
 the stories and release modules' tests in the JVM, and CheckCitationsTest again after the commit. The snapshot
 follows from the Build on main.
+
+## Analysis (2026-11-11, read in the code)
+
+The same seams as `worker`, one place each:
+- `stories/.../schemas/issue-1.json`: a `risk` property, `enum` `harm`, `ordinary` and `small`.
+- `IssueSchema`: `risk` in `PROPERTIES` and `ENUMS`, and in the enum `case`.
+- `IssueHead`: a 15th component `@Nullable String risk`. The 14-argument constructor (with `worker`) becomes an
+  overload with `risk` null, beside the 13-argument one. The reader takes `text(data, "risk")`, and the writer adds
+  `risk` after `worker`.
+- The two callers of the constructor in main code (`IssueHead`'s reader and `IssuesIndex`'s conversion) need no
+  change. The conversion keeps the 13-argument overload, since an index row carries no risk.
+- Tests: a new head test class, named in `citations-exempt.txt` beside `IssueHeadWorkerTest` because it writes sample
+  heads, and the schema test's cases. Red first.
+- `doc/index.md`'s list of optional fields, and one `added` changelog entry.
+
+**Size XS, 8 min at the measured median.** It has the shape of [BT75](README.md#bt75), whose implement stage took 2.2 minutes plus a
+fix, here avoided by naming the test in the exemption list and rerunning the citation self-check after the commit.
+
+**For the operator to decide.** Nothing. The values and where the field goes are the operator's decision, through the
+Planner.
