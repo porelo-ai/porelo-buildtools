@@ -1,0 +1,2 @@
+title: "An issue head may say who works the issue, `\"worker\": \"Agent\"` or `\"Manual\"`: issue-1.json and the issues check take it, and `IssueHead` reads it and writes it last; its constructor without `worker` stays."
+type: added

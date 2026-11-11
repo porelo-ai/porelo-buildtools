@@ -35,7 +35,8 @@ final class IssueSchema {
                     "priority", PRIORITIES,
                     "role", List.of("builder", "tester", "reader"),
                     "severity", List.of("Blocker", "Critical", "Major", "Minor", "Trivial"),
-                    "kind", List.of("Feature", "Bug", "Task"));
+                    "kind", List.of("Feature", "Bug", "Task"),
+                    "worker", List.of("Agent", "Manual"));
     private static final List<String> PROPERTIES =
             List.of(
                     "$schema",
@@ -51,7 +52,8 @@ final class IssueSchema {
                     "role",
                     "severity",
                     "kind",
-                    "openQuestions");
+                    "openQuestions",
+                    "worker");
 
     private IssueSchema() {}
 
@@ -77,7 +79,7 @@ final class IssueSchema {
                     if (type(value, "string", at, faults)) pattern(value, PARENT, at, faults);
                 }
                 case "title", "state", "covers" -> line(value, at, maximum(field), faults);
-                case "size", "priority", "role", "severity", "kind" -> {
+                case "size", "priority", "role", "severity", "kind", "worker" -> {
                     final List<String> values = java.util.Objects.requireNonNull(ENUMS.get(field));
                     if (!value.isTextual() || !values.contains(value.asText()))
                         faults.add(
