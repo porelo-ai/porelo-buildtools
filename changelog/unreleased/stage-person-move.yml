@@ -1,0 +1,2 @@
+title: "The stage check takes a person's move on the board, `actor: person` with `stage: move`, with no size needed and no minutes, and leaves it out of the median; `stage begin` still refuses a move."
+type: changed

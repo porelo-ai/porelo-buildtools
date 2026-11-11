@@ -14,6 +14,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.fuin.porelo.json.Json;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -363,6 +364,52 @@ class StageTest {
                         "median of 45, 50, 53 excludes waits, analysis, subagents and unfinished"
                                 + " issues")
                 .isEqualTo("50");
+    }
+
+    @Test
+    void acceptsAPersonsMoveOnTheBoardAndLeavesItOutOfTheMedian() throws Exception {
+        write(
+                "stats/EX13.jsonl",
+                move("EX13", "Backlog", "Implementing")
+                        + measured("EX13", "plan", "agent", 10, "Implementing")
+                        + measured("EX13", "implement", "agent", 30, "Implementing")
+                        + measured("EX13", "handover", "agent", 5, "Finishing")
+                        + move("EX13", "Finishing", "Finished"));
+        write("stats/EX14.jsonl", measured("EX14", "implement", "agent", 50, "Finished"));
+        assertThat(run("median", "M")).as(errors()).isZero();
+        assertThat(out.toString(StandardCharsets.UTF_8).strip())
+                .as("median of 45, 50, 53: the moves add no minutes and no sample")
+                .isEqualTo("50");
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "a person in a measured stage",
+                "an agent's move",
+                "a move with minutes",
+                "a move with zero minutes"
+            })
+    void refusesAMoveLineOutsideItsOneShape(String fault) throws Exception {
+        final var record = moveRecord("EX13", "Backlog", "Implementing");
+        switch (fault) {
+            case "a person in a measured stage" -> record.put("stage", "implement");
+            case "an agent's move" -> record.put("actor", "agent");
+            case "a move with minutes" -> record.put("wall_min", 3);
+            default -> {
+                record.put("wall_min", 0);
+                record.put("vm_min", 0);
+            }
+        }
+        write("stats/EX13.jsonl", Json.write(record) + "\n");
+        assertThat(run("median", "M")).as(fault + " is refused").isEqualTo(2);
+    }
+
+    @Test
+    void refusesToBeginAMove() {
+        assertThat(run("begin", "EX12", "move"))
+                .as("a move is the planner's line, never a stage an agent opens")
+                .isEqualTo(2);
     }
 
     @Test
@@ -928,6 +975,21 @@ class StageTest {
                 session.toString(),
                 "--model",
                 "example-model");
+    }
+
+    private static String move(String issue, String before, String after) {
+        return Json.write(moveRecord(issue, before, after)) + "\n";
+    }
+
+    private static Map<String, @Nullable Object> moveRecord(
+            String issue, String before, String after) {
+        final var record = StageFixtures.record(issue, "move", "person", 0, after, null);
+        record.put("status_before", before);
+        record.put("end", record.get("start"));
+        record.put("wall_min", null);
+        record.put("vm_min", null);
+        record.put("note", null);
+        return record;
     }
 
     private static String measured(

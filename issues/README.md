@@ -32,6 +32,12 @@ left out.
 |---|---|---|---|
 | <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | M | - | A sub-agent's work is a sub-issue `<parent>.<n>` with its own state, its file beside the parent and its row in the same index; the index reading, the checks and the stories count it, and the briefs-as-files rules go. |
 
+## Estimated
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt73"></a>[BT73](BT73-A-Persons-Move-Passes-The-Stage-Check.md) | XS | - | `Stage.validate` takes a person's move on the board, `actor: person` with `stage: move`, `size` null or a size, `wall_min` and `vm_min` null, and the median leaves every move out; `stage begin` still refuses a move. |
+
 ## Backlog
 
 | # | Size | Blocked by | What it covers |

@@ -172,10 +172,14 @@ abandoned session containing no usage records closes with every token field zero
 malformed usage still refuses to close. No session means all token fields are null with `note: "no-session"`.
 Otherwise token fields belonging to other session formats remain null. Format detection is independent of actor.
 
+A person's move of an issue on the board is a line the planner writes, never one `stage begin` opens: `actor:
+person` with `stage: move`, the states before and after, `start` equal to `end`, `size` the issue's or null, and
+`wall_min` and `vm_min` null. No other actor may record a move, and a person no other stage.
+
 `stats/seed.csv` starts with `size,minutes` and one row per seeded size: XS 8, S 27, M 53, L 80. `stage median`
 combines that size's seed with one sum per finished issue of its own stages carrying that size: `plan`,
-`implement`, `test`, `review`, `rework`, and `handover`, including repetitions. Analysis, estimation, waits and
-subagents are excluded. Work recorded under another size is excluded from that size's sum. An issue with work
+`implement`, `test`, `review`, `rework`, and `handover`, including repetitions. Analysis, estimation, waits,
+subagents and moves are excluded. Work recorded under another size is excluded from that size's sum. An issue with work
 under several sizes contributes one sum to each applicable size. An issue is finished only when every record is
 closed and its last record's `status_after` is a closed workflow state other than Rejected.
 

@@ -47,6 +47,7 @@ final class Stage {
                     "rework",
                     "handover",
                     "wait");
+    private static final String MOVE = "move";
     private static final Set<String> MEASURED =
             Set.of("plan", "implement", "test", "review", "rework", "handover");
     private static final Set<String> SIZES = Set.of("XS", "S", "M", "L", "XL");
@@ -670,13 +671,17 @@ final class Stage {
         require(record.keySet().equals(fields), "unknown or missing record fields");
         require(string(record, "issue").matches("[A-Z]{1,3}\\d{2,3}"), "invalid record issue");
         final String stage = string(record, "stage");
-        require(STAGES.contains(stage), "invalid record stage");
+        final String actor = string(record, "actor");
+        // A person's move on the board is the planner's line: no stage an agent opens, never
+        // measured.
+        final boolean move = stage.equals(MOVE);
+        require(STAGES.contains(stage) || move, "invalid record stage");
         require(
-                Set.of("agent", "subagent").contains(string(record, "actor")),
+                move ? actor.equals("person") : Set.of("agent", "subagent").contains(actor),
                 "invalid record actor");
         final Object size = record.get("size");
         require(
-                size == null && Set.of("analyze", "estimate").contains(stage)
+                size == null && (move || Set.of("analyze", "estimate").contains(stage))
                         || size instanceof String text && SIZES.contains(text),
                 "invalid record size");
         require(
@@ -722,8 +727,14 @@ final class Stage {
                     workflow.states().contains(string(record, "status_after")),
                     "invalid record status_after in issues/workflow.yml");
             require(!Instant.parse(string(record, "end")).isBefore(start), "invalid record end");
-            number(record.get("wall_min"), "wall_min");
-            number(record.get("vm_min"), "vm_min");
+            if (move) {
+                require(
+                        record.get("wall_min") == null && record.get("vm_min") == null,
+                        "a move records no minutes");
+            } else {
+                number(record.get("wall_min"), "wall_min");
+                number(record.get("vm_min"), "vm_min");
+            }
         } else {
             require(
                     record.get("end") == null
