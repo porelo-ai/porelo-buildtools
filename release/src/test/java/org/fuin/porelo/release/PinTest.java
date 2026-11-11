@@ -330,6 +330,140 @@ class PinTest {
     }
 
     @Test
+    void movingGraalvmWritesTheWindowsZipOfTheSameReleaseBesideTheLinuxArchive() {
+        machinesWithWindows();
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"),
+                                """
+                {"assets": [
+                  {"name": "graalvm-community-jdk-25i4_linux-x64_bin.tar.gz", "digest": "sha256:%s",
+                   "browser_download_url": "https://github.com/graalvm/x/linux.tar.gz"},
+                  {"name": "graalvm-community-jdk-25i4_windows-x64_bin.zip", "digest": "sha256:%s",
+                   "browser_download_url": "https://github.com/graalvm/x/windows.zip"},
+                  {"name": "graalvm-community-jdk-25i4_windows-x64_bin.zip.sha256", "digest": "sha256:%s",
+                   "browser_download_url": "https://github.com/graalvm/x/windows.zip.sha256"}
+                ]}"""
+                                        .formatted(NEW, "e".repeat(64), OLD));
+
+        assertThat(move("graalvm", "25.4.4.1.1", web)).as(report()).isEqualTo(0);
+
+        assertThat(read("pom.xml"))
+                .as("both builds name the one release moved to")
+                .contains("<machines.graalvm.version>25.4.4.1.1</machines.graalvm.version>")
+                .contains("<machines.graalvm.sha256>" + NEW + "</machines.graalvm.sha256>")
+                .contains(
+                        "<machines.graalvm.windows.sha256>"
+                                + "e".repeat(64)
+                                + "</machines.graalvm.windows.sha256>")
+                .contains(
+                        "<machines.graalvm.windows.url>https://github.com/graalvm/x/windows.zip</machines.graalvm.windows.url>");
+    }
+
+    @Test
+    void aReleaseWithoutTheWindowsZipMovesNeitherBuild() {
+        // Moved alone, the Linux archive would name a release the Windows pin does not.
+        machinesWithWindows();
+        final Map<String, String> before = files();
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"),
+                                """
+                {"assets": [
+                  {"name": "graalvm-community-jdk-25i4_linux-x64_bin.tar.gz", "digest": "sha256:%s",
+                   "browser_download_url": "https://github.com/graalvm/x/linux.tar.gz"}
+                ]}"""
+                                        .formatted(NEW));
+
+        assertThat(move("graalvm", "25.4.4.1.1", web)).as(report()).isEqualTo(Stop.REFUSED);
+        assertThat(files()).as("nothing is written").isEqualTo(before);
+        assertThat(stderr()).contains("0 assets matching");
+    }
+
+    @Test
+    void aFurtherBuildWithoutADigestOfItsOwnIsRefusedBeforeAnythingIsRead() {
+        // Moved by its version alone, its download would be checked against nothing.
+        final Map<String, String> windows = new LinkedHashMap<>();
+        windows.put("machines.graalvm.windows.url", "https://github.com/graalvm/old.zip");
+        windows.put("porelo.release.pin.graalvm.also", "windows");
+        windows.put("porelo.release.pin.graalvm.also.windows.url", "machines.graalvm.windows.url");
+        machines(windows);
+        final Map<String, String> before = files();
+
+        assertThat(move("graalvm", "25.4.4.1.1", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(files()).as("nothing is written").isEqualTo(before);
+        assertThat(stderr()).contains("are both needed for a further build");
+    }
+
+    @Test
+    void aFurtherBuildWhoseAddressIsNotWrittenIsRefused() {
+        // Its address names the release, so an unwritten one would keep naming the old one.
+        final Map<String, String> windows = new LinkedHashMap<>();
+        windows.put("machines.graalvm.windows.sha256", OLD);
+        windows.put("porelo.release.pin.graalvm.also", "windows");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.digest",
+                "github-asset "
+                        + GRAAL_RELEASE
+                        + " graalvm-community-jdk-.*_windows-x64_bin\\.zip");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.sha256",
+                "machines.graalvm.windows.sha256");
+        machines(windows);
+
+        assertThat(move("graalvm", "25.4.4.1.1", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("url names no property to write it to");
+    }
+
+    @Test
+    void aFurtherBuildWritingThePinsOwnPropertyIsRefused() {
+        // The later write would win, and one build would name the other's archive.
+        final Map<String, String> windows = new LinkedHashMap<>();
+        windows.put("porelo.release.pin.graalvm.also", "windows");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.digest",
+                "github-asset "
+                        + GRAAL_RELEASE
+                        + " graalvm-community-jdk-.*_windows-x64_bin\\.zip");
+        windows.put("porelo.release.pin.graalvm.also.windows.sha256", "machines.graalvm.sha256");
+        windows.put("porelo.release.pin.graalvm.also.windows.url", "machines.graalvm.url");
+        machines(windows);
+        final Map<String, String> before = files();
+
+        assertThat(move("graalvm", "25.4.4.1.1", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(files()).as("nothing is written").isEqualTo(before);
+        assertThat(stderr()).contains("writes machines.graalvm.sha256 twice");
+    }
+
+    @Test
+    void aFurtherBuildWritingAPropertyAFollowerSpellsOutIsRefused() {
+        final Map<String, String> windows = new LinkedHashMap<>();
+        windows.put("machines.graalvm.windows.sha256", OLD);
+        windows.put("porelo.release.pin.graalvm.follows", "machines.graalvm.windows.sha256");
+        windows.put("porelo.release.pin.graalvm.also", "windows");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.digest",
+                "sha256-file https://github.example/{version}/windows.zip.sha256");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.sha256",
+                "machines.graalvm.windows.sha256");
+        machines(windows);
+
+        assertThat(move("graalvm", "25.4.4.1.1", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("writes machines.graalvm.windows.sha256 twice");
+    }
+
+    @Test
     void movingAnImageWritesItsNewDigestAndReadsNothing() {
         machines();
 
@@ -361,6 +495,14 @@ class PinTest {
 
         assertThat(Pin.of(machines, "graalvm").pinned()).matches("\\d+(\\.\\d+)+");
         assertThat(Pin.of(machines, "graalvm").url()).isEqualTo("machines.graalvm.url");
+        assertThat(Pin.of(machines, "graalvm").also())
+                .as("the Windows zip moves with the Linux archive")
+                .extracting(Pin.Also::key, Pin.Also::sha256, Pin.Also::url)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                "windows",
+                                "machines.graalvm.windows.sha256",
+                                "machines.graalvm.windows.url"));
         assertThat(Pin.of(machines, "ubuntu-image").pinned()).startsWith("sha256:");
         assertThat(Pin.of(machines, "alpine-image").pinned()).startsWith("sha256:");
         assertThat(Pin.of(machines, "registry-image").pinned()).startsWith("sha256:");
@@ -396,6 +538,28 @@ class PinTest {
     }
 
     private void machines() {
+        machines(Map.of());
+    }
+
+    // With the Windows zip as a further build of the same release, as the machines pom pins it.
+    private void machinesWithWindows() {
+        final Map<String, String> windows = new LinkedHashMap<>();
+        windows.put("machines.graalvm.windows.sha256", OLD);
+        windows.put("machines.graalvm.windows.url", "https://github.com/graalvm/old.zip");
+        windows.put("porelo.release.pin.graalvm.also", "windows");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.digest",
+                "github-asset "
+                        + GRAAL_RELEASE
+                        + " graalvm-community-jdk-.*_windows-x64_bin\\.zip");
+        windows.put(
+                "porelo.release.pin.graalvm.also.windows.sha256",
+                "machines.graalvm.windows.sha256");
+        windows.put("porelo.release.pin.graalvm.also.windows.url", "machines.graalvm.windows.url");
+        machines(windows);
+    }
+
+    private void machines(Map<String, String> more) {
         final Map<String, String> properties = new LinkedHashMap<>();
         properties.put("machines.graalvm.version", "25.0.2");
         properties.put("machines.graalvm.sha256", OLD);
@@ -415,6 +579,7 @@ class PinTest {
         properties.put("porelo.release.pin.graalvm.url", "machines.graalvm.url");
         properties.put("porelo.release.pin.ubuntu-image.property", "machines.image.ubuntu.digest");
         properties.put("porelo.release.pin.ubuntu-image.upstream", "docker-hub " + UBUNTU_TAG);
+        properties.putAll(more);
         final StringBuilder declared = new StringBuilder();
         properties.forEach(
                 (name, value) ->

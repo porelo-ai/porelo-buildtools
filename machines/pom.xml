@@ -29,6 +29,9 @@
         <machines.graalvm.version>25.4.4.1.1</machines.graalvm.version>
         <machines.graalvm.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.4.4.1.1/graalvm-community-jdk-25i4-25.0.4.1.1_linux-x64_bin.tar.gz</machines.graalvm.url>
         <machines.graalvm.sha256>05ccbbe783210b6886ff7b08fcd0b061c5dce4852b05db87284fc0e24abb08e2</machines.graalvm.sha256>
+        <!-- The same release for a Windows x64 runner, moved with the Linux archive as the pin's build 'windows'. -->
+        <machines.graalvm.windows.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.4.4.1.1/graalvm-community-jdk-25i4-25.0.4.1.1_windows-x64_bin.zip</machines.graalvm.windows.url>
+        <machines.graalvm.windows.sha256>2733ea1331f1a98b05dd55a768b07347051dad48f030dbbfa191b11a2ccf4144</machines.graalvm.windows.sha256>
         <!-- By digest, and tagged by name after the pull: a tag is rebuilt in place, so it has no
              age to wait for and names different bytes from one day to the next. -->
         <machines.image.ubuntu>docker.io/library/ubuntu:24.04</machines.image.ubuntu>
@@ -51,6 +54,10 @@
         <porelo.release.pin.graalvm.digest>github-asset https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/tags/graal-{version} graalvm-community-jdk-.*_linux-x64_bin\.tar\.gz</porelo.release.pin.graalvm.digest>
         <porelo.release.pin.graalvm.sha256>machines.graalvm.sha256</porelo.release.pin.graalvm.sha256>
         <porelo.release.pin.graalvm.url>machines.graalvm.url</porelo.release.pin.graalvm.url>
+        <porelo.release.pin.graalvm.also>windows</porelo.release.pin.graalvm.also>
+        <porelo.release.pin.graalvm.also.windows.digest>github-asset https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/tags/graal-{version} graalvm-community-jdk-.*_windows-x64_bin\.zip</porelo.release.pin.graalvm.also.windows.digest>
+        <porelo.release.pin.graalvm.also.windows.sha256>machines.graalvm.windows.sha256</porelo.release.pin.graalvm.also.windows.sha256>
+        <porelo.release.pin.graalvm.also.windows.url>machines.graalvm.windows.url</porelo.release.pin.graalvm.also.windows.url>
         <porelo.release.pin.ubuntu-image.label>The ubuntu base image</porelo.release.pin.ubuntu-image.label>
         <porelo.release.pin.ubuntu-image.property>machines.image.ubuntu.digest</porelo.release.pin.ubuntu-image.property>
         <porelo.release.pin.ubuntu-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/ubuntu/tags/24.04</porelo.release.pin.ubuntu-image.upstream>

@@ -201,6 +201,37 @@ public final class Update {
                 report.put("url", address);
             }
         }
+        // Read before anything is written: a further build missing upstream refuses the whole move.
+        for (final Pin.Also build : pin.also()) {
+            final Optional<Pin.Artifact> found = build.digests().artifact(web, version, env);
+            if (found.isEmpty()) {
+                throw Stop.refused(
+                        pin.name() + "'s build " + build.key() + " has no digest for " + version);
+            }
+            final String digest = found.get().sha256();
+            moved.put(pom.required(build.sha256()), digest);
+            pomText = property(pomText, build.sha256(), digest);
+            report.put(build.key() + ".sha256", digest);
+            final String url = build.url();
+            if (url != null) {
+                final String address = found.get().url();
+                if (address == null) {
+                    throw Stop.refused(
+                            pom.file()
+                                    + ": "
+                                    + Pin.PREFIX
+                                    + pin.name()
+                                    + ".also."
+                                    + build.key()
+                                    + ".url names "
+                                    + url
+                                    + ", but its digest source gives no download address");
+                }
+                moved.put(pom.required(url), address);
+                pomText = property(pomText, url, address);
+                report.put(build.key() + ".url", address);
+            }
+        }
         final Optional<String> image = pin.imageDigest(web, version);
         if (image.isPresent()) {
             final String imageProperty = java.util.Objects.requireNonNull(pin.imageProperty());

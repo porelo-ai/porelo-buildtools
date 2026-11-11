@@ -243,13 +243,17 @@ class SnapshotsTest {
     private static final String ALPINE = "sha256:" + "d".repeat(64);
 
     private static Map<String, String> values() {
-        return Map.of(
+        return pairs(
                 "graalvm.version",
                 "25.4.4.1.1",
                 "graalvm.url",
                 "https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz",
                 "graalvm.sha256",
                 "b".repeat(64),
+                "graalvm.windows.url",
+                "https://github.example/graalvm-community-jdk-25i4_windows-x64_bin.zip",
+                "graalvm.windows.sha256",
+                "f".repeat(64),
                 "image.ubuntu",
                 "docker.io/library/ubuntu:24.04",
                 "image.ubuntu.digest",
@@ -262,6 +266,15 @@ class SnapshotsTest {
                 "docker.io/library/registry:2",
                 "image.registry.digest",
                 "sha256:" + "e".repeat(64));
+    }
+
+    // More pairs than Map.of takes.
+    private static Map<String, String> pairs(String... pairs) {
+        final Map<String, String> map = new java.util.LinkedHashMap<>();
+        for (int at = 0; at < pairs.length; at += 2) {
+            map.put(pairs[at], pairs[at + 1]);
+        }
+        return Map.copyOf(map);
     }
 
     private static Snapshots.Contents contents() {

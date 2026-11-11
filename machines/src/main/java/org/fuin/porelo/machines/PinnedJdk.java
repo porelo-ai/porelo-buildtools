@@ -51,6 +51,11 @@ import org.jspecify.annotations.Nullable;
  * brings it back. A cached archive is hashed again before it is used; one that does not match is
  * deleted and fetched anew, never unpacked.
  *
+ * <p><strong>Linux and Windows, x64 alone.</strong> The running system picks the archive: the
+ * tar.gz on Linux, unpacked by {@code tar}, and the zip of the same release on Windows, unpacked
+ * here, where an entry that would land outside the JDK's directory is refused. Any other system or
+ * architecture is refused rather than handed a JDK it cannot run.
+ *
  * <p><strong>With the job's token, to github.com alone.</strong> On GitHub, a download from {@code
  * https://github.com} goes with the job's token, so GitHub counts it against the job's own limit
  * rather than the shared runner's address. The token goes to the address asked for, and only when
@@ -168,6 +173,67 @@ final class PinnedJdk {
         }
     }
 
+    /** The systems a pinned archive exists for. */
+    enum Platform {
+
+        /** Linux on x86-64: the tar.gz. */
+        LINUX_X64(".tar.gz", List.of("java", "native-image")),
+
+        /** Windows on x86-64: the zip of the same release. */
+        WINDOWS_X64(".zip", List.of("java.exe", "native-image.cmd"));
+
+        private final String suffix;
+
+        private final List<String> tools;
+
+        Platform(String suffix, List<String> tools) {
+            this.suffix = suffix;
+            this.tools = tools;
+        }
+
+        /**
+         * The system this runs on.
+         *
+         * @return its platform
+         * @throws IOException when no archive is pinned for it
+         */
+        static Platform running() throws IOException {
+            return of(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
+        }
+
+        /**
+         * The platform of a system, as Java names it.
+         *
+         * @param os the system's name, {@code os.name}
+         * @param arch its architecture, {@code os.arch}
+         * @return its platform
+         * @throws IOException when no archive is pinned for it
+         */
+        static Platform of(String os, String arch) throws IOException {
+            final boolean x64 = "amd64".equals(arch) || "x86_64".equals(arch);
+            if (x64 && "Linux".equals(os)) {
+                return LINUX_X64;
+            }
+            if (x64 && os.startsWith("Windows")) {
+                return WINDOWS_X64;
+            }
+            throw new IOException(
+                    "no GraalVM is pinned for "
+                            + os
+                            + " on "
+                            + arch
+                            + "; there is one for Linux and Windows on x86-64");
+        }
+
+        String url(Snapshots.Contents contents) {
+            return this == WINDOWS_X64 ? contents.graalvmWindowsUrl() : contents.graalvmUrl();
+        }
+
+        String sha256(Snapshots.Contents contents) {
+            return this == WINDOWS_X64 ? contents.graalvmWindowsSha256() : contents.graalvmSha256();
+        }
+    }
+
     /**
      * What was installed.
      *
@@ -192,11 +258,18 @@ final class PinnedJdk {
      */
     static Installed install(Snapshots.Contents contents, Path home, Download download)
             throws IOException {
-        return install(contents, home, download, null, Thread::sleep, System.err::println);
+        return install(
+                contents,
+                Platform.LINUX_X64,
+                home,
+                download,
+                null,
+                Thread::sleep,
+                System.err::println);
     }
 
     /**
-     * Downloads, checks and unpacks the pinned GraalVM, waiting as told between attempts.
+     * Downloads, checks and unpacks the pinned Linux GraalVM, waiting as told between attempts.
      *
      * @param contents what the pom pins
      * @param home where the JDK goes; it must not exist yet, or be empty
@@ -216,6 +289,32 @@ final class PinnedJdk {
             Pause pause,
             Consumer<String> say)
             throws IOException {
+        return install(contents, Platform.LINUX_X64, home, download, cache, pause, say);
+    }
+
+    /**
+     * Downloads, checks and unpacks the pinned GraalVM, waiting as told between attempts.
+     *
+     * @param contents what the pom pins
+     * @param platform the system whose archive is installed
+     * @param home where the JDK goes; it must not exist yet, or be empty
+     * @param download where the archive is fetched from
+     * @param cache where the checked archive is kept by its digest, or null to keep none
+     * @param pause how a wait is spent
+     * @param say where an attempt that failed is told
+     * @return what was installed
+     * @throws IOException if it cannot be fetched, does not match its digest, or does not unpack to
+     *     a JDK
+     */
+    static Installed install(
+            Snapshots.Contents contents,
+            Platform platform,
+            Path home,
+            Download download,
+            @Nullable Path cache,
+            Pause pause,
+            Consumer<String> say)
+            throws IOException {
         if (Files.isDirectory(home)) {
             try (var entries = Files.list(home)) {
                 if (entries.findAny().isPresent()) {
@@ -224,14 +323,14 @@ final class PinnedJdk {
             }
         }
         Files.createDirectories(home);
-        final String pinned = contents.graalvmSha256();
-        final Path cached = cache == null ? null : cache.resolve(pinned + ".tar.gz");
+        final String pinned = platform.sha256(contents);
+        final String url = platform.url(contents);
+        final Path cached = cache == null ? null : cache.resolve(pinned + platform.suffix);
         if (cached != null && Files.isRegularFile(cached, LinkOption.NOFOLLOW_LINKS)) {
             if (digestOf(cached).equals(pinned)) {
-                say.accept(
-                        contents.graalvmUrl() + " taken from the cache, checked against " + pinned);
-                unpack(cached, home);
-                return checked(contents, home);
+                say.accept(url + " taken from the cache, checked against " + pinned);
+                unpack(platform, cached, home);
+                return checked(contents, platform, home);
             }
             say.accept(cached + " did not match the pinned " + pinned + "; fetching it again");
             Files.delete(cached);
@@ -239,13 +338,12 @@ final class PinnedJdk {
         // Beside the cached file, so that a checked archive moves into it whole.
         final Path folder =
                 cache != null ? Files.createDirectories(cache) : home.toAbsolutePath().getParent();
-        final Path archive = Files.createTempFile(folder, "graalvm-", ".tar.gz");
+        final Path archive = Files.createTempFile(folder, "graalvm-", platform.suffix);
         try {
-            final String got =
-                    fetchedDigest(URI.create(contents.graalvmUrl()), archive, download, pause, say);
+            final String got = fetchedDigest(URI.create(url), archive, download, pause, say);
             if (!got.equals(pinned)) {
                 throw new IOException(
-                        contents.graalvmUrl()
+                        url
                                 + " has the digest "
                                 + got
                                 + ", not the pinned "
@@ -254,21 +352,25 @@ final class PinnedJdk {
             }
             if (cached != null) {
                 Files.move(archive, cached, StandardCopyOption.ATOMIC_MOVE);
-                unpack(cached, home);
+                unpack(platform, cached, home);
             } else {
-                unpack(archive, home);
+                unpack(platform, archive, home);
             }
         } finally {
             Files.deleteIfExists(archive);
         }
-        return checked(contents, home);
+        return checked(contents, platform, home);
     }
 
-    private static Installed checked(Snapshots.Contents contents, Path home) throws IOException {
-        for (final String tool : List.of("java", "native-image")) {
-            if (!Files.isExecutable(home.resolve("bin").resolve(tool))) {
+    // Windows keeps no executable bit, so there a tool is a regular file.
+    private static Installed checked(Snapshots.Contents contents, Platform platform, Path home)
+            throws IOException {
+        for (final String tool : platform.tools) {
+            final Path file = home.resolve("bin").resolve(tool);
+            if (!Files.isRegularFile(file)
+                    || (platform == Platform.LINUX_X64 && !Files.isExecutable(file))) {
                 throw new IOException(
-                        contents.graalvmUrl() + " unpacked to no bin/" + tool + " in " + home);
+                        platform.url(contents) + " unpacked to no bin/" + tool + " in " + home);
             }
         }
         return new Installed(home, contents.graalvmVersion());
@@ -523,9 +625,93 @@ final class PinnedJdk {
         }
     }
 
+    private static void unpack(Platform platform, Path archive, Path home) throws IOException {
+        if (platform == Platform.WINDOWS_X64) {
+            unzip(archive, home);
+        } else {
+            untar(archive, home);
+        }
+    }
+
+    /**
+     * Unpacks a zip into a directory, without its first path component, as {@code tar
+     * --strip-components=1} does.
+     *
+     * <p>Here rather than by a tool: Windows' {@code tar} is another program than Linux's, and this
+     * one is tested where the build runs. Its digest was checked before, so the archive is the
+     * pinned one; an entry leaving the directory is refused all the same.
+     *
+     * @param archive the zip
+     * @param home where its contents go
+     * @throws IOException if it cannot be read, or an entry would land outside {@code home}
+     */
+    static void unzip(Path archive, Path home) throws IOException {
+        final Path root = home.toAbsolutePath().normalize();
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(archive.toFile())) {
+            // Every entry judged before the first is written, so a refused archive leaves nothing.
+            final List<? extends java.util.zip.ZipEntry> entries =
+                    java.util.Collections.list(zip.entries());
+            final Map<java.util.zip.ZipEntry, Path> targets = new java.util.LinkedHashMap<>();
+            final java.util.Set<Path> files = new java.util.HashSet<>();
+            for (final java.util.zip.ZipEntry entry : entries) {
+                final Path target = target(archive, root, entry.getName());
+                if (target == null) {
+                    continue;
+                }
+                if (!directory(entry) && !files.add(target)) {
+                    throw new IOException(
+                            archive + " holds " + target + " twice; nothing was unpacked");
+                }
+                targets.put(entry, target);
+            }
+            for (final Map.Entry<java.util.zip.ZipEntry, Path> each : targets.entrySet()) {
+                final java.util.zip.ZipEntry entry = each.getKey();
+                final Path target = each.getValue();
+                if (directory(entry)) {
+                    Files.createDirectories(target);
+                    continue;
+                }
+                Files.createDirectories(target.getParent());
+                try (InputStream in = zip.getInputStream(entry)) {
+                    Files.copy(in, target);
+                }
+            }
+        }
+    }
+
+    // A directory written on Windows may end in a backslash, which ZipEntry does not count.
+    private static boolean directory(java.util.zip.ZipEntry entry) {
+        return entry.isDirectory() || entry.getName().endsWith("\\");
+    }
+
+    /**
+     * Where an entry goes, without its first path component.
+     *
+     * <p>A backslash is read as the separator Windows takes it for; a drive's colon and a NUL,
+     * which one system reads as a name and another does not, are refused outright.
+     *
+     * @return the target, or null for the top directory itself and a file beside it
+     */
+    private static @Nullable Path target(Path archive, Path root, String entry) throws IOException {
+        final String name = entry.replace('\\', '/');
+        if (name.indexOf(':') >= 0 || name.indexOf('\0') >= 0) {
+            throw new IOException(archive + " holds " + entry + ", which no system reads alike");
+        }
+        final int slash = name.indexOf('/');
+        final String stripped = slash < 0 ? "" : name.substring(slash + 1);
+        if (stripped.isEmpty()) {
+            return null;
+        }
+        final Path target = root.resolve(stripped).normalize();
+        if (!target.startsWith(root) || target.equals(root)) {
+            throw new IOException(archive + " holds " + entry + ", which leaves " + root);
+        }
+        return target;
+    }
+
     // tar rather than a reader of our own: it is on every runner and every snapshot, and the recipe
     // the snapshots run unpacks the same archive with the same command.
-    private static void unpack(Path archive, Path home) throws IOException {
+    private static void untar(Path archive, Path home) throws IOException {
         final Process tar =
                 new ProcessBuilder(
                                 "tar",

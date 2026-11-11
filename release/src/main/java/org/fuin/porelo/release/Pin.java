@@ -25,6 +25,11 @@ import org.jspecify.annotations.Nullable;
  * and its digest), where the old values are replaced by the new ones, so the two cannot disagree
  * after a move.
  *
+ * <p><strong>One version, several builds.</strong> A pin may name, under {@code also}, further
+ * builds of the same release - the same JDK for another system - each with its own digest source
+ * and properties. An update reads every one before it writes anything, so the builds it pins never
+ * name two versions.
+ *
  * @param pom the pom it was read from
  * @param name the pin's name, as {@code --pin} gives it
  * @param label what a changelog line and the messages call it
@@ -38,6 +43,7 @@ import org.jspecify.annotations.Nullable;
  *     {version}}, or null
  * @param imageProperty the property that image's digest is written to, or null
  * @param follows the properties that spell the pin out inside a longer value
+ * @param also further builds of the same release, moved with it
  */
 public record Pin(
         Pom pom,
@@ -51,7 +57,8 @@ public record Pin(
         @Nullable String url,
         @Nullable String image,
         @Nullable String imageProperty,
-        List<String> follows)
+        List<String> follows,
+        List<Also> also)
         implements Tracked {
 
     /** Every pin's properties start here, then its name. */
@@ -77,6 +84,7 @@ public record Pin(
      */
     public Pin {
         follows = List.copyOf(follows);
+        also = List.copyOf(also);
     }
 
     /**
@@ -167,6 +175,8 @@ public record Pin(
                 followed.add(each);
             }
         }
+        final List<Also> builds = also(pom, prefix, digests, upstream);
+        distinct(pom, prefix, property, sha256, url, imageProperty, followed, builds);
         return new Pin(
                 pom,
                 name,
@@ -179,7 +189,116 @@ public record Pin(
                 url,
                 image,
                 imageProperty,
-                followed);
+                followed,
+                builds);
+    }
+
+    /**
+     * A further build of the pin's release, pinned beside its first.
+     *
+     * @param key its name under {@code also}
+     * @param digests where its digest and download address are read
+     * @param sha256 the property its digest is written to
+     * @param url the property its download address is written to, or null
+     */
+    public record Also(String key, PinDigest digests, String sha256, @Nullable String url) {}
+
+    // Each further build needs a digest of its own: one without would be moved by its version
+    // alone,
+    // which is the unchecked download a pin exists to end.
+    private static List<Also> also(
+            Pom pom, String prefix, PinDigest digests, Release.Upstream upstream) throws Stop {
+        final String keys = pom.optional(prefix + "also");
+        if (keys == null) {
+            return List.of();
+        }
+        if (upstream.byDigest() || digests instanceof PinDigest.None) {
+            throw Stop.refused(
+                    pom.file()
+                            + ": "
+                            + prefix
+                            + "also names further builds, but the pin reads no digest of its own");
+        }
+        final List<Also> builds = new ArrayList<>();
+        for (final String key : keys.strip().split("\\s+")) {
+            if (!NAME.matcher(key).matches()) {
+                throw Stop.refused(
+                        pom.file()
+                                + ": '"
+                                + key
+                                + "' in "
+                                + prefix
+                                + "also is not a name: lowercase letters, digits and dashes");
+            }
+            if (builds.stream().anyMatch(build -> build.key().equals(key))) {
+                throw Stop.refused(pom.file() + ": " + prefix + "also names " + key + " twice");
+            }
+            final String at = prefix + "also." + key + ".";
+            final String digest = pom.optional(at + "digest");
+            final PinDigest source =
+                    digest == null ? new PinDigest.None() : PinDigest.of(at + "digest", digest);
+            final String sha256 = declared(pom, at + "sha256");
+            if (source instanceof PinDigest.None || sha256 == null) {
+                throw Stop.refused(
+                        pom.file()
+                                + ": "
+                                + at
+                                + "digest and "
+                                + at
+                                + "sha256 are both needed for a further build");
+            }
+            final String url = declared(pom, at + "url");
+            // An asset's address names its release: left out, it would keep naming the old one.
+            if (source instanceof PinDigest.GithubAsset && url == null) {
+                throw Stop.refused(
+                        pom.file()
+                                + ": "
+                                + at
+                                + "digest reads a download address, but "
+                                + at
+                                + "url names no property to write it to");
+            }
+            builds.add(new Also(key, source, sha256, url));
+        }
+        return builds;
+    }
+
+    // Two builds writing one property would leave one of them naming the old release.
+    private static void distinct(
+            Pom pom,
+            String prefix,
+            String property,
+            @Nullable String sha256,
+            @Nullable String url,
+            @Nullable String imageProperty,
+            List<String> followed,
+            List<Also> builds)
+            throws Stop {
+        final List<String> written = new ArrayList<>();
+        written.add(property);
+        for (final String each : java.util.Arrays.asList(sha256, url, imageProperty)) {
+            if (each != null) {
+                written.add(each);
+            }
+        }
+        written.addAll(followed);
+        for (final Also build : builds) {
+            written.add(build.sha256());
+            if (build.url() != null) {
+                written.add(build.url());
+            }
+        }
+        for (final String each : written) {
+            if (written.indexOf(each) != written.lastIndexOf(each)) {
+                throw Stop.refused(
+                        pom.file()
+                                + ": "
+                                + prefix
+                                + "* writes "
+                                + each
+                                + " twice; each build writes properties of its own");
+            }
+        }
     }
 
     /**

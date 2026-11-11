@@ -126,11 +126,13 @@ public final class Main {
                                 What deletes it is 'sweep --mine'.
                        jdk      [--into <dir>] [--github] [--cache <dir>] | --print-sha256 -
                                 installs the GraalVM the CI snapshots pin, checked against its
-                                digest, into <dir> (default: a directory under RUNNER_TEMP).
+                                digest, into <dir> (default: a directory under RUNNER_TEMP): the
+                                tar.gz on Linux x64, the zip of the same release on Windows x64.
                                 --github makes it JAVA_HOME and puts it on the PATH for every
                                 later step of the job. --cache keeps the checked archive there as
-                                <sha256>.tar.gz and takes it from there, checked again.
-                                --print-sha256 prints the pinned digest alone, fetching nothing.
+                                <sha256>.tar.gz or <sha256>.zip and takes it from there, checked
+                                again. --print-sha256 prints this system's pinned digest alone,
+                                fetching nothing.
                        musl     - installs the musl cross-toolchain and a musl-built zlib that the
                                 hooks link against, both checked against their digests, under
                                 MUSL_PREFIX (default ~/.local/opt).
@@ -547,6 +549,34 @@ public final class Main {
             Map<String, String> env,
             PinnedJdk.Download download)
             throws IOException {
+        final PinnedJdk.Platform platform;
+        try {
+            platform = PinnedJdk.Platform.running();
+        } catch (IOException ex) {
+            complain.accept(ex.getMessage());
+            return 2;
+        }
+        return jdk(args, complain, env, download, platform);
+    }
+
+    /**
+     * Installs the pinned GraalVM of a given system.
+     *
+     * @param args The command line.
+     * @param complain Where a refusal goes.
+     * @param env The environment: {@code RUNNER_TEMP}, {@code GITHUB_ENV}, {@code GITHUB_PATH}.
+     * @param download Where the archive is fetched from.
+     * @param platform The system whose archive is installed.
+     * @return An exit code.
+     * @throws IOException If it cannot be installed.
+     */
+    static int jdk(
+            String[] args,
+            Consumer<String> complain,
+            Map<String, String> env,
+            PinnedJdk.Download download,
+            PinnedJdk.Platform platform)
+            throws IOException {
         String into = null;
         String cache = null;
         boolean github = false;
@@ -576,7 +606,7 @@ public final class Main {
         }
         final Snapshots.Contents contents = Snapshots.Contents.pinned();
         if (digest) {
-            System.out.println(contents.graalvmSha256());
+            System.out.println(platform.sha256(contents));
             return 0;
         }
         if (into == null) {
@@ -602,6 +632,7 @@ public final class Main {
         final PinnedJdk.Installed installed =
                 PinnedJdk.install(
                         contents,
+                        platform,
                         java.nio.file.Path.of(into),
                         download,
                         cache == null ? null : java.nio.file.Path.of(cache),
@@ -617,7 +648,7 @@ public final class Main {
                         + " in "
                         + installed.home()
                         + ", checked against "
-                        + contents.graalvmSha256()
+                        + platform.sha256(contents)
                         + (github ? "; JAVA_HOME and PATH set for the rest of the job" : ""));
         return 0;
     }

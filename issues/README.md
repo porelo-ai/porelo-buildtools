@@ -40,17 +40,12 @@ left out.
 | <a id="bt68"></a>[BT68](BT68-Project-Read-Takes-Any-Clone-URL.md) | S | - | `Project.read` in porelo-stories reads the project.yml of any project, wherever its repositories live: `https://`, `ssh://` and scp-like centrals on any host and under any owner, the name being the last part of the path without `.git`; anything else is refused naming the key and the value. |
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt69"></a>[BT69](BT69-The-Pinned-GraalVM-For-Windows.md) | M | - | `porelo-machines jdk` installs the pinned GraalVM on a Windows x64 runner too: the Windows zip of the same version, its URL and SHA-256 pinned beside the Linux archive's and moved with them by the pin's update, checked before anything is unpacked. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt66"></a>[BT66](BT66-The-Notices-Hold-The-LGPL-3.0-Text.md) | XS | - | `third-party-notices` takes a component under LGPL-3.0-or-later, `porelo-stories` among them, and writes the LGPL-3.0 text with the GPL-3.0 text it builds on, so a program that links the stories library builds its notices. |
+| <a id="bt69"></a>[BT69](BT69-The-Pinned-GraalVM-For-Windows.md) | M | - | `porelo-machines jdk` installs the pinned GraalVM on a Windows x64 runner too: the Windows zip of the same version, its URL and SHA-256 pinned beside the Linux archive's and moved with them by the pin's update, checked before anything is unpacked. |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
 | <a id="bt62"></a>[BT62](BT62-An-Issues-Data-In-A-Head.md) | M | - | An issue's data in a JSON head by `issue-1.json`; `porelo-release issues index`, `check` and `convert`; the stories library, `stage` and check-commits read the head. |
 | <a id="bt61"></a>[BT61](BT61-The-Stories-Library-Under-The-LGPL.md) | XS | - | `porelo-stories` is published under LGPL-3.0-or-later, so a program under another license may link it; the rest stays GPL. |

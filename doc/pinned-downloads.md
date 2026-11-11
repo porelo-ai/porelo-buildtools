@@ -11,7 +11,20 @@ A pinned download is cached with `actions/cache`, keyed by its digest:
 - A cached file is checked against the digest again before it is used. One that does not match is deleted and fetched
   anew, never unpacked or run.
 - `porelo-machines jdk --print-sha256` prints the GraalVM's digest for the key. `jdk --cache <dir>` keeps the archive
-  there as `<sha256>.tar.gz`.
+  there as `<sha256>.tar.gz`, or `<sha256>.zip` on Windows.
+
+## The GraalVM on Linux and Windows
+
+`porelo-machines jdk` installs the archive pinned for the system it runs on: the tar.gz on Linux x86-64, the zip of the
+same release on Windows x86-64, each checked against its own digest before anything is unpacked. Any other system or
+architecture is refused. On Windows the zip is unpacked by the command itself, and an entry that would land outside the
+JDK's directory is refused. With `--github` it sets `JAVA_HOME` and `GRAALVM_HOME` and puts its `bin` first on the
+`PATH` for the job's later steps, on either system; it prints one line,
+`GraalVM <version> in <directory>, checked against <sha256>`, and `--print-sha256` prints that system's digest alone.
+
+Both builds are one pin: `porelo.release.pin.graalvm.also` names `windows`, and its `also.windows.digest`,
+`.sha256` and `.url` say where its digest is read and which properties it is written to. The pin's update reads every
+build of the release before it writes anything, so a release without the Windows zip moves neither.
 
 ## Tried again by one rule
 

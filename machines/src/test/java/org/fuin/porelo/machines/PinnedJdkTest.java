@@ -34,10 +34,211 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class PinnedJdkTest {
 
+    private static final String WINDOWS_URL =
+            "https://github.example/graalvm-community-jdk_windows-x64_bin.zip";
+
     private static final String URL =
             "https://github.example/graalvm-community-jdk_linux-x64_bin.tar.gz";
 
     @TempDir Path dir;
+
+    @Test
+    void installsThePinnedWindowsZipOfTheSameReleaseOnWindows() throws IOException {
+        final byte[] zip = zip("graalvm-community/bin/java.exe", "graalvm-community/lib/modules");
+        final java.util.List<URI> asked = new java.util.ArrayList<>();
+        final byte[] full =
+                zip(
+                        "graalvm-community/bin/java.exe",
+                        "graalvm-community/bin/native-image.cmd",
+                        "graalvm-community/lib/modules");
+
+        final PinnedJdk.Installed installed =
+                PinnedJdk.install(
+                        windows(sha256(full), sha256(zip)),
+                        PinnedJdk.Platform.WINDOWS_X64,
+                        dir.resolve("jdk"),
+                        (address, into) -> {
+                            asked.add(address);
+                            into.write(full);
+                        },
+                        dir.resolve("cache"),
+                        time -> {},
+                        line -> {});
+
+        assertThat(asked).as("the Windows zip is fetched").containsExactly(URI.create(WINDOWS_URL));
+        assertThat(installed.home().resolve("bin/java.exe"))
+                .as("unpacked without its top directory")
+                .isRegularFile();
+        assertThat(installed.home().resolve("lib/modules")).isRegularFile();
+        assertThat(dir.resolve("cache").resolve(sha256(full) + ".zip"))
+                .as("kept by its digest as a zip")
+                .isRegularFile();
+    }
+
+    @Test
+    void aWindowsZipWhoseDigestDiffersInstallsNothing() throws IOException {
+        final byte[] full =
+                zip("graalvm-community/bin/java.exe", "graalvm-community/bin/native-image.cmd");
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        windows("0".repeat(64), sha256(full)),
+                                        PinnedJdk.Platform.WINDOWS_X64,
+                                        dir.resolve("jdk"),
+                                        (address, into) -> into.write(full),
+                                        null,
+                                        time -> {},
+                                        line -> {}))
+                .as("the Linux digest does not pass the Windows zip")
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("not the pinned " + "0".repeat(64));
+        try (var left = Files.list(dir.resolve("jdk"))) {
+            assertThat(left).as("nothing unpacked").isEmpty();
+        }
+    }
+
+    @Test
+    void aZipEntryThatLeavesTheJdksDirectoryIsRefused() throws IOException {
+        final byte[] evil =
+                zip(
+                        "graalvm-community/bin/java.exe",
+                        "graalvm-community/../../outside",
+                        "graalvm-community/bin/native-image.cmd");
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        windows(sha256(evil), sha256(evil)),
+                                        PinnedJdk.Platform.WINDOWS_X64,
+                                        dir.resolve("home/jdk"),
+                                        (address, into) -> into.write(evil),
+                                        null,
+                                        time -> {},
+                                        line -> {}))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("which leaves");
+        assertThat(dir.resolve("outside")).as("nothing written outside").doesNotExist();
+        assertThat(dir.resolve("home/outside")).as("nothing written outside").doesNotExist();
+        assertThat(dir.resolve("home/jdk/bin/java.exe"))
+                .as("judged whole before the first entry is written")
+                .doesNotExist();
+    }
+
+    @Test
+    void aZipEntryNamingADriveIsRefusedOnEverySystem() throws IOException {
+        // On Windows 'C:/x' is another drive; on Linux it would pass as a name.
+        final byte[] drive =
+                zip(
+                        "graalvm-community/bin/java.exe",
+                        "graalvm-community/C:/outside",
+                        "graalvm-community/bin/native-image.cmd");
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        windows(sha256(drive), sha256(drive)),
+                                        PinnedJdk.Platform.WINDOWS_X64,
+                                        dir.resolve("jdk"),
+                                        (address, into) -> into.write(drive),
+                                        null,
+                                        time -> {},
+                                        line -> {}))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("which no system reads alike");
+        try (var left = Files.list(dir.resolve("jdk"))) {
+            assertThat(left).as("nothing unpacked").isEmpty();
+        }
+    }
+
+    @Test
+    void aZipNamingOneFileTwiceIsRefusedBeforeAnythingIsWritten() throws IOException {
+        // The second would fail half way and leave a JDK of two minds behind.
+        final byte[] twice =
+                zip(
+                        "graalvm-community/bin/java.exe",
+                        "graalvm-community/bin/native-image.cmd",
+                        "other/bin/java.exe");
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        windows(sha256(twice), sha256(twice)),
+                                        PinnedJdk.Platform.WINDOWS_X64,
+                                        dir.resolve("jdk"),
+                                        (address, into) -> into.write(twice),
+                                        null,
+                                        time -> {},
+                                        line -> {}))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("twice; nothing was unpacked");
+        try (var left = Files.list(dir.resolve("jdk"))) {
+            assertThat(left).as("nothing unpacked").isEmpty();
+        }
+    }
+
+    @Test
+    void theCommandPrintsTheWindowsZipsDigestOnWindows() throws IOException {
+        final java.io.PrintStream before = System.out;
+        final ByteArrayOutputStream printed = new ByteArrayOutputStream();
+        System.setOut(new java.io.PrintStream(printed, true, StandardCharsets.UTF_8));
+        final int code;
+        try {
+            code =
+                    Main.jdk(
+                            new String[] {"jdk", "--print-sha256"},
+                            message -> {
+                                throw new AssertionError(message);
+                            },
+                            Map.of(),
+                            (address, into) -> {
+                                throw new AssertionError("printing the digest fetches nothing");
+                            },
+                            PinnedJdk.Platform.WINDOWS_X64);
+        } finally {
+            System.setOut(before);
+        }
+
+        assertThat(code).isZero();
+        assertThat(printed.toString(StandardCharsets.UTF_8).strip())
+                .as("a cache key on Windows names the zip, not the Linux archive")
+                .isEqualTo(Snapshots.Contents.pinned().graalvmWindowsSha256())
+                .isNotEqualTo(Snapshots.Contents.pinned().graalvmSha256());
+    }
+
+    @Test
+    void aWindowsZipWithoutNativeImageIsNoJdk() throws IOException {
+        final byte[] zip = zip("graalvm-community/bin/java.exe");
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        windows(sha256(zip), sha256(zip)),
+                                        PinnedJdk.Platform.WINDOWS_X64,
+                                        dir.resolve("jdk"),
+                                        (address, into) -> into.write(zip),
+                                        null,
+                                        time -> {},
+                                        line -> {}))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("no bin/native-image.cmd");
+    }
+
+    @Test
+    void theRunningSystemPicksTheArchiveAndAnyOtherIsRefused() throws IOException {
+        assertThat(PinnedJdk.Platform.of("Linux", "amd64")).isEqualTo(PinnedJdk.Platform.LINUX_X64);
+        assertThat(PinnedJdk.Platform.of("Windows Server 2025", "amd64"))
+                .isEqualTo(PinnedJdk.Platform.WINDOWS_X64);
+        for (final String[] other :
+                new String[][] {
+                    {"Linux", "aarch64"}, {"Mac OS X", "x86_64"}, {"Windows 11", "aarch64"}
+                }) {
+            assertThatThrownBy(() -> PinnedJdk.Platform.of(other[0], other[1]))
+                    .as("%s on %s gets no JDK it cannot run", other[0], other[1])
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("no GraalVM is pinned for");
+        }
+    }
 
     @Test
     void installsThePinnedArchiveWhenItsDigestMatches() throws IOException {
@@ -1080,14 +1281,77 @@ class PinnedJdkTest {
                 into);
     }
 
+    // More pairs than Map.of takes.
+    private static Map<String, String> pairs(String... pairs) {
+        final Map<String, String> map = new java.util.LinkedHashMap<>();
+        for (int at = 0; at < pairs.length; at += 2) {
+            map.put(pairs[at], pairs[at + 1]);
+        }
+        return Map.copyOf(map);
+    }
+
+    // The Windows zip pinned with one digest, the Linux archive with another.
+    private static Snapshots.Contents windows(String windows, String linux) {
+        final Map<String, String> values = new java.util.HashMap<>();
+        for (final String key :
+                new String[] {
+                    "graalvm.version",
+                    "graalvm.url",
+                    "graalvm.windows.url",
+                    "image.ubuntu",
+                    "image.ubuntu.digest",
+                    "image.alpine",
+                    "image.alpine.digest",
+                    "image.registry",
+                    "image.registry.digest"
+                }) {
+            values.put(key, contentsValue(key));
+        }
+        values.put("graalvm.sha256", linux);
+        values.put("graalvm.windows.sha256", windows);
+        return Snapshots.Contents.of(values::get);
+    }
+
+    private static String contentsValue(String key) {
+        return switch (key) {
+            case "graalvm.version" -> "25.4.4.1.1";
+            case "graalvm.url" -> URL;
+            case "graalvm.windows.url" -> WINDOWS_URL;
+            case "image.ubuntu" -> "docker.io/library/ubuntu:24.04";
+            case "image.ubuntu.digest" -> "sha256:" + "c".repeat(64);
+            case "image.alpine" -> "docker.io/library/alpine:3.20";
+            case "image.alpine.digest" -> "sha256:" + "d".repeat(64);
+            case "image.registry" -> "docker.io/library/registry:2";
+            case "image.registry.digest" -> "sha256:" + "e".repeat(64);
+            default -> throw new IllegalArgumentException(key);
+        };
+    }
+
+    /** A zip shaped like GraalVM's for Windows, its entries named as given, each a small file. */
+    private static byte[] zip(String... entries) throws IOException {
+        final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(bytes)) {
+            for (final String entry : entries) {
+                zip.putNextEntry(new java.util.zip.ZipEntry(entry));
+                zip.write(entry.getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+        return bytes.toByteArray();
+    }
+
     private static Snapshots.Contents contents(String sha256) {
         return Snapshots.Contents.of(
-                Map.of(
+                pairs(
                                 "graalvm.version",
                                 "25.4.4.1.1",
                                 "graalvm.url",
                                 URL,
                                 "graalvm.sha256",
+                                sha256,
+                                "graalvm.windows.url",
+                                WINDOWS_URL,
+                                "graalvm.windows.sha256",
                                 sha256,
                                 "image.ubuntu",
                                 "docker.io/library/ubuntu:24.04",

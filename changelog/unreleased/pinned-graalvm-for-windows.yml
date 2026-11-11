@@ -1,0 +1,2 @@
+title: "`porelo-machines jdk` installs the pinned GraalVM on Windows x64 too, from the zip of the same release, checked against its own digest; the release tool's pin update moves both builds of a release together, or neither."
+type: added

@@ -95,6 +95,8 @@ public final class Snapshots {
      * @param graalvmVersion the JDK's version, as the release tooling moves it
      * @param graalvmUrl where the JDK archive is downloaded
      * @param graalvmSha256 its digest
+     * @param graalvmWindowsUrl where the same release's Windows x64 zip is downloaded
+     * @param graalvmWindowsSha256 that zip's digest
      * @param images the base images, pulled once here rather than per run
      * @param registry the image the machine's pull-through cache of {@code docker.io} runs
      */
@@ -102,6 +104,8 @@ public final class Snapshots {
             String graalvmVersion,
             String graalvmUrl,
             String graalvmSha256,
+            String graalvmWindowsUrl,
+            String graalvmWindowsSha256,
             List<Image> images,
             Image registry) {
 
@@ -136,15 +140,10 @@ public final class Snapshots {
          * @throws IllegalStateException when a value is missing, left unfiltered or malformed
          */
         static Contents of(java.util.function.Function<String, @Nullable String> values) {
-            final String url = value(values, "graalvm.url");
-            if (!url.startsWith("https://")) {
-                throw new IllegalStateException("graalvm.url is not an https address: " + url);
-            }
-            final String sha256 = value(values, "graalvm.sha256");
-            if (!sha256.matches("[0-9a-f]{64}")) {
-                throw new IllegalStateException(
-                        "graalvm.sha256 is not a SHA-256 digest: " + sha256);
-            }
+            final String url = address(values, "graalvm.url");
+            final String sha256 = digest(values, "graalvm.sha256");
+            final String windowsUrl = address(values, "graalvm.windows.url");
+            final String windowsSha256 = digest(values, "graalvm.windows.sha256");
             final List<Image> images = new java.util.ArrayList<>();
             for (final String image : List.of("ubuntu", "alpine")) {
                 images.add(
@@ -156,10 +155,30 @@ public final class Snapshots {
                     value(values, "graalvm.version"),
                     url,
                     sha256,
+                    windowsUrl,
+                    windowsSha256,
                     List.copyOf(images),
                     new Image(
                             value(values, "image.registry"),
                             value(values, "image.registry.digest")));
+        }
+
+        private static String address(
+                java.util.function.Function<String, @Nullable String> values, String name) {
+            final String url = value(values, name);
+            if (!url.startsWith("https://")) {
+                throw new IllegalStateException(name + " is not an https address: " + url);
+            }
+            return url;
+        }
+
+        private static String digest(
+                java.util.function.Function<String, @Nullable String> values, String name) {
+            final String sha256 = value(values, name);
+            if (!sha256.matches("[0-9a-f]{64}")) {
+                throw new IllegalStateException(name + " is not a SHA-256 digest: " + sha256);
+            }
+            return sha256;
         }
 
         private static String value(
