@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT69",
   "title": "The Pinned GraalVM For Windows",
-  "state": "Backlog",
+  "state": "Implementing",
   "size": "M",
   "priority": "High",
   "rank": 1,
