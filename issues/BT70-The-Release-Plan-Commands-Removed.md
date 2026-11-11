@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT70",
   "title": "The Release Plan Commands Removed",
-  "state": "Estimated",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 24,
@@ -39,3 +39,5 @@
 - The docs' release plan section is down to a note that the command was removed.
 - The two unreleased changelog entries of the plan commands are deleted, and one says they were removed. The
   released versions' entries stay as history.
+
+**Review (2026-11-11).** On main, so Review by the operator's order of 15:44Z. Its stage lines were recorded afterwards: start from the session's first work on it, end at its commit, tokens not read (`no-session`).

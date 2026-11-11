@@ -5,12 +5,12 @@
   "$schema": "issue-1.json",
   "id": "BT72",
   "title": "The Native-Image Checks Handed To Core",
-  "state": "Idea",
-  "size": "-",
+  "state": "Estimated",
+  "size": "S",
   "priority": "Medium",
   "rank": 26,
   "blockedBy": [],
-  "covers": "Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release, porelo-machines and ffm-check's new home read it."
+  "covers": "Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it."
 }
 ```
 
@@ -25,7 +25,8 @@ code they check.
   - porelo-release, porelo-machines and porelo-ffm-check use it here;
   - porelo uses it in `dist/package-check`.
 
-  It stays a build-tools library. ffm-check keeps depending on it from its new home.
+  It stays a build-tools library. In its new home ffm-check reads JSON through porelo-wire's `Json` (Core's B621),
+  so porelo-json loses that user.
 
 **What must be true.**
 1. Core's issue is done: porelo builds and publishes both checks under its own coordinates, and porelo and porelo-planner
@@ -36,3 +37,37 @@ code they check.
    version.
 
 It is blocked by Core's issue for taking the two checks over, which is filed with ST320 (porelo-project).
+
+## Analysis (2026-11-11, the operator's order of 15:44Z)
+
+**Aligned with Core's B621.** B621 moves both modules to porelo's `build/ffm-check` and `build/cpu-check`, under the
+same artifact ids and packages, and publishes them with porelo's snapshots and releases. ffm-check reads JSON through
+porelo-wire's `Json` there, not porelo-json. That is why the covers line above no longer names ffm-check as a user of
+porelo-json. B621 says porelo-buildtools drops both modules once porelo's first publish holds them, which is this
+issue.
+
+**What porelo-buildtools does, once porelo's first snapshot holds both artifacts and porelo-planner takes
+porelo-cpu-check from porelo:**
+1. Delete `ffm-check/` and `cpu-check/` and their two `<module>` lines in the parent pom.
+2. Remove their rows from `README.md` and `doc/index.md`, and their links. porelo-json's row stops saying "the tools
+   above share" and names its users: porelo-release, porelo-machines and porelo's `dist/package-check`.
+3. Add a `removed` changelog entry that names porelo as their new home.
+4. Check that no repository still names `porelo-ffm-check` or `porelo-cpu-check` at a build-tools version: a search
+   of every porelo repository's `main`, posted in the room.
+5. Check that the publish set stays right. The parent pom's module list is what is deployed, so dropping the modules
+   drops them from the next snapshot. The versions already published stay on Central and the snapshot host.
+   porelo's own coordinates are different (same artifact id, porelo's version line), so nothing collides.
+
+There is nothing to see red first: no behavior changes here. The proof is the full JVM verify of the remaining
+modules, and porelo's and porelo-planner's builds staying green on porelo's coordinates.
+
+**Size S, 27 min at the measured median.** It is mostly deletion and documentation (about 15 min), plus the search
+across repositories and the run on main (about 12 min).
+
+**Order.** It is blocked by B621 being done and published, and by porelo-planner's change of its porelo-cpu-check
+coordinate (named in their ST320 issue).
+
+**For the operator to decide.** Nothing. One point for Core, not the operator: B621 keeps the same artifact ids under
+porelo's groupId `org.fuin.porelo`. While porelo's version line and build-tools' version line differ, a repository
+that names the artifact without a version from porelo's BOM could resolve a build-tools version by mistake. B621's
+acceptance should include that porelo-planner names porelo's version explicitly.

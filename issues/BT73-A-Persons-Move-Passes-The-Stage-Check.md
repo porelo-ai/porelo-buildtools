@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT73",
   "title": "A Person's Move Passes The Stage Check",
-  "state": "Estimated",
+  "state": "Review",
   "size": "XS",
   "priority": "High",
   "rank": 27,
@@ -28,3 +28,5 @@ checks replace `check-commits`.
 
 The cross-checks against the issue's head come with the planner's commit checks, not here. Nothing else in `Stage`
 changes; the rest of the format is handed over as it is ([BT71](README.md#bt71)).
+
+**Review (2026-11-11).** On main, so Review by the operator's order of 15:44Z. Its stage lines were recorded afterwards: start from the session's first work on it, end at its commit, tokens not read (`no-session`).
