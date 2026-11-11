@@ -17,6 +17,11 @@
 **Why.** Part of ST320 (porelo-project). The planner reads stories and issues and is to own their format. Two copies of the rules would
 drift.
 
+**Interim only.** What is handed over is the format as it stands: the agent writes its own stage line with
+`stage begin|end` and reads its tokens from its session file. That is the interim source of the numbers; the lasting
+one is porelod's per-task record (ST24 in porelo-project, porelo's token counting per task). Nothing new is built into
+`Stage` here, the planner's move line included: the planner builds that on its side.
+
 **Who calls what today.**
 - **`check-commits`.** The build and shared-rules workflows of porelo, porelo-adapters, porelo-ecosystems,
   porelo-forge-clients, porelo-frontend, porelo-intellij, porelo-mcp and porelo-planner call it, mostly as
