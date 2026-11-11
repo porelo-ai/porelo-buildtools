@@ -49,6 +49,7 @@ left out.
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
 | <a id="bt71"></a>[BT71](BT71-The-Work-Format-Handed-To-The-Planner.md) | L | - | Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows call the planner's tool instead. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
+| <a id="bt78"></a>[BT78](BT78-Outside-Downloads-Cached-Newest-Copy-Kept.md) | S | - | Every download porelo-buildtools' CI takes from outside is cached or named as not cacheable, and of each cache only the newest copy is kept: the Maven repository's cache no longer grows by restore-keys, and a saved key removes the copies it replaces. |
 
 ## Review
 
