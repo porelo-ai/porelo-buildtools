@@ -20,7 +20,7 @@ code they check.
 **Who uses what today.**
 - **porelo-ffm-check.** porelo's root `pom.xml` uses it.
 - **porelo-cpu-check.** porelo's root `pom.xml` uses it, and so does porelo-planner's `planner/app/pom.xml`. The
-  planner then takes it from porelo's coordinate.
+  planner then takes it from porelo's coordinate, at porelo's version.
 - **porelo-json.** It is not one of the checks:
   - porelo-release, porelo-machines and porelo-ffm-check use it here;
   - porelo uses it in `dist/package-check`.
@@ -52,11 +52,13 @@ porelo-cpu-check from porelo:**
 2. Remove their rows from `README.md` and `doc/index.md`, and their links. porelo-json's row stops saying "the tools
    above share" and names its users: porelo-release, porelo-machines and porelo's `dist/package-check`.
 3. Add a `removed` changelog entry that names porelo as their new home.
-4. Check that no repository still names `porelo-ffm-check` or `porelo-cpu-check` at a build-tools version: a search
-   of every porelo repository's `main`, posted in the room.
+4. Check that no repository still names `porelo-ffm-check` or `porelo-cpu-check` at a build-tools version, or by
+   `porelo.buildtools.version`: a search of every porelo repository's `main`, posted in the room.
 5. Check that the publish set stays right. The parent pom's module list is what is deployed, so dropping the modules
    drops them from the next snapshot. The versions already published stay on Central and the snapshot host.
-   porelo's own coordinates are different (same artifact id, porelo's version line), so nothing collides.
+   porelo's coordinates differ only by version (same groupId and artifact id, porelo's version line). Every pom that
+   names either check names porelo's version explicitly, never `porelo.buildtools.version`, so nothing resolves a
+   build-tools version by mistake (B621's acceptance).
 
 There is nothing to see red first: no behavior changes here. The proof is the full JVM verify of the remaining
 modules, and porelo's and porelo-planner's builds staying green on porelo's coordinates.
@@ -64,10 +66,8 @@ modules, and porelo's and porelo-planner's builds staying green on porelo's coor
 **Size S, 27 min at the measured median.** It is mostly deletion and documentation (about 15 min), plus the search
 across repositories and the run on main (about 12 min).
 
-**Order.** It is blocked by B621 being done and published, and by porelo-planner's change of its porelo-cpu-check
-coordinate (named in their ST320 issue).
+**Order.** Core's hand-over order in B621: B621 lands and porelo's next snapshot holds both checks; then
+porelo-planner takes porelo-cpu-check at porelo's version (a release, or the snapshot until one exists); only then
+does this issue drop the modules. Their earlier releases stay on Central, so the checks are always published.
 
-**For the operator to decide.** Nothing. One point for Core, not the operator: B621 keeps the same artifact ids under
-porelo's groupId `org.fuin.porelo`. While porelo's version line and build-tools' version line differ, a repository
-that names the artifact without a version from porelo's BOM could resolve a build-tools version by mistake. B621's
-acceptance should include that porelo-planner names porelo's version explicitly.
+**For the operator to decide.** Nothing. Core took the version point into B621's acceptance (15:50Z).
