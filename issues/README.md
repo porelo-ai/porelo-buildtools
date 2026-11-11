@@ -33,6 +33,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt69"></a>[BT69](BT69-The-Pinned-GraalVM-For-Windows.md) | M | - | `porelo-machines jdk` installs the pinned GraalVM on a Windows x64 runner too: the Windows zip of the same version, its URL and SHA-256 pinned beside the Linux archive's and moved with them by the pin's update, checked before anything is unpacked. |
 | <a id="bt67"></a>[BT67](BT67-The-Notices-Read-The-Bouncy-Castle-Licence-As-MIT.md) | XS | - | `third-party-notices` takes a component whose bill names the license `Bouncy Castle Licence` with Bouncy Castle's own licence URL as MIT, which that licence is, so porelo's notices take the Bouncy Castle jars. |
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
