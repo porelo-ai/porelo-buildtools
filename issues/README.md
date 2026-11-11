@@ -19,6 +19,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
 | <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
 | <a id="bt41"></a>[BT41](BT41-Mutation-Testing-With-PIT.md) | - | - | A `pit` profile run by hand, PIT and its JUnit 5 plugin pinned, on a VM where tests call real tools, and a report sorting survivors into real gaps and harmless ones. |
 | <a id="bt30"></a>[BT30](BT30-Check-Actions-Reads-Workflows-As-YAML.md) | - | - | `check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one. |
