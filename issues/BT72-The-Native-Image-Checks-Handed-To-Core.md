@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT72",
   "title": "The Native-Image Checks Handed To Core",
-  "state": "Estimated",
+  "state": "Backlog",
   "size": "S",
   "priority": "Medium",
   "rank": 26,

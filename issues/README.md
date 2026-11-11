@@ -35,9 +35,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt71"></a>[BT71](BT71-The-Work-Format-Handed-To-The-Planner.md) | L | - | Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows call the planner's tool instead. |
 | <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
-| <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
 
 ## Backlog
 
@@ -49,6 +47,8 @@ left out.
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 | <a id="bt68"></a>[BT68](BT68-Project-Read-Takes-Any-Clone-URL.md) | S | - | `Project.read` in porelo-stories reads the project.yml of any project, wherever its repositories live: `https://`, `ssh://` and scp-like centrals on any host and under any owner, the name being the last part of the path without `.git`; anything else is refused naming the key and the value. |
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
+| <a id="bt71"></a>[BT71](BT71-The-Work-Format-Handed-To-The-Planner.md) | L | - | Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows call the planner's tool instead. |
+| <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
 
 ## Review
 

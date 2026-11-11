@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT71",
   "title": "The Work Format Handed To The Planner",
-  "state": "Estimated",
+  "state": "Backlog",
   "size": "L",
   "priority": "High",
   "rank": 25,
