@@ -14,6 +14,7 @@ left out.
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
 | <a id="bt74"></a>[BT74](BT74-The-Citations-Check-Rules-Written-Down.md) | - | - | What `porelo-release check-citations` refuses today, rule by rule, with what it reads and what it skips, written down for ST321 (porelo-project) before anything of it is removed. |
+| <a id="bt76"></a>[BT76](BT76-The-Musl-Installer-Names-Its-Pins.md) | XS | - | `machines musl --pins` prints the installer's two digests, `MUSL_SHA256=<hex>` and `ZLIB_SHA256=<hex>`, read from the installer it carries, so a workflow keys its cache by them without a second copy. |
 
 ## Accepted
 
