@@ -50,7 +50,7 @@ It is blocked by the planner's issue for taking the work format over, which is f
 
 ## Analysis (2026-11-11, the operator's order of 15:44Z)
 
-**Aligned with the planner's PL59 and PL60.** PL59 takes `issues index`, `issues check` and `stories index`. PL60
+**Aligned with the planner's PL59 and PL60.** PL59 took `issues index`, `issues check` and `stories index` when it was filed. PL60
 takes `check-commits`, `check-pushes` and the stage records' check. Three of today's commands appear in neither:
 - `stories check` (porelo-project's `stories-check.sh` calls it);
 - `stories cut` (release notes) and `issues convert` (a one-time conversion);
@@ -92,10 +92,20 @@ one issue unless the operator wants two.
 **Order.** It is blocked by PL59 and PL60 being published, and by every caller listed above being on the planner's
 tool. The first step that can start early is step 1, as soon as the planner publishes a snapshot of its library.
 
+**Aligned with the planner (15:55Z).**
+- PL59 publishes `porelo-planner-work` to Maven Central and takes `stories check`. Its public readers stay public for
+  check-citations: `Workflow.read`, `IssueHead`, `IssueIndexes.read`, `IssueLinks`, `Project.read` and `Story.read`.
+  Step 1 reads through those. That makes it likely the smaller end of its 35 min.
+- PL60, which PL59 blocks, takes `check-commits`, `check-pushes` and the stage commands.
+- The planner's texts that name `porelo-release` stay until every repository runs the planner's tool: three refusal
+  texts and the stories index heading "Written by `porelo-release stories index`". check-citations' story
+  recognition reads that heading, so step 1 keeps accepting it.
+- Until PL60 is done, `Stage.validate` keeps taking a person's move ([BT73](README.md#bt73)). Step 2 removes Stage only after PL60.
+
 **For the operator to decide.**
-1. **The three commands no planner issue names.** `stories check`, `stories cut` and `stage`, and whether
-   `issues convert` is dropped. I propose `stories check` and `stories cut` go to PL59, `stage` to PL60, and
-   `convert` is dropped.
+1. **`stories cut`, `stage` and `issues convert`.** `stories check` is settled: PL59 takes it. The planner put the
+   other three to the operator as its questions 1–3, with the same proposals as mine: `stories cut` and `stage` move,
+   and `convert` is dropped. One answer covers both issues.
 2. **`stats/` is data, not code.** The covers line says porelo-buildtools drops `stats/`. That directory is this
    repository's own measured history, the same kind of file every repository keeps and the planner reads. I propose
    it stays, and only the code that writes and checks it moves. The covers line would then lose "and `stats/`".
