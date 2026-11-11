@@ -228,6 +228,7 @@ The list is in the check (`CheckActions.WRITES`), the same for every repository:
 | `update.yml` | `update` | `contents`, `pull-requests` | the same, for an agent's pinned CLI |
 | `site.yml` | `publish` | `pages`, `id-token` | publishes the documentation site |
 | `build.yml` | `windows` | `id-token`, `attestations` | the interface's Windows job attests its ZIP |
+| `site.yml`, `shared-rules.yml`, `workflows.yml` | `prune` | `actions` | keeps only the newest entry of each cache, with the runner's `gh` alone |
 
 A job that needs a write not in it is a change to the list, with its reason, in `porelo-buildtools`.
 

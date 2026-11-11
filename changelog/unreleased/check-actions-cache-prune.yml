@@ -1,0 +1,2 @@
+title: "check-actions lets the `prune` job of site.yml, shared-rules.yml and workflows.yml write `actions`, so it can delete all but the newest entry of each cache; the job may hold only runner commands, with GH_TOKEN and KEEP as its environment."
+type: changed

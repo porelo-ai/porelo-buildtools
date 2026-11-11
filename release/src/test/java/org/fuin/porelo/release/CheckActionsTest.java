@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CheckActionsTest {
 
@@ -1445,6 +1447,36 @@ class CheckActionsTest {
                         + STEP);
 
         assertThat(check(directory)).as(stderr()).isEqualTo(0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"site.yml", "shared-rules.yml", "workflows.yml"})
+    void acceptsActionsWriteInTheCachePruneJob(String file) throws IOException {
+        named(
+                file,
+                "on: push\npermissions:\n    contents: read\njobs:\n    prune:\n"
+                        + "        permissions:\n            actions: write\n"
+                        + "        runs-on: ubuntu-24.04\n        steps:\n"
+                        + "            - env:\n                  GH_TOKEN: ${{ github.token }}\n"
+                        + "                  KEEP: x\n              run: gh cache list\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void refusesACheckoutBesideTheCachePruneJobsToken() throws IOException {
+        named(
+                "site.yml",
+                "on: push\npermissions: {}\njobs:\n    prune:\n"
+                        + "        permissions:\n            actions: write\n"
+                        + "        runs-on: ubuntu-24.04\n        steps:\n"
+                        + "            - uses: actions/checkout@"
+                        + COMMIT
+                        + " # v7.0.1\n"
+                        + "              with:\n                  persist-credentials: false\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("job 'prune' writes and so may hold only runner commands");
     }
 
     @Test

@@ -88,27 +88,36 @@ final class CheckActions {
      * this list, with its reason.
      */
     static final java.util.Map<String, java.util.Set<String>> WRITES =
-            java.util.Map.of(
+            java.util.Map.ofEntries(
                     // Deletes this repository's old runs; the shared copy, the same in every
                     // repository.
-                    "delete-runs.yml/delete", java.util.Set.of("actions"),
+                    java.util.Map.entry("delete-runs.yml/delete", java.util.Set.of("actions")),
                     // Cancels the legs of a commit that failed its unit tests, so no machine is
                     // rented for nothing.
-                    "build.yml/build", java.util.Set.of("actions"),
+                    java.util.Map.entry("build.yml/build", java.util.Set.of("actions")),
                     // Moves a pin on a branch of its own and opens the pull request for it.
-                    "machines.yml/refresh", java.util.Set.of("contents", "pull-requests"),
-                    "update.yml/update", java.util.Set.of("contents", "pull-requests"),
+                    java.util.Map.entry(
+                            "machines.yml/refresh", java.util.Set.of("contents", "pull-requests")),
+                    java.util.Map.entry(
+                            "update.yml/update", java.util.Set.of("contents", "pull-requests")),
                     // Publishes the documentation site to GitHub Pages.
-                    "site.yml/publish", java.util.Set.of("pages", "id-token"),
+                    java.util.Map.entry("site.yml/publish", java.util.Set.of("pages", "id-token")),
                     // Creates porelo-host's release with the runner's gh; no checkout or fetched
                     // action runs in that job.
-                    "release.yml/publish", java.util.Set.of("contents"),
+                    java.util.Map.entry("release.yml/publish", java.util.Set.of("contents")),
                     // Publishes the rendered plan pages to their own branch, with the runner's git
                     // and gh only; no checkout or fetched action runs in that job.
-                    "plan-pages.yml/publish", java.util.Set.of("contents"),
+                    java.util.Map.entry("plan-pages.yml/publish", java.util.Set.of("contents")),
+                    // Deletes all but the newest entry of each of the site's caches with the
+                    // runner's
+                    // gh; no checkout or fetched action runs in those jobs.
+                    java.util.Map.entry("site.yml/prune", java.util.Set.of("actions")),
+                    java.util.Map.entry("shared-rules.yml/prune", java.util.Set.of("actions")),
+                    java.util.Map.entry("workflows.yml/prune", java.util.Set.of("actions")),
                     // The Build's Windows job attests that the interface's ZIP was built here, by
                     // this workflow.
-                    "build.yml/windows", java.util.Set.of("id-token", "attestations"));
+                    java.util.Map.entry(
+                            "build.yml/windows", java.util.Set.of("id-token", "attestations")));
 
     /** A name a program reads changes what runs, and no list of such names is complete. */
     private static final Map<String, Set<String>> NO_FETCHED_CODE =
@@ -116,7 +125,13 @@ final class CheckActions {
                     "release.yml/publish",
                     Set.of("GH_TOKEN", "TAG", "VERSION", "ARTIFACT"),
                     "plan-pages.yml/publish",
-                    Set.of("GH_TOKEN"));
+                    Set.of("GH_TOKEN"),
+                    "site.yml/prune",
+                    Set.of("GH_TOKEN", "KEEP"),
+                    "shared-rules.yml/prune",
+                    Set.of("GH_TOKEN", "KEEP"),
+                    "workflows.yml/prune",
+                    Set.of("GH_TOKEN", "KEEP"));
 
     /** Runner features grow and defaults replace shells, so only known job keys pass. */
     private static final Set<String> RUNNER_JOB_KEYS =
