@@ -150,8 +150,7 @@ final class CheckCitations {
             listed = entries(root);
             for (final Path path : listed.stream().filter(Files::isRegularFile).toList()) {
                 if (generated(root, path)) continue;
-                if (generatedPlan(path)) generatedFiles++;
-                else if (generatedStory(root, path)) {
+                if (generatedStory(root, path)) {
                     generatedFiles++;
                     final Matcher story = STORY_FILE.matcher(relative(root, path));
                     if (story.matches()) stories.add(story.group(1));
@@ -646,7 +645,7 @@ final class CheckCitations {
     /**
      * Whether a file is one of the root's own stories as {@code porelo-release stories index}
      * writes them: a story, whose head under {@code ## Data} lists its issues, or their index. A
-     * story is made of issues, as a plan was.
+     * story is made of issues.
      */
     private static boolean generatedStory(Path root, Path path) throws IOException {
         final String name = relative(root, path);
@@ -668,29 +667,6 @@ final class CheckCitations {
                                                 line.startsWith(
                                                         "Written by `porelo-release stories"
                                                                 + " index`"));
-    }
-
-    private static boolean generatedPlan(Path path) throws IOException {
-        if (!path.getFileName().toString().equals("README.md")) return false;
-        final Path plan = path.resolveSibling("plan.yml");
-        if (!Files.isRegularFile(plan)) return false;
-        // Only a plan beside it makes the page a rendered one: a YAML mapping naming its release
-        // and sprints.
-        try {
-            final var tree =
-                    new com.fasterxml.jackson.databind.ObjectMapper(
-                                    new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
-                            .readTree(plan.toFile());
-            if (tree == null || !tree.isObject() || !tree.has("release") || !tree.has("sprints"))
-                return false;
-        } catch (IOException ex) {
-            return false;
-        }
-        try (var reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return PlanRender.GENERATED_MARKER.equals(reader.readLine());
-        } catch (CharacterCodingException ex) {
-            return false;
-        }
     }
 
     private static boolean generated(Path root, Path path) {

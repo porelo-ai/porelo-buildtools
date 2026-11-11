@@ -2,7 +2,6 @@ package org.fuin.porelo.release;
 
 import java.io.PrintStream;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,7 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.fuin.porelo.stories.IssueIndex;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -37,7 +35,6 @@ public final class Main {
                     "check-shared",
                     "check-citations",
                     "check-providers",
-                    "plan",
                     "stories",
                     "issues",
                     "check-commits",
@@ -99,82 +96,6 @@ public final class Main {
             case "convert" -> issues.convert(dir);
             default -> usage(err, expected);
         };
-    }
-
-    private static int plan(List<String> rest, PrintStream out, PrintStream err, Web web) {
-        final String expected =
-                "plan render <file> [--html <out>] [--indexes=beside] | plan check <file> [--indexes=beside]";
-        if (rest.size() < 2
-                || (!rest.getFirst().equals("render") && !rest.getFirst().equals("check"))) {
-            return usage(err, expected);
-        }
-        final Options options =
-                Options.parse(
-                        rest.subList(1, rest.size()),
-                        rest.getFirst().equals("render")
-                                ? Set.of("--html", "--indexes")
-                                : Set.of("--indexes"),
-                        Set.of());
-        if (options == null
-                || options.positional().size() != 1
-                || (options.value("--indexes") != null
-                        && !"beside".equals(options.value("--indexes")))) {
-            return usage(err, expected);
-        }
-        final Path file = Path.of(options.positional().getFirst());
-        try {
-            final IssueLinks links =
-                    new IssueLinks(
-                            web,
-                            "beside".equals(options.value("--indexes"))
-                                    ? IssueLinks.Sources.LOCAL_FIRST
-                                    : IssueLinks.Sources.FORGE);
-            final Plan.Project project = Plan.project(file, links);
-            final org.fuin.porelo.stories.Workflow workflow =
-                    org.fuin.porelo.stories.Workflow.read(
-                            project.root().resolve("stories/workflow.yml"));
-            final Plan plan = Plan.read(file, project);
-            final Map<String, IssueIndex> issues = PlanRender.indexes(plan, project, links);
-            final Path after = Plan.afterFile(file);
-            final List<java.net.URI> sources = new java.util.ArrayList<>(links.planSources());
-            if (Files.isRegularFile(after)) {
-                sources.add(after.toUri());
-            }
-            final PlanRender.Pages pages =
-                    PlanRender.render(plan, issues, PlanStand.read(file, sources, web), workflow);
-            if (rest.getFirst().equals("check")) {
-                PlanCheck.check(
-                        file,
-                        plan,
-                        issues,
-                        pages,
-                        links,
-                        Plan.releases(file, plan, project),
-                        workflow);
-                out.println("plan checked: " + file);
-            } else {
-                final String html = options.value("--html");
-                final Set<Path> inputs = new java.util.HashSet<>(links.inputs());
-                inputs.add(file.toRealPath());
-                inputs.add(project.root().resolve("stories/workflow.yml").toRealPath());
-                inputs.add(project.root().resolve("project.yml").toRealPath());
-                if (Files.isRegularFile(after)) {
-                    inputs.add(after.toRealPath());
-                }
-                PlanRender.write(file, plan, pages, html == null ? null : Path.of(html), inputs);
-                out.println("plan rendered: " + PlanRender.page(file));
-            }
-            return 0;
-        } catch (IllegalArgumentException ex) {
-            err.println("plan: " + ex.getMessage());
-            return Stop.REFUSED;
-        } catch (Stop stop) {
-            err.println("plan: " + stop.getMessage());
-            return stop.code();
-        } catch (java.io.IOException | java.io.UncheckedIOException ex) {
-            err.println("plan: could not read or write " + file + ": " + ex.getMessage());
-            return Stop.UNANSWERED;
-        }
     }
 
     private static int checkCommits(List<String> rest, PrintStream out, PrintStream err) {
@@ -410,7 +331,6 @@ public final class Main {
                             ? usage(err, "check-providers [REPOSITORY ROOT, default .]")
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
-            case "plan" -> plan(rest, out, err, web);
             case "stories" -> stories(rest, out, err, web);
             case "issues" -> issues(rest, out, err);
             case "check-commits" -> checkCommits(rest, out, err);

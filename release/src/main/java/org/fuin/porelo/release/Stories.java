@@ -35,7 +35,7 @@ final class Stories {
     private IssueSource source(Path dir) {
         return repository -> {
             try {
-                final Plan.Project project = Plan.project(dir.resolve(INDEX), links);
+                final ProjectFile project = ProjectFile.above(dir.resolve(INDEX), links);
                 return links.storySource(project.root()).index(repository);
             } catch (Stop stop) {
                 throw new IssueLinks.IndexFailure(stop);
@@ -140,7 +140,7 @@ final class Stories {
                 return Stop.REFUSED;
             }
             final List<Story> heads = read(dir);
-            final String own = Plan.project(dir.resolve(INDEX), links).own();
+            final String own = ProjectFile.above(dir.resolve(INDEX), links).own();
             final StringBuilder notes =
                     new StringBuilder(
                             "## " + version + "\n\nThe stories tested after " + after + ":\n\n");

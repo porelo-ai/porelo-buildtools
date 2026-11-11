@@ -41,6 +41,15 @@ class MainTest {
     }
 
     @Test
+    void theRemovedPlanCommandIsAnUnknownOne() {
+        assertThat(run("plan", "check", "plan/0.6/plan.yml")).isEqualTo(2);
+        assertThat(stderr())
+                .contains("unknown command 'plan'")
+                .doesNotContain(", plan,")
+                .contains("stories");
+    }
+
+    @Test
     void aFaultInsideACommandIsUnansweredNeverAStop() throws IOException {
         final Web broken =
                 (address, headers) -> {

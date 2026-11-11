@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class IssueIndexFixturesTest {
     @Test
     void everyFixtureKeepsItsRowsAndMetadata() throws Exception {
-        final Path root = Path.of("src/test/resources/plans");
+        final Path root = Path.of("src/test/resources/issue-indexes");
         final ObjectMapper json = new ObjectMapper();
         final var expected =
                 json.readTree(

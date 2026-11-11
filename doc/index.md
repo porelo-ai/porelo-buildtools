@@ -561,7 +561,7 @@ refuses, naming the file and the field: a head the schema refuses, a heading oth
 after its id, an id twice, a stated completed story without a tested day or a tested day on an open or rejected story,
 an issue no index holds, a repository `project.yml` does not name, and a story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's
 notes, the stories tested after the day of the last release, the earliest first. `check-citations` skips the root's own
-stories and their index as generated, a story being made of issues as a plan was, and takes `ST<n>` elsewhere as a
+stories and their index as generated, a story being made of issues, and takes `ST<n>` elsewhere as a
 story's number where `stories/` holds that story.
 
 ### Workflows
@@ -585,14 +585,11 @@ phases:
 YAML `#` comments are accepted, both on their own lines and after values. `states` is a nonempty list in board
 order, earliest first. Each state requires `name` and boolean `closed`; omitted `measured` is false. Phase names and state names are unique within their lists and each is one nonempty line without
 surrounding whitespace. Unknown keys, duplicate mapping keys, invalid types, unknown phase members, and a state
-repeated within or across phases are refused with file and line. `phases` is a required list in display order;
-plan bars use it, adding a separate group for any state not assigned a phase. Colors follow phase order using
-the existing palette. The stories index and generated issue-source headings use state order; plan segments and
-both legends use phase order. The shared phases are Ideas, Analysis, Estimation, Backlog, Build, and Done, earliest
+repeated within or across phases are refused with file and line. `phases` is a required list in display order. Colors follow phase order using
+the existing palette. The stories index and generated issue-source headings use state order. The shared phases are Ideas, Analysis, Estimation, Backlog, Build, and Done, earliest
 first. Reading and Reworking belong to Build; Finishing belongs to Done but remains open. The done count uses the
 closed flag, rather than the phase name. An index heading or story state absent from the file is refused, naming
-the workflow. Reading a handwritten issue index preserves its rows and metadata; it does not rewrite that file. Plan checks use `closed` and `measured` to recognize completed and started work;
-an open, unmeasured state precedes measured work, and a wait outside every plan must be closed.
+the workflow. Reading a handwritten issue index preserves its rows and metadata; it does not rewrite that file.
 
 The project admin places and signs the workflow file once in each repository, as with `project.yml`.
 Each repository keeps its own signed copy: `stories/workflow.yml` in porelo-project and `issues/workflow.yml`
@@ -659,7 +656,7 @@ index, String repository, Workflow workflow)` reads the text into public `IssueI
 source and blocked issue numbers. `location()` supplies the row's original `anchor()`, optional issue-file
 link `file()`, one-based `line()`, and the character offset `numberEnd()` after its first-cell number and link.
 The original seven-argument constructor remains available for rows constructed without a source location.
-Location data is excluded from metadata JSON. Citation and plan checks use this same parser for every issue
+Location data is excluded from metadata JSON. Citation checks use this same parser for every issue
 row, anchor and file link; prose examples supply none of them. A source can bundle pages by preceding each with
 `<!-- porelo-issue-index {"path":"issues/base/README.md","source":"...","length":N} -->` and a newline. Replace `N`
 with the integer number of UTF-16 code units in that page after normalizing CRLF to LF. The parser consumes exactly
@@ -681,142 +678,7 @@ The Build workflow enables this profile.
 
 ## Release plans
 
-The plans below are kept as the record of how releases were planned; nothing new is planned so.
+`porelo-release` had a `plan` command that rendered and checked release plans. The release plans were dropped
+for the stories, and the command was removed with them; `porelo-release plan` now answers as an unknown command.
 
-```
-porelo-release plan render plan/0.6/plan.yml
-porelo-release plan render plan/0.6/plan.yml --html plan/0.6.html
-porelo-release plan check plan/0.6/plan.yml
-porelo-release plan render plan/0.6/plan.yml --indexes=beside
-porelo-release plan check plan/0.6/plan.yml --indexes=beside
-```
-
-A plan belongs below the project's `project.yml`, as `plan.yml` in a directory named after its `release`; a plan of
-another name or in another directory is refused, since its page is that directory's `README.md`. Repository names are the last component of each declared
-`upstream`, with `.git` removed; each repository's `issues` lists its permitted prefixes. The project's own
-upstream is included, with its prefixes read from its issue index. Both verbs read every index from `main` on
-GitHub by default, including the project's own index, so the page reflects the central forge. With
-`--indexes=beside`, indexes come from the owning tree or a checkout beside it, falling back to `main` when no
-checkout exists. Linked subindexes and readable issue headings use the same source. Refusals identify the index
-file or URL read; an unavailable index ends the command with exit 2.
-
-```yaml
-release: "0.6"
-goal: "A release people can try"
-sprints:
-  - id: "1"
-    title: "A usable function"
-    goal: "A person can complete the first task"
-    functions:
-      - title: "The first task works"
-        test: "Try the task and observe its result"
-        tested: "2026-10-23"
-        issues: []
-        covers: []
-        notes: ["An improvement still to file"]
-```
-
-`release`, `goal`, and `sprints` are required. Every sprint requires string `id`, `title`, `goal`, and `functions`;
-its function titles are unique. Every function requires `title` and `test`; `tested` is an optional valid date
-string in `yyyy-MM-dd` form, and `issues`, `covers`, and `notes` are optional lists of strings. Both `issues` and
-`covers` references use `<repository>#<number>`; `covers` names parent issues with no work of their own.
-A release-level `issue` is an unknown field. Unknown fields, repositories,
-mismatched prefixes, duplicate sprint IDs or function titles, and invalid dates are refused with their location.
-
-Which issue waits for which is kept once for every release, in `after.yml` beside the release directories
-(`plan/after.yml` for `plan/<release>/plan.yml`), since a wait belongs to an issue and many waiting issues are in no
-release yet. Each issue maps to the issues it waits for, written as under `issues`:
-
-```yaml
-after:
-  porelo-host#HO27: [porelo-buildtools#BT25]  # an example, not-a-citation
-```
-
-An issue says in its own text what it waits for; only this file names the number. An empty list, a target named
-twice and an issue that waits for itself are refused where they stand; without the file, there are no waits, but
-a directory or an unreadable entry in its place is refused. Both
-verbs read it, and it counts toward the Stand line. The page lists, under *Waits*, every issue of the plan that
-waits, each with the state of what it waits for, outside the sprints' bars and counts. A wait that is met stays and is
-shown, so that another repository finishing an issue never turns a plan's check red.
-
-A wait inside one repository is written in its index instead, in the *Blocked by* column: `plan check` reads each
-number in a planned issue's cell as a wait on that number in the same repository, held to the same rules as an
-`after.yml` entry. The column is found by its header; an index without it has no waits, and `—` or `-` names none.
-The check reads every release's plan beside this one, ordered by their numbers (0.10 after 0.9), to know where each
-waited-for issue is placed. A wait in either place may not reach a later sprint or a later release; a *Blocked by*
-number planned in no release must be closed in the workflow. The page shows only the waits of `after.yml`.
-
-Rendering writes `README.md` beside the plan, so a forge shows it on opening the release's directory. Markdown follows the HTML page's section order: the
-release heading and goal, italic Stand line, Sprint progress, the introduction, and Issues Details. The progress
-section links one self-contained jte-generated image beside it, `progress-<hash>.svg`, with the HTML legend's colored
-boxes, one labeled bar and done count per sprint, and a tested or untested mark per function. Its alt text names
-each sprint and lists each nonzero state separately in phase order. Groups come from the workflow, followed
-by Not filed yet / Missing. The hash is the first eight lowercase hex digits of the image bytes' SHA-256;
-rendering removes older `progress-<hash>.svg` files and the legacy `progress.svg` in the plan's directory,
-leaving other names alone.
-
-Details keep sprint and function order, each sprint framed as on the HTML page by a one-cell table that holds its
-Markdown: a sprint heading and goal, a bold function title with ✅ Tested and its
-date or ⚪ Not tested, test instructions, and one line of issue chips. Each linked chip uses the HTML chip's
-text, index-row target, and tooltip as its link title, preceded by its state's colored square; the fixed emoji
-mapping is documented in `PlanTemplate.Chip.emoji()`. Notes and missing rows use the unfiled square and their
-HTML chip text without a link. Each sprint counts distinct issues by index state; notes never count as done.
-A readable issue heading supplies the title; otherwise the index row supplies it. Finished and Rejected rows
-retain their title after the issue file is gone.
-Covered parents appear on both pages as one linked line under the function's chips, such as
-`covers <number> · Accepted`, with several parents separated by commas. A parent without an index row shows
-`Missing index row`. Covered parents do not count in bar segments, done or total counts, alt text counts,
-or either SVG's description or progress counts. A parent may be covered by more than one function.
-
-The Markdown page starts with `<!-- Generated by porelo-release plan render; do not edit. -->`. `check-citations`
-skips a `README.md` only when that exact comment is its first line and a `plan.yml` beside it, a YAML
-mapping naming its `release` and `sprints`, and counts it among the generated files. HTML uses precompiled jte
-templates with contextual escaping and inlines its bars, which take the page's light or dark palette; the progress
-SVG is the only image file written. SVG text is escaped by jte, Markdown alt text and link titles escape their
-delimiters, and plan text escapes image starts (with any backslash before them) and backtick or tilde runs of three
-or more, keeping inline code spans and emphasis. HTML and SVG hold no script and no external reference. Each bar
-segment starts after the preceding counts and spans its share of the bar. The progress SVG writes the light palette's
-colours into its own attributes, since a CSS variable does not reach the attributes of an SVG shown as an image, and
-switches them in its own dark-mode style. Unchanged inputs give identical bytes.
-
-The Stand line is the latest committer time of the plan and the issue metadata sources actually read: local
-files and the plan use their own Git history. For forge sources, one request per repository reads the latest
-commit on `main` touching `issues`, covering its indexes and issue files. A source without
-commit metadata is named and excluded, with no fallback to file modification time or the render clock. An
-unreadable or malformed commit response, including trailing tokens after its JSON value, fails the command.
-The release module runs on the JVM, with no native image build or FFM check; jte's Maven plugin generates Java
-templates that compile into its JAR. A plan contains exactly one YAML document. Index states come from Markdown
-headings, fenced examples are ignored, and table headers identify the title column. Issue headings accept an em
-dash, an en dash, or a hyphen between the number and title; subgroup index links may include a fragment.
-
-The Markdown and SVG destinations must resolve inside the plan file's directory, including through symlinks.
-Release names and sprint IDs must be safe file-name components. The HTML option may name a file elsewhere.
-Every destination must differ from every local input read (the plan, `project.yml`, indexes, and issue files)
-and every other destination, including aliases; all destinations are checked before any output is written.
-Repeating an issue within one function is refused as a duplicate in that function.
-
-`plan check` refuses these fifteen faults, naming the issue or the sprint and function:
-
-- An issue has no row in its repository's index.
-- An issue belongs to more than one function.
-- The Markdown page or its progress SVG is missing or differs from a fresh render, including after an index changes.
-- An issue is closed other than Rejected but its function has no `tested` date.
-- A function has no issue, no note and no `tested` date.
-- A covered parent has no row in its repository's index; the refusal names the index source.
-- A parent is repeated in one function's `covers`, or is also listed under any function's `issues`.
-- A covered parent is open and unmeasured while at least one of its function's issues is measured or closed.
-- An issue in `after.yml`, waiting or waited for, has no row in its repository's index.
-- A number in a planned issue's *Blocked by* cell has no row in that repository's index.
-- An issue is measured or closed while an issue it waits for is open and unmeasured; agents build against local
-  results and contracts stated in words, so
-  what is waited for need not be published yet. A parent the plan names only under `covers` is left out,
-  since it is Implementing while its parts run; every other rule on waits holds for it.
-- Waits form a cycle; the refusal names it in order.
-- An issue waits for one placed in a later sprint of the plan being checked or in a later release, directly or
-  through issues outside it.
-- A planned issue's *Blocked by* cell names an issue planned in no release that is not closed.
-- A wait, in `after.yml` or a *Blocked by* cell, names a requirement any release's plan names under `covers`: it is the
-  acceptance of the whole, so the wait names the part it waits for instead.
-
-Exit 0 means the command succeeded, 1 means the plan or page was refused, and 2 means the command was malformed or
-its inputs or outputs could not be read or written. Checking never rewrites the page.
+The release module runs on the JVM, with no native image build or FFM check.

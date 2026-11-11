@@ -105,9 +105,6 @@ final class CheckActions {
                     // Creates porelo-host's release with the runner's gh; no checkout or fetched
                     // action runs in that job.
                     java.util.Map.entry("release.yml/publish", java.util.Set.of("contents")),
-                    // Publishes the rendered plan pages to their own branch, with the runner's git
-                    // and gh only; no checkout or fetched action runs in that job.
-                    java.util.Map.entry("plan-pages.yml/publish", java.util.Set.of("contents")),
                     // Deletes all but the newest entry of each of the site's caches with the
                     // runner's
                     // gh; no checkout or fetched action runs in those jobs.
@@ -124,8 +121,6 @@ final class CheckActions {
             Map.of(
                     "release.yml/publish",
                     Set.of("GH_TOKEN", "TAG", "VERSION", "ARTIFACT"),
-                    "plan-pages.yml/publish",
-                    Set.of("GH_TOKEN"),
                     "site.yml/prune",
                     Set.of("GH_TOKEN", "KEEP"),
                     "shared-rules.yml/prune",

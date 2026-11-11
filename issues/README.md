@@ -14,7 +14,6 @@ left out.
 | <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
-| <a id="bt70"></a>[BT70](BT70-The-Release-Plan-Commands-Removed.md) | - | - | porelo-release has no `plan` command any more: Plan, PlanCheck, PlanRender, PlanStand and PlanTemplate, their tests, documentation and changelog entries are deleted, not moved. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | - | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release, porelo-machines and ffm-check's new home read it. |
 | <a id="bt74"></a>[BT74](BT74-The-Citations-Check-Rules-Written-Down.md) | - | - | What `porelo-release check-citations` refuses today, rule by rule, with what it reads and what it skips, written down for ST321 (porelo-project) before anything of it is removed. |
 
@@ -38,6 +37,7 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt73"></a>[BT73](BT73-A-Persons-Move-Passes-The-Stage-Check.md) | XS | - | `Stage.validate` takes a person's move on the board, `actor: person` with `stage: move`, `size` null or a size, `wall_min` and `vm_min` null, and the median leaves every move out; `stage begin` still refuses a move. |
+| <a id="bt70"></a>[BT70](BT70-The-Release-Plan-Commands-Removed.md) | S | - | porelo-release has no `plan` command any more: Plan, PlanCheck, PlanRender, PlanStand and PlanTemplate, their tests, documentation and changelog entries are deleted, not moved. |
 
 ## Backlog
 

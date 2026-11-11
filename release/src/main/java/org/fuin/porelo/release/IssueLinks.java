@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,8 +68,8 @@ final class IssueLinks {
     private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,})(.*)$");
 
     /**
-     * Source policy: the plan commands read beside or from the forge; the citation checks read no
-     * source at all, only the pages they are given.
+     * Source policy: the stories commands read beside or from the forge; the citation checks read
+     * no source at all, only the pages they are given.
      */
     enum Sources {
         LOCAL_FIRST,
@@ -91,12 +90,6 @@ final class IssueLinks {
     private final Map<String, Path> trees = new HashMap<>();
 
     private final Set<Path> inputs = new HashSet<>();
-    private final Set<URI> planSources = new LinkedHashSet<>();
-
-    /** All successfully read sources that supply the plan's issue metadata. */
-    Set<URI> planSources() {
-        return Set.copyOf(planSources);
-    }
 
     /** Local files actually read while resolving the plan's issue metadata. */
     Set<Path> inputs() {
@@ -530,7 +523,6 @@ final class IssueLinks {
                 location.getScheme().equals("file")
                         ? localSource(Path.of(location))
                         : web.text(location);
-        if (text.isPresent()) planSources.add(location);
         return text;
     }
 
