@@ -16,6 +16,7 @@ left out.
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
 | <a id="bt70"></a>[BT70](BT70-The-Release-Plan-Commands-Removed.md) | - | - | porelo-release has no `plan` command any more: Plan, PlanCheck, PlanRender, PlanStand and PlanTemplate, their tests, documentation and changelog entries are deleted, not moved. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | - | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release, porelo-machines and ffm-check's new home read it. |
+| <a id="bt74"></a>[BT74](BT74-The-Citations-Check-Rules-Written-Down.md) | - | - | What `porelo-release check-citations` refuses today, rule by rule, with what it reads and what it skips, written down for ST321 (porelo-project) before anything of it is removed. |
 
 ## Accepted
 
