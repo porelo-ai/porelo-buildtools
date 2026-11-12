@@ -20,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
  * Tests for {@link PinnedRetry} and its shell twin {@code .github/actions/pinned-jdk/pinned.sh}:
  * one rule for every pinned download.
  */
+@Tag("documents")
 @Tag("integration")
 class PinnedRetryTest {
 

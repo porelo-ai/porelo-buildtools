@@ -25,11 +25,12 @@ class DocumentTestsTaggedTest {
 
     /**
      * How a test reaches this repository's documents, by a path out of its module: a Markdown file,
-     * the chapter, its navigation, or the whole repository's root.
+     * the chapter, its navigation, the workflows and actions, or the whole repository's root.
      */
     private static final Pattern READS_DOCUMENTS =
             Pattern.compile(
-                    "Path\\.of\\(\"\\.\\./[^\"]*\\.md\"|Path\\.of\\(\"\\.\\./doc|\"\\.\\./mkdocs\\.yml\"|Path\\.of\\(\"\\.\\.\"\\)");
+                    "Path\\.of\\(\"\\.\\./[^\"]*\\.md\"|Path\\.of\\(\"\\.\\./doc|\"\\.\\./mkdocs\\.yml\"|Path\\.of\\(\"\\.\\.\"\\)"
+                            + "|Path\\.of\\(\"\\.\\./\\.github");
 
     private static final String TAG = "@Tag(\"documents\")";
 
@@ -63,7 +64,11 @@ class DocumentTestsTaggedTest {
                         "CheckSharedTest.java",
                         "CheckCitationsTest.java",
                         "CheckDocSiteTest.java",
-                        "CheckProvidersTest.java");
+                        "CheckProvidersTest.java",
+                        "WorkflowLimitsTest.java",
+                        "WorkflowSigningTest.java",
+                        "CheckActionsTest.java",
+                        "PinnedRetryTest.java");
         assertThat(found)
                 .filteredOn(path -> !read(path).contains(TAG))
                 .as("tests that read a document without %s", TAG)

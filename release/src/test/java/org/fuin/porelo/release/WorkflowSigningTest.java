@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
  * job - and every action it runs - can read it. The signer that reads {@code MAVEN_GPG_KEY} holds
  * it in the build's memory only.
  */
+@Tag("documents")
 class WorkflowSigningTest {
 
     private static final Path WORKFLOWS = Path.of("../.github/workflows");

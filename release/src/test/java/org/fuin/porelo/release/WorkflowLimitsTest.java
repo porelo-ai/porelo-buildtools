@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
  * every minute. A job that cleans up with {@code if: always()} gives a step of its own a limit too,
  * so the clean-up still runs inside the job's.
  */
+@Tag("documents")
 class WorkflowLimitsTest {
 
     private static final Path WORKFLOWS = Path.of("../.github/workflows");

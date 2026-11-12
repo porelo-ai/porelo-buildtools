@@ -8,6 +8,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,6 +25,7 @@ class CheckActionsTest {
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
 
     @Test
+    @Tag("documents")
     void thisRepositorysOwnWorkflowsFetchNothingByAName() {
         // The build that fails on a tag: a new workflow step that names one turns this red.
         assertThat(check(Path.of("../.github"))).as(stderr()).isEqualTo(0);
