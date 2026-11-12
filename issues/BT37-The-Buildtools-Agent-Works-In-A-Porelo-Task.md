@@ -69,3 +69,14 @@ Read in today's `porelo.yml`, `settings.xml` and the six workflows, against the 
 - That the forge's runner offers the label `ubuntu-26.04` the workflows name; it does so for porelo-message-sluice's
   workflows.
 - Whether Forgejo runs a `schedule` trigger on a repository migrated from GitHub at all; the guard holds either way.
+
+## Built here (2026-11-13)
+
+- **The guard before the move.** `machines.yml`'s *Ask upstream* job and `shared-rules.yml`'s *Main's pushes of the
+  last day* step now run only where `github.server_url` is `https://github.com`. The first opens its pull request with
+  `gh`; the second reads the activity from GitHub's API. `ScheduledWorkflowsTest` reads every workflow with a
+  `schedule` and fails on a step that runs `gh` or `check-pushes` without that hold. It was seen red on both before the
+  change and is green after. `WorkflowCommitsTest` names the new condition.
+- **`porelo.yml`'s comment** now says that Porelo builds a task's image from the file.
+- **Not built: the move.** The trial move to the host, the issue worked inside the task and the way back need the
+  operator and the host. So the issue stays in Backlog until then.
