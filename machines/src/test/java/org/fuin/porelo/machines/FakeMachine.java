@@ -37,6 +37,12 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
 
     int opened;
 
+    /** Whether each connection's opening goes into {@link #commands} as {@code as <user>}. */
+    boolean markOpens;
+
+    /** Who each connection was opened as, in order. */
+    final List<String> users = new ArrayList<>();
+
     int disconnects;
 
     int closes;
@@ -82,6 +88,10 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
     @Override
     public RemoteSession open(String address, String user, Credential credential, HostKey hostKey) {
         opened++;
+        users.add(user);
+        if (markOpens) {
+            commands.add("as " + user);
+        }
         return this;
     }
 

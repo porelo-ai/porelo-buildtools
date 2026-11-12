@@ -273,6 +273,46 @@ public final class AgentLeg {
      */
     public static void run(Machines machines, Options options, Credential credential)
             throws IOException {
+        run(machines, options, credential, SshDialer.SSH, AgentLeg::cucumber, System.getenv());
+    }
+
+    /** Runs the agent's Cucumber suite from this end against the machine. */
+    @FunctionalInterface
+    interface AcceptanceSuite {
+
+        /**
+         * Runs one pass of the suite.
+         *
+         * @param repository Where to run Maven.
+         * @param lease The machine.
+         * @param credential The key the suite connects with.
+         * @param options What this pass adds to the command line.
+         * @throws IOException If the suite fails.
+         */
+        void run(Path repository, Lease lease, Credential credential, List<String> options)
+                throws IOException;
+    }
+
+    /**
+     * Runs one acceptance leg, reaching the machine's other accounts and running the Cucumber suite
+     * the ways given: SSH and Maven, or a test's fakes.
+     *
+     * @param machines Where the machine comes from.
+     * @param options What to do.
+     * @param credential The key to connect with.
+     * @param dialer How the machine's accounts are reached beside the lease's own connection.
+     * @param cucumber How the Cucumber suite runs.
+     * @param env The environment of this end, which the suite's credentials come from.
+     * @throws IOException If any step fails, saying which.
+     */
+    static void run(
+            Machines machines,
+            Options options,
+            Credential credential,
+            SshDialer dialer,
+            AcceptanceSuite cucumber,
+            Map<String, String> env)
+            throws IOException {
         final String image = IMAGES.get(options.os());
         if (image == null) {
             throw new IOException("No image for '" + options.os() + "'. Known: " + IMAGES.keySet());
@@ -307,7 +347,8 @@ public final class AgentLeg {
                 run(lease, Snapshots.mirror(Snapshots.Contents.pinned().registry()));
                 for (final String extra : users.subList(1, users.size())) {
                     run(lease, account(extra, lease.authorizedKeys()));
-                    try (Ssh as = Ssh.to(lease.address(), extra, credential, lease.hostKey())) {
+                    try (RemoteSession as =
+                            dialer.open(lease.address(), extra, credential, lease.hostKey())) {
                         run(as, "porelo setup", null);
                     }
                 }
@@ -317,7 +358,8 @@ public final class AgentLeg {
             // runs in - rootless podman, one operator's own directories - and root has neither:
             // podman is rootful there and /run/user/0 does not exist.
             if (options.script() != null) {
-                try (Ssh user = Ssh.to(lease.address(), USER, credential, lease.hostKey())) {
+                try (RemoteSession user =
+                        dialer.open(lease.address(), USER, credential, lease.hostKey())) {
                     System.out.println("\n-- sending the suite --");
                     run(
                             user,
@@ -329,7 +371,7 @@ public final class AgentLeg {
                             options.script());
 
                     System.out.println("\n-- acceptance --");
-                    final Remote suite = acceptance(System.getenv());
+                    final Remote suite = acceptance(env);
                     run(user, suite.command(), suite.stdin());
                 }
             }
@@ -340,13 +382,13 @@ public final class AgentLeg {
                 // exists, so a failure lands as an annotation on the feature file.
                 System.out.println("\n-- acceptance, as a person at a terminal --");
                 if (users.size() == 1) {
-                    cucumber(options.cucumber(), lease, credential, List.of());
+                    cucumber.run(options.cucumber(), lease, credential, List.of());
                 } else {
                     // Scenarios beside each other, one account each, and then what touches the
                     // whole machine, alone and afterwards: a restart takes every account's daemon
                     // with it. A suite that has none runs nothing in the second pass, which is not
                     // a failure.
-                    cucumber(
+                    cucumber.run(
                             options.cucumber(),
                             lease,
                             credential,
@@ -356,7 +398,7 @@ public final class AgentLeg {
                                     "-Dporelo.acceptance.parallelism=" + users.size(),
                                     "-Dcucumber.filter.tags=not " + MACHINE_WIDE));
                     System.out.println("\n-- what touches the whole machine, alone --");
-                    cucumber(
+                    cucumber.run(
                             options.cucumber(),
                             lease,
                             credential,
