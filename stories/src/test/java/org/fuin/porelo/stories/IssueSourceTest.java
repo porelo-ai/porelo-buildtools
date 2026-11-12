@@ -104,11 +104,10 @@ class IssueSourceTest {
     @Test
     void theLibraryDependsOnNoTransportOrCommand() {
         final var classes =
+                // The module's own classes, read where the build put them: a scan of the class path
+                // for the package read every jar and took most of the unit run's slowest class.
                 new com.tngtech.archunit.core.importer.ClassFileImporter()
-                        .withImportOption(
-                                com.tngtech.archunit.core.importer.ImportOption.Predefined
-                                        .DO_NOT_INCLUDE_TESTS)
-                        .importPackages("org.fuin.porelo.stories");
+                        .importPath(java.nio.file.Path.of("target/classes"));
         assertThat(classes)
                 .as("the public implementation is in the reference set")
                 .anyMatch(type -> type.getSimpleName().equals("StoriesIndex"));
