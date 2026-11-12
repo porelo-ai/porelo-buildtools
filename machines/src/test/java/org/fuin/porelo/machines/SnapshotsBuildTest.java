@@ -62,6 +62,7 @@ class SnapshotsBuildTest {
     @Test
     void preparesThenStopsThenTakesTheImageAndGivesTheMachineBack() throws IOException {
         machine.probes.add(true);
+        machine.onRelease = () -> asked.add("released");
 
         assertThat(build("ubuntu", null, "the installer")).isEqualTo(4242);
 
@@ -69,7 +70,8 @@ class SnapshotsBuildTest {
                 .containsExactly(
                         "rent ubuntu-26.04 for porelo-snapshot-ubuntu",
                         "shutdown 77",
-                        "snapshot 77 ubuntu " + Snapshots.inputs("ubuntu"));
+                        "snapshot 77 ubuntu " + Snapshots.inputs("ubuntu"),
+                        "released");
         assertThat(machine.commands)
                 .containsExactly(
                         Snapshots.recipe("ubuntu"),

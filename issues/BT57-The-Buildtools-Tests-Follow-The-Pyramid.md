@@ -153,4 +153,6 @@ paid in money or in another team's red Build.
   that the suite's credentials reach the machine on standard input alone and the suite runs as the leg's user, the
   candidate it sent is installed, extra accounts are set up over their own connections, scenarios run beside each other
   before the restarts run alone, and a failed suite still gives the machine back.
-- Each of the 20 guarded rules was removed once and its test went red.
+- Each guarded rule was removed once and its test went red: 7 of the lease and the rental, 6 of the snapshot, 8 of
+  the leg, among them a suite run over the lease's root connection. The fake gives each connection its own session,
+  which names its user beside each command, so a command run as root is not taken for the user's.

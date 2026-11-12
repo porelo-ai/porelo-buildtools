@@ -60,7 +60,7 @@ class AgentLegRunTest {
 
     private void run(AgentLeg.Options options, Map<String, String> env) throws IOException {
         machine.probes.add(true);
-        machine.markOpens = true;
+        machine.markUsers = true;
         AgentLeg.run(
                 source,
                 options,
@@ -79,26 +79,29 @@ class AgentLegRunTest {
                 options("#!/bin/sh\necho suite\n", null, null, 1),
                 Map.of("PORELO_E2E_OPENROUTER_API_KEY", "sk-secret", "UNRELATED", "kept here"));
 
-        final int user = machine.commands.indexOf("as acceptance");
-        assertThat(user).as("the suite runs as the leg's user").isPositive();
-        final List<String> asUser = machine.commands.subList(user + 1, machine.commands.size());
-        assertThat(asUser)
+        assertThat(machine.commands)
+                .as("the suite sent and run as the leg's user, nothing of it as root")
+                .filteredOn(command -> command.contains("acceptance.sh"))
                 .satisfiesExactly(
                         sent ->
                                 assertThat(sent)
-                                        .startsWith("cat > /home/acceptance/acceptance.sh")
-                                        .endsWith("\t#!/bin/sh\necho suite\n"),
+                                        .isEqualTo(
+                                                "acceptance: cat > /home/acceptance/acceptance.sh"
+                                                        + " && chmod +x /home/acceptance/acceptance.sh"
+                                                        + "\t#!/bin/sh\necho suite\n"),
                         suite ->
                                 assertThat(suite)
-                                        .contains("./acceptance.sh </dev/null")
-                                        .endsWith("\tPORELO_E2E_OPENROUTER_API_KEY='sk-secret'\n"));
+                                        .startsWith("acceptance: cd /home/acceptance && ")
+                                        .endsWith(
+                                                "./acceptance.sh </dev/null"
+                                                        + "\tPORELO_E2E_OPENROUTER_API_KEY='sk-secret'\n"));
         assertThat(machine.commands)
-                .as("no command line names the secret or what the suite is not given")
+                .as("no command line names the secret, and nothing the suite is not given goes in")
                 .allSatisfy(
-                        command ->
-                                assertThat(command.split("\t")[0])
-                                        .doesNotContain("sk-secret")
-                                        .doesNotContain("kept here"));
+                        command -> {
+                            assertThat(command).doesNotContain("kept here");
+                            assertThat(command.split("\t")[0]).doesNotContain("sk-secret");
+                        });
         assertThat(machine.releases).as("the machine given back").isEqualTo(1);
     }
 
@@ -148,8 +151,8 @@ class AgentLegRunTest {
                 .as("each extra account set up over its own connection")
                 .containsSubsequence("acceptance2", "acceptance3");
         assertThat(machine.commands)
-                .containsSubsequence(
-                        "as acceptance2", "porelo setup", "as acceptance3", "porelo setup");
+                .as("each extra account set up as itself")
+                .containsSubsequence("acceptance2: porelo setup", "acceptance3: porelo setup");
         assertThat(passes)
                 .containsExactly(
                         "192.0.2.7 -Dporelo.acceptance.users=acceptance,acceptance2,acceptance3"

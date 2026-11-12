@@ -37,8 +37,11 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
 
     int opened;
 
-    /** Whether each connection's opening goes into {@link #commands} as {@code as <user>}. */
-    boolean markOpens;
+    /** Whether each command goes into {@link #commands} after the user of its connection. */
+    boolean markUsers;
+
+    /** What giving the machine back also does, for a test that orders it among other calls. */
+    Runnable onRelease = () -> {};
 
     /** Who each connection was opened as, in order. */
     final List<String> users = new ArrayList<>();
@@ -69,7 +72,10 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
                 "192.0.2.7",
                 spec,
                 HostKey.pinned(HOST_KEY),
-                () -> releases++,
+                () -> {
+                    releases++;
+                    onRelease.run();
+                },
                 Duration.ofMinutes(5),
                 this,
                 this);
@@ -89,10 +95,7 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
     public RemoteSession open(String address, String user, Credential credential, HostKey hostKey) {
         opened++;
         users.add(user);
-        if (markOpens) {
-            commands.add("as " + user);
-        }
-        return this;
+        return new Connection(user);
     }
 
     @Override
@@ -150,5 +153,45 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
     @Override
     public void close() {
         closes++;
+    }
+
+    /** One connection, as one user: its commands go to the machine, named by that user. */
+    private final class Connection implements RemoteSession {
+
+        private final String user;
+
+        Connection(String user) {
+            this.user = user;
+        }
+
+        @Override
+        public Ssh.Output run(String command, @Nullable String stdin) throws IOException {
+            return FakeMachine.this.run(markUsers ? user + ": " + command : command, stdin);
+        }
+
+        @Override
+        public void upload(Path local, String remote) {
+            FakeMachine.this.upload(local, remote);
+        }
+
+        @Override
+        public void download(String remote, Path local) {
+            FakeMachine.this.download(remote, local);
+        }
+
+        @Override
+        public void disconnect() {
+            FakeMachine.this.disconnect();
+        }
+
+        @Override
+        public void reconnect() throws IOException {
+            FakeMachine.this.reconnect();
+        }
+
+        @Override
+        public void close() {
+            FakeMachine.this.close();
+        }
     }
 }
