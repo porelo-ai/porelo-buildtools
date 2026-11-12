@@ -5,10 +5,10 @@
   "$schema": "issue-1.json",
   "id": "BT84",
   "title": "Acceptance Takes The Pool A Job Is Told",
-  "state": "Estimated",
+  "state": "Backlog",
   "size": "S",
   "priority": "Medium",
-  "rank": 1,
+  "rank": 31,
   "blockedBy": [],
   "covers": "`porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, and `sweep --mine` passes where the job rented from the pool, so one workflow runs on the host's forge and on GitHub (porelo-host's HO27)."
 }

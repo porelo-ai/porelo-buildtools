@@ -31,7 +31,6 @@ left out.
 |---|---|---|---|
 | <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
 | <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. |
-| <a id="bt84"></a>[BT84](BT84-Acceptance-Takes-The-Pool-A-Job-Is-Told.md) | S | - | `porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, and `sweep --mine` passes where the job rented from the pool, so one workflow runs on the host's forge and on GitHub (porelo-host's HO27). |
 
 ## Backlog
 
@@ -48,6 +47,7 @@ left out.
 | <a id="bt68"></a>[BT68](BT68-Project-Read-Takes-Any-Clone-URL.md) | S | - | `Project.read` in porelo-stories reads the project.yml of any project, wherever its repositories live: `https://`, `ssh://` and scp-like centrals on any host and under any owner, the name being the last part of the path without `.git`; anything else is refused naming the key and the value. |
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
+| <a id="bt84"></a>[BT84](BT84-Acceptance-Takes-The-Pool-A-Job-Is-Told.md) | S | - | `porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, and `sweep --mine` passes where the job rented from the pool, so one workflow runs on the host's forge and on GitHub (porelo-host's HO27). |
 
 ## Review
 
