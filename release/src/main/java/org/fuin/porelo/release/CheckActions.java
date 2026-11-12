@@ -111,6 +111,9 @@ final class CheckActions {
                     java.util.Map.entry("site.yml/prune", java.util.Set.of("actions")),
                     java.util.Map.entry("shared-rules.yml/prune", java.util.Set.of("actions")),
                     java.util.Map.entry("workflows.yml/prune", java.util.Set.of("actions")),
+                    // Deletes all but the newest entry of each cache the Build restored or saved,
+                    // the same way; no checkout or fetched action runs in that job.
+                    java.util.Map.entry("build.yml/prune", java.util.Set.of("actions")),
                     // The Build's Windows job attests that the interface's ZIP was built here, by
                     // this workflow.
                     java.util.Map.entry(
@@ -126,6 +129,8 @@ final class CheckActions {
                     "shared-rules.yml/prune",
                     Set.of("GH_TOKEN", "KEEP"),
                     "workflows.yml/prune",
+                    Set.of("GH_TOKEN", "KEEP"),
+                    "build.yml/prune",
                     Set.of("GH_TOKEN", "KEEP"));
 
     /** Runner features grow and defaults replace shells, so only known job keys pass. */

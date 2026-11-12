@@ -1,0 +1,2 @@
+title: "check-actions lets build.yml's `prune` job write `actions`, as it does the other workflows' `prune` jobs, so the Build can delete its older cache entries."
+type: changed

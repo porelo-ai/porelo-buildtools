@@ -1450,7 +1450,7 @@ class CheckActionsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"site.yml", "shared-rules.yml", "workflows.yml"})
+    @ValueSource(strings = {"site.yml", "shared-rules.yml", "workflows.yml", "build.yml"})
     void acceptsActionsWriteInTheCachePruneJob(String file) throws IOException {
         named(
                 file,
