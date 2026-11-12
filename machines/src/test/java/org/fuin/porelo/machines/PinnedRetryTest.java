@@ -81,19 +81,30 @@ class PinnedRetryTest {
         assertThat(ran.exit()).isZero();
     }
 
+    // Prevents a deadline the caller's own SECONDS moves: the clock is the kernel's uptime, which
+    // only counts up, read without waiting for it to move.
     @Test
     void theShellsClockCountsUpWhateverTheCallerDoesWithSeconds()
             throws IOException, InterruptedException {
         final Ran ran =
                 shell(
-                        "a=$(pinned_now); SECONDS=0; python3 -c 'import time; time.sleep(1.3)'; b=$(pinned_now);"
-                                + " echo $((b - a))",
+                        "a=$(pinned_now); SECONDS=100000; b=$(pinned_now); SECONDS=-100000;"
+                                + " c=$(pinned_now); read -r up _ </proc/uptime;"
+                                + " echo \"$a $b $c ${up%%.*}\"",
                         "exit 99");
 
         assertThat(ran.exit()).as(ran.out()).isZero();
-        assertThat(Integer.parseInt(ran.out().strip()))
-                .as("seconds counted over 1.3 s")
-                .isBetween(1, 2);
+        final long[] seen =
+                java.util.Arrays.stream(ran.out().strip().split(" "))
+                        .mapToLong(Long::parseLong)
+                        .toArray();
+        assertThat(seen[1] - seen[0])
+                .as("SECONDS set forward does not move the clock")
+                .isBetween(0L, 1L);
+        assertThat(seen[2] - seen[1])
+                .as("SECONDS set back does not move it back")
+                .isBetween(0L, 1L);
+        assertThat(seen[3] - seen[2]).as("the clock is the uptime's").isBetween(0L, 1L);
     }
 
     @Test
