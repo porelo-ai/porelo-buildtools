@@ -52,7 +52,13 @@ public final class Lease implements AutoCloseable {
      */
     private final Duration sshPatience;
 
-    private @Nullable Ssh ssh;
+    /** How the machine is reached. */
+    private final SshDialer dialer;
+
+    /** The clock and the pause of the waits. */
+    private final Waiting waiting;
+
+    private @Nullable RemoteSession ssh;
 
     /**
      * Whether it was given back: a cancel does that from its own thread, and the holder's close
@@ -96,6 +102,32 @@ public final class Lease implements AutoCloseable {
             HostKey hostKey,
             Release release,
             Duration sshPatience) {
+        this(id, name, address, spec, hostKey, release, sshPatience, SshDialer.SSH, Waiting.SYSTEM);
+    }
+
+    /**
+     * Constructor with the way the machine is reached and the clock its waits read, for a test.
+     *
+     * @param id The provider's id for it.
+     * @param name What the machine is called, for messages.
+     * @param address Where it is.
+     * @param spec What was asked for.
+     * @param hostKey Which host key the machine may show.
+     * @param release What giving it back means.
+     * @param sshPatience How long to wait for sshd.
+     * @param dialer How the machine is reached.
+     * @param waiting The clock and the pause of the waits.
+     */
+    Lease(
+            long id,
+            String name,
+            String address,
+            Spec spec,
+            HostKey hostKey,
+            Release release,
+            Duration sshPatience,
+            SshDialer dialer,
+            Waiting waiting) {
         this.id = id;
         this.name = name;
         this.address = address;
@@ -103,6 +135,8 @@ public final class Lease implements AutoCloseable {
         this.hostKey = hostKey;
         this.release = release;
         this.sshPatience = sshPatience;
+        this.dialer = dialer;
+        this.waiting = waiting;
     }
 
     /**
@@ -164,9 +198,9 @@ public final class Lease implements AutoCloseable {
      * @throws IOException If it never does, or it shows another host key than its own.
      */
     public void awaitSsh() throws IOException {
-        final Instant deadline = Instant.now().plus(sshPatience);
-        while (!Ssh.reachable(address, spec.user(), spec.credential(), hostKey)) {
-            if (Instant.now().isAfter(deadline)) {
+        final Instant deadline = waiting.now().plus(sshPatience);
+        while (!dialer.reachable(address, spec.user(), spec.credential(), hostKey)) {
+            if (waiting.now().isAfter(deadline)) {
                 throw new IOException(
                         address
                                 + " did not accept ssh within "
@@ -201,9 +235,9 @@ public final class Lease implements AutoCloseable {
             // Going down is what was asked for.
         }
         ssh().disconnect();
-        final Instant deadline = Instant.now().plus(SSH_PATIENCE);
+        final Instant deadline = waiting.now().plus(SSH_PATIENCE);
         while (true) {
-            if (Instant.now().isAfter(deadline)) {
+            if (waiting.now().isAfter(deadline)) {
                 throw new IOException(
                         name
                                 + " did not come back from a restart within "
@@ -231,9 +265,9 @@ public final class Lease implements AutoCloseable {
      * @return The connection.
      * @throws IOException If it cannot be opened.
      */
-    public Ssh ssh() throws IOException {
+    public RemoteSession ssh() throws IOException {
         if (ssh == null) {
-            ssh = Ssh.to(address, spec.user(), spec.credential(), hostKey);
+            ssh = dialer.open(address, spec.user(), spec.credential(), hostKey);
         }
         return ssh;
     }
@@ -250,7 +284,7 @@ public final class Lease implements AutoCloseable {
      * @throws IOException If the machine cannot be reached or the package is not there.
      */
     public void onlyAgent(String agent) throws IOException {
-        final Ssh open = ssh();
+        final RemoteSession open = ssh();
         final Ssh.Output removed = open.run(asRoot(REMOVE_AGENTS));
         if (removed.status() != 0) {
             throw new IOException("could not remove the agents on " + name + ": " + removed.all());
@@ -319,7 +353,7 @@ public final class Lease implements AutoCloseable {
 
     private void sleep(Duration duration) throws IOException {
         try {
-            Thread.sleep(duration.toMillis());
+            waiting.sleep(duration);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting for " + name, ex);

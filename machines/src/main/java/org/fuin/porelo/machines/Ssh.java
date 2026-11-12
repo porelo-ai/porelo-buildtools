@@ -39,7 +39,7 @@ import org.jspecify.annotations.Nullable;
  * machine with native-image on every core is exactly where five answers might not come in time -
  * turning a working build into a lost one for the sake of noticing a dead peer sooner.
  */
-public final class Ssh implements AutoCloseable {
+public final class Ssh implements RemoteSession {
 
     /** How long a probe may hang before the machine counts as unreachable. */
     private static final int PROBE_TIMEOUT = 4000;
@@ -174,6 +174,7 @@ public final class Ssh implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
+    @Override
     public Output run(String command) throws IOException {
         return run(command, null);
     }
@@ -189,6 +190,7 @@ public final class Ssh implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
+    @Override
     public Output run(String command, @Nullable String stdin) throws IOException {
         try (var session = client.startSession()) {
             final var exec = session.exec(command);
@@ -252,6 +254,7 @@ public final class Ssh implements AutoCloseable {
      * @param remote Where to put it, an absolute path.
      * @throws IOException If it cannot be sent.
      */
+    @Override
     public void upload(java.nio.file.Path local, String remote) throws IOException {
         client.newSCPFileTransfer().upload(local.toString(), remote);
     }
@@ -263,6 +266,7 @@ public final class Ssh implements AutoCloseable {
      * @param local Where to put it.
      * @throws IOException If it cannot be fetched.
      */
+    @Override
     public void download(String remote, java.nio.file.Path local) throws IOException {
         client.newSCPFileTransfer().download(remote, local.toString());
     }
@@ -277,6 +281,7 @@ public final class Ssh implements AutoCloseable {
     }
 
     /** Drops the session, for a restart that is about to take it away anyway. */
+    @Override
     public void disconnect() {
         try {
             client.disconnect();
@@ -290,6 +295,7 @@ public final class Ssh implements AutoCloseable {
      *
      * @throws IOException If the machine cannot be reached.
      */
+    @Override
     public void reconnect() throws IOException {
         client = connected();
     }

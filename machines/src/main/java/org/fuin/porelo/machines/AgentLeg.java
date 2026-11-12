@@ -860,7 +860,8 @@ public final class AgentLeg {
         run(lease.ssh(), lease.asRoot(command), stdin);
     }
 
-    private static void run(Ssh ssh, String command, @Nullable String stdin) throws IOException {
+    private static void run(RemoteSession ssh, String command, @Nullable String stdin)
+            throws IOException {
         run(ssh::run, command, stdin);
     }
 

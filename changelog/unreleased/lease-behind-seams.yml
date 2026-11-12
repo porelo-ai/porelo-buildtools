@@ -1,0 +1,2 @@
+title: "`Lease.ssh()` returns a `RemoteSession`, which `Ssh` implements, so a lease's waits for sshd and for a restart, and a rental's steps, are unit-tested over a fake machine and clock."
+type: changed
