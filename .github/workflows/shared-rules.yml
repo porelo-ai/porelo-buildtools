@@ -1,6 +1,7 @@
 # Checks the documents: AGENTS.md's shared block against its hash, no citation of an issue that goes stale, a
-# documentation chapter somebody can find their way through, and on a pull request its commit messages. Of its own because the build ignores a change to Markdown
-# alone, which is exactly the change this is for, and it leases no machine.
+# documentation chapter somebody can find their way through, every issue head against its schema, and on a pull request
+# its commit messages. Of its own because the build ignores a change to Markdown alone, which is exactly the change
+# this is for, and it leases no machine.
 name: Shared rules check
 
 # Once a day, not on a push: every hand-over runs the same checks locally on its exact commit first, and a run per
@@ -44,6 +45,18 @@ jobs:
             # so the tests that run them against it are the check: the ones tagged documents.
             - name: The documents
               run: ./mvnw -B -s settings.xml -Pdocuments test
+
+            # Every issue head held to issue-1.json and each index to its heads, on the checked-out commit, never on
+            # a working tree: a head the planner's board refuses, one without a size or with a rank of null, is named
+            # here by its file and its field.
+            - name: The issue heads
+              run: |
+                  set -eu
+                  ./mvnw -B -q -s settings.xml -pl release -am install -DskipTests
+                  ./mvnw -B -q -s settings.xml -pl release dependency:build-classpath \
+                      -Dmdep.outputFile=target/issues-cp.txt
+                  java -cp "release/target/classes:$(cat release/target/issues-cp.txt)" org.fuin.porelo.release.Main \
+                      issues check issues
 
             # A pull request's own commits held to the shared rule on commit messages. One from outside - from another
             # repository, or opened by someone not a member - also carries its author's Signed-off-by: on each commit,

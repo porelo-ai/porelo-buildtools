@@ -5,8 +5,8 @@
   "$schema": "issue-1.json",
   "id": "BT81",
   "title": "Every Repository's Issue Heads Checked Before A Push",
-  "state": "Backlog",
-  "size": "-",
+  "state": "Review",
+  "size": "S",
   "priority": "High",
   "rank": 1,
   "blockedBy": [],
@@ -43,3 +43,15 @@ checkout and the prepush's `git archive` of the commit do, never on a working tr
 - Whether the check is named `check-issues`, an alias of `issues check issues`, or keeps its present name; and how
   it moves with the work format's hand-over to the planner.
 - Which repositories' workflows add the step: each repository's owner changes its own workflow.
+
+## As built
+
+- **The name.** The check keeps its present name, `issues check issues`; no alias. It moves with the work format
+  wherever `issues` moves.
+- **This repository.** The daily shared-rules check and each pull request's run `issues check issues` on the
+  checked-out commit, from that commit's own build.
+- **The lookup's message.** Outside porelo-project, an issues directory without its own `workflow.yml` names that
+  missing file; porelo-project's `stories/workflow.yml` is read only where it is there.
+- **The prepush.** It already runs `issues check issues` on a clean worktree of the pushed commit for every repository
+  with `issues/`; it names the missing `issues/workflow.yml` once its classpath carries this change.
+- **The rest is not built here.** Each other repository's owner adds the same step to its own workflow.

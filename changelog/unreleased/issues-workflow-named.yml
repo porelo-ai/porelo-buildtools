@@ -1,0 +1,2 @@
+title: "Outside porelo-project, an issues directory without its own `workflow.yml` names that missing file, not porelo-project's `stories/workflow.yml`; the shared-rules check runs `issues check issues`."
+type: fixed

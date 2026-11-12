@@ -510,7 +510,8 @@ each directory's `README.md` under `issues/`, is generated from the heads and ne
   decided along the way*, stays after the state it followed. The rows of a closed state stay as the file has them,
   since their files are gone; a head in a closed state adds its row there, in the form of the table's header (the open
   form where the table keeps it), and a kept row of an issue that has a head goes. The workflow is
-  `issues/workflow.yml`, or in porelo-project `stories/workflow.yml`.
+  `issues/workflow.yml`, or in porelo-project `stories/workflow.yml`; where neither is there, the missing
+  `issues/workflow.yml` is named.
 - **`issues check`** writes nothing and refuses, each by file: a file without a head, a fence right below the heading
   other than exactly ```` ```json ````, a head the schema or the workflow refuses, a size of `-` in a state that is
   measured or done, a heading other than `# <id> — <title>`, a file not named after its id, an id twice, a wait or a

@@ -126,7 +126,7 @@ public final class IssuesIndex {
 
     /**
      * The workflow an issues directory is checked against: its own copy, or porelo-project's beside
-     * its stories.
+     * its stories. Where neither is there, its own copy is the one named as missing.
      *
      * @param root the issues directory
      * @return the workflow file
@@ -135,10 +135,10 @@ public final class IssuesIndex {
     static Path workflowFile(Path root) throws IOException {
         final Path own = root.resolve("workflow.yml");
         final Path parent = root.toAbsolutePath().normalize().getParent();
+        final Path project =
+                parent == null ? null : parent.resolve("stories").resolve("workflow.yml");
         final Path file =
-                Files.exists(own) || parent == null
-                        ? own
-                        : parent.resolve("stories").resolve("workflow.yml");
+                Files.exists(own) || project == null || !Files.exists(project) ? own : project;
         StoriesIndex.refuseSymlink(file);
         return file;
     }

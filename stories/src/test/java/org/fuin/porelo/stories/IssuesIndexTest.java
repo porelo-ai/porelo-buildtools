@@ -677,6 +677,22 @@ class IssuesIndexTest {
                                 + "porelo/blob/main/issues/README.md#b539) |");
     }
 
+    // Prevents a repository without its own workflow from being sent to porelo-project's.
+    @Test
+    void namesTheMissingOwnWorkflowOutsideTheProject() throws IOException {
+        Files.delete(issues.resolve("workflow.yml"));
+
+        assertThatThrownBy(() -> IssuesIndex.check(issues))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining(issues.resolve("workflow.yml").toString())
+                .hasMessageNotContaining("stories");
+
+        Files.createDirectories(work.resolve("stories"));
+        Files.copy(
+                Path.of("src/test/resources/workflow.yml"), work.resolve("stories/workflow.yml"));
+        assertThat(IssuesIndex.convert(issues).faults()).as("in porelo-project").isEmpty();
+    }
+
     // Prevents porelo-project's conversion from losing which repository a wait belongs to.
     @Test
     void theProjectConvertsWaitsOnAnotherRepository() throws IOException {
