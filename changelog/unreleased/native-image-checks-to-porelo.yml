@@ -1,0 +1,2 @@
+title: "porelo-ffm-check and porelo-cpu-check are built and published by porelo now, under the same coordinates at porelo's version; porelo-buildtools no longer builds them, and their earlier releases stay on Maven Central."
+type: removed

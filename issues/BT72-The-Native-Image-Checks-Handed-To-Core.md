@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT72",
   "title": "The Native-Image Checks Handed To Core",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 26,
@@ -71,3 +71,12 @@ porelo-planner takes porelo-cpu-check at porelo's version (a release, or the sna
 does this issue drop the modules. Their earlier releases stay on Central, so the checks are always published.
 
 **For the operator to decide.** Nothing. Core took the version point into B621's acceptance (15:50Z).
+
+## As built
+
+- `ffm-check/` and `cpu-check/` are gone with their two `<module>` lines; README.md, AGENTS.md and doc/index.md no
+  longer list them, and porelo-json's rows name its users. A `removed` changelog entry names porelo as their home.
+- Read on the fetched mains (2026-11-12): porelo takes both checks at `${porelo.version}`; porelo-planner's
+  `planner/app/pom.xml` still names porelo-cpu-check at `${porelo.buildtools.version}`, so this is pushed only after
+  the planner's change is on its main. No other repository names either check at a build-tools version.
+- `clean verify` and `-Pdocuments test` green on the remaining modules.

@@ -12,8 +12,6 @@ The build and test tooling the Porelo repositories share, published to Central a
   using caller-supplied issue sources or local checkouts without a network fallback.
 - `release/` - **porelo-release**: release and pin checks - what an agent package may publish without a person,
   moving a named pin, `check-actions` and `check-shared`.
-- `ffm-check/` - **porelo-ffm-check**: every FFM downcall a test makes is registered for the native image.
-- `cpu-check/` - **porelo-cpu-check**: a native image asks for no more than x86-64 v1.
 
 - **It depends on nothing of `porelo`'s, and is given a `porelo` checkout's path wherever a tool works on one.**
   `porelo`'s build runs these tools, so a dependency the other way made the two impossible to release one after the

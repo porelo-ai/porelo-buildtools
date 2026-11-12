@@ -2,7 +2,7 @@
 
 The tooling every Porelo repository builds and tests with, published to Maven Central under `org.fuin.porelo`. None
 of it ships to a person who runs Porelo: it rents the machines the acceptance tests run on, checks what a release
-may publish, and checks the native images before they go out.
+may publish, and checks the packages before they go out.
 
 ## The tools
 
@@ -10,9 +10,7 @@ may publish, and checks the native images before they go out.
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
 | `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-workflows`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
-| `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
-| `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
-| `porelo-json` | The JSON reader and writer the tools above share. | - |
+| `porelo-json` | The JSON reader and writer `porelo-release` and `porelo-machines` share, and `porelo`'s `dist/package-check` reads. | - |
 
 See [test machines](machines.md) for requests by kind, credentials, and cleanup.
 
@@ -20,7 +18,7 @@ See [test machines](machines.md) for requests by kind, credentials, and cleanup.
 
 | Repository | Uses |
 |---|---|
-| `porelo` | all of them: the machines its acceptance legs run on, the image checks, `check-actions` and `check-shared` |
+| `porelo` | the machines its acceptance legs run on, `porelo-json` in its package check, `check-actions` and `check-shared` |
 | the agent repositories (`claude`, `pi`, `omp`) | `porelo-machines` for their acceptance legs and the GraalVM; `porelo-release` for the pinned CLI, the bill and the shared rules |
 | `frontend` | `porelo-machines` to lease a machine its integration tests reach; `porelo-release` for the shared rules |
 | `sluice`, `matrix` | `porelo-machines` for the GraalVM; `porelo-release` for the shared rules |
