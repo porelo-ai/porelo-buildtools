@@ -71,9 +71,17 @@ class StoppingTest {
         final Looks looks = new Looks();
         final CountDownLatch stopped = new CountDownLatch(1);
         final AtomicInteger exits = new AtomicInteger(-1);
+        final CountDownLatch exited = new CountDownLatch(1);
 
         try (Stopping stopping =
-                new Stopping(List.of(step), stopped::countDown, exits::set, looks)) {
+                new Stopping(
+                        List.of(step),
+                        stopped::countDown,
+                        code -> {
+                            exits.set(code);
+                            exited.countDown();
+                        },
+                        looks)) {
             looks.first();
             looks.look();
             assertThat(stopped.getCount()).as("nothing while the step runs").isOne();
@@ -85,6 +93,8 @@ class StoppingTest {
                     .as("stopped at the next look after the step ended")
                     .isTrue();
         }
+        // The leg ends after the stop has run, on the watch's thread.
+        assertThat(exited.await(5, TimeUnit.SECONDS)).as("the leg ends").isTrue();
         assertThat(exits)
                 .as("and the leg ends, saying it was cancelled")
                 .hasValue(Stopping.CANCELLED);
