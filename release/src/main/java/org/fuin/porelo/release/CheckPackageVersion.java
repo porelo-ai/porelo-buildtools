@@ -25,19 +25,75 @@ import java.util.stream.Stream;
  */
 final class CheckPackageVersion {
 
+    /** Reads a built package's own fields. */
+    interface PackageMetadata {
+
+        /** The real {@code dpkg-deb} and {@code rpm}. */
+        PackageMetadata TOOLS =
+                new PackageMetadata() {
+                    @Override
+                    public String debField(Path deb, String field) throws IOException {
+                        return run("dpkg-deb", "-f", deb.toString(), field);
+                    }
+
+                    @Override
+                    public String rpmFields(Path rpm) throws IOException {
+                        return run(
+                                "rpm",
+                                "-qp",
+                                "--queryformat",
+                                "%{NAME} %{VERSION} %{RELEASE}",
+                                rpm.toString());
+                    }
+                };
+
+        /**
+         * Reads one field of a deb.
+         *
+         * @param deb the package
+         * @param field the field, such as {@code Version}
+         * @return the field's value
+         * @throws IOException when the package cannot be read
+         */
+        String debField(Path deb, String field) throws IOException;
+
+        /**
+         * Reads an rpm's name, version and release.
+         *
+         * @param rpm the package
+         * @return the three, separated by spaces
+         * @throws IOException when the package cannot be read
+         */
+        String rpmFields(Path rpm) throws IOException;
+    }
+
     private final PrintStream out;
 
     private final PrintStream err;
 
+    private final PackageMetadata metadata;
+
     /**
-     * Constructor.
+     * Reads the packages with the real tools.
      *
      * @param out where the result goes
      * @param err where a refusal goes
      */
     CheckPackageVersion(PrintStream out, PrintStream err) {
+        this(out, err, PackageMetadata.TOOLS);
+    }
+
+    /**
+     * Reads the packages with the metadata given.
+     *
+     * @param out where the result goes
+     * @param err where a refusal goes
+     * @param metadata what reads each package's fields
+     */
+    CheckPackageVersion(PrintStream out, PrintStream err, PackageMetadata metadata) {
         this.out = out;
         this.err = err;
+        this.metadata = metadata;
     }
 
     /**
@@ -72,17 +128,9 @@ final class CheckPackageVersion {
         }
         final List<String> problems = new ArrayList<>();
         try {
-            final String debName = run("dpkg-deb", "-f", deb.get().toString(), "Package").strip();
-            final String debVersion =
-                    run("dpkg-deb", "-f", deb.get().toString(), "Version").strip();
-            final String rpmFields =
-                    run(
-                                    "rpm",
-                                    "-qp",
-                                    "--queryformat",
-                                    "%{NAME} %{VERSION} %{RELEASE}",
-                                    rpm.get().toString())
-                            .strip();
+            final String debName = metadata.debField(deb.get(), "Package").strip();
+            final String debVersion = metadata.debField(deb.get(), "Version").strip();
+            final String rpmFields = metadata.rpmFields(rpm.get()).strip();
             problems.addAll(problems(name, expected, debName, debVersion, rpmFields));
         } catch (IOException ex) {
             err.println("could not read the packages: " + ex.getMessage());

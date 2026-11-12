@@ -39,6 +39,23 @@ final class CheckLinkage {
      */
     record Declared(String prefix, String floor) {}
 
+    /** Reads what a binary links against, as {@code readelf -d -V -W} prints it in the C locale. */
+    @FunctionalInterface
+    interface ElfReader {
+
+        /** The real {@code readelf}. */
+        ElfReader READELF = CheckLinkage::readelf;
+
+        /**
+         * Reads one binary.
+         *
+         * @param binary the binary
+         * @return what {@code readelf -d -V -W} prints for it
+         * @throws IOException when the binary is missing or the reading fails
+         */
+        String read(Path binary) throws IOException;
+    }
+
     private static final Pattern NEEDED =
             Pattern.compile("\\(NEEDED\\)\\s+Shared library: \\[([^\\]]+)\\]");
 
@@ -56,15 +73,29 @@ final class CheckLinkage {
 
     private final PrintStream err;
 
+    private final ElfReader reader;
+
     /**
-     * Constructor.
+     * Reads the binaries with the real {@code readelf}.
      *
      * @param out where the result goes
      * @param err where a refusal goes
      */
     CheckLinkage(PrintStream out, PrintStream err) {
+        this(out, err, ElfReader.READELF);
+    }
+
+    /**
+     * Reads the binaries with the reader given.
+     *
+     * @param out where the result goes
+     * @param err where a refusal goes
+     * @param reader what reads each binary
+     */
+    CheckLinkage(PrintStream out, PrintStream err, ElfReader reader) {
         this.out = out;
         this.err = err;
+        this.reader = reader;
     }
 
     /**
@@ -100,7 +131,7 @@ final class CheckLinkage {
         for (final Path binary : binaries) {
             final String readelf;
             try {
-                readelf = readelf(binary);
+                readelf = reader.read(binary);
             } catch (IOException ex) {
                 err.println("could not read " + binary + ": " + ex.getMessage());
                 return Stop.UNANSWERED;

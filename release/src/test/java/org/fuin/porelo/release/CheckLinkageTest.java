@@ -2,6 +2,12 @@ package org.fuin.porelo.release;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -150,5 +156,148 @@ class CheckLinkageTest {
         assertThat(CheckLinkage.declared("libc.so.6=GLIBC:2.34"))
                 .isEqualTo(Map.entry("libc.so.6", new CheckLinkage.Declared("GLIBC", "2.34")));
         assertThat(CheckLinkage.declared("libc.so.6")).isNull();
+    }
+
+    /** What the command printed and which binaries it read. */
+    private static final class Run {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final ByteArrayOutputStream err = new ByteArrayOutputStream();
+        final List<Path> read = new ArrayList<>();
+
+        int main(Map<String, String> readelf, String... arguments) {
+            return Main.checkLinkage(
+                    List.of(arguments),
+                    new PrintStream(out),
+                    new PrintStream(err),
+                    binary -> {
+                        read.add(binary);
+                        final String text = readelf.get(binary.toString());
+                        if (text == null) {
+                            throw new IOException("no such file");
+                        }
+                        return text;
+                    });
+        }
+    }
+
+    // Prevents the command from passing binaries it never read, or reading only the first.
+    @Test
+    void theCommandReadsEveryBinaryAndPassesWhenThePackagesCoverThem() {
+        final Run run = new Run();
+
+        final int code =
+                run.main(
+                        Map.of("bin/porelo", DYNAMIC, "bin/static", STATIC),
+                        "--declare",
+                        "libc.so.6=GLIBC:2.34",
+                        "--declare",
+                        "libz.so.1=ZLIB:1.2.2",
+                        "--ceiling",
+                        "GLIBC=2.34",
+                        "bin/porelo",
+                        "bin/static");
+
+        assertThat(code).as(run.err.toString()).isZero();
+        assertThat(run.read).containsExactly(Path.of("bin/porelo"), Path.of("bin/static"));
+        assertThat(run.out.toString())
+                .startsWith("OK    2 binary(ies) need no more than the packages declare:")
+                .contains("libc.so.6 GLIBC 2.34");
+    }
+
+    // Prevents a binary that needs more than declared from passing because another one was fine.
+    @Test
+    void theCommandRefusesWhenOneBinaryNeedsMore() {
+        final Run run = new Run();
+
+        final int code =
+                run.main(
+                        Map.of("bin/static", STATIC, "bin/porelo", DYNAMIC),
+                        "--declare",
+                        "libc.so.6=GLIBC:2.33",
+                        "--declare",
+                        "libz.so.1=ZLIB:1.2.2",
+                        "bin/static",
+                        "bin/porelo");
+
+        assertThat(code).isEqualTo(Stop.REFUSED);
+        assertThat(run.err.toString())
+                .contains("FAIL  porelo needs GLIBC_2.34, and the packages promise only 2.33");
+        assertThat(run.out.toString()).isEmpty();
+    }
+
+    // Prevents a floor above the oldest system supported from passing the command.
+    @Test
+    void theCommandRefusesAFloorAboveItsCeiling() {
+        final Run run = new Run();
+
+        final int code =
+                run.main(
+                        Map.of("bin/porelo", DYNAMIC),
+                        "--declare",
+                        "libc.so.6=GLIBC:2.34",
+                        "--declare",
+                        "libz.so.1=ZLIB:1.2.2",
+                        "--ceiling",
+                        "GLIBC=2.31",
+                        "bin/porelo");
+
+        assertThat(code).isEqualTo(Stop.REFUSED);
+        assertThat(run.err.toString()).contains("above 2.31, the oldest system supported");
+    }
+
+    // Prevents an unreadable binary from being taken as one that needs nothing.
+    @Test
+    void theCommandStopsUnansweredWhenABinaryCannotBeRead() {
+        final Run run = new Run();
+
+        final int code =
+                run.main(
+                        Map.of("bin/porelo", DYNAMIC),
+                        "--declare",
+                        "libc.so.6=GLIBC:2.34",
+                        "bin/porelo",
+                        "bin/missing");
+
+        assertThat(code).isEqualTo(Stop.UNANSWERED);
+        assertThat(run.err.toString()).contains("could not read bin/missing: no such file");
+        assertThat(run.out.toString()).isEmpty();
+    }
+
+    // Prevents --declared-only from being dropped between the command line and the check.
+    @Test
+    void theCommandHandsDeclaredOnlyToTheCheck() {
+        final Run strict = new Run();
+        final Run lenient = new Run();
+        final String[] declare = {"--declare", "libc.so.6=GLIBC:2.34", "bin/porelo"};
+
+        assertThat(strict.main(Map.of("bin/porelo", DYNAMIC), declare)).isEqualTo(Stop.REFUSED);
+        assertThat(strict.err.toString()).contains("needs libz.so.1, and no package declares it");
+        assertThat(
+                        lenient.main(
+                                Map.of("bin/porelo", DYNAMIC),
+                                "--declared-only",
+                                "--declare",
+                                "libc.so.6=GLIBC:2.34",
+                                "bin/porelo"))
+                .as(lenient.err.toString())
+                .isZero();
+    }
+
+    // Prevents an unknown option from being taken for a binary.
+    @Test
+    void theCommandRefusesAnUnknownOptionBeforeReadingAnything() {
+        final Run run = new Run();
+
+        final int code =
+                run.main(
+                        Map.of("bin/porelo", DYNAMIC),
+                        "--declare",
+                        "libc.so.6=GLIBC:2.34",
+                        "--floor",
+                        "bin/porelo");
+
+        assertThat(code).isNotZero();
+        assertThat(run.read).isEmpty();
+        assertThat(run.err.toString()).contains("check-linkage");
     }
 }

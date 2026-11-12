@@ -382,14 +382,7 @@ public final class Main {
                             : new CheckSnapshotFilter(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "check-package-version" ->
-                    rest.size() != 4
-                            ? usage(err, "check-package-version NAME PROJECT-VERSION RUN DIRECTORY")
-                            : new CheckPackageVersion(out, err)
-                                    .check(
-                                            rest.get(0),
-                                            rest.get(1),
-                                            rest.get(2),
-                                            Path.of(rest.get(3)));
+                    checkPackageVersion(rest, out, err, CheckPackageVersion.PackageMetadata.TOOLS);
             case "third-party-notices" -> thirdPartyNotices(rest, out, err);
             case "prune-snapshots" -> pruneSnapshots(rest, out, err, env);
             case "artifactory" -> artifactory(rest, out, err, env);
@@ -463,6 +456,22 @@ public final class Main {
     }
 
     static int checkLinkage(List<String> rest, PrintStream out, PrintStream err) {
+        return checkLinkage(rest, out, err, CheckLinkage.ElfReader.READELF);
+    }
+
+    static int checkPackageVersion(
+            List<String> rest,
+            PrintStream out,
+            PrintStream err,
+            CheckPackageVersion.PackageMetadata metadata) {
+        return rest.size() != 4
+                ? usage(err, "check-package-version NAME PROJECT-VERSION RUN DIRECTORY")
+                : new CheckPackageVersion(out, err, metadata)
+                        .check(rest.get(0), rest.get(1), rest.get(2), Path.of(rest.get(3)));
+    }
+
+    static int checkLinkage(
+            List<String> rest, PrintStream out, PrintStream err, CheckLinkage.ElfReader reader) {
         final java.util.Map<String, CheckLinkage.Declared> declared =
                 new java.util.LinkedHashMap<>();
         final java.util.Map<String, String> ceilings = new java.util.LinkedHashMap<>();
@@ -497,7 +506,7 @@ public final class Main {
                     "check-linkage [--declared-only] --declare LIBRARY=PREFIX:FLOOR..."
                             + " [--ceiling PREFIX=VERSION]... BINARY...");
         }
-        return new CheckLinkage(out, err).check(binaries, declared, ceilings, declaredOnly);
+        return new CheckLinkage(out, err, reader).check(binaries, declared, ceilings, declaredOnly);
     }
 
     private static final String NOTICES_USAGE =
