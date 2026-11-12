@@ -1,0 +1,2 @@
+title: "A story's `issues` and an issue's `blockedBy` may name an issue of any repository, `<name>#<number>` with a name of `[a-z0-9][a-z0-9._-]{0,99}`, as in porelo-planner's stories format, so a project whose repositories are not named porelo-* has stories and waits the check takes."
+type: changed

@@ -52,18 +52,13 @@ left out.
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt80"></a>[BT80](BT80-A-Story-Names-Issues-Of-Any-Repository.md) | XS | - | The stories format's issue reference, in story-1.json, story-2.json and StorySchema, takes any repository name `[a-z0-9][a-z0-9._-]{0,99}` before `#`, as porelo-planner's does, so a project whose repositories are not named porelo-* has stories the check takes. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt66"></a>[BT66](BT66-The-Notices-Hold-The-LGPL-3.0-Text.md) | XS | - | `third-party-notices` takes a component under LGPL-3.0-or-later, `porelo-stories` among them, and writes the LGPL-3.0 text with the GPL-3.0 text it builds on, so a program that links the stories library builds its notices. |
 | <a id="bt69"></a>[BT69](BT69-The-Pinned-GraalVM-For-Windows.md) | M | - | `porelo-machines jdk` installs the pinned GraalVM on a Windows x64 runner too: the Windows zip of the same version, its URL and SHA-256 pinned beside the Linux archive's and moved with them by the pin's update, checked before anything is unpacked. |
+| <a id="bt80"></a>[BT80](BT80-A-Story-Names-Issues-Of-Any-Repository.md) | XS | - | The stories format's issue reference, in story-1.json, story-2.json and StorySchema, and an issue's `blockedBy`, in issue-1.json and IssueSchema, take any repository name `[a-z0-9][a-z0-9._-]{0,99}` before `#`, as porelo-planner's do, so a project whose repositories are not named porelo-* has stories and waits the check takes. |
 | <a id="bt73"></a>[BT73](BT73-A-Persons-Move-Passes-The-Stage-Check.md) | XS | - | `Stage.validate` takes a person's move on the board, `actor: person` with `stage: move`, `size` null or a size, `wall_min` and `vm_min` null, and the median leaves every move out; `stage begin` still refuses a move. |
 | <a id="bt75"></a>[BT75](BT75-Who-Works-An-Issue-In-Its-Head.md) | XS | - | An issue head may say who works it, `"worker": "Agent"` or `"Manual"`: issue-1.json takes the field and refuses any other value, and IssueHead reads it and writes it last, after the optional fields it writes today. |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |

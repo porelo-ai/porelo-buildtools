@@ -309,4 +309,44 @@ class StorySchemaTest {
                     .as("same verdict for %s", head)
                     .isEqualTo(schema.validate(head).isEmpty());
     }
+
+    // Prevents a project whose repositories are not named porelo-* from having stories the check
+    // refuses, while a name no repository can have stays refused.
+    @Test
+    void takesAnIssueOfAnyRepositoryNameAndRefusesANameNoRepositoryCanHave() throws Exception {
+        for (final int version : List.of(1, 2)) {
+            final JsonSchema oracle = schemaOf("story-" + version + ".json");
+            final ObjectNode taken = validHead();
+            if (version == 2) {
+                taken.put("$schema", "story-2.json");
+            }
+            taken.putArray("issues").add("foo-1#TP01");
+            assertThat(oracle.validate(taken))
+                    .as("story-%s.json takes a project's repository of any valid name", version)
+                    .isEmpty();
+            assertThat(StorySchema.faults(taken, version))
+                    .as("StorySchema %s takes a project's repository of any valid name", version)
+                    .isEmpty();
+            final ObjectNode refused = taken.deepCopy();
+            refused.putArray("issues").add("Other/Repository#CD02");
+            assertThat(oracle.validate(refused))
+                    .as("story-%s.json refuses a name no repository can have", version)
+                    .isNotEmpty();
+            assertThat(StorySchema.faults(refused, version))
+                    .as("StorySchema %s refuses a name no repository can have", version)
+                    .isNotEmpty();
+        }
+    }
+
+    private JsonSchema schemaOf(String file) throws Exception {
+        try (var in = getClass().getResourceAsStream("/org/fuin/porelo/stories/schemas/" + file)) {
+            return JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+                    .getSchema(
+                            in,
+                            SchemaValidatorsConfig.builder()
+                                    .locale(Locale.ENGLISH)
+                                    .pathType(PathType.JSON_POINTER)
+                                    .build());
+        }
+    }
 }
