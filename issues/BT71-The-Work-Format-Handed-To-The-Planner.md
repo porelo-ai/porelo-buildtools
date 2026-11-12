@@ -39,16 +39,20 @@ module goes only once nothing here reads it.
 
 **What must be true.**
 1. The planner's native executable is published to Artifactory's generic repository `files`, at
-   `files/porelo-planner/<version>/porelo-planner-<version>-linux-x86_64`, releases only; nothing of it goes to Maven
-   Central.
-2. Each workflow above downloads it pinned by version and sha256 and runs it, and each repository's run is green on it.
+   `files/porelo-planner/<version>/porelo-planner-<version>-linux-x86_64`, on every push to the planner's `main`
+   under an immutable dev version; nothing of it goes to Maven Central. No planner release and no buildtools release
+   is needed for it (operator's decision, 2026-11-12).
+2. Each workflow above downloads such a dev version pinned by version and sha256 and runs it, and each repository's run
+   is green on it.
 3. porelo-buildtools drops the commands, the classes and `stats/`: `stories` (`check`, `index` and `cut`), `issues`
    (`index`, `check` and `convert`), `stage`, `check-commits` and `check-pushes`. `stories cut` moves to the planner,
    `issues convert` is dropped, and `stage` goes with `stats/`, since the velocity is kept in the planner's store.
 4. The Coordinator's `tools.classpath` and the agents' local commands name the planner's executable. Machines states
    the change in the room.
 
-It is blocked by the planner's issue for taking the work format over, which is filed with ST320 (porelo-project).
+It is blocked by the planner's issue for taking the work format over, which is filed with ST320 (porelo-project), and
+by the Planner's follow-up to PL78 that publishes the executable on every `main` push. The plan below is made again
+once that follow-up lands.
 
 ## Plan
 
@@ -62,7 +66,8 @@ docs' sections, and the own workflows moved to the download.
 3. **The porelo-stories module removed** once `check-citations` no longer reads it; until then it stays, and only the
    commands go.
 4. **Own workflows.** `build.yml`'s `check-commits` step and `shared-rules.yml`'s `check-commits` and `check-pushes`
-   steps download the planner's executable by the rule of pinned downloads (version and sha256) and run it.
+   steps download a dev version of the planner's executable by the rule of pinned downloads (version and sha256)
+   and run it.
 5. **Docs and changelog.** The sections of `doc/index.md` on these commands go, with one `removed` entry.
 6. **The classpath.** The change to the Coordinator's `tools.classpath` is stated in the room; the Coordinator changes
    their own tools.
@@ -90,4 +95,5 @@ nothing more from the planner for it:
 
 - Each removed command answers as unknown; the full build passes; `check-shared`, `check-citations` and
   `check-actions` stay green.
-- This repository's own workflows run the planner's executable at its pinned version and sha256 and are green on it.
+- This repository's own workflows run the planner's executable at its pinned dev version and sha256 and are green on
+  it.
