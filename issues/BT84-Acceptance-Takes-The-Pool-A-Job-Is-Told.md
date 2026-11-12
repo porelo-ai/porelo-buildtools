@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT84",
   "title": "Acceptance Takes The Pool A Job Is Told",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 31,
@@ -35,3 +35,11 @@ entry.
 - `MainTest`: with the variable and no `--pool`, `acceptance` rents from a pool read from that file; empty is unset;
   `--pool` wins; `--accounts 2` is refused; `sweep --mine` exits 0 with the variable and no token, and still fails
   without the variable and without a token.
+
+## As built
+
+- `Main.POOL` names the variable; `acceptance` reads it only when `--pool` is not given, before the `--accounts` check,
+  whose refusal now names it too. `sweep --mine` without `--from` returns 0 before opening anything when the variable
+  is set and neither `PORELO_MACHINES_API` nor `HETZNER_API` holds a token; with a token it sweeps as before.
+- Six cases in `MainTest`; the three that change behaviour (the told pool, its accounts refused, the sweep passing)
+  were seen red first. `machines` 277 tests and `-Pdocuments` pass; Antigravity read the diff and found nothing red.

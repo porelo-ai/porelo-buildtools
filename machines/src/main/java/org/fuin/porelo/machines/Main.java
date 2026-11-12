@@ -45,6 +45,9 @@ public final class Main {
     /** Where the local pool's run key is read from, as material rather than a path. */
     static final String POOL_SSH = "PORELO_POOL_SSH";
 
+    /** The pool file a job is told, set by the host's forge runner and unset on GitHub. */
+    static final String POOL = "PORELO_MACHINES_POOL";
+
     /**
      * Runs a sweep.
      *
@@ -154,7 +157,10 @@ public final class Main {
                   --pool <file>          take a run account of the host's local VM pool, as
                                          porelo-host's up wrote it, instead of renting a server;
                                          takes the run key from PORELO_POOL_SSH or --key, and the
-                                         account is made anew when given back
+                                         account is made anew when given back. Without it,
+                                         PORELO_MACHINES_POOL names the file, as the host's
+                                         forge tells its jobs; 'sweep --mine' with it and no
+                                         provider token deletes nothing
 
                   --channel <c>          install Porelo from the repository's snapshots or
                                          releases; a run on a tag (GITHUB_REF_TYPE=tag) takes
@@ -201,6 +207,14 @@ public final class Main {
             }
         }
 
+        if (mine && from == null && tookThePool(env)) {
+            // A job told the pool and given no provider token rented nothing it could delete.
+            System.out.println(
+                    "deleted 0 of this run's servers: it took the host's pool ("
+                            + POOL
+                            + ") and holds no provider token");
+            return 0;
+        }
         try (Machines machines = open.get()) {
             if (mine || from != null) {
                 // Always deletes, whatever else was passed: a job cleaning up after itself is not a
@@ -431,12 +445,19 @@ public final class Main {
             complain.accept("--accounts runs scenarios beside each other, so it needs --cucumber");
             return 2;
         }
+        if (pool == null) {
+            // The host's forge runner tells every job where its pool is; GitHub tells none, so the
+            // same workflow rents a server there. Empty counts as unset.
+            final String told = env.get(POOL);
+            pool = told == null || told.isBlank() ? null : told;
+        }
         if (accounts > 1 && pool != null) {
             // Further accounts are made on the machine with sudo, and a pool account's reset
             // removes only itself: they would outlive the run on a VM others rent next.
             complain.accept(
                     "--accounts makes accounts on the machine, which a pool account's reset leaves"
-                            + " behind; run one scenario at a time with --pool");
+                            + " behind; run one scenario at a time with --pool or "
+                            + POOL);
             return 2;
         }
         if (kind != null && type != null) {
@@ -482,6 +503,12 @@ public final class Main {
             leg.run(machines, options, credential(env, key));
         }
         return 0;
+    }
+
+    private static boolean tookThePool(Map<String, String> env) {
+        final String pool = env.get(POOL);
+        final String token = environment(env, API_TOKEN, OLD_API_TOKEN);
+        return pool != null && !pool.isBlank() && (token == null || token.isBlank());
     }
 
     static String apiToken(Map<String, String> env) {

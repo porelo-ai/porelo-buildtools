@@ -1,0 +1,2 @@
+title: "`porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, as the host's forge tells its jobs, and `sweep --mine` there deletes nothing when no provider token is set."
+type: added

@@ -301,6 +301,146 @@ class MainTest {
                 .isEqualTo("from-env\n");
     }
 
+    @Test
+    void acceptanceTakesThePoolTheJobIsToldWhenNoPoolIsGiven(@TempDir Path dir) throws IOException {
+        final Path pool = writePool(dir);
+        final List<Machines> handed = new ArrayList<>();
+
+        Main.acceptance(
+                new String[] {"acceptance", "--candidate", "packages", "--cucumber", "."},
+                QUIET,
+                Map.of(
+                        Main.POOL,
+                        pool.toString(),
+                        Main.POOL_SSH,
+                        "from-env",
+                        "XDG_STATE_HOME",
+                        dir.resolve("state").toString()),
+                NEVER,
+                (machines, options, credential) -> handed.add(machines));
+
+        assertThat(handed)
+                .as("a job on the host's forge is told the pool, and the same call takes it")
+                .singleElement()
+                .isInstanceOf(LocalPool.class);
+    }
+
+    @Test
+    void acceptanceCountsAnEmptyPoolVariableAsUnset() {
+        assertThatThrownBy(
+                        () ->
+                                Main.acceptance(
+                                        new String[] {
+                                            "acceptance",
+                                            "--candidate",
+                                            "packages",
+                                            "--cucumber",
+                                            ".",
+                                            "--key",
+                                            "key"
+                                        },
+                                        QUIET,
+                                        Map.of(Main.POOL, " "),
+                                        NEVER,
+                                        (machines, options, credential) -> {
+                                            throw new AssertionError("no leg without machines");
+                                        }))
+                .as("GitHub has no pool, and an empty variable rents as there")
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("tried to connect");
+    }
+
+    @Test
+    void acceptanceTakesTheGivenPoolOverTheOneTheJobIsTold(@TempDir Path dir) throws IOException {
+        final Path pool = writePool(dir);
+        final List<Machines> handed = new ArrayList<>();
+
+        Main.acceptance(
+                new String[] {
+                    "acceptance",
+                    "--candidate",
+                    "packages",
+                    "--cucumber",
+                    ".",
+                    "--pool",
+                    pool.toString()
+                },
+                QUIET,
+                Map.of(
+                        Main.POOL,
+                        "/nonexistent/pool.json",
+                        Main.POOL_SSH,
+                        "from-env",
+                        "XDG_STATE_HOME",
+                        dir.resolve("state").toString()),
+                NEVER,
+                (machines, options, credential) -> handed.add(machines));
+
+        assertThat(handed)
+                .as("--pool wins over the variable")
+                .singleElement()
+                .isInstanceOf(LocalPool.class);
+    }
+
+    @Test
+    void acceptanceRefusesAccountsOnThePoolTheJobIsTold() throws IOException {
+        final List<String> said = new ArrayList<>();
+        assertThat(
+                        Main.acceptance(
+                                new String[] {
+                                    "acceptance",
+                                    "--candidate",
+                                    "packages",
+                                    "--cucumber",
+                                    ".",
+                                    "--accounts",
+                                    "2"
+                                },
+                                said::add,
+                                Map.of(Main.POOL, "pool.json"),
+                                NEVER,
+                                (machines, options, credential) -> {
+                                    throw new AssertionError("refused before any leg");
+                                }))
+                .as("accounts made on a pool VM would outlive the run, however the pool was named")
+                .isEqualTo(2);
+        assertThat(said).singleElement().asString().contains(Main.POOL);
+    }
+
+    @Test
+    void sweepOfAJobThatTookThePoolPassesWithoutAProviderToken() throws IOException {
+        assertThat(
+                        Main.run(
+                                new String[] {"sweep", "--mine"},
+                                QUIET,
+                                Map.of(Main.POOL, "/etc/porelo-host/pool/pool.json"),
+                                NEVER))
+                .as("a job on the host's forge rented nothing from a provider")
+                .isZero();
+    }
+
+    @Test
+    void sweepOfAJobWithAProviderTokenStillSweepsBesideThePool() {
+        assertThatThrownBy(
+                        () ->
+                                Main.run(
+                                        new String[] {"sweep", "--mine"},
+                                        QUIET,
+                                        Map.of(
+                                                Main.POOL,
+                                                "/etc/porelo-host/pool/pool.json",
+                                                Main.API_TOKEN,
+                                                "token"),
+                                        NEVER))
+                .as("with a token the job may have rented, so its servers are looked for")
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("tried to connect");
+        assertThatThrownBy(() -> Main.run(new String[] {"sweep", "--mine"}, QUIET, Map.of(), NEVER))
+                .as("without the pool nothing changes")
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("tried to connect");
+    }
+
     private static Path writePool(Path dir) throws IOException {
         final Path file = dir.resolve("pool.json");
         Files.writeString(
