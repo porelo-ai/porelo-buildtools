@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT79",
   "title": "The Commit Check Trusts No Commit's Own Word",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "High",
   "rank": 1,

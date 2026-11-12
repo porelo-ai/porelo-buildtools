@@ -165,7 +165,7 @@ class CheckCommitsTest {
         commit(
                 "a000011",
                 "Give every rented machine a host key made per run\n\n"
-                        + "Co-authored-by: Jane Doe <jane@example.org>\n"
+                        + "Signed-off-by: Jane Doe <jane@example.org>\n"
                         + AGENT);
 
         assertThat(check()).as(stderr()).isEqualTo(0);
@@ -174,11 +174,11 @@ class CheckCommitsTest {
 
     @Test
     void readsATrailersKeyInAnyCaseAsGitDoes() {
-        // Claude Code writes "Co-Authored-By", and git takes trailer keys in any case.
+        // Git takes trailer keys in any case.
         commit(
                 "a000090",
                 "Give every rented machine a host key made per run\n\n"
-                        + "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
+                        + "SIGNED-OFF-BY: Jane Doe <jane@example.org>\n"
                         + "assisted-by: Claude Code, claude-opus-5-5");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
@@ -416,17 +416,60 @@ class CheckCommitsTest {
         assertThat(checkOutside()).as(stderr()).isEqualTo(0);
     }
 
+    // Prevents anyone from writing a bot's name into a commit to skip every rule from outside.
     @Test
-    void exemptsDependabotFromTheSignOffOfAPullRequestFromOutside() {
+    void holdsABotsRecordedNameFromOutsideToEveryRule() {
         commit(
                 "a000022",
                 "dependabot[bot]",
                 "49699333+dependabot[bot]@users.noreply.github.com",
                 "dependabot[bot]",
                 "49699333+dependabot[bot]@users.noreply.github.com",
-                "Bump actions/checkout");
+                "Set BT12 done");
 
-        assertThat(checkOutside()).as(stderr()).isEqualTo(0);
+        assertThat(checkOutside()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("a000022  names a requirement number: BT12")
+                .contains("a000022  no Signed-off-by: naming its author");
+    }
+
+    // Prevents anyone from naming GitHub as committer to skip every rule from outside.
+    @Test
+    void holdsTheWebCommittersNameFromOutsideToEveryRule() {
+        commit("a000025", HUMAN, HUMAN_MAIL, "GitHub", "noreply@github.com", "Set BT12 done");
+
+        assertThat(checkOutside()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("a000025  names a requirement number: BT12")
+                .contains("a000025  no Signed-off-by: naming its author <jane@example.org>");
+    }
+
+    // Prevents a requirement number or a person hidden in a trailer, below the words the rules
+    // read.
+    @Test
+    void readsEveryTrailerForNumbersAndAllButTheSignOffForWho() {
+        commit("a000026", "Read the pins once\n\nAssisted-by: BT12 helper");
+        commit("a000027", "Read the pins twice\n\nAssisted-by: the operator");
+        commit(
+                "a000028",
+                "Read the pins thrice\n\nSigned-off-by: The Operator <operator@example.org>");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("a000026  names a requirement number: BT12")
+                .contains("a000027  says who: operator")
+                .doesNotContain("a000028");
+    }
+
+    // Prevents a trailer the shared rules forbid an agent to write.
+    @Test
+    void refusesCoAuthoredBy() {
+        commit("a000029", "Read the pins once\n\nCo-authored-by: Max <max@example.org>");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "a000029  below the subject, a line that is not a trailer: Co-authored-by");
     }
 
     @Test
@@ -834,7 +877,6 @@ class CheckCommitsTest {
         write("stats/EX12.jsonl", StageFixtures.closed("EX12"));
         git("add", "issues", "stats");
         git("commit", "-q", "-m", "Describe work");
-        git("rm", "-q", "stats/EX12.jsonl");
         write("issues/core/EX12.sub/builder.md", "Builds it.\n");
         git("add", "issues");
         git("commit", "-q", "-m", "Brief the builder");
@@ -1055,6 +1097,47 @@ class CheckCommitsTest {
                         CheckCommits.Git.in(directory, isolated()),
                         () -> prefixes)
                 .check("HEAD", false);
+    }
+
+    // Prevents switching the stage rule off by deleting the seed.
+    @Test
+    void refusesACommitThatDeletesTheSeed() throws Exception {
+        commitIssueWithoutStats(head("Idea", "M"));
+        git("rm", "-q", "stats/seed.csv");
+        git("commit", "-q", "-m", "Drop the seed");
+
+        assertThat(checkLast()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("deletes stats/seed.csv");
+    }
+
+    // Prevents a stage record from going without a trace.
+    @Test
+    void refusesACommitThatDeletesOneStageRecord() throws Exception {
+        commitIssueWithoutStats(head("Idea", "M"));
+        write("stats/EX12.jsonl", StageFixtures.closed("EX12"));
+        git("add", "stats/EX12.jsonl");
+        git("commit", "-q", "-m", "Record work");
+        git("rm", "-q", "stats/EX12.jsonl");
+        git("commit", "-q", "-m", "Drop the record");
+
+        assertThat(checkLast()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("deletes stats/EX12.jsonl");
+    }
+
+    // Prevents a message holding git's separators from forging a second commit or hiding its body.
+    @Test
+    void givesNoAnswerWhenTheLogSplitsIntoMoreCommitsThanGitCounts() throws Exception {
+        git("init", "-q", "-b", "main");
+        write("README.md", "x\n");
+        git("add", "README.md");
+        git(
+                "commit",
+                "-q",
+                "-m",
+                "Read the pins once\n\u001eabc\u001fA\u001fa@example.org\u001fA\u001fa@example.org\u001fClean");
+
+        assertThat(checkRepository()).as(stderr()).isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("splits into 2 commit(s) where git counts 1");
     }
 
     /** Checks only the last commit, so its parent may hold what the rule refuses. */

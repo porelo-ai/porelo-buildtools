@@ -1,0 +1,2 @@
+title: "`check-commits` gives no exemption from outside, reads every trailer for numbers and all but the sign-off for who, refuses `Co-authored-by:`, refuses a commit that deletes the seed or a stage record, and gives no answer when the log splits into another number of commits than git counts."
+type: changed

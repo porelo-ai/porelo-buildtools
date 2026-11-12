@@ -54,7 +54,7 @@ final class CheckCommits {
      */
     private static final Pattern TRAILER =
             Pattern.compile(
-                    "^(?:(?:Assisted-by|Signed-off-by|Co-authored-by): \\S.*"
+                    "^(?:(?:Assisted-by|Signed-off-by): \\S.*"
                             + "|Porelo-Change-Id: \\S+"
                             + "|Porelo-Signs-Anew: (?!/)(?!(?:.*/)?\\.\\.(?:/|$))[A-Za-z0-9._/-]+)$",
                     Pattern.CASE_INSENSITIVE);
@@ -62,6 +62,10 @@ final class CheckCommits {
     /** A sign-off, its key in any case, and the address it names. */
     private static final Pattern SIGN_OFF =
             Pattern.compile("^Signed-off-by: .*<([^<>\\s]+)>$", Pattern.CASE_INSENSITIVE);
+
+    /** A sign-off's key, in any case. */
+    private static final Pattern SIGN_OFF_KEY =
+            Pattern.compile("Signed-off-by:", Pattern.CASE_INSENSITIVE);
 
     /** A word of an issue number's shape, its prefix apart; whether it is one the prefixes say. */
     private static final Pattern NUMBER = Pattern.compile("\\b([A-Z]{1,3})\\d+\\b");
@@ -116,6 +120,17 @@ final class CheckCommits {
             return Optional.empty();
         }
 
+        /**
+         * Counts the commits of a range as git counts them, to hold the log's records to.
+         *
+         * @param range the range, never an option
+         * @return the count, or empty where this reader cannot count
+         * @throws IOException when git cannot be run or refuses the range
+         */
+        default java.util.OptionalLong count(String range) throws IOException {
+            return java.util.OptionalLong.empty();
+        }
+
         /** Reads a file from that commit, never from the working tree. */
         default String read(String hash, String path) throws IOException {
             throw new IOException("commit tree contents are unavailable");
@@ -134,6 +149,23 @@ final class CheckCommits {
                 @Override
                 public String log(String range) throws IOException {
                     return run(directory, environment, range);
+                }
+
+                /** Counts the range's commits. */
+                @Override
+                public java.util.OptionalLong count(String range) throws IOException {
+                    return java.util.OptionalLong.of(
+                            Long.parseLong(
+                                    execute(
+                                                    directory,
+                                                    environment,
+                                                    List.of(
+                                                            "rev-list",
+                                                            "--count",
+                                                            "--end-of-options",
+                                                            range,
+                                                            "--"))
+                                            .strip()));
                 }
 
                 /** Lists that commit's files. */
@@ -308,7 +340,18 @@ final class CheckCommits {
         final List<Commit> commits;
         try {
             commits = parse(git.log(range));
-        } catch (IOException ex) {
+            final java.util.OptionalLong counted = git.count(range);
+            if (counted.isPresent() && counted.getAsLong() != commits.size()) {
+                // A message holding git's record and field separators forges a commit or hides its
+                // own body; the log is then no account of the range.
+                throw new IOException(
+                        "the log splits into "
+                                + commits.size()
+                                + " commit(s) where git counts "
+                                + counted.getAsLong()
+                                + "; a message holds git's separators");
+            }
+        } catch (IOException | NumberFormatException ex) {
             err.println("could not read the commits of " + range + ": " + ex.getMessage());
             return Stop.UNANSWERED;
         }
@@ -318,7 +361,8 @@ final class CheckCommits {
         int breaking = 0;
         boolean rolloutNote = false;
         for (final Commit commit : commits) {
-            if (commit.exempt()) {
+            // From outside, a recorded name is the writer's own word, which anyone can write.
+            if (!outside && commit.exempt()) {
                 exempt++;
                 continue;
             }
@@ -383,9 +427,20 @@ final class CheckCommits {
 
     private List<String> stageFaults(String hash, Set<String> files) throws IOException {
         final List<String> faults = new ArrayList<>();
+        // Deleting the seed or a record would switch the rule off or drop a measurement unseen.
+        final Optional<String> first = git.parent(hash);
+        if (first.isPresent()) {
+            for (final String path : git.files(first.get())) {
+                if ((path.equals("stats/seed.csv") || path.matches("stats/[^/]+\\.jsonl"))
+                        && !files.contains(path)) {
+                    faults.add("deletes " + path);
+                }
+            }
+        }
         if (!files.contains("stats/seed.csv")
                 && files.stream().noneMatch(path -> path.matches("stats/[^/]+\\.jsonl")))
             return faults;
+
         final Workflow workflow;
         if (!files.contains("issues/workflow.yml")) {
             faults.add("issues/workflow.yml is missing from the commit tree");
@@ -521,13 +576,22 @@ final class CheckCommits {
                 words.append('\n').append(lines[i]);
             }
         }
+        // A trailer's value is read too: none of them may carry a number, and only a sign-off,
+        // which names its author by design, may name a person.
+        final StringBuilder named = new StringBuilder(words);
+        for (final String trailer : trailers) {
+            words.append('\n').append(trailer);
+            if (!SIGN_OFF_KEY.matcher(trailer).lookingAt()) {
+                named.append('\n').append(trailer);
+            }
+        }
         final Matcher number = NUMBER.matcher(words);
         while (number.find()) {
             if (known.contains(number.group(1))) {
                 faults.add("names a requirement number: " + number.group());
             }
         }
-        Who.named(words.toString(), List.of(commit.author(), commit.committer()))
+        Who.named(named.toString(), List.of(commit.author(), commit.committer()))
                 .forEach(party -> faults.add("says who: " + party));
         if (outside && !signedOffByAuthor(trailers, commit.authorMail())) {
             faults.add(

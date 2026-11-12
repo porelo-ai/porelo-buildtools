@@ -72,9 +72,10 @@ in a Build over the pushed range. In this repository's own build it runs as
 Each commit is held to the shared rule, and each fault is one line with the commit's short hash:
 
 - **A subject of at most 72 characters**, every character counted, `[skip ci]` among them.
-- **Below it, only a blank line and trailers** - `Assisted-by:`, `Signed-off-by:` and the `Co-authored-by:` GitHub
-  writes; any other line is a body and refused.
-- **No requirement number**: a word made of an issue prefix and digits. The prefixes are the ones `check-citations`
+- **Below it, only a blank line and trailers** - `Assisted-by:` and `Signed-off-by:`, and on Porelo's own commits
+  `Porelo-Change-Id:` and `Porelo-Signs-Anew:`; any other line is a body and refused, `Co-authored-by:` among them,
+  since an agent never writes one.
+- **No requirement number**, in the subject or in any trailer's value: a word made of an issue prefix and digits. The prefixes are the ones `check-citations`
   reads: those of the repository's own issue files and index rows, never another repository's. So `IPv4` or `x86_64`
   is none, and another repository's number is not caught here but left to a check across repositories; a repository
   with no issue prefix at all is not checked but refused, exit 2.
@@ -82,7 +83,7 @@ Each commit is held to the shared rule, and each fault is one line with the comm
   It matches a party named - `operator`, `coordinator`, `Smith`, `Agent` and a capitalized name, an `@handle`, or the
   commit's own author or committer name - and a phrase that gives credit, taken whole: "at X's word", "as X chose",
   "asked by", "found by", "decided by", "reported by", "accepted by", "per" and a name, "X's review", "X's test". The
-  lists are in `Who`. Trailers are not read for it, since they name a person on purpose.
+  lists are in `Who`. Every trailer but `Signed-off-by:`, which names its author by design, is read for it too.
 - **With `--outside`**, for a pull request from outside, every commit also carries a `Signed-off-by:` naming its
   author's address, the Developer Certificate of Origin. Without it a sign-off is neither asked for nor refused.
   The pull-request step passes `--outside` unless the request comes from a branch of the repository itself and its
@@ -92,12 +93,17 @@ Each commit is held to the shared rule, and each fault is one line with the comm
   repository itself is from inside: the step tells that forge by `github.server_url`, which is not
   `https://github.com` there, and only a holder of write access pushes such a branch.
 
-Exempt are the commits authored by `dependabot[bot]` or `github-actions[bot]`, and those GitHub committed in its web
-interface (committer `GitHub`), told by the author and committer the commit records, never by its message. Exit 0 when
-no commit breaks the rule, an empty range among them; 1 when one does; 2 when git or the issues cannot be read, or the
-range starts with `-`, since git would read it as an option.
+Exempt, on a push and on a pull request from inside only, are the commits authored by `dependabot[bot]` or
+`github-actions[bot]`, and those GitHub committed in its web interface (committer `GitHub`), told by the author and
+committer the commit records, never by its message. With `--outside` no commit is exempt: anyone can record those
+names, so every commit is held to every rule. Exit 0 when no commit breaks the rule, an empty range among them; 1 when
+one does; 2 when git or the issues cannot be read, when the range starts with `-`, since git would read it as an
+option, or when the log splits into another number of commits than `git rev-list --count` gives for the range, as a
+message holding git's record and field separators would make it.
 
-Stage records are checked in each nonexempt commit's tree. Every `stats/*.jsonl` file must be nonempty and
+A commit whose first parent's tree holds `stats/seed.csv` or a `stats/<ISSUE>.jsonl` that its own tree lacks is
+refused, naming each file it deletes, so deleting them never switches the rule off. Stage records are checked in each
+nonexempt commit's tree. Every `stats/*.jsonl` file must be nonempty and
 contain complete, closed records: the same field, value, issue-to-filename and timestamp validation used by
 `stage` applies. A record whose `end` is null is refused with that commit's short hash. Generated stage JSONL
 files are exempt from `check-citations`; handwritten notes under `stats/` are still checked.
