@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT57",
   "title": "The Buildtools' Tests Follow The Pyramid",
-  "state": "Implementing",
+  "state": "Review",
   "size": "L",
   "priority": "Medium",
   "rank": 1,
@@ -156,3 +156,33 @@ paid in money or in another team's red Build.
 - Each guarded rule was removed once and its test went red: 7 of the lease and the rental, 6 of the snapshot, 8 of
   the leg, among them a suite run over the lease's root connection. The fake gives each connection its own session,
   which names its user beside each command, so a command run as root is not taken for the user's.
+
+## As built, fixes 4 to 10 (2026-11-12)
+
+- **Fix 4.** Surefire's run leaves out `@Tag("integration")`; an `integration` execution at `integration-test` runs it
+  alone, and `-Pdocuments` excludes nothing. Every test that starts a process, opens a socket or runs a real tool
+  carries the tag, the nested classes among them. `TestRunsApartTest` reads the parent pom and holds the split.
+- **Fix 5.** `CheckLinkage` reads through an `ElfReader` and `CheckPackageVersion` through `PackageMetadata`. The
+  command tests in `CheckLinkageTest` and `CheckPackageVersionTest` run `Main` over both: every binary read, a refused
+  binary among good ones, a floor above its ceiling, an unreadable binary, `--declared-only` passed through, and the
+  newest package read.
+- **Fix 6.** `CompareBillsTest` runs over `FakeWeb`; what `Web.overHttp` does with a redirect, a 5xx and no connection
+  `WebTest` already proves. `ArtifactoryCommandTest` runs over an Artifactory held in memory; what the upload sends,
+  its checksums, matrix parameters and token, and which answers are worth asking again moved to
+  `ArtifactoryUploadTest`, which stays an integration test.
+- **Fix 7.** `CheckProviders` lists through `TrackedFiles`; its test runs over a list in memory, and a nested
+  `OverGit` keeps git's listing, git's failure and the command's wiring.
+- **Fix 9.** `Hetzner`, `Api`, `LocalPool` and `LocalVms` wait on `Waiting`; their tests move a `MovingClock`.
+  `LocalVms`' wait for an address had no test and now has two. `Stopping` watches a `WatchedProcess` at each `Tick`, so
+  its tests give the looks by hand and start no process but the one that proves `stop`. The test key is made once a run
+  rather than once a test: an RSA key took a tenth of a second each, and `LocalPoolTest` fell from 3.9 s to 0.06 s.
+- **Fix 10.** `WorkflowLimitsTest`, `WorkflowSigningTest`, `CheckActionsTest`'s own-workflow test and
+  `PinnedRetryTest` carry `documents`, and `DocumentTestsTaggedTest` finds every test reading `../.github`. `PinTest`
+  reads no `.github` any more.
+- Each guarded rule was removed once and its test went red: the split, 3 of fix 5, 2 of fix 6, 1 of fix 7, 5 of fix 9,
+  and an untagged workflow test.
+
+**Acceptance as measured.** The unit run has 1039 tests, the integration run 266: 79.6 % unit by count. No test makes
+a DNS lookup or a connection off the loopback. Two points are not met, and are in the Backlog: the unit run summed
+26 s of test time, not under 15 s, at a load of about 40 on 16 cores ([BT87](README.md#bt87)); and
+`PinnedRetryTest` still sleeps 1.3 s to prove the shell's clock ([BT88](README.md#bt88)).

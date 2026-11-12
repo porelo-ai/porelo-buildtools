@@ -38,12 +38,8 @@ left out.
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
-
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
+| <a id="bt87"></a>[BT87](BT87-The-Unit-Run-Under-Fifteen-Seconds.md) | S | - | `./mvnw test` takes under 15 s of test time, the last acceptance point the test pyramid's fixes did not reach: the slowest unit classes, which load a whole tree or a class graph per test, share it or shrink it. |
+| <a id="bt88"></a>[BT88](BT88-The-Shell-Clock-Tested-Without-Sleeping.md) | S | - | `PinnedRetryTest.theShellsClockCountsUpWhateverTheCallerDoesWithSeconds` proves `pinned_now` without waiting 1.3 s of real time, so no test of the buildtools sleeps longer than 50 ms. |
 
 ## Review
 
@@ -60,6 +56,7 @@ left out.
 | <a id="bt75"></a>[BT75](BT75-Who-Works-An-Issue-In-Its-Head.md) | XS | - | An issue head may say who works it, `"worker": "Agent"` or `"Manual"`: issue-1.json takes the field and refuses any other value, and IssueHead reads it and writes it last, after the optional fields it writes today. |
 | <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
+| <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
 | <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. |
 | <a id="bt62"></a>[BT62](BT62-An-Issues-Data-In-A-Head.md) | M | - | An issue's data in a JSON head by `issue-1.json`; `porelo-release issues index`, `check` and `convert`; the stories library, `stage` and check-commits read the head. |
 | <a id="bt86"></a>[BT86](BT86-A-Story-Head-May-Name-Its-Size.md) | XS | - | porelo-stories' story-2.json takes an optional `size`, one of XS, S, M, L and XL, as the planner's copy does under PL47, so a story estimated with a size passes `stories check` and `stories index` here too. |
