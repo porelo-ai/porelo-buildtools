@@ -53,9 +53,22 @@ class SnapshotsBuildTest {
                 public void close() {}
             };
 
+    /** A proof build that has ended well by the first look. */
+    private static Ssh.Output proofEnds(String command) {
+        return new Ssh.Output(
+                command.startsWith("cat " + Snapshots.PROOF_STATUS) ? "0\n|\n" : "", "", 0);
+    }
+
     private long build(String os, Path archive, String musl) throws IOException {
         return Snapshots.build(
-                catalog, os, Kind.AMD64_SNAPSHOT, List.of(), FakeMachine.KEY, archive, musl);
+                catalog,
+                os,
+                Kind.AMD64_SNAPSHOT,
+                List.of(),
+                FakeMachine.KEY,
+                archive,
+                musl,
+                machine);
     }
 
     // Prevents an image taken of a running machine, a half-written disk, or a machine left rented.
@@ -87,17 +100,21 @@ class SnapshotsBuildTest {
             throws IOException {
         final Path tree = Files.writeString(directory.resolve("tree.tar"), "");
         machine.probes.add(true);
+        machine.answer = SnapshotsBuildTest::proofEnds;
 
         build("ubuntu", tree, null);
 
         assertThat(machine.uploads).containsExactly("tree.tar -> /tmp/tree.tar");
         assertThat(machine.commands.subList(1, machine.commands.size()))
-                .as("swap on, unpack, build, swap off, the tree removed")
+                .as("swap on, unpack, build apart and looked at, swap off, the tree removed")
                 .satisfiesExactly(
                         swap -> assertThat(swap).isEqualTo(Snapshots.SWAP_ON),
                         unpack ->
                                 assertThat(unpack).contains("tar -x -C ~/porelo -f /tmp/tree.tar"),
                         product -> assertThat(product).contains(Snapshots.TREE_BUILD),
+                        apart ->
+                                assertThat(apart).startsWith("setsid nohup sh /tmp/proof-build.sh"),
+                        look -> assertThat(look).startsWith("cat " + Snapshots.PROOF_STATUS),
                         off -> assertThat(off).isEqualTo(Snapshots.SWAP_OFF),
                         removed ->
                                 assertThat(removed)
@@ -117,8 +134,9 @@ class SnapshotsBuildTest {
         machine.probes.add(true);
         machine.answer =
                 command ->
-                        new Ssh.Output(
-                                command.startsWith("cat /proc") ? boots[read[0]++] : "", "", 0);
+                        command.startsWith("cat /proc")
+                                ? new Ssh.Output(boots[read[0]++], "", 0)
+                                : proofEnds(command);
 
         build("fedora", tree, null);
 

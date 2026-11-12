@@ -1,6 +1,8 @@
 package org.fuin.porelo.machines;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -336,6 +338,34 @@ public final class Snapshots {
             java.nio.file.@Nullable Path archive,
             @Nullable String musl)
             throws IOException {
+        return build(
+                machines, os, kind, providerOverride, credential, archive, musl, Waiting.SYSTEM);
+    }
+
+    /**
+     * Builds a snapshot, its proof build looked at by the given clock.
+     *
+     * @param machines Where the machine comes from.
+     * @param os The system.
+     * @param kind The kind of machine.
+     * @param providerOverride Providers to ask instead of the kind's own.
+     * @param credential The login key.
+     * @param archive The tree to build once, or {@code null}.
+     * @param musl The musl installer, or {@code null}.
+     * @param waiting The clock and the pause between looks at the proof build.
+     * @return The image's id.
+     * @throws IOException If a step failed.
+     */
+    static long build(
+            Machines machines,
+            String os,
+            Kind kind,
+            List<String> providerOverride,
+            Credential credential,
+            java.nio.file.@Nullable Path archive,
+            @Nullable String musl,
+            Waiting waiting)
+            throws IOException {
         if (kind != Kind.AMD64_SNAPSHOT) {
             throw new IllegalArgumentException(
                     "Snapshot provisioning needs amd64-snapshot; reusable kinds cannot supply a boot image.");
@@ -396,7 +426,7 @@ public final class Snapshots {
                                 + " -c 'rm -rf ~/porelo && mkdir -p ~/porelo "
                                 + "&& tar -x -C ~/porelo -f /tmp/tree.tar'",
                         null);
-                run(
+                proofBuild(
                         lease,
                         "su - "
                                 + USER
@@ -410,7 +440,8 @@ public final class Snapshots {
                                 + "/bin:$PATH && "
                                 + TREE_BUILD
                                 + "'",
-                        null);
+                        PROOF_LIMIT,
+                        waiting);
                 run(lease, SWAP_OFF, null);
                 if ("fedora".equals(os)) {
                     // Compiled here rather than shipped compiled - a .pp is tied to the policy
@@ -438,6 +469,174 @@ public final class Snapshots {
             final long image = machines.snapshot(lease.id(), description, os, inputs(os));
             System.out.println("snapshot " + image + ": " + description);
             return image;
+        }
+    }
+
+    /**
+     * How long the proof build may take: the step has 60 minutes, about 5 go before the build and
+     * up to 15 after it, to the policy, the shutdown and the image. Fedora's first build of 46f0cde
+     * said nothing for 56 minutes after it began, and the step's own timeout ended it.
+     */
+    static final Duration PROOF_LIMIT = Duration.ofMinutes(40);
+
+    /** How often the proof build is looked at. */
+    static final Duration PROOF_LOOK = Duration.ofSeconds(30);
+
+    /** How often a look says the build is still where it was. */
+    static final Duration PROOF_STILL = Duration.ofMinutes(5);
+
+    /** What the proof build writes, on the machine. */
+    static final String PROOF_LOG = "/tmp/proof-build.log";
+
+    /** Its exit status, written once it has ended. */
+    static final String PROOF_STATUS = "/tmp/proof-build.status";
+
+    /** Where it stands: Maven's module, and native-image's stage. */
+    static final String PROOF_WHERE =
+            "tr -d '\\r' 2>/dev/null < "
+                    + PROOF_LOG
+                    + " | sed 's/\\x1b\\[[0-9;]*m//g'"
+                    + " | grep -aE '^\\[INFO\\] Building [^ :]+ .*\\[[0-9]+/[0-9]+\\]$|^\\[[0-9]+/[0-9]+\\] '"
+                    + " | tail -n 1";
+
+    /** How long one look may take before it counts as no answer. */
+    static final Duration PROOF_ANSWER = Duration.ofSeconds(30);
+
+    /** What the machine shows when the build ran out of time: the log's end, load, memory, AVCs. */
+    static final String PROOF_STATE =
+            "tail -n 60 "
+                    + PROOF_LOG
+                    + "; echo '--- load, memory'; uptime; free -m"
+                    + "; echo '--- busiest'; ps -eo pid,etimes,pcpu,rss,args --sort=-pcpu | head -n 8"
+                    + "; echo '--- SELinux denials'; ausearch -m avc -ts today 2>/dev/null | tail -n 20"
+                    + "; true";
+
+    /**
+     * Runs the proof build apart from the connection, saying where it stands, and stops at the
+     * limit with what the machine shows rather than at the step's timeout with nothing.
+     *
+     * @param lease The machine.
+     * @param build The build, a shell command run as root.
+     * @param limit How long it may take.
+     * @param waiting The clock and the pause between looks.
+     * @throws IOException If it failed, or ran past the limit.
+     */
+    static void proofBuild(Lease lease, String build, Duration limit, Waiting waiting)
+            throws IOException {
+        run(
+                lease,
+                "rm -f " + PROOF_LOG + " " + PROOF_STATUS + " && cat > /tmp/proof-build.sh",
+                build
+                        + "\necho $? > "
+                        + PROOF_STATUS
+                        + ".part && mv "
+                        + PROOF_STATUS
+                        + ".part "
+                        + PROOF_STATUS
+                        + "\n");
+        run(
+                lease,
+                "setsid nohup sh /tmp/proof-build.sh > " + PROOF_LOG + " 2>&1 < /dev/null &",
+                null);
+        final Instant began = waiting.now();
+        @Nullable String where = null;
+        Instant said = began;
+        while (true) {
+            final @Nullable String answer =
+                    answered(
+                            lease,
+                            "cat " + PROOF_STATUS + " 2>/dev/null; echo '|'; " + PROOF_WHERE);
+            final Duration taken = Duration.between(began, waiting.now());
+            if (answer == null) {
+                // A machine that thrashes, or a dropped connection, is no reason to stop looking:
+                // the limit still holds, and the build goes on apart from the connection.
+                System.out.println(taken.toMinutes() + " min: the machine did not answer");
+                if (taken.compareTo(limit) >= 0) {
+                    throw new IOException(
+                            "the proof build ran past "
+                                    + limit.toMinutes()
+                                    + " min, and the machine no longer answered");
+                }
+                pause(waiting);
+                continue;
+            }
+            final String[] look = answer.split("\\|", 2);
+            final String status = look[0].strip();
+            final String now = look.length > 1 ? look[1].strip() : "";
+            if (!status.isEmpty()) {
+                if ("0".equals(status)) {
+                    System.out.println("the proof build ended after " + taken.toMinutes() + " min");
+                    return;
+                }
+                throw new IOException(
+                        "the proof build failed with exit "
+                                + status
+                                + " after "
+                                + taken.toMinutes()
+                                + " min:\n"
+                                + said(answered(lease, "tail -n 60 " + PROOF_LOG)));
+            }
+            if (!now.equals(where)
+                    || Duration.between(said, waiting.now()).compareTo(PROOF_STILL) >= 0) {
+                System.out.println(
+                        taken.toMinutes()
+                                + " min: "
+                                + (now.isEmpty() ? "resolving, nothing built yet" : now));
+                where = now;
+                said = waiting.now();
+            }
+            if (taken.compareTo(limit) >= 0) {
+                throw new IOException(
+                        "the proof build ran past "
+                                + limit.toMinutes()
+                                + " min, at: "
+                                + (now.isEmpty() ? "nothing built yet" : now)
+                                + "\n"
+                                + said(answered(lease, PROOF_STATE)));
+            }
+            pause(waiting);
+        }
+    }
+
+    /** What a look answered, or that it did not. */
+    private static String said(@Nullable String answer) {
+        return answer == null
+                ? "(the machine did not answer within " + PROOF_ANSWER.toSeconds() + " s)"
+                : answer;
+    }
+
+    /**
+     * Runs one look at the machine, bounded: an ssh call that hangs or fails is no answer.
+     *
+     * @param lease The machine.
+     * @param command What to run, as root.
+     * @return What it wrote, or {@code null} without an answer in time.
+     * @throws IOException If the wait is interrupted.
+     */
+    private static @Nullable String answered(Lease lease, String command) throws IOException {
+        final java.util.concurrent.FutureTask<Ssh.Output> look =
+                new java.util.concurrent.FutureTask<>(() -> lease.ssh().run(lease.asRoot(command)));
+        Thread.ofVirtual().start(look);
+        try {
+            return look.get(PROOF_ANSWER.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .all();
+        } catch (java.util.concurrent.ExecutionException
+                | java.util.concurrent.TimeoutException ex) {
+            look.cancel(true);
+            return null;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted waiting for the proof build", ex);
+        }
+    }
+
+    /** The pause between two looks. */
+    private static void pause(Waiting waiting) throws IOException {
+        try {
+            waiting.sleep(PROOF_LOOK);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted waiting for the proof build", ex);
         }
     }
 
