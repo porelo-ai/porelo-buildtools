@@ -5,12 +5,13 @@
   "$schema": "issue-1.json",
   "id": "BT57",
   "title": "The Buildtools' Tests Follow The Pyramid",
-  "state": "Accepted",
+  "state": "Analyzed",
   "size": "L",
   "priority": "Medium",
   "rank": 1,
   "blockedBy": [],
-  "covers": "The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test."
+  "covers": "The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test.",
+  "openQuestions": 1
 }
 ```
 
@@ -101,6 +102,27 @@ reading. The times are from the Surefire reports of `./mvnw -B -s settings.xml -
 9. **S: inject a clock and a sleeper into `Hetzner`, `Api`, `LocalPool` and `LocalVms`,** and **S: a `WatchedProcess`
    with a manual-tick scheduler in `Stopping`.** This removes about 5 s of sleep and the `sleep 60` processes.
 10. **XS: tag the four workflow-reading tests `documents`,** and widen `DocumentTestsTaggedTest` so it finds them.
+
+## Plan
+
+Read in porelo-buildtools 15012b0 against the audit above:
+
+- **Gone since the audit.** The `plan` commands went with [BT70](README.md#bt70), so `PlanCommandsTest`,
+  `PlanStandTest` and fix 8's `LocalCommitTime` seam are gone. `Snapshots` no longer names `Hetzner`, so fix 2 keeps
+  only its `SnapshotCatalog` and `TreeArchive` seams. `CheckCommitsTest`'s `git` calls and fix 8's `Stage` seam leave
+  with the commands [BT71](README.md#bt71) hands to the planner; they are not built here.
+- **Still as audited.** `RentalTest` still resolves `porelo-test.invalid`; `AgentLeg.run` still reaches the machine
+  through the static `Ssh.to(...)` (lines 310 and 320) after `lease.awaitSsh()`.
+- **Order and size.** Fixes 1 (M), 2 (M), 3 (S), 4 (S), 5 (S), 6 (XS), 7 (`CheckProviders` only, XS), 9 (S + S) and 10
+  (XS), in that order, each its own commit with the tests named there red first; about 265 min at the medians (M 53,
+  S 27, XS 8), so L.
+- **Tests that go red first:** per fix, a unit test over the new seam that fails with the guarded rule removed, as
+  each fix names; for fix 4, a test that `./mvnw test` runs no class tagged `integration`.
+
+## Open questions
+
+- **One issue, or one per fix?** The fixes are independent and come one after another. My proposal: one issue built in
+  this order, each fix its own commit, handed over after fixes 1–3 (the guarded flows) and again at the end.
 
 ## Acceptance
 
