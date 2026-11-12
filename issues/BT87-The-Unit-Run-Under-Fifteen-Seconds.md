@@ -25,3 +25,16 @@ processes out of the unit run, but its run summed 26 s on 2026-11-12 at a load o
 were `IssueSourceTest` (3.6 s, an ArchUnit import of the whole package in one test), `MergeTreeBillTest` (2.9 s, a large
 tree), `WorkflowTest` (2.2 s), `StoriesIndexTest` and `IssuesIndexTest` (1.5 s each, real index fixtures). How much of
 the 26 s was the load is part of the measure.
+
+## Built so far (2026-11-13)
+
+- **`IssueSourceTest`'s architecture rule** reads the module's own `target/classes` instead of scanning the class path
+  for the package. A test-scoped `archunit.properties` names a dependency without reading its class. The test fell
+  from 3.6 s to 0.85 s. A `java.net` use planted in `StoriesIndex` is still refused.
+- **Measured.** The unit run summed 32.3 s before and 27.5 s after, 1048 tests, both at a load of about 30 on 16
+  cores. The 15 s are to be measured on a quiet host. Until then the issue stays in Backlog.
+- **What is left is mostly not the tests' own.** `MergeTreeBillTest`'s large tree (2.4 s) and `HostKeyPairTest`'s
+  first case (1.5 s) are the first in their run to load CycloneDX and sshj: the first class to touch a library pays
+  for loading it. The release module's `StoriesIndexTest.writesWhatTheCommandWrote` (2.3 s) and the two
+  index-fixture tests (1.0 s and 0.8 s) run the real command over the 335-file checkouts fixture. Making that fixture
+  smaller would change what they prove.
