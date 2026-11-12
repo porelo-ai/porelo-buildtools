@@ -492,8 +492,9 @@ each directory's `README.md` under `issues/`, is generated from the heads and ne
   `covers` the index row's text. Optional are
   `parent`, which a sub-issue requires and which is its id before the dot, `role` (`builder`, `tester` or `reader`),
   `severity` (`Blocker`, `Critical`, `Major`, `Minor`, `Trivial`), `kind` (`Feature`, `Bug`, `Task`),
-  `openQuestions`, a count, and `worker` (`Agent`, `Manual`), who works the issue, written last; the library reads
-  an absent `worker` as null and leaves its meaning to the planner. Nothing else is allowed. The schema ships as
+  `openQuestions`, a count, `worker` (`Agent`, `Manual`), who works the issue, and `risk` (`harm`, `ordinary`,
+  `small`), how much the issue risks, written last; the library reads an absent `worker` or `risk` as null and leaves
+  its meaning to the planner. Nothing else is allowed. The schema ships as
   `org/fuin/porelo/stories/schemas/issue-1.json`; the check is hand-written and held to the schema by a test.
 - **`issues index`** writes each directory's index: the text above the first state's table as it was, then one table
   for each state in the workflow's order, its rows by priority, then rank, then id, and a group with nothing in it left

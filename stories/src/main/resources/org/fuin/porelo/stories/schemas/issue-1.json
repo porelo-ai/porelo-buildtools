@@ -119,6 +119,14 @@
         "Agent",
         "Manual"
       ]
+    },
+    "risk": {
+      "description": "How much the issue risks: harm, ordinary or small. The planner reads an absent risk as ordinary.",
+      "enum": [
+        "harm",
+        "ordinary",
+        "small"
+      ]
     }
   },
   "$defs": {

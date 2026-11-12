@@ -58,6 +58,9 @@ class IssueSchemaTest {
                         "{\"severity\": \"Major\", \"kind\": \"Bug\", \"openQuestions\": 0}",
                         "{\"worker\": \"Agent\"}",
                         "{\"worker\": \"Manual\"}",
+                        "{\"risk\": \"harm\"}",
+                        "{\"risk\": \"ordinary\"}",
+                        "{\"risk\": \"small\"}",
                         "{\"state\": \"Not in the workflow\"}",
                         "{\"title\": \"" + "x".repeat(120) + "\"}")) {
             final ObjectNode head = valid.deepCopy();
@@ -109,6 +112,8 @@ class IssueSchemaTest {
                         "{\"openQuestions\": -1}",
                         "{\"worker\": \"agent\"}",
                         "{\"worker\": \"Person\"}",
+                        "{\"risk\": \"Harm\"}",
+                        "{\"risk\": \"high\"}",
                         "{\"title\": \"" + "x".repeat(121) + "\"}",
                         "{\"covers\": \"line\\nline\"}")) {
             final ObjectNode head = valid.deepCopy();
@@ -117,8 +122,8 @@ class IssueSchemaTest {
         }
         for (final String faulty : List.of("null", "[]", "42", "{}"))
             bad.add(JSON.readTree(faulty));
-        assertThat(good).as("the valid reference set").hasSize(16);
-        assertThat(bad).as("the faulty reference set").hasSize(9 * 7 - 1 + 25 + 4);
+        assertThat(good).as("the valid reference set").hasSize(19);
+        assertThat(bad).as("the faulty reference set").hasSize(9 * 7 - 1 + 27 + 4);
 
         for (final JsonNode head : good) {
             assertThat(schema.validate(head)).as("the schema takes %s", head).isEmpty();
