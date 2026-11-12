@@ -5,13 +5,12 @@
   "$schema": "issue-1.json",
   "id": "BT82",
   "title": "The Commit Check Takes Its Range From The Event",
-  "state": "Analyzed",
+  "state": "Estimated",
   "size": "M",
   "priority": "Medium",
   "rank": 1,
   "blockedBy": [],
-  "covers": "The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command.",
-  "openQuestions": 1
+  "covers": "The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command."
 }
 ```
 
@@ -40,7 +39,7 @@ Read in porelo-buildtools 727a1cc: `check-commits RANGE [--outside]` (`Main.chec
 `.github/workflows/build.yml` (the push range) and `shared-rules.yml` (the pull request's origin), and the Python in
 `workflows.yml`.
 
-- **Where the fields come from (my proposal).** `check-commits --event` takes no range: it reads `GITHUB_EVENT_NAME`,
+- **Where the fields come from (decided).** `check-commits --event` takes no range: it reads `GITHUB_EVENT_NAME`,
   `GITHUB_REF`, `GITHUB_REF_TYPE`, `GITHUB_SHA`, `GITHUB_REPOSITORY` and `GITHUB_SERVER_URL` from the environment and
   `before`, or the pull request's base, head, head repository, author association and author, from the event file
   `GITHUB_EVENT_PATH`, which GitHub and Forgejo both write. A workflow then passes nothing and cannot pass a field
@@ -67,11 +66,10 @@ Read in porelo-buildtools 727a1cc: `check-commits RANGE [--outside]` (`Main.chec
   XS 8 + S 27 + S 27, about 89 min, so M. [BT79](README.md#bt79) also changes `CheckCommits`; whichever comes second
   rebases on the first, without a wait between them.
 
-## Open questions
+## Decided by the operator (2026-11-12)
 
-- **The fields' source.** From the event file and the runner's variables (my proposal, above), or each field as an
-  option (`--event-name`, `--before`, `--base`, …), which keeps the command free of the runner's names but makes every
-  workflow pass eleven values by hand.
+- **The fields come from the event.** `check-commits --event` reads `GITHUB_EVENT_PATH` and the runner's `GITHUB_*`
+  variables; no field is an option. Plan and size stay: M, about 89 min.
 
 ## To be checked
 

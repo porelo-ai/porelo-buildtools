@@ -10,6 +10,7 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt50"></a>[BT50](BT50-A-Pin-Names-Fallback-Sources.md) | - | - | A pinned download names several sources, each checked against the same sha256, asked in order when the first cannot answer. |
+| <a id="bt83"></a>[BT83](BT83-Providers-Named-Nowhere-Once-Every-Caller-Asks-By-Kind.md) | - | - | Once porelo asks for machines by kind, `check-providers` joins the shared rules of every repository, and `porelo-machines` drops the old call with a provider's server types and the `HETZNER_API` and `HETZNER_SSH` fallbacks (ST22). |
 | <a id="bt44"></a>[BT44](BT44-Old-Snapshot-Packages-Deleted-Daily.md) | M | - | A daily workflow deletes snapshot package files older than four weeks from `porelo-dist-deb` and `porelo-dist-rpm`, keeping the newest three versions of each package name and never touching `releases`; a dry run's list is read before the schedule goes live. |
 | <a id="bt33"></a>[BT33](BT33-Machines-From-Providers-Behind-One-Interface.md) | - | - | One interface for asking for a machine, each source a provider behind it: clouds provided through OpenTofu, the host's VM pool and a fixed server lent; the providers per kind as one variable on both forges with different values. |
 | <a id="bt18"></a>[BT18](BT18-A-Runner-Named-By-Its-Version.md) | - | - | `check-actions` refuses `runs-on: ubuntu-latest` and the other moving labels, naming file and job; a runner named by its version passes. |
@@ -24,13 +25,13 @@ left out.
 | <a id="bt30"></a>[BT30](BT30-Check-Actions-Reads-Workflows-As-YAML.md) | - | - | `check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one. |
 | <a id="bt09"></a>[BT09](BT09-A-Limit-Wait-Names-The-Limit.md) | - | - | The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit. |
 
-## Analyzed
+## Estimated
 
-| # | Size | Blocked by | What it covers | Open questions |
-|---|---|---|---|---|
-| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | S | - | check-citations takes a sub-issue `<parent>.<n>` as it takes an issue (its number a link to its row `#<parent>.<n>`, its file dying with it) and drops the rules for sub-agent briefs as files in `<ID>.sub/`; the sub-issue rules of the work format go with it to the planner. | 1 |
-| <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. | 1 |
-| <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. | 1 |
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
+| <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. |
+| <a id="bt84"></a>[BT84](BT84-Acceptance-Takes-The-Pool-A-Job-Is-Told.md) | S | - | `porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, and `sweep --mine` passes where the job rented from the pool, so one workflow runs on the host's forge and on GitHub (porelo-host's HO27). |
 
 ## Backlog
 
@@ -120,4 +121,5 @@ left out.
 
 | # | Title | Why |
 |---|---|---|
+| <a id="bt56"></a>BT56 | Sub-Agent Briefs Beside Their Issue | Rejected by the operator (2026-11-12): check-citations goes under ST321 with the work format's hand-over to the planner. |
 | <a id="bt06"></a>BT06 | The Gathered Push Refuses A Moved Central Forge | Moved to porelo-host, which installs the command on the host, where there is no Java. |

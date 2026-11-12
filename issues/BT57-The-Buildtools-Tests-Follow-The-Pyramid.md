@@ -5,13 +5,12 @@
   "$schema": "issue-1.json",
   "id": "BT57",
   "title": "The Buildtools' Tests Follow The Pyramid",
-  "state": "Analyzed",
+  "state": "Estimated",
   "size": "L",
   "priority": "Medium",
   "rank": 1,
   "blockedBy": [],
-  "covers": "The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test.",
-  "openQuestions": 1
+  "covers": "The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test."
 }
 ```
 
@@ -119,10 +118,10 @@ Read in porelo-buildtools 15012b0 against the audit above:
 - **Tests that go red first:** per fix, a unit test over the new seam that fails with the guarded rule removed, as
   each fix names; for fix 4, a test that `./mvnw test` runs no class tagged `integration`.
 
-## Open questions
+## Decided by the operator (2026-11-12)
 
-- **One issue, or one per fix?** The fixes are independent and come one after another. My proposal: one issue built in
-  this order, each fix its own commit, handed over after fixes 1–3 (the guarded flows) and again at the end.
+- **One issue.** Built in the order above, each fix its own commit, handed over after fixes 1–3 (the guarded flows) and
+  again at the end. Plan and size stay: L, about 265 min.
 
 ## Acceptance
 
