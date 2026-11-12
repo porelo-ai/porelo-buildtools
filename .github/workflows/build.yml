@@ -41,6 +41,12 @@ jobs:
         timeout-minutes: 35
         permissions:
             contents: read
+        # The key of each cache this job restored or saved, for the prune job.
+        outputs:
+            maven: ${{ steps.keep.outputs.key || steps.jdk.outputs.maven }}
+            wrapper: ${{ steps.jdk.outputs.wrapper }}
+            shfmt: ${{ steps.jdk.outputs.shfmt }}
+            graalvm: ${{ steps.jdk.outputs.graalvm }}
         steps:
             # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
             - name: A forge names its registry and its token
@@ -58,6 +64,7 @@ jobs:
                   fetch-depth: 0
 
             - name: The pinned GraalVM
+              id: jdk
               uses: ./.github/actions/pinned-jdk
 
             # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
@@ -104,6 +111,74 @@ jobs:
                       -DcentralBaseUrl=http://127.0.0.1:9 -DcentralSnapshotsUrl=http://127.0.0.1:9/ \
                       > target/deploy-dry-run.log 2>&1 || true
                   ./mvnw -B -q -s settings.xml -pl release exec:java@check-deploy
+
+            # The job's last step: the local Maven repository, with only what this job read, the one entry the others
+            # restore.
+            - name: Keep the Maven repository
+              id: keep
+              uses: ./.github/actions/maven-cache-keep
+
+    # Only the newest entry of each cache the build restored or saved: the others are deleted, so a moved pin or a
+    # changed pom leaves no old copy behind. A job of its own, as no code it fetches runs beside a token that deletes.
+    # Only this ref's entries go. Another forge ages its caches out by its own rule.
+    prune:
+        needs: build
+        if: ${{ !cancelled() && github.server_url == 'https://github.com' }}
+        runs-on: ubuntu-26.04
+        timeout-minutes: 5
+        permissions:
+            actions: write
+        steps:
+            - name: Only the newest entry of each cache
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  # One cache a line: the prefix its entries share, and the key the build restored or saved.
+                  KEEP: |
+                      maven-${{ runner.os }}- ${{ needs.build.outputs.maven }}
+                      maven-wrapper-${{ runner.os }}- ${{ needs.build.outputs.wrapper }}
+                      pinned-shfmt- ${{ needs.build.outputs.shfmt }}
+                      pinned-graalvm- ${{ needs.build.outputs.graalvm }}
+              run: |
+                  set -euo pipefail
+                  while read -r prefix keep; do
+                      # A cache the build did not restore or save names no key, and nothing of it is deleted.
+                      if [ -z "${keep:-}" ]; then
+                          continue
+                      fi
+                      # The build's outputs are its own words: only the four prefixes, each with a key of its own.
+                      case $prefix in
+                          maven-Linux- | maven-wrapper-Linux- | pinned-shfmt- | pinned-graalvm-) ;;
+                          *)
+                              echo "::warning::the build named an unknown cache prefix; nothing of it is deleted"
+                              continue
+                              ;;
+                      esac
+                      if [[ ! $keep =~ ^[A-Za-z0-9._-]+$ ]] || [[ $keep != "$prefix"* ]]; then
+                          echo "::warning::the build named no key of $prefix; nothing of it is deleted"
+                          continue
+                      fi
+                      # Only this ref's entries: a pull request's or a tag's are theirs, and age out by GitHub's rule.
+                      if ! entries=$(gh cache list --repo "$GITHUB_REPOSITORY" --key "$prefix" --ref "$GITHUB_REF" \
+                          --limit 100 --json id,key --jq '.[] | "\(.id) \(.key)"'); then
+                          echo "::warning::the cache entries under $prefix could not be listed; older ones stay for now"
+                          continue
+                      fi
+                      # A key restored from another ref, or a save that did not reach the store, is not among them.
+                      if ! grep -qxF -- "$keep" <<< "$(cut -d' ' -f2 <<< "$entries")"; then
+                          echo "$keep is not stored for $GITHUB_REF; the older entries of $prefix stay"
+                          continue
+                      fi
+                      while read -r id key; do
+                          if [ -z "${id:-}" ] || [ "$key" = "$keep" ]; then
+                              continue
+                          fi
+                          if gh cache delete --repo "$GITHUB_REPOSITORY" "$id"; then
+                              echo "Deleted the older cache entry $key."
+                          else
+                              echo "::warning::the older cache entry $key could not be deleted; the next run retries"
+                          fi
+                      done <<< "$entries"
+                  done <<< "$KEEP"
 
     # Only when the newest snapshot was made from other inputs than this commit names, or when a person
     # starts this workflow on main by hand. The legs of every Porelo repository boot the newest snapshot, so

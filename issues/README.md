@@ -50,7 +50,6 @@ left out.
 | <a id="bt68"></a>[BT68](BT68-Project-Read-Takes-Any-Clone-URL.md) | S | - | `Project.read` in porelo-stories reads the project.yml of any project, wherever its repositories live: `https://`, `ssh://` and scp-like centrals on any host and under any owner, the name being the last part of the path without `.git`; anything else is refused naming the key and the value. |
 | <a id="bt59"></a>[BT59](BT59-The-Stories-Library-Names-No-Host-Of-Its-Own.md) | - | - | The stories library takes its link pattern and the central's host from its caller, so a program that is not porelo-ai's own, stories-git among them, writes story texts and indexes naming its own host. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
-| <a id="bt78"></a>[BT78](BT78-Outside-Downloads-Cached-Newest-Copy-Kept.md) | S | - | Every download porelo-buildtools' CI takes from outside is cached or named as not cacheable, and of each cache only the newest copy is kept: the Maven repository's cache no longer grows by restore-keys, and a saved key removes the copies it replaces. |
 
 ## Review
 
@@ -87,6 +86,7 @@ left out.
 | <a id="bt38"></a>[BT38](BT38-One-Directory-Per-Release-Plan.md) | S | - | A release plan is `plan/<release>/plan.yml`, its page `README.md` and its progress image beside it, so the forge shows the page on opening the directory; the old layout is not read. |
 | <a id="bt36"></a>[BT36](BT36-A-Forge-Pull-Request-From-The-Same-Repository-Counts-As-Inside.md) | S | - | A pull request on the host's forge from a branch of the same repository is checked as one from inside, told apart by `github.server_url`, since Forgejo sends no `author_association`; GitHub keeps its rule. |
 | <a id="bt70"></a>[BT70](BT70-The-Release-Plan-Commands-Removed.md) | S | - | porelo-release has no `plan` command any more: Plan, PlanCheck, PlanRender, PlanStand and PlanTemplate, their tests, documentation and changelog entries are deleted, not moved. |
+| <a id="bt78"></a>[BT78](BT78-Outside-Downloads-Cached-Newest-Copy-Kept.md) | S | - | Every download porelo-buildtools' CI takes from outside is cached or named as not cacheable, and of each cache only the newest copy is kept: the Maven repository's cache no longer grows by restore-keys, and a saved key removes the copies it replaces. |
 
 ## Finished
 

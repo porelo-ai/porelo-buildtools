@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT78",
   "title": "Outside Downloads Cached, Newest Copy Kept",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 27,
@@ -59,3 +59,31 @@ contract another repository reads.
 - How [BT50](README.md#bt50) meets this: it lets a pinned download ask further sources when the first cannot answer; it helps a cache
   miss during an outage, this issue makes misses rarer. Neither waits on the other; both touch `pinned.sh`'s callers,
   so they are built one after the other.
+
+## As built
+
+- `pinned-jdk` restores the local Maven repository by its prefix with `actions/cache/restore` and never saves it. A
+  step marks each restored file unread, at the epoch, so the runner's relatime records the first read of each.
+- `.github/actions/maven-cache-keep`, the build job's last step, drops this repository's modules at the root pom's
+  version, so porelo-parent and other porelo libraries stay. It also drops every version directory in which no file
+  was read since the mark, then saves under the poms' hash. A directory is kept whole, as Maven only asks whether a
+  jar exists. Nothing is saved after an exact hit. A runner whose probe file records no read keeps the repository
+  whole, with a warning.
+- Only build.yml's build job saves the Maven repository. The other jobs restore its entry and fetch what it lacks, so
+  no two jobs race for one key.
+- The wrapper's Maven is split into restore and save, saved once the wrapper ran. `pinned-jdk` hands each cache's key
+  to the job as outputs, only when it was restored or saved.
+- The clean-up is build.yml's `prune` job, after the pattern of the site's: its own job with `actions: write`, the
+  runner's `gh` alone, `GH_TOKEN` and `KEEP`, on https://github.com only, for the Build's own ref only. It takes only
+  the four prefixes with a key of each, and deletes nothing of a prefix whose key is not stored for that ref.
+  check-actions lists `build.yml/prune` beside the others. Seen red first: `acceptsActionsWriteInTheCachePruneJob`
+  for build.yml, and `thisRepositorysOwnWorkflowsFetchNothingByAName` over the workflows.
+- The acceptance runs on GitHub: two Builds in a row, and the cache list after a pom change. Locally, check-actions,
+  the release module's tests and the unread-file pruning on a relatime directory are green.
+- Not done: machines.yml, prune-snapshots.yml, shared-rules.yml and workflows.yml do not save the Maven repository, and
+  their GraalVM, shfmt and wrapper entries are pruned only by the next Build. The snapshots job's matrix shares the
+  build's entry.
+- Read by agy (2026-11-12). Eight findings, all taken: a missed key handed out, a save that did not reach the store,
+  main's prune reaching pull requests and tags, the KEEP lines unchecked, a noatime runner seen as recording reads, jars
+  only asked about, porelo-parent dropped, and the stage record. The keep step and the prune were run locally against
+  a stand-in repository and a stand-in gh.

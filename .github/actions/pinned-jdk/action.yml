@@ -13,19 +13,68 @@
 # rule in pinned.sh, which PinnedRetry in porelo-pinned-rule follows too.
 name: Pinned GraalVM
 description: Installs the GraalVM porelo-machines pins, checked against its digest, as JAVA_HOME for the rest of the job, and the pinned shfmt on the PATH.
+# The key of each cache the job restored or saved, for the job that keeps only the newest entry of each (build.yml's
+# prune): a job that fetches code holds no token that deletes. Empty where nothing was restored or saved.
+outputs:
+    maven:
+        description: The key of the local Maven repository restored, or the one maven-cache-keep saves.
+        value: ${{ steps.maven-unread.outputs.key }}
+    # Restored, or saved by this job: a key missed and never saved names nothing, so no entry is deleted for it.
+    wrapper:
+        description: The key of the wrapper's Maven.
+        value: >-
+            ${{ steps.wrapper-cache.outputs.cache-matched-key
+            || (steps.wrapper-save.outcome == 'success' && steps.wrapper-cache.outputs.cache-primary-key) || '' }}
+    shfmt:
+        description: The key of the pinned shfmt.
+        value: >-
+            ${{ steps.shfmt-cache.outputs.cache-matched-key
+            || (steps.shfmt-save.outcome == 'success' && steps.shfmt-cache.outputs.cache-primary-key) || '' }}
+    graalvm:
+        description: The key of the pinned GraalVM.
+        value: >-
+            ${{ steps.graalvm-cache.outputs.cache-matched-key
+            || (steps.graalvm-save.outcome == 'success' && steps.graalvm-cache.outputs.cache-primary-key) || '' }}
 runs:
     using: composite
     steps:
-        # What setup-graalvm's 'cache: maven' did.
-        - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # The local Maven repository, restored by its prefix and never saved here: build.yml's build job saves it
+        # with maven-cache-keep as its last step, holding only what it read, so old versions do not pile up.
+        - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          id: maven-cache
           with:
               path: ~/.m2/repository
               key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
               restore-keys: maven-${{ runner.os }}-
 
+        # Every restored file is marked unread, at the epoch: the runner's relatime then records the first read of each,
+        # and maven-cache-keep keeps only the files read after this step.
+        - name: Mark the restored Maven repository unread
+          id: maven-unread
+          shell: bash
+          env:
+              HIT: ${{ steps.maven-cache.outputs.cache-hit }}
+              KEY: ${{ steps.maven-cache.outputs.cache-primary-key }}
+              MATCHED: ${{ steps.maven-cache.outputs.cache-matched-key }}
+          run: |
+              set -eu
+              mkdir -p "$HOME/.m2/repository"
+              {
+                  echo "PORELO_MAVEN_CACHE_KEY=$KEY"
+                  echo "PORELO_MAVEN_CACHE_HIT=${HIT:-false}"
+                  echo "PORELO_MAVEN_CACHE_SINCE=$(date +%s)"
+              } >> "$GITHUB_ENV"
+              # The entry restored, which the prune keeps unless maven-cache-keep saves a newer one.
+              echo "key=$MATCHED" >> "$GITHUB_OUTPUT"
+              find "$HOME/.m2/repository" -type f -exec touch -a -d @0 {} +
+              # A file beside the repository, read only before the save, says whether its file system records reads.
+              touch "$HOME/.m2/porelo-atime-probe"
+              touch -a -d @0 "$HOME/.m2/porelo-atime-probe"
+
         # The wrapper's Maven, fetched once per pin: without it every job fetched it with one wget and no retry, and a
-        # single network hiccup failed a Build (2026-11-06).
-        - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # single network hiccup failed a Build (2026-11-06). Saved once the wrapper ran, below.
+        - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          id: wrapper-cache
           with:
               path: ~/.m2/wrapper
               key: maven-wrapper-${{ runner.os }}-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
@@ -56,6 +105,7 @@ runs:
               echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
         - if: steps.shfmt-cache.outputs.cache-hit != 'true'
+          id: shfmt-save
           uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
           with:
               path: ~/.cache/porelo-pinned/shfmt
@@ -86,6 +136,14 @@ runs:
                   || { echo "::error::porelo-machines named no pinned digest"; exit 1; }
               echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
 
+        # The wrapper ran in the step above, so its Maven is there to keep.
+        - if: steps.wrapper-cache.outputs.cache-hit != 'true'
+          id: wrapper-save
+          uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          with:
+              path: ~/.m2/wrapper
+              key: ${{ steps.wrapper-cache.outputs.cache-primary-key }}
+
         - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
           id: graalvm-cache
           with:
@@ -103,6 +161,7 @@ runs:
                   org.fuin.porelo.machines.Main jdk --github --cache "$HOME/.cache/porelo-pinned/graalvm"
 
         - if: steps.graalvm-cache.outputs.cache-hit != 'true'
+          id: graalvm-save
           uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
           with:
               path: ~/.cache/porelo-pinned/graalvm

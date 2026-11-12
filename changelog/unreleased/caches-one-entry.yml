@@ -1,0 +1,2 @@
+title: "The Build keeps one entry of each cache: the local Maven repository is saved by the build job alone with only what it read, and build.yml's `prune` job deletes the older entries of the Maven repository, the wrapper's Maven, shfmt and the GraalVM."
+type: changed

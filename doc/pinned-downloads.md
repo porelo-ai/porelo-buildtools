@@ -13,6 +13,21 @@ A pinned download is cached with `actions/cache`, keyed by its digest:
 - `porelo-machines jdk --print-sha256` prints the GraalVM's digest for the key. `jdk --cache <dir>` keeps the archive
   there as `<sha256>.tar.gz`, or `<sha256>.zip` on Windows.
 
+## One entry of each cache
+
+porelo-buildtools' own Build keeps one entry of each cache, the newest under its prefix:
+- **The local Maven repository** is restored by its prefix in every job, and saved by the build job alone with
+  `maven-cache-keep` as its last step. Before the save, this repository's own modules at its version go, and so does
+  every version directory in which the job read no file. `pinned-jdk` marks each restored file unread, and the runner
+  records the first read. A directory is kept whole, since Maven only asks whether a jar exists. A runner that records
+  no reads, as a probe file shows, keeps the repository whole and says so.
+- **The wrapper's Maven**, shfmt and the GraalVM keep their keys; the wrapper's is saved once the wrapper ran.
+- **build.yml's `prune` job** deletes every older entry under each prefix, `maven-`, `maven-wrapper-`, `pinned-shfmt-`
+  and `pinned-graalvm-`, of the Build's own ref only. It keeps the key the build restored or saved, and deletes
+  nothing of a prefix whose key is not stored for that ref. It takes only those four prefixes, each with a key of its
+  own. It is a job of its own, since no code it fetches runs beside a token that deletes. On another forge it does not
+  run; that forge ages its caches out by its own rule. A deletion that fails is a warning and the Build stays green.
+
 ## The GraalVM on Linux and Windows
 
 `porelo-machines jdk` installs the archive pinned for the system it runs on: the tar.gz on Linux x86-64, the zip of the

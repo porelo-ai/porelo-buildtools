@@ -1,0 +1,62 @@
+# The local Maven repository pinned-jdk restored, saved as build.yml's build job's last step with only what this job
+# read: this repository's own modules and every version directory with no file read since pinned-jdk marked them
+# unread are dropped first, so an entry restored by its prefix carries no old version into the next. build.yml's prune
+# job then deletes the entries it replaces. Nothing is saved after an exact hit: that entry holds this poms' state.
+#
+# A runner that records no reads (noatime) keeps the repository whole and says so, rather than save an empty one.
+name: Keep the Maven repository
+description: Saves the local Maven repository pinned-jdk restored, with only what this job read.
+outputs:
+    key:
+        description: The key saved, or empty when nothing was.
+        value: ${{ steps.saved.outputs.key }}
+runs:
+    using: composite
+    steps:
+        - if: env.PORELO_MAVEN_CACHE_HIT != 'true'
+          name: Drop what this job did not read
+          shell: bash
+          run: |
+              set -eu
+              repository=$HOME/.m2/repository
+              probe=$HOME/.m2/porelo-atime-probe
+              since=${PORELO_MAVEN_CACHE_SINCE:?pinned-jdk did not run in this job}
+              # This repository's own modules, at the version its root pom names, which every build installs anew;
+              # porelo-parent and the porelo libraries of other versions stay.
+              version=$(sed -n '/<\/parent>/,$ s:^ *<version>\([^<]*\)</version>.*:\1:p' pom.xml | head -1)
+              if [[ $version =~ ^[A-Za-z0-9._-]+$ ]]; then
+                  find "$repository/org/fuin/porelo" -mindepth 2 -maxdepth 2 -type d -name "$version" \
+                      -exec rm -rf {} + 2>/dev/null || true
+              else
+                  echo "::warning::the root pom names no version; this repository's own modules stay in the cache"
+              fi
+              # A write gives a file the time of now on any file system; only a read of the probe says reads count.
+              cat "$probe" > /dev/null 2>&1 || true
+              if [ -z "$(find "$probe" -newerat "@$since" 2>/dev/null)" ]; then
+                  rm -f "$probe"
+                  echo "::warning::this runner records no reads in the Maven repository; it is kept whole"
+                  exit 0
+              fi
+              rm -f "$probe"
+              # A version's directory is kept whole when any file in it was read: Maven reads its _remote.repositories
+              # or pom and only asks whether the jar exists, which records no read of the jar.
+              before=$(du -sm "$repository" | cut -f1)
+              read_dirs=$(mktemp)
+              find "$repository" -type f -newerat "@$since" -printf '%h\n' | sort -u > "$read_dirs"
+              find "$repository" -type f -printf '%h\n' | sort -u | comm -23 - "$read_dirs" \
+                  | while IFS= read -r unread; do find "$unread" -maxdepth 1 -type f -delete; done
+              rm -f "$read_dirs"
+              find "$repository" -mindepth 1 -type d -empty -delete
+              echo "the Maven repository keeps what this job read: $before MB, now $(du -sm "$repository" | cut -f1) MB"
+
+        - if: env.PORELO_MAVEN_CACHE_HIT != 'true'
+          id: save
+          uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          with:
+              path: ~/.m2/repository
+              key: ${{ env.PORELO_MAVEN_CACHE_KEY }}
+
+        - if: env.PORELO_MAVEN_CACHE_HIT != 'true' && steps.save.outcome == 'success'
+          id: saved
+          shell: bash
+          run: echo "key=$PORELO_MAVEN_CACHE_KEY" >> "$GITHUB_OUTPUT"
