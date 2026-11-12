@@ -297,6 +297,18 @@ class StorySchemaTest {
         final ObjectNode version = valid.deepCopy();
         version.put("$schema", "story-3.json");
         invalid.add(version);
+        // A size is optional: each of the five passes, any other word or type is refused.
+        for (String size : List.of("XS", "S", "M", "L", "XL")) {
+            final ObjectNode sized = valid.deepCopy();
+            sized.put("size", size);
+            assertThat(schema.validate(sized)).as("a story of size %s", size).isEmpty();
+            assertThat(StorySchema.faults(sized, 2)).as("a story of size %s", size).isEmpty();
+        }
+        for (String size : List.of("\"XXL\"", "\"s\"", "\"\"", "3", "null")) {
+            final ObjectNode sized = valid.deepCopy();
+            sized.set("size", JSON.readTree(size));
+            invalid.add(sized);
+        }
         for (JsonNode head : invalid) {
             assertThat(schema.validate(head))
                     .as("independent invalid variant %s", head)

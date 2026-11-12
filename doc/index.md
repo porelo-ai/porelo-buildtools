@@ -643,7 +643,8 @@ YAML. Its other methods are `states()`, `closed(String)`, `measured(String)`, `r
 workflow; `order` is zero based. `rejected` identifies Rejected, the one closed state that is not done work.
 
 A new head declares `"$schema": "story-2.json"`. It requires `state` when `issues` is empty and allows it beside
-issues. Legacy heads without `$schema` use story-1. The index command upgrades each legacy head by inserting
+issues. It may name a `size`, one of XS, S, M, L and XL, which whoever estimated the story writes; a head without
+it is as valid as before. Legacy heads without `$schema` use story-1. The index command upgrades each legacy head by inserting
 `  "$schema": "story-2.json",` as the object's first property line and removing the `state` line only when the
 story has issues. The other JSON bytes keep their indentation, colon spacing, key order, array layout, nulls,
 and escaping; heads already in story-2 retain their bytes. When a legacy stated state differs from computation,

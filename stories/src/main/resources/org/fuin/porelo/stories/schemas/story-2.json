@@ -36,6 +36,16 @@
         "Lowest"
       ]
     },
+    "size": {
+      "description": "Optional: the size whoever estimated the story gave it; left out before then.",
+      "enum": [
+        "XS",
+        "S",
+        "M",
+        "L",
+        "XL"
+      ]
+    },
     "gain": {
       "description": "What a user gains, in one sentence.",
       "$ref": "#/$defs/line",

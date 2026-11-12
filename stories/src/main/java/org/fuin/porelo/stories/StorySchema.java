@@ -20,6 +20,9 @@ final class StorySchema {
     private static final List<String> PRIORITIES =
             List.of("Highest", "High", "Medium", "Low", "Lowest");
 
+    /** The sizes a story-2 head may name; story-1 names none. */
+    private static final List<String> SIZES = List.of("XS", "S", "M", "L", "XL");
+
     private StorySchema() {}
 
     static List<String> faults(JsonNode data) {
@@ -98,12 +101,19 @@ final class StorySchema {
                 .forEachRemaining(
                         field -> {
                             if (!PROPERTIES.contains(field)
-                                    && !(version == 2 && field.equals("$schema")))
+                                    && !(version == 2
+                                            && (field.equals("$schema") || field.equals("size"))))
                                 faults.add(
                                         "/: property '"
                                                 + field
                                                 + "' is not defined in the schema and the schema does not allow additional properties");
                         });
+        final JsonNode size = data.get("size");
+        if (version == 2 && size != null && !(size.isTextual() && SIZES.contains(size.asText())))
+            faults.add(
+                    "/size: does not have a value in the enumeration [\""
+                            + String.join("\", \"", SIZES)
+                            + "\"]");
         for (final String field : REQUIRED)
             if (!(version == 2 && field.equals("state")) && !data.has(field))
                 faults.add("/: required property '" + field + "' not found");
