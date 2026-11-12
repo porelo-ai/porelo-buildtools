@@ -25,11 +25,12 @@ the shared rules refuse one that does:
 
 ## Why
 
-BT25 kept the old call and the old variable names so that no caller had to move at once. On main of 2026-11-12,
-porelo-frontend, porelo-claude-code, porelo-pi, porelo-omp and porelo-agy ask by kind; only porelo still names
-`HETZNER_API`, `HETZNER_SSH` and `--type` (`.github/workflows/build.yml`, `sweep.yml`, and its legs' `Main`). Once
+[BT25](README.md#bt25) kept the old call and the old variable names so that no caller had to move at once. On main of
+2026-11-12, porelo-frontend, porelo-claude-code, porelo-pi, porelo-omp and porelo-agy ask by kind; only porelo still
+names `HETZNER_API`, `HETZNER_SSH` and `--type` (`.github/workflows/build.yml`, `sweep.yml`, and its legs' `Main`). Once
 porelo has moved, through its own issue, nothing calls the old way any more.
 
 ## To be checked
 
-- porelo's issue that moves it to kinds: this issue waits for it, and names it under `blockedBy` once it is filed.
+- This issue waits for porelo's B667, "Porelo's Legs Ask For Machines By Kind", which moves porelo to kinds. B667
+  checks how it meets porelo's B322, whose pool leg on the host's forge keeps `--type` today.
