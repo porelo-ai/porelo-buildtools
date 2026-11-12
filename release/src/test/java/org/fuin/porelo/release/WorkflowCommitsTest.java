@@ -110,8 +110,10 @@ class WorkflowCommitsTest {
     void theScheduleChecksMainsPushesOfTheLastDay() throws IOException, InterruptedException {
         final JsonNode step = scheduledStep();
         assertThat(step.path("if").asText())
-                .as("the step runs on the schedule")
-                .isEqualTo("github.event_name == 'schedule'");
+                .as("the step runs on the schedule, on GitHub alone")
+                .isEqualTo(
+                        "github.event_name == 'schedule' && github.server_url =="
+                                + " 'https://github.com'");
         assertThat(step.path("env").path("GITHUB_TOKEN").asText())
                 .as("the run's own token reads the repository's activity")
                 .isEqualTo("${{ github.token }}");

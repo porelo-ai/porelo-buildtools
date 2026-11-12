@@ -79,8 +79,10 @@ jobs:
             # A push the Build never starts, of [skip ci] commits or of documents alone, meets no check of its own, so
             # each day main's pushes of the last 26 hours, two hours over the schedule's own day, are read from the
             # repository's activity, each by its own range: a commit made long before its push is read too.
+            # GitHub's API alone holds the activity; the host's forge's pushes reach GitHub through the gathered push and
+            # are read there.
             - name: Main's pushes of the last day
-              if: github.event_name == 'schedule'
+              if: github.event_name == 'schedule' && github.server_url == 'https://github.com'
               env:
                   GITHUB_TOKEN: ${{ github.token }}
               run: |

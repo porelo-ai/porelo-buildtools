@@ -26,6 +26,9 @@ jobs:
     # younger ones exist.
     refresh:
         name: Ask upstream
+        # Its pull request is opened with gh, which speaks to GitHub alone: on the host's forge the schedule would
+        # fail every day.
+        if: github.server_url == 'https://github.com'
         runs-on: ubuntu-26.04
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}

@@ -1,7 +1,7 @@
 # What a Porelo task on this repository is built from: Ubuntu 26.04 by digest, with what the Build's pinned-jdk step
 # gives a job - the pinned GraalVM as JAVA_HOME and the pinned shfmt - and git, curl and unzip for the Maven Wrapper.
-# A draft of the file a repository chooses its task image by, whose reader in porelo does not exist yet, so nothing
-# reads it today. Tools only: the rules a task runs under are the project's.
+# The file a repository chooses its task image by: Porelo builds a task's image from it. Tools only: the rules a task
+# runs under are the project's.
 #
 # The snapshots and Publish jobs are not here: they rent machines and hold the release keys, which no task does.
 image:
