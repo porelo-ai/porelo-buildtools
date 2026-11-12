@@ -44,6 +44,8 @@ final class Api implements AutoCloseable {
 
     private final String token;
 
+    private final Waiting waiting;
+
     Api(String token) {
         this(token, BASE);
     }
@@ -55,6 +57,18 @@ final class Api implements AutoCloseable {
      * @param base The API root, without a trailing slash.
      */
     Api(String token, String base) {
+        this(token, base, Waiting.SYSTEM);
+    }
+
+    /**
+     * Points at another root and waits out a rate limit as told, for a test of the waiting.
+     *
+     * @param token The API token.
+     * @param base The API root, without a trailing slash.
+     * @param waiting The pause a rate limit is waited out with.
+     */
+    Api(String token, String base, Waiting waiting) {
+        this.waiting = waiting;
         this.base = base;
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException(
@@ -184,9 +198,9 @@ final class Api implements AutoCloseable {
         return parsed;
     }
 
-    private static void pause(Duration duration) throws IOException {
+    private void pause(Duration duration) throws IOException {
         try {
-            Thread.sleep(duration.toMillis());
+            waiting.sleep(duration);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting out a rate limit", ex);

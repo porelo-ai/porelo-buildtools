@@ -102,8 +102,8 @@ public final class Hetzner implements Machines {
 
     private final String runId;
 
-    /** How long to wait between attempts at a full project. Shortened by tests, never in use. */
-    private final Duration limitWait;
+    /** The clock a wait reads and the pause it takes. Moved at once by tests, never in use. */
+    private final Waiting waiting;
 
     /** How long the job that rents may hold a server, which its expiry is made from. */
     private final Duration timeLimit;
@@ -111,10 +111,10 @@ public final class Hetzner implements Machines {
     /** What a server's creation and the sweep's now are read from. Fixed by tests, never in use. */
     private final Clock clock;
 
-    private Hetzner(Api api, String runId, Duration limitWait, Duration timeLimit, Clock clock) {
+    private Hetzner(Api api, String runId, Waiting waiting, Duration timeLimit, Clock clock) {
         this.api = api;
         this.runId = runId;
-        this.limitWait = limitWait;
+        this.waiting = waiting;
         this.timeLimit = timeLimit;
         this.clock = clock;
     }
@@ -134,7 +134,11 @@ public final class Hetzner implements Machines {
 
     static Machines open(String token, String runId) {
         return new Hetzner(
-                new Api(token), runId, LIMIT_WAIT, Machines.DEFAULT_TIME_LIMIT, Clock.systemUTC());
+                new Api(token),
+                runId,
+                Waiting.SYSTEM,
+                Machines.DEFAULT_TIME_LIMIT,
+                Clock.systemUTC());
     }
 
     /**
@@ -152,7 +156,7 @@ public final class Hetzner implements Machines {
         if (limit.isNegative() || limit.isZero()) {
             throw new IllegalArgumentException("a time limit must be positive, not " + limit);
         }
-        return new Hetzner(api, runId, limitWait, limit, clock);
+        return new Hetzner(api, runId, waiting, limit, clock);
     }
 
     /**
@@ -162,7 +166,7 @@ public final class Hetzner implements Machines {
      * @return The API.
      */
     Hetzner at(Clock fixed) {
-        return new Hetzner(api, runId, limitWait, timeLimit, fixed);
+        return new Hetzner(api, runId, waiting, timeLimit, fixed);
     }
 
     /**
@@ -173,22 +177,22 @@ public final class Hetzner implements Machines {
      * @return The API.
      */
     static Hetzner against(String base, String runId) {
-        return against(base, runId, LIMIT_WAIT);
+        return against(base, runId, Waiting.SYSTEM);
     }
 
     /**
-     * Points at another API root and does not really wait, for a test of the waiting.
+     * Points at another API root and waits as told, for a test of the waiting.
      *
      * @param base The API root, without a trailing slash.
      * @param runId Identifies this run.
-     * @param limitWait How long to wait between attempts.
+     * @param waiting The clock a wait reads and the pause it takes.
      * @return The API.
      */
-    static Hetzner against(String base, String runId, Duration limitWait) {
+    static Hetzner against(String base, String runId, Waiting waiting) {
         return new Hetzner(
-                new Api("test-token", base),
+                new Api("test-token", base, waiting),
                 runId,
-                limitWait,
+                waiting,
                 DEFAULT_TIME_LIMIT,
                 Clock.systemUTC());
     }
@@ -426,13 +430,13 @@ public final class Hetzner implements Machines {
                 }
                 System.out.println(
                         "  at the project's server limit, waiting "
-                                + limitWait.toSeconds()
+                                + LIMIT_WAIT.toSeconds()
                                 + "s ("
                                 + attempt
                                 + "/"
                                 + LIMIT_ATTEMPTS
                                 + ")");
-                sleep(limitWait);
+                sleep(LIMIT_WAIT);
             }
         }
         throw new IOException("unreachable");
@@ -499,10 +503,10 @@ public final class Hetzner implements Machines {
             return;
         }
         final long id = Values.id(action.get("id"));
-        final Instant deadline = Instant.now().plus(ACTION_PATIENCE);
+        final Instant deadline = waiting.now().plus(ACTION_PATIENCE);
         String status = Values.text(action, "status");
         while ("running".equals(status)) {
-            if (Instant.now().isAfter(deadline)) {
+            if (waiting.now().isAfter(deadline)) {
                 throw new IOException(
                         "action "
                                 + id
@@ -1004,9 +1008,9 @@ public final class Hetzner implements Machines {
         return inputs.equals(Values.labels(newest).get("inputs"));
     }
 
-    private static void sleep(Duration duration) throws IOException {
+    private void sleep(Duration duration) throws IOException {
         try {
-            Thread.sleep(duration.toMillis());
+            waiting.sleep(duration);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting", ex);

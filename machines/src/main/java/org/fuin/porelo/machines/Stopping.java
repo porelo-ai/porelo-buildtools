@@ -24,6 +24,56 @@ import java.util.function.IntConsumer;
  */
 public final class Stopping implements AutoCloseable {
 
+    /** A process whose end is a cancel. */
+    interface WatchedProcess {
+
+        /**
+         * Says whether it still runs.
+         *
+         * @return Whether it is alive.
+         */
+        boolean isAlive();
+
+        /**
+         * Names it.
+         *
+         * @return Its process id.
+         */
+        long pid();
+
+        /**
+         * Watches a real process.
+         *
+         * @param handle The process.
+         * @return It, watched.
+         */
+        static WatchedProcess of(ProcessHandle handle) {
+            return new WatchedProcess() {
+                @Override
+                public boolean isAlive() {
+                    return handle.isAlive();
+                }
+
+                @Override
+                public long pid() {
+                    return handle.pid();
+                }
+            };
+        }
+    }
+
+    /** The pause between two looks at the watched processes. */
+    @FunctionalInterface
+    interface Tick {
+
+        /**
+         * Waits until the next look is due.
+         *
+         * @throws InterruptedException When the watch is ended.
+         */
+        void next() throws InterruptedException;
+    }
+
     /** The exit code of a leg that was cancelled, as a shell reports an end by SIGINT. */
     static final int CANCELLED = 130;
 
@@ -56,7 +106,11 @@ public final class Stopping implements AutoCloseable {
      * @return What stops it; closing it ends the watch.
      */
     public static Stopping on(Lease lease) {
-        return new Stopping(ancestors(), () -> stop(lease::close), System::exit, LOOK);
+        return new Stopping(
+                ancestors().stream().map(WatchedProcess::of).toList(),
+                () -> stop(lease::close),
+                System::exit,
+                () -> Thread.sleep(LOOK.toMillis()));
     }
 
     /**
@@ -65,9 +119,9 @@ public final class Stopping implements AutoCloseable {
      * @param watched The processes whose end is a cancel.
      * @param stop What stopping does, run once.
      * @param exit How the leg ends after a cancel it noticed itself.
-     * @param look How often the watched processes are looked at.
+     * @param tick The pause between two looks at the watched processes.
      */
-    Stopping(List<ProcessHandle> watched, Runnable stop, IntConsumer exit, Duration look) {
+    Stopping(List<WatchedProcess> watched, Runnable stop, IntConsumer exit, Tick tick) {
         this.stop = stop;
         hook = new Thread(this::stopOnce, "stop the leg on a signal");
         Runtime.getRuntime().addShutdownHook(hook);
@@ -79,7 +133,7 @@ public final class Stopping implements AutoCloseable {
                                 () -> {
                                     try {
                                         while (!closed.get()) {
-                                            final Optional<ProcessHandle> gone =
+                                            final Optional<WatchedProcess> gone =
                                                     watched.stream()
                                                             .filter(process -> !process.isAlive())
                                                             .findFirst();
@@ -92,7 +146,7 @@ public final class Stopping implements AutoCloseable {
                                                 exit.accept(CANCELLED);
                                                 return;
                                             }
-                                            Thread.sleep(look.toMillis());
+                                            tick.next();
                                         }
                                     } catch (InterruptedException ex) {
                                         Thread.currentThread().interrupt();

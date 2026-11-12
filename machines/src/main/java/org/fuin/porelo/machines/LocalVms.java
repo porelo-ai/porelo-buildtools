@@ -63,6 +63,8 @@ public final class LocalVms implements Machines {
 
     private final Virsh virsh;
 
+    private final Waiting waiting;
+
     /**
      * Constructor with the machines this host has.
      *
@@ -70,8 +72,20 @@ public final class LocalVms implements Machines {
      * @param virsh How to run virsh.
      */
     public LocalVms(Map<String, String> domains, Virsh virsh) {
+        this(domains, virsh, Waiting.SYSTEM);
+    }
+
+    /**
+     * Constructor that reads the time and pauses as told, for a test.
+     *
+     * @param domains Maps the {@code os} a spec asks for to a libvirt domain name.
+     * @param virsh How to run virsh.
+     * @param waiting The clock and the pause of the wait for an address.
+     */
+    LocalVms(Map<String, String> domains, Virsh virsh, Waiting waiting) {
         this.domains = Map.copyOf(domains);
         this.virsh = virsh;
+        this.waiting = waiting;
     }
 
     @Override
@@ -120,13 +134,13 @@ public final class LocalVms implements Machines {
      * @throws IOException If it never gets one.
      */
     private String addressOf(String domain) throws IOException {
-        final Instant deadline = Instant.now().plus(ADDRESS_PATIENCE);
+        final Instant deadline = waiting.now().plus(ADDRESS_PATIENCE);
         while (true) {
             final String found = address(virsh.run("domifaddr", domain));
             if (found != null) {
                 return found;
             }
-            if (Instant.now().isAfter(deadline)) {
+            if (waiting.now().isAfter(deadline)) {
                 throw new IOException(
                         domain
                                 + " had no address after "
@@ -135,7 +149,7 @@ public final class LocalVms implements Machines {
                                 + "no guest agent to report one.");
             }
             try {
-                Thread.sleep(ADDRESS_INTERVAL.toMillis());
+                waiting.sleep(ADDRESS_INTERVAL);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IOException(

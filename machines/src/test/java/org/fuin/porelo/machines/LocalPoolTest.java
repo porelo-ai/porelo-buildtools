@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,6 +26,8 @@ class LocalPoolTest {
     @TempDir Path dir;
 
     private final List<String> resets = new ArrayList<>();
+
+    private final MovingClock clock = new MovingClock();
 
     @Test
     void twoRunsAtOnceGetTwoDifferentAccounts() throws IOException {
@@ -45,15 +48,17 @@ class LocalPoolTest {
             for (int i = 0; i < 4; i++) {
                 held.add(pool.acquire(spec()));
             }
-            final long started = System.nanoTime();
             assertThatThrownBy(() -> pool.acquire(spec()))
                     .as("a fifth run on four accounts must not share one")
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("All 4 accounts")
                     .hasMessageContaining("'ubuntu'");
-            assertThat(Duration.ofNanos(System.nanoTime() - started))
+            assertThat(clock.slept())
                     .as("it waits for an account before it refuses")
-                    .isGreaterThanOrEqualTo(Duration.ofMillis(300));
+                    .isGreaterThan(Duration.ofMillis(300));
+            assertThat(clock.sleeps)
+                    .as("looking again at each interval")
+                    .containsOnly(Duration.ofMillis(10));
         } finally {
             for (final Lease lease : held) {
                 lease.close();
@@ -61,7 +66,9 @@ class LocalPoolTest {
         }
     }
 
+    // Another JVM holds the lock, so this one starts a process.
     @Test
+    @Tag("integration")
     void anAccountHeldByAnotherProcessIsNotHandedOut() throws Exception {
         final Path lock = dir.resolve("state/pool-ubuntu/run1.lock");
         Files.createDirectories(lock.getParent());
@@ -141,7 +148,8 @@ class LocalPoolTest {
                             throw new IOException("the VM refused");
                         },
                         Duration.ZERO,
-                        Duration.ofMillis(10));
+                        Duration.ofMillis(10),
+                        clock);
         final Lease lease = pool.acquire(spec());
         assertThatThrownBy(lease::close)
                 .isInstanceOf(IOException.class)
@@ -231,7 +239,8 @@ class LocalPoolTest {
                                     : new Ssh.Output("", "", 0);
                         },
                         Duration.ofSeconds(5),
-                        Duration.ofMillis(1));
+                        Duration.ofMillis(1),
+                        clock);
         reset.reset(vm(), "run1");
         assertThat(asked)
                 .as("the account gives itself back, then waits for the VM's ready")
@@ -251,12 +260,16 @@ class LocalPoolTest {
                                         ? new Ssh.Output("resetting\n", "", 0)
                                         : new Ssh.Output("", "", 0),
                         Duration.ofMillis(200),
-                        Duration.ofMillis(10));
+                        Duration.ofMillis(10),
+                        clock);
         assertThatThrownBy(() -> reset.reset(vm(), "run1"))
                 .as("an account half reset must stay marked, not be handed out")
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("did not make run1 anew")
                 .hasMessageContaining("resetting");
+        assertThat(clock.slept())
+                .as("it waited its patience out")
+                .isEqualTo(Duration.ofMillis(200));
     }
 
     @Test
@@ -266,7 +279,8 @@ class LocalPoolTest {
                         (vm, account, command) ->
                                 new Ssh.Output("", "sudo: a password is required", 1),
                         Duration.ofSeconds(1),
-                        Duration.ofMillis(10));
+                        Duration.ofMillis(10),
+                        clock);
         assertThatThrownBy(() -> reset.reset(vm(), "run1"))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("could not give run1 back")
@@ -284,7 +298,8 @@ class LocalPoolTest {
                 dir.resolve("state"),
                 (vm, account) -> resets.add(vm.name() + "/" + account),
                 patience,
-                Duration.ofMillis(10));
+                Duration.ofMillis(10),
+                clock);
     }
 
     private Path poolFile() throws IOException {

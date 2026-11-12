@@ -657,7 +657,6 @@ class HetznerTest {
     @org.junit.jupiter.api.Nested
     @Tag("integration")
     class Acquisition {
-        private static final Duration NO_WAIT = Duration.ofMillis(1);
 
         private static StubApi lookups() throws IOException {
             return new StubApi()
@@ -722,7 +721,7 @@ class HetznerTest {
                                             new StubApi.Answer(
                                                     200,
                                                     "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
-                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
+                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", new MovingClock());
                 try (Lease rental = hetzner.acquire(spec(credential))) {
                     assertThat(rental.address()).isEqualTo("1.2.3.4");
                 }
@@ -763,7 +762,8 @@ class HetznerTest {
                                                     200,
                                                     "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
                 try (Lease rental =
-                        Hetzner.against(stub.base(), "run-1", NO_WAIT).acquire(spec(credential))) {
+                        Hetzner.against(stub.base(), "run-1", new MovingClock())
+                                .acquire(spec(credential))) {
                     assertThat(rental.address()).isEqualTo("1.2.3.4");
                 }
             }
@@ -831,7 +831,7 @@ class HetznerTest {
                                                     "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
                 try (Lease rental =
                         configured
-                                .apply(Hetzner.against(stub.base(), "run-1", NO_WAIT))
+                                .apply(Hetzner.against(stub.base(), "run-1", new MovingClock()))
                                 .acquire(spec(credential))) {
                     assertThat(rental.address()).isEqualTo("1.2.3.4");
                 }
@@ -873,7 +873,8 @@ class HetznerTest {
                                                     200,
                                                     "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
                 try (Lease rental =
-                        Hetzner.against(stub.base(), "run-1", NO_WAIT).acquire(spec(credential))) {
+                        Hetzner.against(stub.base(), "run-1", new MovingClock())
+                                .acquire(spec(credential))) {
                     pinned = rental.hostKey();
                 }
             }
@@ -891,6 +892,7 @@ class HetznerTest {
         @Test
         void givesUpOnAFullProjectOnlyAfterAnHour() throws IOException {
             final Credential credential = Keys.generated();
+            final MovingClock clock = new MovingClock();
             final AtomicInteger attempts = new AtomicInteger();
             try (StubApi stub =
                     lookups()
@@ -908,10 +910,14 @@ class HetznerTest {
                                     })) {
                 assertThatThrownBy(
                                 () ->
-                                        Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                                        Hetzner.against(stub.base(), "run-1", clock)
                                                 .acquire(spec(credential)))
                         .isInstanceOf(IOException.class)
                         .hasMessageContaining("after 60 minutes");
+                assertThat(clock.sleeps)
+                        .as("30 seconds between attempts, none after the last")
+                        .hasSize(119)
+                        .containsOnly(Duration.ofSeconds(30));
                 // Acceptance legs run one after another, so a run queued behind others waits out
                 // their
                 // whole legs: every 30 seconds for an hour.
@@ -974,7 +980,7 @@ class HetznerTest {
                                             new StubApi.Answer(
                                                     200,
                                                     "{\"action\":{\"id\":6,\"status\":\"success\"}}"))) {
-                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
+                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", new MovingClock());
                 try (Lease lease =
                         hetzner.acquire(
                                 Spec.of("p", "ubuntu", "build", credential)
@@ -1018,7 +1024,7 @@ class HetznerTest {
                                                             + "\"image disk is bigger than server type disk\"}}"))) {
                 assertThatThrownBy(
                                 () ->
-                                        Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                                        Hetzner.against(stub.base(), "run-1", new MovingClock())
                                                 .acquire(
                                                         Spec.of("p", "ubuntu", "build", credential)
                                                                 .tryingInOrder(List.of("cx23"))))
@@ -1049,7 +1055,7 @@ class HetznerTest {
                 // Burning an hour before reporting a bad image would be worse than failing now.
                 assertThatThrownBy(
                                 () ->
-                                        Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                                        Hetzner.against(stub.base(), "run-1", new MovingClock())
                                                 .acquire(spec(credential)))
                         .isInstanceOf(IOException.class)
                         .hasMessageContaining("image is not available");
@@ -1077,7 +1083,7 @@ class HetznerTest {
                                                 200,
                                                 "{\"action\":{\"id\":5,\"status\":\"success\"}}");
                                     })) {
-                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
+                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", new MovingClock());
                 assertThatThrownBy(
                                 () -> {
                                     try (Lease rental = hetzner.acquire(spec(credential))) {
@@ -1109,7 +1115,7 @@ class HetznerTest {
                                                 200,
                                                 "{\"action\":{\"id\":5,\"status\":\"success\"}}");
                                     })) {
-                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
+                final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", new MovingClock());
                 try (Lease rental = hetzner.acquire(spec(credential).kept())) {
                     assertThat(rental.address()).isEqualTo("1.2.3.4");
                 }
@@ -1146,7 +1152,8 @@ class HetznerTest {
                                                     200,
                                                     "{\"action\":{\"id\":6,\"status\":\"success\"}}"))) {
                 try (Lease rental =
-                        Hetzner.against(stub.base(), "run-1", NO_WAIT).acquire(spec(credential))) {
+                        Hetzner.against(stub.base(), "run-1", new MovingClock())
+                                .acquire(spec(credential))) {
                     assertThat(rental.address()).isEqualTo("1.2.3.4");
                 }
                 assertThat(polls.get()).isGreaterThanOrEqualTo(2);
@@ -1172,7 +1179,7 @@ class HetznerTest {
                                                     "{\"action\":{\"id\":6,\"status\":\"success\"}}"))) {
                 assertThatThrownBy(
                                 () ->
-                                        Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                                        Hetzner.against(stub.base(), "run-1", new MovingClock())
                                                 .acquire(spec(credential)))
                         .isInstanceOf(IOException.class)
                         .hasMessageContaining("ended as 'error'");
@@ -1207,7 +1214,7 @@ class HetznerTest {
                                                     "{\"error\":{\"code\":\"server_error\",\"message\":\"try again\"}}"))) {
                 assertThatThrownBy(
                                 () ->
-                                        Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                                        Hetzner.against(stub.base(), "run-1", new MovingClock())
                                                 .acquire(spec(credential)))
                         .satisfies(
                                 thrown ->

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -137,6 +138,40 @@ class LocalVmsTest {
                         });
         vms.acquire(spec()).close();
         assertThat(asked).doesNotContain("shutdown", "destroy");
+    }
+
+    // Prevents a lease from being handed out before the started machine has an address.
+    @Test
+    void waitsForAStartedMachineToGetAnAddress() throws IOException {
+        final MovingClock clock = new MovingClock();
+        final List<String> answers = new ArrayList<>(List.of("", "", DOMIFADDR));
+        final LocalVms vms =
+                new LocalVms(
+                        Map.of("ubuntu", "ubuntu26.04"),
+                        arguments ->
+                                "domstate".equals(arguments[0]) ? "running\n" : answers.remove(0),
+                        clock);
+        try (Lease lease = vms.acquire(spec())) {
+            assertThat(lease.address()).isEqualTo("192.0.2.10");
+        }
+        assertThat(clock.sleeps)
+                .as("a look every three seconds until the address is there")
+                .containsExactly(Duration.ofSeconds(3), Duration.ofSeconds(3));
+    }
+
+    // Prevents a machine without a network from holding the run forever.
+    @Test
+    void givesUpOnAMachineThatNeverGetsAnAddress() {
+        final MovingClock clock = new MovingClock();
+        final LocalVms vms =
+                new LocalVms(
+                        Map.of("ubuntu", "ubuntu26.04"),
+                        arguments -> "domstate".equals(arguments[0]) ? "running\n" : "",
+                        clock);
+        assertThatThrownBy(() -> vms.acquire(spec()))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("ubuntu26.04 had no address after 2 minutes");
+        assertThat(clock.slept()).isBetween(Duration.ofMinutes(2), Duration.ofSeconds(126));
     }
 
     private static Spec spec() {

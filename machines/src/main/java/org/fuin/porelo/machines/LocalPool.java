@@ -80,6 +80,8 @@ public final class LocalPool implements Machines {
 
     private final Duration interval;
 
+    private final Waiting waiting;
+
     /**
      * Constructor with everything it needs.
      *
@@ -97,6 +99,29 @@ public final class LocalPool implements Machines {
             Reset reset,
             Duration patience,
             Duration interval) {
+        this(pool, credential, state, reset, patience, interval, Waiting.SYSTEM);
+    }
+
+    /**
+     * Constructor that reads the time and pauses as told, for a test.
+     *
+     * @param pool The pool.
+     * @param credential The run accounts' key.
+     * @param state Where the accounts' locks and markers are kept.
+     * @param reset How an account is made clean again.
+     * @param patience How long to wait for a free account.
+     * @param interval How long between looks while every account is held.
+     * @param waiting The clock and the pause.
+     */
+    LocalPool(
+            Pool pool,
+            Credential credential,
+            Path state,
+            Reset reset,
+            Duration patience,
+            Duration interval,
+            Waiting waiting) {
+        this.waiting = waiting;
         this.pool = pool;
         this.credential = credential;
         this.state = state;
@@ -141,7 +166,7 @@ public final class LocalPool implements Machines {
                             + pool.vms().stream().map(Pool.Vm::os).distinct().toList()
                             + ".");
         }
-        final Instant deadline = Instant.now().plus(patience);
+        final Instant deadline = waiting.now().plus(patience);
         while (true) {
             for (final Pool.Vm vm : vms) {
                 for (final String account : vm.accounts()) {
@@ -151,7 +176,7 @@ public final class LocalPool implements Machines {
                     }
                 }
             }
-            if (Instant.now().isAfter(deadline)) {
+            if (waiting.now().isAfter(deadline)) {
                 throw new IOException(
                         "All "
                                 + pool.size(spec.os())
@@ -162,7 +187,7 @@ public final class LocalPool implements Machines {
                                 + " s; the pool's size is the limit.");
             }
             try {
-                Thread.sleep(interval.toMillis());
+                waiting.sleep(interval);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IOException("interrupted waiting for an account of the local pool", ex);
@@ -271,15 +296,28 @@ public final class LocalPool implements Machines {
      * @return The reset.
      */
     static Reset givenBack(AsAccount as, Duration patience, Duration interval) {
+        return givenBack(as, patience, interval, Waiting.SYSTEM);
+    }
+
+    /**
+     * Makes an account anew, reading the time and pausing as told.
+     *
+     * @param as How a command runs as the account.
+     * @param patience How long the VM may take.
+     * @param interval How long between looks.
+     * @param waiting The clock and the pause.
+     * @return The reset.
+     */
+    static Reset givenBack(AsAccount as, Duration patience, Duration interval, Waiting waiting) {
         return (vm, account) -> {
             final Ssh.Output given = as.run(vm, account, GIVE_BACK);
             if (given.status() != 0) {
                 throw new IOException(
                         "could not give " + account + " back on " + vm.name() + ": " + given.all());
             }
-            final Instant deadline = Instant.now().plus(patience);
+            final Instant deadline = waiting.now().plus(patience);
             String said = "";
-            while (Instant.now().isBefore(deadline)) {
+            while (waiting.now().isBefore(deadline)) {
                 try {
                     said = as.run(vm, account, "cat " + STATE + account).out().strip();
                     if ("ready".equals(said)) {
@@ -290,7 +328,7 @@ public final class LocalPool implements Machines {
                     said = ex.getMessage();
                 }
                 try {
-                    Thread.sleep(interval.toMillis());
+                    waiting.sleep(interval);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IOException(

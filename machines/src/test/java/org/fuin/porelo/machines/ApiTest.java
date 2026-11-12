@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +59,7 @@ class ApiTest {
     @Test
     void waitsOutARateLimitRatherThanFailing() throws IOException {
         final AtomicInteger calls = new AtomicInteger();
+        final MovingClock clock = new MovingClock();
         try (StubApi stub =
                         new StubApi()
                                 .answering(
@@ -72,9 +74,12 @@ class ApiTest {
                                             }
                                             return new StubApi.Answer(200, "{\"servers\":[]}");
                                         });
-                Api api = new Api("t", stub.base())) {
+                Api api = new Api("t", stub.base(), clock)) {
             assertThat(api.get("/servers")).containsKey("servers");
             assertThat(calls.get()).isEqualTo(2);
+            assertThat(clock.sleeps)
+                    .as("as long as Retry-After says")
+                    .containsExactly(Duration.ofSeconds(1));
         }
     }
 
