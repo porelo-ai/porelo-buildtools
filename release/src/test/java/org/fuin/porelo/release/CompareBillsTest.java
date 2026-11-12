@@ -2,25 +2,17 @@ package org.fuin.porelo.release;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@Tag("integration")
 class CompareBillsTest {
 
     private static final String CLI_OLD =
@@ -42,43 +34,12 @@ class CompareBillsTest {
 
     @TempDir Path directory;
 
-    private HttpServer server;
-
-    private final Map<String, Response> served = new ConcurrentHashMap<>();
+    /** Where the published bill is read; how {@link Web#overHttp()} reads it, WebTest proves. */
+    private final FakeWeb web = new FakeWeb();
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
-
-    private record Response(int status, String body, String location) {}
-
-    @BeforeEach
-    void serve() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext(
-                "/",
-                exchange -> {
-                    final Response response =
-                            served.getOrDefault(
-                                    exchange.getRequestURI().getPath(), new Response(404, "", ""));
-                    if (!response.location().isEmpty()) {
-                        exchange.getResponseHeaders().add("Location", response.location());
-                    }
-                    final byte[] body = response.body().getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(
-                            response.status(), body.length == 0 ? -1 : body.length);
-                    if (body.length > 0) {
-                        exchange.getResponseBody().write(body);
-                    }
-                    exchange.close();
-                });
-        server.start();
-    }
-
-    @AfterEach
-    void stop() {
-        server.stop(0);
-    }
 
     @Test
     void publishesWhenTheComponentsAndLicensesAreTheSame() throws IOException {
@@ -256,7 +217,7 @@ class CompareBillsTest {
 
     @Test
     void aServerErrorIsNeverReadAsNothingPublished() throws IOException {
-        served.put("/bill.json", new Response(500, "", ""));
+        web.fail(address("/bill.json").toString(), "HTTP 500");
 
         assertThat(compare(bill(LIB))).as(report()).isEqualTo(CompareBills.UNANSWERED);
         assertThat(stdout()).doesNotContain("publishing");
@@ -265,23 +226,10 @@ class CompareBillsTest {
 
     @Test
     void anUnreachableServerIsNeverReadAsNothingPublished() throws IOException {
-        final Path built = write(bill(LIB));
-        server.stop(0);
+        web.fail(address("/bill.json").toString(), "ConnectException");
 
-        final int code =
-                new CompareBills(stream(out), stream(err), Web.overHttp())
-                        .compare(built, address("/bill.json"), List.of());
-
-        assertThat(code).as(report()).isEqualTo(CompareBills.UNANSWERED);
-    }
-
-    @Test
-    void followsARedirectToWhereALargeBillIsKept() throws IOException {
-        served.put("/bill.json", new Response(302, "", address("/storage/bill.json").toString()));
-        publish("/storage/bill.json", bill(CLI_OLD));
-
-        assertThat(compare(bill(CLI_OLD, LIB))).as(report()).isEqualTo(CompareBills.STOP);
-        assertThat(stdout()).contains("  added     pkg:maven/org.example/lib@1.0");
+        assertThat(compare(bill(LIB))).as(report()).isEqualTo(CompareBills.UNANSWERED);
+        assertThat(stdout()).doesNotContain("publishing");
     }
 
     @Test
@@ -297,7 +245,7 @@ class CompareBillsTest {
         publish("/bill.json", bill(LIB));
 
         final int code =
-                new CompareBills(stream(out), stream(err), Web.overHttp())
+                new CompareBills(stream(out), stream(err), web)
                         .compare(
                                 directory.resolve("absent.json"), address("/bill.json"), List.of());
 
@@ -305,7 +253,7 @@ class CompareBillsTest {
     }
 
     private int compare(String builtBill, String... expectMoved) throws IOException {
-        return new CompareBills(stream(out), stream(err), Web.overHttp())
+        return new CompareBills(stream(out), stream(err), web)
                 .compare(write(builtBill), address("/bill.json"), List.of(expectMoved));
     }
 
@@ -314,11 +262,11 @@ class CompareBillsTest {
     }
 
     private void publish(String path, String body) {
-        served.put(path, new Response(200, body, ""));
+        web.serve(address(path).toString(), body);
     }
 
-    private URI address(String path) {
-        return URI.create("http://127.0.0.1:" + server.getAddress().getPort() + path);
+    private static URI address(String path) {
+        return URI.create("https://files.example" + path);
     }
 
     private String stdout() {

@@ -2,49 +2,34 @@ package org.fuin.porelo.release;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.InetSocketAddress;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@Tag("integration")
+/**
+ * The {@code artifactory} command over an Artifactory held in memory; what {@link
+ * Artifactory#overHttp} sends for it, {@link ArtifactoryUploadTest} proves.
+ */
 class ArtifactoryCommandTest {
 
     private static final String TOKEN = "test-token-not-a-secret";
 
     @TempDir Path dir;
 
-    private HttpServer server;
-
-    /** Each request: method, raw path, its Authorization and checksum headers, its body. */
-    private final List<String> requests = new CopyOnWriteArrayList<>();
-
-    private final List<byte[]> bodies = new CopyOnWriteArrayList<>();
-
-    /** The statuses answered in turn; 200 with {@link #body} once they are spent. */
-    private final Deque<Integer> statuses = new ArrayDeque<>();
-
-    private volatile String body = "";
+    private final FakeArtifactory artifactory = new FakeArtifactory();
 
     private final ByteArrayOutputStream out = new ByteArrayOutputStream();
 
@@ -54,51 +39,90 @@ class ArtifactoryCommandTest {
 
     private final List<Duration> waited = new ArrayList<>();
 
-    @BeforeEach
-    void serve() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext(
-                "/",
-                exchange -> {
-                    final URI uri = exchange.getRequestURI();
-                    final var headers = exchange.getRequestHeaders();
-                    requests.add(
-                            exchange.getRequestMethod()
-                                    + " "
-                                    + uri.getRawPath()
-                                    + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery())
-                                    + " auth="
-                                    + headers.getFirst("Authorization")
-                                    + " sha1="
-                                    + headers.getFirst("X-Checksum-Sha1")
-                                    + " sha256="
-                                    + headers.getFirst("X-Checksum-Sha256"));
-                    bodies.add(exchange.getRequestBody().readAllBytes());
-                    final Integer status;
-                    synchronized (statuses) {
-                        status = statuses.poll();
-                    }
-                    final byte[] answer = body.getBytes(StandardCharsets.UTF_8);
-                    if (status != null) {
-                        exchange.sendResponseHeaders(status, -1);
-                    } else {
-                        exchange.sendResponseHeaders(200, answer.length == 0 ? -1 : answer.length);
-                        if (answer.length > 0) {
-                            exchange.getResponseBody().write(answer);
-                        }
-                    }
-                    exchange.close();
-                });
-        server.start();
+    /** Records each upload and call, fails as told in turn, and answers {@link #body}. */
+    private static final class FakeArtifactory implements Artifactory {
+
+        final List<String> asked = new ArrayList<>();
+
+        final List<byte[]> sent = new ArrayList<>();
+
+        final Deque<IOException> failures = new ArrayDeque<>();
+
+        String body = "";
+
+        private void fail() throws IOException {
+            final IOException failure = failures.poll();
+            if (failure != null) {
+                throw failure;
+            }
+        }
+
+        @Override
+        public void upload(String target, Path file, String properties) throws IOException {
+            asked.add("upload " + target + " " + file.getFileName() + " [" + properties + "]");
+            sent.add(Files.readAllBytes(file));
+            fail();
+        }
+
+        @Override
+        public byte[] call(String method, String path) throws IOException {
+            asked.add("call " + method + " " + path);
+            fail();
+            return body.getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public Optional<List<Child>> children(String repository, String folder) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant created(String repository, String path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, List<String>> properties(String repository, String path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void put(String repository, String path, byte[] body) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void delete(String repository, String path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<String> debianPackages(String repository, String distribution) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<String> rpmPrimary(String repository, String folder) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void recalculateDebian(String repository) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void recalculateRpm(String repository, String folder) {
+            throw new UnsupportedOperationException();
+        }
     }
 
-    @AfterEach
-    void stop() {
-        server.stop(0);
+    private static Artifactory.Unanswered unanswered(String status) {
+        return new Artifactory.Unanswered("PUT x: HTTP " + status);
     }
 
     @Test
-    void putsAFileUnderItsOwnNameWithBothChecksumsAndItsProperties() throws Exception {
+    void putsAFileUnderItsOwnNameWithItsProperties() throws Exception {
         final Path file = Files.writeString(dir.resolve("porelo-mcp_0.1.0_amd64.deb"), "a package");
 
         final int code =
@@ -109,18 +133,12 @@ class ArtifactoryCommandTest {
                         "deb.distribution=snapshots;deb.component=main;deb.architecture=amd64");
 
         assertThat(code).as(said()).isZero();
-        assertThat(requests)
-                .as("one PUT to the file's own name, the properties as matrix parameters")
+        assertThat(artifactory.asked)
+                .as("one upload to the file's own name, with the properties")
                 .containsExactly(
-                        "PUT /artifactory/porelo-dist-deb/pool/main/p/porelo-mcp/porelo-mcp_0.1.0_amd64.deb"
-                                + ";deb.distribution=snapshots;deb.component=main;deb.architecture=amd64"
-                                + " auth=Bearer "
-                                + TOKEN
-                                + " sha1="
-                                + digest(file, "SHA-1")
-                                + " sha256="
-                                + digest(file, "SHA-256"));
-        assertThat(bodies.getFirst()).as("the file's bytes").isEqualTo(Files.readAllBytes(file));
+                        "upload porelo-dist-deb/pool/main/p/porelo-mcp/porelo-mcp_0.1.0_amd64.deb"
+                                + " porelo-mcp_0.1.0_amd64.deb"
+                                + " [deb.distribution=snapshots;deb.component=main;deb.architecture=amd64]");
         assertThat(stdout())
                 .as("what was put")
                 .contains(
@@ -134,27 +152,23 @@ class ArtifactoryCommandTest {
         assertThat(run("put", file.toString(), "porelo-dist-deb/setup/porelo-setup-latest.sh"))
                 .as(said())
                 .isZero();
-        assertThat(requests.getFirst())
+        assertThat(artifactory.asked)
                 .as("the target as it was named, no properties")
-                .startsWith("PUT /artifactory/porelo-dist-deb/setup/porelo-setup-latest.sh auth=");
+                .containsExactly("upload porelo-dist-deb/setup/porelo-setup-latest.sh setup.sh []");
     }
 
     @Test
-    void asksAgainOnA5xxByThePinnedRule() throws Exception {
+    void asksAgainWhatWasUnansweredByThePinnedRule() throws Exception {
         final Path file = Files.writeString(dir.resolve("a.rpm"), "rpm");
-        statuses.add(503);
-        statuses.add(502);
+        artifactory.failures.add(unanswered("503"));
+        artifactory.failures.add(unanswered("502"));
 
         assertThat(run("put", file.toString(), "porelo-dist-rpm/snapshots/")).as(said()).isZero();
 
-        assertThat(requests).as("two answers of 5xx, then stored").hasSize(3);
-        assertThat(bodies)
+        assertThat(artifactory.asked).as("two unanswered, then stored").hasSize(3);
+        assertThat(artifactory.sent)
                 .as("the whole file each time")
                 .allSatisfy(sent -> assertThat(sent).isEqualTo(Files.readAllBytes(file)));
-        assertThat(requests.stream().map(r -> r.substring(r.indexOf(" sha1="))).distinct())
-                .as("the same checksums each time")
-                .containsExactly(
-                        " sha1=" + digest(file, "SHA-1") + " sha256=" + digest(file, "SHA-256"));
         assertThat(waited)
                 .as("the rule's first pauses")
                 .containsExactly(Duration.ofSeconds(15), Duration.ofSeconds(30));
@@ -164,33 +178,24 @@ class ArtifactoryCommandTest {
     }
 
     @Test
-    void asksTheRestInterfaceAgainOnA5xx() throws Exception {
-        statuses.add(502);
-        body = "{}";
+    void asksTheRestInterfaceAgainWhenUnanswered() throws Exception {
+        artifactory.failures.add(unanswered("502"));
+        artifactory.body = "{}";
 
         assertThat(run("api", "GET", "/api/repositories")).as(said()).isZero();
-        assertThat(requests).as("asked again").hasSize(2);
+        assertThat(artifactory.asked).as("asked again").hasSize(2);
         assertThat(waited).containsExactly(Duration.ofSeconds(15));
     }
 
     @Test
     void refusesAFileChangedWhileItWasSent() throws Exception {
         final Path file = Files.writeString(dir.resolve("a.rpm"), "a longer package");
-        server.removeContext("/");
-        server.createContext(
-                "/",
-                exchange -> {
-                    exchange.getRequestBody().readAllBytes();
-                    requests.add(exchange.getRequestMethod());
-                    Files.writeString(file, "short");
-                    exchange.sendResponseHeaders(503, -1);
-                    exchange.close();
-                });
+        artifactory.failures.add(new IOException("PUT x: " + file + " changed while it was sent"));
 
         assertThat(run("put", file.toString(), "porelo-dist-rpm/snapshots/"))
                 .as(said())
                 .isEqualTo(Stop.REFUSED);
-        assertThat(requests).as("not asked again with other bytes").hasSize(1);
+        assertThat(artifactory.asked).as("not asked again with other bytes").hasSize(1);
         assertThat(stderr()).contains("changed while it was sent");
     }
 
@@ -200,20 +205,16 @@ class ArtifactoryCommandTest {
 
         assertThat(run("put", file.toString(), "porelo-dist-rpm/snapshots/"))
                 .isEqualTo(Stop.REFUSED);
-        assertThat(requests).as("nothing asked").isEmpty();
+        assertThat(artifactory.asked).as("nothing asked").isEmpty();
         assertThat(stderr()).contains("is no target");
     }
 
     @Test
-    void takesAnInterruptionAsUnansweredNotRefused() throws Exception {
-        statuses.add(503);
+    void takesAnInterruptionAsUnansweredNotRefused() {
+        artifactory.failures.add(unanswered("503"));
         final int code =
                 new ArtifactoryCommand(
-                                Artifactory.overHttp(
-                                        URI.create(
-                                                "http://127.0.0.1:"
-                                                        + server.getAddress().getPort()),
-                                        TOKEN),
+                                artifactory,
                                 new PrintStream(out, true, StandardCharsets.UTF_8),
                                 new PrintStream(err, true, StandardCharsets.UTF_8),
                                 time -> {
@@ -224,18 +225,6 @@ class ArtifactoryCommandTest {
 
         assertThat(code).as(said()).isEqualTo(Stop.UNANSWERED);
         assertThat(interrupted).as("the interruption kept").isTrue();
-    }
-
-    @Test
-    void sendsNothingOutsideArtifactory() {
-        final Artifactory artifactory =
-                Artifactory.overHttp(
-                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), TOKEN);
-
-        org.assertj.core.api.Assertions.assertThatThrownBy(
-                        () -> artifactory.call("GET", "/../access/api/v1/tokens"))
-                .hasMessageContaining("not under /artifactory/");
-        assertThat(requests).as("nothing asked").isEmpty();
     }
 
     @Test
@@ -272,13 +261,13 @@ class ArtifactoryCommandTest {
     void givesUpAtTheDeadline() throws Exception {
         final Path file = Files.writeString(dir.resolve("a.rpm"), "rpm");
         for (int i = 0; i < 20; i++) {
-            statuses.add(504);
+            artifactory.failures.add(unanswered("504"));
         }
 
         assertThat(run("put", file.toString(), "porelo-dist-rpm/snapshots/"))
                 .as(said())
                 .isEqualTo(Stop.UNANSWERED);
-        assertThat(requests).as("eight attempts at most").hasSize(8);
+        assertThat(artifactory.asked).as("eight attempts at most").hasSize(8);
         assertThat(stderr())
                 .as("why it stopped")
                 .contains("given up after 8 of at most 8 attempts");
@@ -287,12 +276,12 @@ class ArtifactoryCommandTest {
     @Test
     void failsAtOnceOnWhatAskingAgainWillNotMend() throws Exception {
         final Path file = Files.writeString(dir.resolve("a.rpm"), "rpm");
-        statuses.add(403);
+        artifactory.failures.add(new IOException("PUT x: HTTP 403"));
 
         assertThat(run("put", file.toString(), "porelo-dist-rpm/snapshots/"))
                 .as(said())
                 .isEqualTo(Stop.REFUSED);
-        assertThat(requests).as("asked once").hasSize(1);
+        assertThat(artifactory.asked).as("asked once").hasSize(1);
         assertThat(waited).as("no pause").isEmpty();
         assertThat(stderr()).as("the answer named").contains("HTTP 403");
     }
@@ -306,40 +295,38 @@ class ArtifactoryCommandTest {
                 .isEqualTo(Stop.REFUSED);
         assertThat(run("put", link.toString(), "porelo-dist-rpm/snapshots/"))
                 .isEqualTo(Stop.REFUSED);
-        assertThat(requests).as("nothing asked").isEmpty();
+        assertThat(artifactory.asked).as("nothing asked").isEmpty();
         assertThat(stderr()).as("the file named").contains("no file '" + dir.resolve("none.rpm"));
     }
 
     @Test
-    void printsWhatTheRestInterfaceAnswers() throws Exception {
-        body = "{\"packageType\":\"rpm\"}";
+    void printsWhatTheRestInterfaceAnswers() {
+        artifactory.body = "{\"packageType\":\"rpm\"}";
 
         assertThat(run("api", "GET", "/api/repositories/porelo-dist-rpm")).as(said()).isZero();
-        assertThat(stdout()).as("the answer, as it came").isEqualTo(body);
-        assertThat(requests.getFirst())
-                .as("the path under /artifactory, with the token")
-                .startsWith(
-                        "GET /artifactory/api/repositories/porelo-dist-rpm auth=Bearer " + TOKEN);
+        assertThat(stdout()).as("the answer, as it came").isEqualTo(artifactory.body);
+        assertThat(artifactory.asked).containsExactly("call GET /api/repositories/porelo-dist-rpm");
     }
 
     @Test
-    void takesA404OfTheRestInterfaceAsRefused() throws Exception {
-        statuses.add(404);
+    void takesA404OfTheRestInterfaceAsRefused() {
+        artifactory.failures.add(new IOException("DELETE x: HTTP 404"));
 
         assertThat(run("api", "DELETE", "/porelo-dist-test/smoke.txt")).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).as("the answer named").contains("HTTP 404");
     }
 
     @Test
-    void pingsAndWantsOk() throws Exception {
-        body = "OK\n";
+    void pingsAndWantsOk() {
+        artifactory.body = "OK\n";
         assertThat(run("ping")).as(said()).isZero();
 
-        body = "Unauthorized";
+        artifactory.body = "Unauthorized";
         assertThat(run("ping")).as("an answer that is not OK").isEqualTo(Stop.REFUSED);
-        assertThat(requests)
+        assertThat(artifactory.asked)
                 .as("both asked the ping")
-                .allMatch(r -> r.startsWith("GET /artifactory/api/system/ping "));
+                .containsOnly("call GET /api/system/ping")
+                .hasSize(2);
     }
 
     @Test
@@ -463,18 +450,11 @@ class ArtifactoryCommandTest {
                     }
                 };
         return new ArtifactoryCommand(
-                        Artifactory.overHttp(
-                                URI.create("http://127.0.0.1:" + server.getAddress().getPort()),
-                                TOKEN),
+                        artifactory,
                         new PrintStream(out, true, StandardCharsets.UTF_8),
                         new PrintStream(err, true, StandardCharsets.UTF_8),
                         pause)
                 .run(List.of(args));
-    }
-
-    private static String digest(Path file, String algorithm) throws Exception {
-        return HexFormat.of()
-                .formatHex(MessageDigest.getInstance(algorithm).digest(Files.readAllBytes(file)));
     }
 
     private String stdout() {
