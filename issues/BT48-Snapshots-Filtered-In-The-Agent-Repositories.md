@@ -14,7 +14,9 @@
 }
 ```
 
-**Why this size.** three files and a Build step in each of five repositories, by Agent Smith there; XS here.
+**Why this size.** 5× S in the agent repositories, by Agent Smith: each one un-ignores and commits `.mvn/maven.config`,
+moves the agents' local repository split to MAVEN_ARGS, and turns the `standard` profile's activation from
+`!env.MAVEN_SNAPSHOTS_URL` to the switch and the rrf file; XS here.
 
 **What must be true.** porelo-claude-code, porelo-pi, porelo-omp, porelo-codex and porelo-agy read Sonatype's
 snapshots only for the groups they list in `.mvn/rrf/groupId-central.sonatype.snapshots.txt`, in the shape
@@ -47,7 +49,9 @@ porelo-message-sluice already hold the shape; the last two also check it.
 
 ## Size
 
-S over the five repositories, XS here.
+5× S in the agent repositories, by Agent Smith: each one un-ignores and commits `.mvn/maven.config`, moves the agents'
+local repository split to MAVEN_ARGS, and turns the `standard` profile's activation from `!env.MAVEN_SNAPSHOTS_URL` to
+the switch and the rrf file; XS here.
 
 ## To be checked
 
