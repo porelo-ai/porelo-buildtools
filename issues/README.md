@@ -27,9 +27,9 @@ left out.
 
 ## Analyzed
 
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | M | - | A sub-agent's work is a sub-issue `<parent>.<n>` with its own state, its file beside the parent and its row in the same index; the index reading, the checks and the stories count it, and the briefs-as-files rules go. |
+| # | Size | Blocked by | What it covers | Open questions |
+|---|---|---|---|---|
+| <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | S | - | check-citations takes a sub-issue `<parent>.<n>` as it takes an issue (its number a link to its row `#<parent>.<n>`, its file dying with it) and drops the rules for sub-agent briefs as files in `<ID>.sub/`; the sub-issue rules of the work format go with it to the planner. | 1 |
 
 ## Backlog
 
