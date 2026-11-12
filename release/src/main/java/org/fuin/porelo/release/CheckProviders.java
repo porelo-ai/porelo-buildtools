@@ -7,6 +7,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -14,6 +15,23 @@ import java.util.regex.Pattern;
 
 /** Refuses provider names and server types outside their implementation. */
 final class CheckProviders {
+
+    /** Lists the files a repository tracks. */
+    @FunctionalInterface
+    interface TrackedFiles {
+
+        /** What {@code git ls-files} lists, the files among it. */
+        TrackedFiles GIT = CheckCitations::committed;
+
+        /**
+         * Lists the tracked files.
+         *
+         * @param root the repository's root
+         * @return each tracked file, under the root
+         * @throws IOException when the listing fails
+         */
+        List<Path> of(Path root) throws IOException;
+    }
 
     private static final Pattern PROVIDER =
             Pattern.compile(
@@ -39,15 +57,29 @@ final class CheckProviders {
 
     private final PrintStream err;
 
+    private final TrackedFiles tracked;
+
     /**
-     * Constructor.
+     * Reads what git tracks.
      *
      * @param out where success goes
      * @param err where findings and failed reads go
      */
     CheckProviders(PrintStream out, PrintStream err) {
+        this(out, err, TrackedFiles.GIT);
+    }
+
+    /**
+     * Reads what the listing given tracks.
+     *
+     * @param out where success goes
+     * @param err where findings and failed reads go
+     * @param tracked what lists the tracked files
+     */
+    CheckProviders(PrintStream out, PrintStream err, TrackedFiles tracked) {
         this.out = out;
         this.err = err;
+        this.tracked = tracked;
     }
 
     /**
@@ -61,7 +93,7 @@ final class CheckProviders {
         int read = 0;
         int found = 0;
         try {
-            for (final Path file : CheckCitations.committed(root)) {
+            for (final Path file : tracked.of(root)) {
                 final String name = root.relativize(file).toString().replace('\\', '/');
                 if (EXEMPT.contains(name)
                         || name.startsWith("issues/")

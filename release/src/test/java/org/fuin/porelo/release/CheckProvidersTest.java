@@ -9,16 +9,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.Set;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/** Guards against provider references escaping the implementation or bypassing the check. */
-@Tag("integration")
+/**
+ * Guards against provider references escaping the implementation or bypassing the check, over a
+ * listing held in memory; {@link OverGit} reads one from git.
+ */
 class CheckProvidersTest {
 
     @TempDir Path root;
@@ -27,9 +31,14 @@ class CheckProvidersTest {
 
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
 
-    @BeforeEach
-    void createsAnIsolatedGitRepository() throws Exception {
-        git("init", "-q");
+    /** The files written so far, by name. */
+    private final Set<String> written = new LinkedHashSet<>();
+
+    /** The files the listing names, as git's index would after {@code git add .}. */
+    private final Set<String> tracked = new LinkedHashSet<>();
+
+    private void trackAll() {
+        tracked.addAll(written);
     }
 
     @Test
@@ -39,7 +48,7 @@ class CheckProvidersTest {
         write(
                 "pom.xml",
                 "<project>\n<profiles>\n<profile><id>hetzner</id></profile>\n</profiles>\n</project>\n");
-        git("add", ".");
+        trackAll();
 
         assertThat(check())
                 .as("provider references must refuse the repository")
@@ -73,7 +82,7 @@ class CheckProvidersTest {
             })
     void refusesEachProviderNameAndServerTypeRegardlessOfCase(String reference) throws Exception {
         write("input.txt", "neutral\n" + reference + " " + reference + "\n");
-        git("add", ".");
+        trackAll();
 
         assertThat(check())
                 .as("a forbidden reference cannot bypass the check: %s", reference)
@@ -92,7 +101,7 @@ class CheckProvidersTest {
         write(
                 "README.md",
                 "[one](#cx01) [two](#cx22) [three](#cpx12) [four](#CCX13) [five](#cax11)\n");
-        git("add", ".");
+        trackAll();
 
         assertThat(check()).as("CPU flags and link anchors must remain usable").isZero();
         assertThat(stdout())
@@ -124,7 +133,7 @@ class CheckProvidersTest {
         write("doc/CHANGELOG.md", "hcloud\n");
         write("issues.txt", "cpx12\n");
         write("changelog.txt", "ccx13\n");
-        git("add", ".");
+        trackAll();
 
         assertThat(check())
                 .as("exemptions do not cover namesakes elsewhere")
@@ -141,7 +150,7 @@ class CheckProvidersTest {
     @Test
     void ignoresUntrackedFilesButReadsTrackedContentAsItIsNow() throws Exception {
         write("tracked.txt", "neutral\n");
-        git("add", ".");
+        trackAll();
         write("untracked.txt", "hetzner\n");
 
         assertThat(check()).as("files outside git's index are not repository content").isZero();
@@ -165,7 +174,7 @@ class CheckProvidersTest {
                 new byte[] {(byte) 0xff},
                 java.nio.file.StandardOpenOption.APPEND);
         write("text.txt", "neutral\n");
-        git("add", ".");
+        trackAll();
 
         assertThat(check()).as("binary content is not scanned as text").isZero();
         assertThat(stdout()).as("only the text file was read").contains("1 text file(s)");
@@ -176,7 +185,7 @@ class CheckProvidersTest {
     void doesNotHonorAnExemptionFile() throws Exception {
         write("providers-exempt.txt", "input.txt\n");
         write("input.txt", "hetzner\n");
-        git("add", ".");
+        trackAll();
 
         assertThat(check())
                 .as("repository content cannot add its own exemptions")
@@ -184,48 +193,6 @@ class CheckProvidersTest {
         assertThat(stderr())
                 .as("an attempted exemption cannot hide the finding")
                 .contains("input.txt:1: hetzner");
-    }
-
-    @Test
-    void cannotPassWhenGitCannotListTheRepository(@TempDir Path outside) throws IOException {
-        Files.writeString(outside.resolve(".git"), "gitdir: missing\n", StandardCharsets.UTF_8);
-
-        assertThat(check(outside))
-                .as("an unavailable index cannot mean a clean repository")
-                .isEqualTo(Stop.UNANSWERED);
-        assertThat(stderr())
-                .as("the failed operation and its answer are reported")
-                .contains("git", "ls-files", "128");
-    }
-
-    @Test
-    void cannotPassWhenTheRepositoryCannotBeRead() {
-        assertThat(check(root.resolve("missing")))
-                .as("an unreadable root cannot silently bypass the check")
-                .isEqualTo(Stop.UNANSWERED);
-        assertThat(stderr())
-                .as("the unreadable path is named")
-                .contains(root.resolve("missing").toString());
-    }
-
-    @Test
-    void theCommandChecksTheRootItIsGiven() throws Exception {
-        write("input.txt", "HETZNER_API\n");
-        git("add", ".");
-
-        assertThat(
-                        Main.run(
-                                new String[] {"check-providers", root.toString()},
-                                stream(out),
-                                stream(err),
-                                FakeWeb.untouchable(),
-                                java.util.Map.of(),
-                                (tree, manifest, lockfile, work) -> lockfile))
-                .as("the public command must execute the check")
-                .isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .as("the command reports the actual match")
-                .contains("input.txt:1: HETZNER_API");
     }
 
     @Test
@@ -241,10 +208,101 @@ class CheckProvidersTest {
     private int check(Path directory) {
         out.reset();
         err.reset();
+        return new CheckProviders(
+                        stream(out),
+                        stream(err),
+                        listed -> tracked.stream().map(listed::resolve).toList())
+                .check(directory);
+    }
+
+    private int checkOverGit(Path directory) {
+        out.reset();
+        err.reset();
         return new CheckProviders(stream(out), stream(err)).check(directory);
     }
 
+    @Test
+    void cannotPassWhenTheListingFails() {
+        assertThat(
+                        new CheckProviders(
+                                        stream(out),
+                                        stream(err),
+                                        listed -> {
+                                            throw new IOException("git ls-files exited with 128");
+                                        })
+                                .check(root))
+                .as("an unavailable index cannot mean a clean repository")
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr())
+                .as("the root and the listing's failure are named")
+                .contains(root.toString(), "git ls-files exited with 128");
+    }
+
+    /** What git lists, and the command's wiring to it. */
+    @Nested
+    @Tag("integration")
+    class OverGit {
+
+        @org.junit.jupiter.api.BeforeEach
+        void createsAnIsolatedGitRepository() throws Exception {
+            git("init", "-q");
+        }
+
+        @Test
+        void readsWhatGitTracksAndNothingElse() throws Exception {
+            write("tracked.txt", "hcloud\n");
+            git("add", ".");
+            write("untracked.txt", "hetzner\n");
+
+            assertThat(checkOverGit(root)).isEqualTo(Stop.REFUSED);
+            assertThat(stderr()).contains("tracked.txt:1: hcloud").doesNotContain("untracked.txt");
+        }
+
+        @Test
+        void cannotPassWhenGitCannotListTheRepository(@TempDir Path outside) throws IOException {
+            Files.writeString(outside.resolve(".git"), "gitdir: missing\n", StandardCharsets.UTF_8);
+
+            assertThat(checkOverGit(outside))
+                    .as("an unavailable index cannot mean a clean repository")
+                    .isEqualTo(Stop.UNANSWERED);
+            assertThat(stderr())
+                    .as("the failed operation and its answer are reported")
+                    .contains("git", "ls-files", "128");
+        }
+
+        @Test
+        void cannotPassWhenTheRepositoryCannotBeRead() {
+            assertThat(checkOverGit(root.resolve("missing")))
+                    .as("an unreadable root cannot silently bypass the check")
+                    .isEqualTo(Stop.UNANSWERED);
+            assertThat(stderr())
+                    .as("the unreadable path is named")
+                    .contains(root.resolve("missing").toString());
+        }
+
+        @Test
+        void theCommandChecksTheRootItIsGiven() throws Exception {
+            write("input.txt", "HETZNER_API\n");
+            git("add", ".");
+
+            assertThat(
+                            Main.run(
+                                    new String[] {"check-providers", root.toString()},
+                                    stream(out),
+                                    stream(err),
+                                    FakeWeb.untouchable(),
+                                    java.util.Map.of(),
+                                    (tree, manifest, lockfile, work) -> lockfile))
+                    .as("the public command must execute the check")
+                    .isEqualTo(Stop.REFUSED);
+            assertThat(stderr())
+                    .as("the command reports the actual match")
+                    .contains("input.txt:1: HETZNER_API");
+        }
+    }
+
     private void write(String name, String text) throws IOException {
+        written.add(name);
         final Path file = root.resolve(name);
         Files.createDirectories(file.getParent());
         Files.writeString(file, text, StandardCharsets.UTF_8);
