@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.fuin.porelo.pinned.PinnedRetry;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
  * Tests for {@link PinnedRetry} and its shell twin {@code .github/actions/pinned-jdk/pinned.sh}:
  * one rule for every pinned download.
  */
+@Tag("integration")
 class PinnedRetryTest {
 
     private static final Path SCRIPT = Path.of("../.github/actions/pinned-jdk/pinned.sh");

@@ -52,6 +52,9 @@
     </issueManagement>
 
     <properties>
+        <!-- What `test` leaves to the integration run at `verify`. -->
+        <porelo.excludedGroups>integration</porelo.excludedGroups>
+        <porelo.skipIntegration>false</porelo.skipIntegration>
         <!-- The Java release, nothing published unless a module opts in - every module here does, the aggregator
              does not - and the plugin and library versions come from porelo-parent. -->
         <!-- Late-replaced by surefire. Declared empty so '@{argLine}' resolves when JaCoCo,
@@ -209,6 +212,10 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <configuration>
+                        <!-- The unit tests alone in `test`, so `./mvnw test` answers in seconds: a test
+                             tagged integration starts a real process, socket or server and runs in the
+                             execution below, at `verify`. -->
+                        <excludedGroups>${porelo.excludedGroups}</excludedGroups>
                         <!-- Panama downcalls are a restricted operation and will be blocked
                              outright in a future release without this. -->
                         <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
@@ -225,6 +232,20 @@
                             <porelo.packaged.root>${project.build.directory}/no-packages</porelo.packaged.root>
                         </systemPropertyVariables>
                     </configuration>
+                    <executions>
+                        <execution>
+                            <id>integration</id>
+                            <phase>integration-test</phase>
+                            <goals>
+                                <goal>test</goal>
+                            </goals>
+                            <configuration>
+                                <groups>integration</groups>
+                                <excludedGroups>none</excludedGroups>
+                                <skip>${porelo.skipIntegration}</skip>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
 
             </plugins>
@@ -310,6 +331,8 @@
             <id>documents</id>
             <properties>
                 <groups>documents</groups>
+                <porelo.excludedGroups>none</porelo.excludedGroups>
+                <porelo.skipIntegration>true</porelo.skipIntegration>
             </properties>
         </profile>
     </profiles>

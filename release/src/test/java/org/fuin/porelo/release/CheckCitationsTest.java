@@ -569,6 +569,7 @@ class CheckCitationsTest {
         assertThat(stderr()).contains(CheckCitations.EXEMPT + " names src/test/resources/gone.txt");
     }
 
+    @Tag("integration")
     @Test
     void readsOnlyWhatGitTracksInACheckout() throws Exception {
         write("doc/guide.md", "Fine.\n");
@@ -598,6 +599,7 @@ class CheckCitationsTest {
         assertThat(stderr()).contains("no Markdown page");
     }
 
+    @Tag("integration")
     @Test
     @Tag("documents")
     void thisRepositoryCitesNoIssueThatGoesStale() {

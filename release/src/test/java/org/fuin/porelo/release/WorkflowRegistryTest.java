@@ -48,6 +48,7 @@ class WorkflowRegistryTest {
     }
 
     // Prevents a deploy to the wrong registry, including a release sent to the forge.
+    @Tag("integration")
     @ParameterizedTest
     @CsvSource({
         "central-sonatype-release, snapshots, true",

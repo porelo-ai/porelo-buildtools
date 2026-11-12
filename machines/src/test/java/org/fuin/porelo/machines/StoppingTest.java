@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /** Tests for {@link Stopping}, with real processes standing in for the build server's. */
@@ -19,6 +20,7 @@ class StoppingTest {
         return new ProcessBuilder("sleep", "60").start();
     }
 
+    @Tag("integration")
     @Test
     void stopsOnceWhatStartedTheLegHasGone() throws Exception {
         // What a cancel on a build server does: the step's shell is signalled and ends, and nothing
@@ -43,6 +45,7 @@ class StoppingTest {
                 .hasValue(Stopping.CANCELLED);
     }
 
+    @Tag("integration")
     @Test
     void aLegThatEndsOnItsOwnStopsNothing() throws Exception {
         final Process step = sleeping();
@@ -64,6 +67,7 @@ class StoppingTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void endsEveryProcessTheLegStartedAndGivesTheMachineBack() throws Exception {
         final Process suite = sleeping();
@@ -86,6 +90,7 @@ class StoppingTest {
         assertThat(ancestors).noneMatch(process -> process.pid() == 1);
     }
 
+    @Tag("integration")
     @Test
     void aLegClosingWhileItStopsLetsTheStopFinish() throws Exception {
         // Measured on a cancelled build: the suite ended, the leg's own thread closed this, and the

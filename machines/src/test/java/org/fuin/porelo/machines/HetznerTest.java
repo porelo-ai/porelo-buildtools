@@ -15,11 +15,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.fuin.porelo.json.Json;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /** Tests for {@link Hetzner}, against an API that answers what the test tells it to. */
 class HetznerTest {
 
+    @Tag("integration")
     @Test
     void anOldProviderCallUsesTheBuildKindAndKeepsItsExplicitTypes() throws IOException {
         // A heavy leg must keep its capacity when its old request is routed by kind.
@@ -114,6 +116,7 @@ class HetznerTest {
     }
 
     // Prevents each rebuild leaving a snapshot that costs storage and is never rented again.
+    @Tag("integration")
     @Test
     void aRebuildKeepsTheNewSnapshotAndOneBeforeIt() throws IOException {
         try (StubApi stub =
@@ -156,6 +159,7 @@ class HetznerTest {
     }
 
     // Prevents a listing that answers too much taking what is not this system's CI snapshot.
+    @Tag("integration")
     @Test
     void onlyThisSystemsCiSnapshotsAreDeletedWhateverTheListingSays() throws IOException {
         try (StubApi stub =
@@ -177,6 +181,7 @@ class HetznerTest {
     }
 
     // Prevents a snapshot that could not be tidied away failing the rebuild that just succeeded.
+    @Tag("integration")
     @Test
     void aRefusedDeleteOrListingIsSaidAndDoesNotFail() throws IOException {
         try (StubApi stub =
@@ -203,6 +208,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void picksTheNewestSnapshotThatIsActuallyAvailable() throws IOException {
         try (StubApi stub =
@@ -221,6 +227,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void saysWhichSnapshotsExistWhenTheOneAskedForDoesNot() throws IOException {
         try (StubApi stub =
@@ -242,6 +249,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void picksALocationThatCanActuallyServeTheType() throws IOException {
         try (StubApi stub =
@@ -261,6 +269,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void keepsTheTypesThatAreOfferedInTheOrderTheyWereAskedFor() throws IOException {
         try (StubApi stub =
@@ -298,6 +307,7 @@ class HetznerTest {
         assertThat(Hetzner.trimmed("not a number")).isEqualTo("not a number");
     }
 
+    @Tag("integration")
     @Test
     void saysWhereItLookedWhenNoLocationHasTheType() throws IOException {
         try (StubApi stub =
@@ -318,6 +328,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void refusesAServerTypeThatDoesNotExist() throws IOException {
         try (StubApi stub =
@@ -337,6 +348,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void deletesOnlyItsOwnRatherThanEverythingItFinds() throws IOException {
         final AtomicInteger deleted = new AtomicInteger();
@@ -365,6 +377,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void deletesTheRestOfARunsServersWhenOneCannotBeDeletedAndNamesIt() throws IOException {
         // A server left because another one refused bills until somebody notices.
@@ -381,6 +394,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void sweepsTheRestWhenOneServerCannotBeDeletedAndNamesIt() throws IOException {
         try (StubApi stub = twoServersTheFirstRefusing(LONG_AGO, "gone")) {
@@ -416,6 +430,7 @@ class HetznerTest {
                 .answering("/servers/2", "{\"action\":{\"id\":5,\"status\":\"success\"}}");
     }
 
+    @Tag("integration")
     @Test
     void sweepsWhatIsPastItsExpiryWhoeverLeftItAndSaysWhatItWouldDoFirst() throws IOException {
         // What a process killed between two statements leaves behind bills until it is swept.
@@ -452,6 +467,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void sweepsAServerThatSaysNothingOfItsTimeHoweverYoung() throws IOException {
         // A porelo=ci server with no expiry was made by nothing that writes one: nobody can say
@@ -474,6 +490,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void sweepsAServerWithinItsTimeOnlyWhenToldToIncludeThoseInUse() throws IOException {
         // Deleting a server in use ends somebody's run, so it takes a word of its own.
@@ -489,6 +506,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void keepsAServerWhoseExpiryItCannotReadAndFailsNamingIt() throws IOException {
         // An expiry in a form this does not read was written by something newer or broken, not
@@ -518,6 +536,7 @@ class HetznerTest {
                 .answering("/servers/1", "{\"action\":{\"id\":5,\"status\":\"success\"}}");
     }
 
+    @Tag("integration")
     @Test
     void keepsAServerWithinItsTimeHoweverOldItIs() throws IOException {
         // A test that runs longer than an hour lost its machine to the hourly sweep while it was
@@ -541,6 +560,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void namesWhatItKeptSoZeroDeletionsIsNotTwoDifferentThings() throws IOException {
         // "0 to delete" covers a project holding three machines all in use and a project holding
@@ -571,6 +591,7 @@ class HetznerTest {
                 .contains("nothing to sweep");
     }
 
+    @Tag("integration")
     @Test
     void matchesTheProjectsKeyByFingerprintRatherThanByName() throws IOException {
         final Credential credential = Keys.generated();
@@ -592,6 +613,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void saysWhatTheProjectHoldsWhenNoKeyMatches() throws IOException {
         final Credential credential = Keys.generated();
@@ -608,6 +630,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void findsServersOnEveryPage() throws IOException {
         try (StubApi stub =
@@ -632,6 +655,7 @@ class HetznerTest {
     }
 
     @org.junit.jupiter.api.Nested
+    @Tag("integration")
     class Acquisition {
         private static final Duration NO_WAIT = Duration.ofMillis(1);
 
@@ -1456,6 +1480,7 @@ class HetznerTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void kindsAndAccountCountsSelectAdequateProviderCapacity() throws IOException {
         // Small snapshot disks must not grow and several accounts must not share a tiny server.

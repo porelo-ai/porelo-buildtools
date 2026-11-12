@@ -18,6 +18,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** Guards against provider references escaping the implementation or bypassing the check. */
+@Tag("integration")
 class CheckProvidersTest {
 
     @TempDir Path root;

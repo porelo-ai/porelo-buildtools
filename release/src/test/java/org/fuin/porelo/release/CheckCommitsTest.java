@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.fuin.porelo.json.Json;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -42,6 +43,7 @@ class CheckCommitsTest {
     // Each refused subject below was on a main branch, as measured over a day's commits.
 
     // A read-only check must not leave a build directory in its caller's checkout.
+    @Tag("integration")
     @Test
     void stageWorkflowUsesSystemTemporaryFilesWithoutLeavingFiles() throws Exception {
         git("init", "-q", "-b", "main");
@@ -527,6 +529,7 @@ class CheckCommitsTest {
         assertThat(askedRanges).as("git was not run").isEmpty();
     }
 
+    @Tag("integration")
     @Test
     void readsWhatGitItselfWrites() throws IOException, InterruptedException {
         git("init", "-q", "-b", "main");
@@ -567,6 +570,7 @@ class CheckCommitsTest {
     }
 
     // Prevents a workflow's push from being checked over another range than the event names.
+    @Tag("integration")
     @Test
     void checksThePushTheEventNames() throws IOException, InterruptedException {
         git("init", "-q", "-b", "main");
@@ -634,6 +638,7 @@ class CheckCommitsTest {
                 .containsExactlyInAnyOrder("BT", "XY");
     }
 
+    @Tag("integration")
     @Test
     void refusesAnOpenStageInAnyCommitTreeEvenAfterItWasClosed() throws Exception {
         git("init", "-q", "-b", "main");
@@ -661,6 +666,7 @@ class CheckCommitsTest {
                 .contains(bad, "stats/EX12.jsonl", "end");
     }
 
+    @Tag("integration")
     @Test
     void refusesAnIssueChangeWithoutItsStatsInThatCommitTree() throws Exception {
         git("init", "-q", "-b", "main");
@@ -685,6 +691,7 @@ class CheckCommitsTest {
     }
 
     // Prevents work on a converted issue from bypassing stage recording.
+    @Tag("integration")
     @Test
     void refusesAConvertedIssueChangeWithoutItsStats() throws Exception {
         git("init", "-q", "-b", "main");
@@ -709,6 +716,7 @@ class CheckCommitsTest {
     }
 
     // Prevents a faulty head from passing the stats rule as an issue with no state.
+    @Tag("integration")
     @Test
     void cannotAnswerForAnIssueWhoseHeadIsFaulty() throws Exception {
         git("init", "-q", "-b", "main");
@@ -726,6 +734,7 @@ class CheckCommitsTest {
         assertThat(stderr()).contains("issue head", "required property 'id'");
     }
 
+    @Tag("integration")
     @Test
     void allowsAnIndexOnlyChangeAndAnIssueWithExistingClosedStats() throws Exception {
         git("init", "-q", "-b", "main");
@@ -749,6 +758,7 @@ class CheckCommitsTest {
                 .isZero();
     }
 
+    @Tag("integration")
     @Test
     void reportsTheIssueStatsRuleAsNotRolledOutWithoutASeed() throws Exception {
         git("init", "-q", "-b", "main");
@@ -769,6 +779,7 @@ class CheckCommitsTest {
     }
 
     // Prevents a newly measured state from bypassing accounting in the committed tree.
+    @Tag("integration")
     @Test
     void aMeasuredStateNeedsAStageRecord() throws Exception {
         git("init", "-q", "-b", "main");
@@ -808,6 +819,7 @@ class CheckCommitsTest {
     }
 
     // These regressions prevent commits bypassing stage checks or acquiring unrelated work.
+    @Tag("integration")
     @ParameterizedTest
     @ValueSource(
             strings = {
@@ -863,6 +875,7 @@ class CheckCommitsTest {
                 .contains("stats/EX12.jsonl");
     }
 
+    @Tag("integration")
     @ParameterizedTest
     @ValueSource(
             strings = {
@@ -887,6 +900,7 @@ class CheckCommitsTest {
         assertThat(checkRepository()).as(stderr()).isZero();
     }
 
+    @Tag("integration")
     @ParameterizedTest
     @ValueSource(strings = {"Implementing", "Review", "Finished"})
     void requiresStatsForSubgroupIssuesInActiveStates(String status) throws Exception {
@@ -907,6 +921,7 @@ class CheckCommitsTest {
                 .contains("stats/EX12.jsonl");
     }
 
+    @Tag("integration")
     @Test
     void aBriefOfAnIssueInAnActiveStateNeedsNoStats() throws Exception {
         // A brief is part of its issue, never an issue: changing it alone records no stage.
@@ -927,6 +942,7 @@ class CheckCommitsTest {
     }
 
     // Moving an issue's lines into a head touches every issue file, older ones without stats too.
+    @Tag("integration")
     @Test
     void passesAConversionToAHeadThatKeepsStateAndSizeWithoutStats() throws Exception {
         commitIssueWithoutStats("# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n");
@@ -937,6 +953,7 @@ class CheckCommitsTest {
         assertThat(checkLast()).as(stderr()).isZero();
     }
 
+    @Tag("integration")
     @ParameterizedTest
     @ValueSource(
             strings = {
@@ -962,6 +979,7 @@ class CheckCommitsTest {
                 .contains("issues/EX12-Sample.md", parts[2], "stats/EX12.jsonl");
     }
 
+    @Tag("integration")
     @Test
     void refusesANewIssueInAMeasuredStateWithoutStats() throws Exception {
         commitIssueWithoutStats("# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n");
@@ -975,6 +993,7 @@ class CheckCommitsTest {
                 .contains("issues/EX13-Other.md", "new in Review", "stats/EX13.jsonl");
     }
 
+    @Tag("integration")
     @Test
     void passesAProseOnlyEditOfAMeasuredIssueWithoutStats() throws Exception {
         commitIssueWithoutStats("# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - sample.\n");
@@ -988,6 +1007,7 @@ class CheckCommitsTest {
     }
 
     // A parent that cannot be read must never let a change through as unchanged.
+    @Tag("integration")
     @ParameterizedTest
     @ValueSource(strings = {"unreadable", "no-status", "faulty-head"})
     void refusesWhenTheParentsVersionCannotBeRead(String defect) throws Exception {
@@ -1054,6 +1074,7 @@ class CheckCommitsTest {
                                 : "which is no valid issue");
     }
 
+    @Tag("integration")
     @Test
     void skipsDeletedIssues() throws Exception {
         git("init", "-q", "-b", "main");
@@ -1071,6 +1092,7 @@ class CheckCommitsTest {
         assertThat(checkRepository()).as(stderr()).isZero();
     }
 
+    @Tag("integration")
     @Test
     void comparesMergesOnlyWithTheirFirstParentAndRootsWithTheEmptyTree() throws Exception {
         git("init", "-q", "-b", "main");
@@ -1105,6 +1127,7 @@ class CheckCommitsTest {
                 .isZero();
     }
 
+    @Tag("integration")
     @ParameterizedTest
     @ValueSource(strings = {"dependabot[bot]", "web"})
     void exemptsBotAndWebCommitsFromTheStatsRule(String author) throws Exception {
@@ -1142,6 +1165,7 @@ class CheckCommitsTest {
     }
 
     // Prevents switching the stage rule off by deleting the seed.
+    @Tag("integration")
     @Test
     void refusesACommitThatDeletesTheSeed() throws Exception {
         commitIssueWithoutStats(head("Idea", "M"));
@@ -1153,6 +1177,7 @@ class CheckCommitsTest {
     }
 
     // Prevents a stage record from going without a trace.
+    @Tag("integration")
     @Test
     void refusesACommitThatDeletesOneStageRecord() throws Exception {
         commitIssueWithoutStats(head("Idea", "M"));
@@ -1167,6 +1192,7 @@ class CheckCommitsTest {
     }
 
     // Prevents a message holding git's separators from forging a second commit or hiding its body.
+    @Tag("integration")
     @Test
     void givesNoAnswerWhenTheLogSplitsIntoMoreCommitsThanGitCounts() throws Exception {
         git("init", "-q", "-b", "main");

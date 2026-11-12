@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.fuin.porelo.pinned.PinnedRetry;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -42,6 +43,7 @@ class PinnedJdkTest {
 
     @TempDir Path dir;
 
+    @Tag("integration")
     @Test
     void installsThePinnedWindowsZipOfTheSameReleaseOnWindows() throws IOException {
         final byte[] zip = zip("graalvm-community/bin/java.exe", "graalvm-community/lib/modules");
@@ -75,6 +77,7 @@ class PinnedJdkTest {
                 .isRegularFile();
     }
 
+    @Tag("integration")
     @Test
     void aWindowsZipWhoseDigestDiffersInstallsNothing() throws IOException {
         final byte[] full =
@@ -98,6 +101,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void aZipEntryThatLeavesTheJdksDirectoryIsRefused() throws IOException {
         final byte[] evil =
@@ -125,6 +129,7 @@ class PinnedJdkTest {
                 .doesNotExist();
     }
 
+    @Tag("integration")
     @Test
     void aZipEntryNamingADriveIsRefusedOnEverySystem() throws IOException {
         // On Windows 'C:/x' is another drive; on Linux it would pass as a name.
@@ -151,6 +156,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void aZipNamingOneFileTwiceIsRefusedBeforeAnythingIsWritten() throws IOException {
         // The second would fail half way and leave a JDK of two minds behind.
@@ -224,6 +230,7 @@ class PinnedJdkTest {
                 .hasMessageContaining("no bin/native-image.cmd");
     }
 
+    @Tag("integration")
     @Test
     void theRunningSystemPicksTheArchiveAndAnyOtherIsRefused() throws IOException {
         assertThat(PinnedJdk.Platform.of("Linux", "amd64")).isEqualTo(PinnedJdk.Platform.LINUX_X64);
@@ -240,6 +247,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void installsThePinnedArchiveWhenItsDigestMatches() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -258,6 +266,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void installsNothingWhenTheDigestDiffers() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -290,6 +299,7 @@ class PinnedJdkTest {
                 .hasMessageContaining("is not empty");
     }
 
+    @Tag("integration")
     @Test
     void refusesAnArchiveThatIsNoGraalvmWithNativeImage() throws IOException {
         final byte[] archive = archive("java");
@@ -357,6 +367,7 @@ class PinnedJdkTest {
         assertThat(said).singleElement().asString().contains("--into");
     }
 
+    @Tag("integration")
     @Test
     void triesAgainWhenTheServerCannotAnswerAndChecksOnlyTheLastAttempt() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -544,6 +555,7 @@ class PinnedJdkTest {
         assertThat(waited).isEqualTo(PinnedRetry.pauses());
     }
 
+    @Tag("integration")
     @Test
     void keepsTheCheckedArchiveInTheCacheByItsDigest() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -563,6 +575,7 @@ class PinnedJdkTest {
         assertThat(cache.resolve(sha256(archive) + ".tar.gz")).hasBinaryContent(archive);
     }
 
+    @Tag("integration")
     @Test
     void takesTheCachedArchiveWithoutFetchingWhenItsDigestMatches() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -586,6 +599,7 @@ class PinnedJdkTest {
         assertThat(said).singleElement().asString().contains("from the cache");
     }
 
+    @Tag("integration")
     @Test
     void fetchesAgainWhenTheCachedArchiveDoesNotMatchAndNeverUnpacksIt() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -766,6 +780,7 @@ class PinnedJdkTest {
         assertThat(attempts).hasValue(1);
     }
 
+    @Tag("integration")
     @Test
     void takesA5xxAsUnavailableAlsoBehindARedirect() throws IOException {
         final HttpServer server = server();
@@ -787,6 +802,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void takesA404AsRefused() throws IOException {
         final HttpServer server = server();
@@ -802,6 +818,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void takesAnAnswerBeyondThe5xxAsRefused() throws IOException {
         final HttpServer server = server();
@@ -817,6 +834,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void startsEachAttemptWithAnEmptyFile() throws IOException {
         final byte[] archive = archive("java", "native-image");
@@ -851,6 +869,7 @@ class PinnedJdkTest {
         assertThat(attempts).hasValue(2);
     }
 
+    @Tag("integration")
     @Test
     void takesARefusedConnectionAsUnavailable() throws IOException {
         final int port;
@@ -867,6 +886,7 @@ class PinnedJdkTest {
                 .isInstanceOf(PinnedJdk.Unavailable.class);
     }
 
+    @Tag("integration")
     @Test
     void takesABodyThatBreaksOffAsUnavailable() throws IOException {
         final HttpServer server = server();
@@ -887,6 +907,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void takesAWriteThatFailsAsNothingToTryAgain() throws IOException {
         final HttpServer server = server();
@@ -918,6 +939,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void writesWhatTheServerAnswers() throws IOException {
         final HttpServer server = server();
@@ -938,6 +960,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void sendsTheTokenToItsOriginAndNeverAlongARedirect() throws IOException {
         final HttpServer github = server();
@@ -987,6 +1010,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void sendsTheTokenNowhereButItsOrigin() throws IOException {
         final HttpServer github = server();
@@ -1012,6 +1036,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void takesA401OrA403AsRefusedNotUnavailable() throws IOException {
         for (final int status : new int[] {401, 403}) {
@@ -1038,6 +1063,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void followsNoEndlessRedirects() throws IOException {
         final HttpServer server = server();
@@ -1129,6 +1155,7 @@ class PinnedJdkTest {
                 .isFalse();
     }
 
+    @Tag("integration")
     @Test
     void namesWhereARedirectLedByItsHostAloneNeverItsSignature() throws IOException {
         final HttpServer github = server();
@@ -1157,6 +1184,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void followsTenRedirectsAndNoMore() throws IOException {
         final HttpServer server = server();
@@ -1190,6 +1218,7 @@ class PinnedJdkTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void followsARedirectOnlyToAnAddressOverHttpsOnceOnHttps() throws IOException {
         final URI https = URI.create("https://github.com/x");

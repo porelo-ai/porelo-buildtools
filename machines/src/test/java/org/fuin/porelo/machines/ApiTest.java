@@ -7,11 +7,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /** Tests for {@link Api}. */
 class ApiTest {
 
+    @Tag("integration")
     @Test
     void readsEveryPageAndNotOnlyTheFirst() throws IOException {
         // The failure this prevents costs money: the API pages at 25, and a sweep that reads one
@@ -38,6 +40,7 @@ class ApiTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void keepsAnExistingQueryWhenItAddsThePage() throws IOException {
         try (StubApi stub =
@@ -51,6 +54,7 @@ class ApiTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void waitsOutARateLimitRatherThanFailing() throws IOException {
         final AtomicInteger calls = new AtomicInteger();
@@ -74,6 +78,7 @@ class ApiTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void carriesTheApisOwnCodeSoOneRefusalCanBeRetriedAndTheRestNotBe() throws IOException {
         try (StubApi stub =
@@ -95,6 +100,7 @@ class ApiTest {
         }
     }
 
+    @Tag("integration")
     @Test
     void saysWhatArrivedWhenTheAnswerIsNotJson() throws IOException {
         try (StubApi stub =

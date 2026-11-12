@@ -22,6 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
  * the rule around the pull request's check.
  */
 @Tag("documents")
+@Tag("integration")
 class WorkflowCommitsTest {
 
     private static final Path BUILD = Path.of("../.github/workflows/build.yml");

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -21,6 +22,7 @@ class SnapshotsTreeBuildTest {
 
     // Prevents a proof that builds every native image: seven took 11 minutes each on the
     // snapshot's machine, and the step's 60 minutes ended both snapshots of 7b37e81.
+    @Tag("integration")
     @Test
     void aTreeWithItsOwnBuildScriptIsBuiltByItOnTheJvmThenOneImage() throws Exception {
         final Path tree = tree();
@@ -32,6 +34,7 @@ class SnapshotsTreeBuildTest {
                 .containsExactly("the own build of the tree -P!native", ONE_IMAGE);
     }
 
+    @Tag("integration")
     @Test
     void aTreeFromBeforeTheScriptGetsTheModuleListItHadWithTheAppWhereItKeepsIt() throws Exception {
         // The grouping moved app under apps/; a list naming app stopped every leg at "Could not
@@ -54,6 +57,7 @@ class SnapshotsTreeBuildTest {
                         ONE_IMAGE);
     }
 
+    @Tag("integration")
     @Test
     void aFailedJvmBuildBuildsNoImage() throws Exception {
         final Path tree = tree();
@@ -72,6 +76,7 @@ class SnapshotsTreeBuildTest {
     }
 
     // Prevents the native image running out of memory on the small machine a snapshot needs.
+    @Tag("integration")
     @Test
     void theImageAsksForMoreHeapThanTheSmallMachineWouldGiveIt() throws Exception {
         final Path tree = Files.createDirectories(dir.resolve("heap"));
