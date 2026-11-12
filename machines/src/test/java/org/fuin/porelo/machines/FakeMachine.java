@@ -41,6 +41,9 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
 
     int closes;
 
+    /** How often the machine was given back. */
+    int releases;
+
     final List<String> uploads = new ArrayList<>();
 
     /** One host key and one login key for every fake, as making one takes a while. */
@@ -60,7 +63,7 @@ final class FakeMachine implements SshDialer, Waiting, RemoteSession {
                 "192.0.2.7",
                 spec,
                 HostKey.pinned(HOST_KEY),
-                () -> {},
+                () -> releases++,
                 Duration.ofMinutes(5),
                 this,
                 this);
