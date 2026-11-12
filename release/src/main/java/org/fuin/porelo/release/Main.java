@@ -32,6 +32,7 @@ public final class Main {
                     "update",
                     "check-pin",
                     "check-actions",
+                    "check-workflows",
                     "check-shared",
                     "check-citations",
                     "check-providers",
@@ -98,19 +99,28 @@ public final class Main {
         };
     }
 
-    private static int checkCommits(List<String> rest, PrintStream out, PrintStream err) {
-        final Options options = Options.parse(rest, Set.of(), Set.of("--outside"));
-        if (options == null || options.positional().size() != 1) {
-            return usage(err, "check-commits RANGE [--outside]");
+    private static int checkCommits(
+            List<String> rest, PrintStream out, PrintStream err, Map<String, String> env) {
+        final Options options = Options.parse(rest, Set.of(), Set.of("--outside", "--event"));
+        final boolean event = options != null && options.flag("--event");
+        if (options == null
+                || (event
+                        ? !options.positional().isEmpty() || options.flag("--outside")
+                        : options.positional().size() != 1)) {
+            return usage(err, "check-commits RANGE [--outside] | check-commits --event");
         }
         // git and the issues are read where the command runs: a repository's root.
         final Path here = Path.of(".");
-        return new CheckCommits(
+        final CheckCommits check =
+                new CheckCommits(
                         out,
                         err,
                         CheckCommits.Git.in(here, Map.of()),
-                        () -> CheckCitations.issuePrefixes(here))
-                .check(options.positional().getFirst(), options.flag("--outside"));
+                        () -> CheckCitations.issuePrefixes(here));
+        if (!event) {
+            return check.check(options.positional().getFirst(), options.flag("--outside"));
+        }
+        return check.checkEvent(env);
     }
 
     private static int checkPushes(
@@ -310,6 +320,15 @@ public final class Main {
                                         options.flag("--offline"),
                                         options.value("--pin"));
             }
+            case "check-workflows" ->
+                    rest.size() > 1
+                            ? usage(err, "check-workflows [DIRECTORY, default .github/workflows]")
+                            : new CheckWorkflows(out, err)
+                                    .check(
+                                            Path.of(
+                                                    rest.isEmpty()
+                                                            ? ".github/workflows"
+                                                            : rest.getFirst()));
             case "check-actions" ->
                     rest.size() > 1
                             ? usage(err, "check-actions [DIRECTORY, default .github]")
@@ -333,7 +352,7 @@ public final class Main {
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "stories" -> stories(rest, out, err, web);
             case "issues" -> issues(rest, out, err);
-            case "check-commits" -> checkCommits(rest, out, err);
+            case "check-commits" -> checkCommits(rest, out, err, env);
             case "stage" ->
                     new Stage(Path.of("."), java.time.Clock.systemUTC(), out, err, env).run(rest);
             case "check-pushes" -> checkPushes(rest, out, err, web, env);

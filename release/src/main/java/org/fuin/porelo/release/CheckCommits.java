@@ -137,6 +137,16 @@ final class CheckCommits {
         }
 
         /**
+         * Tells whether the checkout holds a commit.
+         *
+         * @param hash a full commit hash, never an option
+         * @return true when git finds that commit
+         */
+        default boolean holds(String hash) {
+            return false;
+        }
+
+        /**
          * Runs git in a directory.
          *
          * @param directory the checkout
@@ -149,6 +159,20 @@ final class CheckCommits {
                 @Override
                 public String log(String range) throws IOException {
                     return run(directory, environment, range);
+                }
+
+                /** Asks git whether the commit is there. */
+                @Override
+                public boolean holds(String hash) {
+                    try {
+                        execute(
+                                directory,
+                                environment,
+                                List.of("cat-file", "-e", hash + "^{commit}"));
+                        return true;
+                    } catch (IOException ex) {
+                        return false;
+                    }
                 }
 
                 /** Counts the range's commits. */
@@ -321,6 +345,43 @@ final class CheckCommits {
         this.err = err;
         this.git = git;
         this.prefixes = prefixes;
+    }
+
+    /**
+     * Checks the commits a workflow's event names, the range and the origin decided from the event
+     * alone: the runner's variables and the event file {@code GITHUB_EVENT_PATH}.
+     *
+     * @param environment the process's environment
+     * @return as {@link #check(String, boolean)}; {@link Stop#REFUSED} when the event names no
+     *     range, {@link Stop#UNANSWERED} when it cannot be read
+     */
+    int checkEvent(Map<String, String> environment) {
+        final String path = environment.get("GITHUB_EVENT_PATH");
+        if (path == null || path.isBlank()) {
+            err.println(
+                    "GITHUB_EVENT_PATH is not set; run check-commits --event in a workflow's step");
+            return Stop.UNANSWERED;
+        }
+        final CommitRange decided;
+        try {
+            decided =
+                    CommitRange.decide(
+                            GitHubEvent.read(
+                                    environment,
+                                    Files.readString(Path.of(path), StandardCharsets.UTF_8)),
+                            git::holds);
+        } catch (IOException ex) {
+            err.println("could not read the event: " + ex.getMessage());
+            return Stop.UNANSWERED;
+        } catch (IllegalArgumentException ex) {
+            err.println(ex.getMessage());
+            return Stop.REFUSED;
+        }
+        out.println(
+                "NOTE  the event's commits: "
+                        + decided.range()
+                        + (decided.outside() ? ", from outside" : ", from inside"));
+        return check(decided.range(), decided.outside());
     }
 
     /**

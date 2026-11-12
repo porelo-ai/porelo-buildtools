@@ -9,7 +9,7 @@ may publish, and checks the native images before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo` with the tree's own `ci/leg-build.sh`. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-workflows`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-ffm-check` | Checks that every downcall of the Foreign Function & Memory API a test made is registered for the native image. | run by `porelo`'s build |
 | `porelo-cpu-check` | Checks that a native image asks for no more than x86-64 v1, so it runs on any x86-64 CPU. | run by `porelo`'s build |
 | `porelo-json` | The JSON reader and writer the tools above share. | - |
@@ -64,10 +64,22 @@ repository's state never decides this one's check.
 
 ```
 porelo-release check-commits RANGE [--outside]
+porelo-release check-commits --event
 ```
 
 The commits of a git range in the working directory, a repository's root: before a push over `origin/main..HEAD`,
-in a Build over the pushed range. In this repository's own build it runs as
+in a Build over the pushed range. In a workflow, `--event` takes the range and the origin from the event alone - the
+runner's `GITHUB_*` variables and the event file `GITHUB_EVENT_PATH`, which GitHub and Forgejo both write - so a
+workflow passes no field:
+
+- **A push** reads from its `before` to `GITHUB_SHA`; a push without `before` is refused. A tag reads its own commit
+  alone, `sha~1..sha`. A start the checkout does not hold is refused on `main`, which is never pushed over, and
+  elsewhere, a new branch or one pushed over, the range starts at `origin/main`.
+- **A pull request** reads from its base to its head. It comes from outside, held to `Signed-off-by:`, unless its head
+  lives in this repository and it is opened by an `OWNER` or `MEMBER`, by `github-actions[bot]`, or on a server other
+  than github.com, where only write access pushes a branch of the repository.
+- **Every other event** is refused, and so is a hash that is not a full commit hash: no field reaches git as an option.
+ In this repository's own build it runs as
 `./mvnw -B -s settings.xml -pl release exec:java@check-commits -Dcommits.range=<range>`, or `@check-commits-outside`.
 Each commit is held to the shared rule, and each fault is one line with the commit's short hash:
 
@@ -212,6 +224,16 @@ push holds to the rule, a day without a push among them; 1 when a commit breaks 
 the token is missing, a push's range is not in the checkout, or a full page of 100 is still inside the window, since a
 second page is not followed. `GITHUB_API_URL` other than GitHub's own is refused with 2: another forge's activity is
 not read.
+
+## What `check-workflows` reads
+
+```
+porelo-release check-workflows [DIRECTORY, default .github/workflows]
+```
+
+Every `*.yml` and `*.yaml` file of the directory, each refused when it does not load as YAML, holds no mapping, names
+no trigger under `on` (or `true`, as YAML 1.1 reads a bare `on`) or no job under `jobs`: a workflow GitHub would not
+run. Exit 1 names each such file; 0 says how many were read.
 
 ## What `check-actions` reads about permissions
 

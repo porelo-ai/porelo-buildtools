@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT82",
   "title": "The Commit Check Takes Its Range From The Event",
-  "state": "Estimated",
+  "state": "Review",
   "size": "M",
   "priority": "Medium",
   "rank": 1,

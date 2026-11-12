@@ -12,13 +12,10 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The Build checks the commit messages of every push, so a direct push to {@code main} cannot pass
@@ -40,19 +37,42 @@ class WorkflowCommitsTest {
 
     @TempDir Path directory;
 
-    // Prevents the check from being skipped on a push or fed a range a workflow expression built.
+    // Prevents the check from being skipped on a push, or fed a range a workflow expression or the
+    // step's own shell built: the command reads the event itself.
     @Test
-    void theBuildChecksThePushedRangeFromItsOwnEnvironment() throws IOException {
+    void theBuildChecksThePushFromItsEvent() throws IOException, InterruptedException {
         final JsonNode step = step();
         assertThat(step.path("if").asText())
                 .as("the step runs on a push")
                 .isEqualTo("github.event_name == 'push'");
-        assertThat(step.path("env").path("PUSH_BEFORE").asText())
-                .as("the range starts where the push began")
-                .isEqualTo("${{ github.event.before }}");
+        assertThat(step.path("env").isMissingNode())
+                .as("nothing of the event reaches the step but the runner's own variables")
+                .isTrue();
         assertThat(step.path("run").asText())
-                .as("the range reaches the script through its environment alone")
+                .as("the script holds no expression")
                 .doesNotContain("${{");
+
+        final Run passed = execute(step, 0);
+        assertThat(passed.exit).as("a clean push: %s", passed.log).isZero();
+        assertThat(passed.java)
+                .as("check-commits reads the event, with release and its classpath")
+                .containsExactly(
+                        "-cp",
+                        "release/target/classes:" + CLASSPATH,
+                        "org.fuin.porelo.release.Main",
+                        "check-commits",
+                        "--event");
+        assertThat(passed.maven)
+                .as(
+                        "release is installed and its classpath read, each with the repository's settings")
+                .containsExactly(
+                        "-B -q -s settings.xml -pl release -am install -DskipTests",
+                        "-B -q -s settings.xml -pl release dependency:build-classpath"
+                                + " -Dmdep.outputFile=target/commits-cp.txt");
+        assertThat(execute(step, 1).exit).as("a refused push fails the step").isNotZero();
+        assertThat(execute(step, 2).exit)
+                .as("an event that could not be read fails the step")
+                .isNotZero();
     }
 
     // Prevents a range the checkout cannot read, and a step that runs before release is compiled.
@@ -83,81 +103,6 @@ class WorkflowCommitsTest {
                 .isNotNegative();
     }
 
-    // Prevents a pushed range from going unchecked, and a refusal from passing.
-    @Test
-    void aPushedRangeReachesCheckCommitsAndItsRefusalFailsTheStep()
-            throws IOException, InterruptedException {
-        final Run passed = run("refs/heads/main", "1111111", "1111111", 0);
-        assertThat(passed.exit).as("a clean range: %s", passed.log).isZero();
-        assertThat(passed.java)
-                .as("check-commits reads exactly the pushed range, with release and its classpath")
-                .containsExactly(
-                        "-cp",
-                        "release/target/classes:" + CLASSPATH,
-                        "org.fuin.porelo.release.Main",
-                        "check-commits",
-                        "1111111..2222222");
-        assertThat(passed.maven)
-                .as(
-                        "release is installed and its classpath read, each with the repository's settings")
-                .containsExactly(
-                        "-B -q -s settings.xml -pl release -am install -DskipTests",
-                        "-B -q -s settings.xml -pl release dependency:build-classpath"
-                                + " -Dmdep.outputFile=target/commits-cp.txt");
-
-        final Run refused = run("refs/heads/main", "1111111", "1111111", 1);
-        assertThat(refused.exit).as("a refused range fails the step: %s", refused.log).isNotZero();
-    }
-
-    // Prevents a new branch, whose start is all zeros, from checking nothing.
-    @Test
-    void aNewBranchIsCheckedFromMain() throws IOException, InterruptedException {
-        final Run run = run("refs/heads/topic", "0000000000000000000000000000000000000000", "", 0);
-        assertThat(run.exit).as("a new branch: %s", run.log).isZero();
-        assertThat(run.java).as("its range starts at main").endsWith("origin/main..2222222");
-    }
-
-    // Prevents a branch pushed over, whose old tip the checkout lacks, from failing a clean push.
-    @Test
-    void aBranchPushedOverIsCheckedFromMain() throws IOException, InterruptedException {
-        final Run run = run("refs/heads/topic", "3333333", "1111111", 0);
-        assertThat(run.exit).as("a branch pushed over: %s", run.log).isZero();
-        assertThat(run.java).as("its range starts at main").endsWith("origin/main..2222222");
-    }
-
-    // Prevents a tag, whose range from main is empty, from checking nothing.
-    @Test
-    void aTagChecksTheCommitItNames() throws IOException, InterruptedException {
-        final Run run = run("refs/tags/v1.2.3", "0000000000000000000000000000000000000000", "", 0);
-        assertThat(run.exit).as("a tag: %s", run.log).isZero();
-        assertThat(run.java).as("its range is the commit it names").endsWith("2222222~1..2222222");
-    }
-
-    // Prevents main moved from a commit nobody holds from passing as an empty range.
-    @Test
-    void mainFromACommitTheCheckoutLacksFailsLoudly() throws IOException, InterruptedException {
-        final Run run = run("refs/heads/main", "3333333", "1111111", 0);
-        assertThat(run.exit).as("main from an unknown commit: %s", run.log).isNotZero();
-        assertThat(run.log).as("the refusal is a visible workflow error").contains("::error::");
-        assertThat(run.java).as("check-commits is not started for it").isEmpty();
-    }
-
-    // Prevents a missing start of the range from silently checking nothing.
-    // A branch other than main falls back to main and a tag to its commit, so there only this
-    // guard stops an empty start.
-    @ParameterizedTest
-    @ValueSource(strings = {"refs/heads/main", "refs/heads/topic", "refs/tags/v1.2.3"})
-    void aMissingStartFailsLoudly(final String ref) throws IOException, InterruptedException {
-        final Run run = run(ref, "", "1111111", 0);
-        assertThat(run.exit).as("a push to %s with no start fails: %s", ref, run.log).isNotZero();
-        assertThat(run.log)
-                .as("the refusal on %s is a visible workflow error", ref)
-                .contains("::error::");
-        assertThat(run.java)
-                .as("check-commits is not started without a range on %s", ref)
-                .isEmpty();
-    }
-
     // Prevents a push the Build never starts from going unchecked: the schedule reads each push of
     // main's last day by its own range, however long before it its commits were made.
     @Test
@@ -178,7 +123,7 @@ class WorkflowCommitsTest {
                 .as("the checkout holds every push's commits, fetch-depth %s", depth)
                 .isTrue();
 
-        final Run run = execute(step, Map.of(), 0);
+        final Run run = execute(step, 0);
         assertThat(run.exit).as("a clean day: %s", run.log).isZero();
         assertThat(run.java)
                 .as("check-pushes reads the pushes of the last 26 hours")
@@ -196,165 +141,56 @@ class WorkflowCommitsTest {
                         "-B -q -s settings.xml -pl release -am install -DskipTests",
                         "-B -q -s settings.xml -pl release dependency:build-classpath"
                                 + " -Dmdep.outputFile=target/commits-cp.txt");
-        assertThat(execute(step, Map.of(), 1).exit).as("a refused day fails the step").isNotZero();
-        assertThat(execute(step, Map.of(), 2).exit)
+        assertThat(execute(step, 1).exit).as("a refused day fails the step").isNotZero();
+        assertThat(execute(step, 2).exit)
                 .as("a day that could not be read fails the step")
                 .isNotZero();
     }
 
-    // Prevents a second fetch, which a private forge copy refuses to a checkout without
-    // credentials.
+    // Prevents the pull request's facts from reaching the check any way but the event file, where a
+    // workflow expression in the script would run what a pull request's title or branch carries,
+    // and
+    // a second fetch, which a private forge copy refuses to a checkout without credentials.
     @Test
-    void aMembersPullRequestIsCheckedFromTheCheckoutAlone()
-            throws IOException, InterruptedException {
-        final Run run = pullRequest("porelo-ai/porelo-buildtools", "MEMBER", "someone");
-        assertThat(run.exit).as("a member's pull request, nothing fetched: %s", run.log).isZero();
-        assertThat(run.java)
-                .as("its own commits are read, as a member's, with release and its classpath")
+    void thePullRequestIsCheckedFromItsEvent() throws IOException, InterruptedException {
+        final JsonNode step =
+                named(job(SHARED_RULES, "check"), "The pull request's commit messages");
+        assertThat(step.path("if").asText())
+                .as("the step runs on a pull request")
+                .isEqualTo("github.event_name == 'pull_request'");
+        assertThat(step.path("env").isMissingNode())
+                .as("nothing of the pull request reaches the step but the event file")
+                .isTrue();
+        assertThat(step.path("run").asText())
+                .as("the script holds no expression")
+                .doesNotContain("${{");
+
+        final Run passed = execute(step, 0);
+        assertThat(passed.exit)
+                .as("a clean pull request, nothing fetched: %s", passed.log)
+                .isZero();
+        assertThat(passed.java)
+                .as("check-commits reads the event, with release and its classpath")
                 .containsExactly(
                         "-cp",
                         "release/target/classes:" + CLASSPATH,
                         "org.fuin.porelo.release.Main",
                         "check-commits",
-                        "6666666..7777777");
-        assertThat(run.maven)
+                        "--event");
+        assertThat(passed.maven)
                 .as(
                         "release is installed and its classpath read, each with the repository's settings")
                 .containsExactly(
                         "-B -q -s settings.xml -pl release -am install -DskipTests",
                         "-B -q -s settings.xml -pl release dependency:build-classpath"
                                 + " -Dmdep.outputFile=target/cp.txt");
-    }
-
-    // Prevents the pull request's facts from reaching the script any way but its environment, where
-    // a
-    // workflow expression in the script would run what a pull request's title or branch carries.
-    @Test
-    void thePullRequestsFactsReachTheScriptThroughItsEnvironment() throws IOException {
-        final JsonNode step =
-                named(job(SHARED_RULES, "check"), "The pull request's commit messages");
-        assertThat(step.path("env").path("PR_AUTHOR").asText())
-                .as("the author is the pull request's own")
-                .isEqualTo("${{ github.event.pull_request.user.login }}");
-        assertThat(step.path("env").path("PR_REPOSITORY").asText())
-                .as("the repository is the pull request's head's")
-                .isEqualTo("${{ github.event.pull_request.head.repo.full_name }}");
-        assertThat(step.path("env").path("PR_ASSOCIATION").asText())
-                .as("the association is the pull request's author's")
-                .isEqualTo("${{ github.event.pull_request.author_association }}");
-        assertThat(step.path("env").path("PR_SERVER").asText())
-                .as("the server is the forge the run is on")
-                .isEqualTo("${{ github.server_url }}");
-        assertThat(step.path("run").asText())
-                .as("the script reads its environment alone")
-                .doesNotContain("${{");
-    }
-
-    // Prevents the repository's own update workflow's pull request from being refused for want of a
-    // sign-off, though GitHub names its author a contributor.
-    @Test
-    void theOwnWorkflowsPullRequestIsFromInside() throws IOException, InterruptedException {
-        final Run run =
-                pullRequest("porelo-ai/porelo-buildtools", "CONTRIBUTOR", "github-actions[bot]");
-        assertThat(run.exit).as("the own workflow's pull request: %s", run.log).isZero();
-        assertThat(run.java).as("its commits need no sign-off").endsWith("6666666..7777777");
-    }
-
-    // Prevents code from outside from passing without its author's sign-off.
-    @Test
-    void aPullRequestFromElsewhereStaysFromOutside() throws IOException, InterruptedException {
-        assertThat(
-                        pullRequest(
-                                        "someone/porelo-buildtools",
-                                        "CONTRIBUTOR",
-                                        "github-actions[bot]")
-                                .java)
-                .as("the bot's pull request from another repository")
-                .endsWith("6666666..7777777", "--outside");
-        assertThat(pullRequest("porelo-ai/porelo-buildtools", "CONTRIBUTOR", "someone").java)
-                .as("a contributor's pull request from this repository")
-                .endsWith("6666666..7777777", "--outside");
-        assertThat(pullRequest("someone/porelo-buildtools", "MEMBER", "someone").java)
-                .as("a member's pull request from another repository")
-                .endsWith("6666666..7777777", "--outside");
-    }
-
-    // Prevents every pull request on the host's forge from being refused for want of a sign-off:
-    // Forgejo sends no author association, and a branch there is pushed only with write access.
-    @Test
-    void aForgePullRequestFromTheSameRepositoryIsFromInside()
-            throws IOException, InterruptedException {
-        final Run run = pullRequest("porelo-ai/porelo-buildtools", "", "agent-machines", FORGE);
-        assertThat(run.exit).as("a forge pull request from this repository: %s", run.log).isZero();
-        assertThat(run.java).as("its commits need no sign-off").endsWith("6666666..7777777");
-    }
-
-    // Prevents the forge's rule from letting code from another repository pass without its
-    // author's sign-off.
-    @Test
-    void aForgePullRequestFromElsewhereStaysFromOutside() throws IOException, InterruptedException {
-        assertThat(pullRequest("someone/porelo-buildtools", "", "someone", FORGE).java)
-                .as("a forge pull request from another repository")
-                .endsWith("6666666..7777777", "--outside");
-    }
-
-    private Run pullRequest(final String repository, final String association, final String author)
-            throws IOException, InterruptedException {
-        return pullRequest(repository, association, author, "https://github.com");
-    }
-
-    private Run pullRequest(
-            final String repository,
-            final String association,
-            final String author,
-            final String server)
-            throws IOException, InterruptedException {
-        return execute(
-                named(job(SHARED_RULES, "check"), "The pull request's commit messages"),
-                Map.of(
-                        "PR_BASE",
-                        "6666666",
-                        "PR_HEAD",
-                        "7777777",
-                        "PR_REPOSITORY",
-                        repository,
-                        "GITHUB_REPOSITORY",
-                        "porelo-ai/porelo-buildtools",
-                        "PR_ASSOCIATION",
-                        association,
-                        "PR_AUTHOR",
-                        author,
-                        "PR_SERVER",
-                        server),
-                0);
+        assertThat(execute(step, 1).exit).as("a refused pull request fails the step").isNotZero();
     }
 
     private record Run(int exit, String log, List<String> java, List<String> maven) {}
 
-    /**
-     * Runs the Build's step for a push of {@code ref} from {@code before}; git holds {@code known}.
-     */
-    private Run run(final String ref, final String before, final String known, final int checkExit)
-            throws IOException, InterruptedException {
-        return execute(
-                step(),
-                Map.of(
-                        "PUSH_BEFORE",
-                        before,
-                        "GITHUB_SHA",
-                        "2222222",
-                        "GITHUB_REF",
-                        ref,
-                        "GITHUB_REF_TYPE",
-                        ref.startsWith("refs/tags/") ? "tag" : "branch",
-                        "KNOWN",
-                        known.isEmpty() ? "none" : known),
-                checkExit);
-    }
-
-    /** Runs a step's own script with git, Maven and java stubbed, in the given environment. */
-    private Run execute(
-            final JsonNode step, final Map<String, String> environment, final int checkExit)
+    /** Runs a step's own script with git, Maven and java stubbed, in an empty environment. */
+    private Run execute(final JsonNode step, final int checkExit)
             throws IOException, InterruptedException {
         final Path bin = Files.createDirectories(directory.resolve("bin"));
         final Path javaArguments = directory.resolve("java-arguments");
@@ -373,13 +209,8 @@ class WorkflowCommitsTest {
         stub(
                 bin.resolve("java"),
                 "printf '%s\\n' \"$@\" >> \"$JAVA_ARGUMENTS\"\nexit " + checkExit + "\n");
-        // Answers only the calls the steps make, as git would; any other call fails.
-        stub(
-                bin.resolve("git"),
-                "case \"$*\" in\n"
-                        + "'cat-file -e '*) [ \"$#\" -eq 3 ] && [ \"$3\" = \"$KNOWN^{commit}\" ] ;;\n"
-                        + "*) echo \"unexpected git $*\" >&2; exit 99 ;;\n"
-                        + "esac\n");
+        // The steps call git through the command alone; a call of their own fails.
+        stub(bin.resolve("git"), "echo \"unexpected git $*\" >&2\nexit 99\n");
         final Path output = directory.resolve("output");
         final ProcessBuilder command =
                 new ProcessBuilder(
@@ -396,15 +227,11 @@ class WorkflowCommitsTest {
                         .redirectOutput(output.toFile());
         command.environment().clear();
         command.environment().put("PATH", bin + ":/usr/bin:/bin");
-        command.environment().put("KNOWN", "none");
-        command.environment().putAll(environment);
         command.environment().put("JAVA_ARGUMENTS", javaArguments.toString());
         command.environment().put("MAVEN_CALLS", mavenCalls.toString());
         final Process process = command.start();
         try {
-            assertThat(process.waitFor(10, TimeUnit.SECONDS))
-                    .as("the step ends in %s", environment)
-                    .isTrue();
+            assertThat(process.waitFor(10, TimeUnit.SECONDS)).as("the step ends").isTrue();
             return new Run(
                     process.exitValue(),
                     Files.readString(output),

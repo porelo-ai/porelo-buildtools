@@ -1,0 +1,2 @@
+title: "`check-commits --event` takes a push's range and a pull request's origin from the workflow's event itself, and `check-workflows` refuses a workflow that does not load or names no trigger or no job, so a workflow only calls a command; this repository's own workflows use both."
+type: added

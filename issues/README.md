@@ -35,7 +35,6 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
-| <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. |
 
 ## Backlog
 
@@ -62,6 +61,7 @@ left out.
 | <a id="bt75"></a>[BT75](BT75-Who-Works-An-Issue-In-Its-Head.md) | XS | - | An issue head may say who works it, `"worker": "Agent"` or `"Manual"`: issue-1.json takes the field and refuses any other value, and IssueHead reads it and writes it last, after the optional fields it writes today. |
 | <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
 | <a id="bt01"></a>[BT01](BT01-A-Release-Leg-Installs-The-Release.md) | S | - | A release leg installs Porelo from the channel the run publishes to, and `acceptance --candidate` needs no package name. |
+| <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. |
 | <a id="bt62"></a>[BT62](BT62-An-Issues-Data-In-A-Head.md) | M | - | An issue's data in a JSON head by `issue-1.json`; `porelo-release issues index`, `check` and `convert`; the stories library, `stage` and check-commits read the head. |
 | <a id="bt61"></a>[BT61](BT61-The-Stories-Library-Under-The-LGPL.md) | XS | - | `porelo-stories` is published under LGPL-3.0-or-later, so a program under another license may link it; the rest stays GPL. |
 | <a id="bt68"></a>[BT68](BT68-Project-Read-Takes-Any-Clone-URL.md) | S | - | `Project.read` in porelo-stories reads the project.yml of any project, wherever its repositories live: `https://`, `ssh://` and scp-like centrals on any host and under any owner, the name being the last part of the path without `.git`; anything else is refused naming the key and the value. |

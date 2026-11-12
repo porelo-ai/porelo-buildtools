@@ -566,6 +566,48 @@ class CheckCommitsTest {
                 .contains("1 fault(s)");
     }
 
+    // Prevents a workflow's push from being checked over another range than the event names.
+    @Test
+    void checksThePushTheEventNames() throws IOException, InterruptedException {
+        git("init", "-q", "-b", "main");
+        write(
+                "issues/workflow.yml",
+                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
+        git("add", "issues/workflow.yml");
+        git("commit", "-q", "-m", "Read the pins at first", "-m", AGENT);
+        final String start = git("rev-parse", "HEAD").strip();
+        git("commit", "-q", "--allow-empty", "-m", "Read the pins once", "-m", AGENT);
+        git("commit", "-q", "--allow-empty", "-m", "Read the pins twice", "-m", "Because.");
+        final String head = git("rev-parse", "HEAD").strip();
+        final Path event =
+                Files.writeString(
+                        directory.resolve("event.json"), "{\"before\": \"" + start + "\"}");
+        final Map<String, String> environment =
+                Map.of(
+                        "GITHUB_EVENT_PATH", event.toString(),
+                        "GITHUB_EVENT_NAME", "push",
+                        "GITHUB_REF", "refs/heads/main",
+                        "GITHUB_REF_TYPE", "branch",
+                        "GITHUB_SHA", head,
+                        "GITHUB_REPOSITORY", "porelo-ai/x",
+                        "GITHUB_SERVER_URL", "https://github.com");
+
+        final int code =
+                new CheckCommits(
+                                stream(out),
+                                stream(err),
+                                CheckCommits.Git.in(directory, isolated()),
+                                () -> prefixes)
+                        .checkEvent(environment);
+
+        assertThat(code).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(out.toString(StandardCharsets.UTF_8))
+                .contains("NOTE  the event's commits: " + start + ".." + head + ", from inside");
+        assertThat(stderr())
+                .as("the two commits after the push's start, not the one it started from")
+                .contains("1 fault(s) in 1 of 2 commit(s)");
+    }
+
     @Test
     void takesOnlyThePrefixesOfItsOwnIssuesAndTheirRows() throws IOException {
         // Without a prefix a requirement number of that repository goes through as a word; another
