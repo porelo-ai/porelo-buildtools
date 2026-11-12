@@ -70,6 +70,22 @@ docs' sections, and the own workflows moved to the download.
 Other repositories' workflows are their owners' changes; this issue removes the code once they all run the planner's
 executable, so it waits for them.
 
+## The replacement names no host of its own (from BT59, 2026-11-12)
+
+[BT59](README.md#bt59) is closed into this issue on the coordinator's word: the library it would have changed leaves
+with this issue. Its condition holds for the planner's replacement instead. A program that is not porelo-ai's own
+regenerates a project's story texts and indexes, and every link and repository they name comes from that project: no
+fixed `porelo-ai` or `github.com` in an issue's link, in a wait on another repository or in a fallback source, and
+story files named as the work format says.
+
+Read on porelo-planner's `main` (2026-11-12), the planner's replacement already meets it, so this issue waits on
+nothing more from the planner for it:
+- **The links.** `planner/store/git` takes each one from `project.yml` (`Project.web`, under
+  [PL59](https://github.com/porelo-ai/porelo-planner/blob/main/issues/README.md#pl59)).
+- **The story files.** The work format names a story `ST<n>` (story-1.json's id), as a bare `ST<n>.md` or as
+  `ST<n>-<Title>.md`; the planner takes both, as the Agent Planner measured. A prefix other than `ST`, chosen by a
+  project, is no part of the format, and nobody asks for it.
+
 ## Acceptance
 
 - Each removed command answers as unknown; the full build passes; `check-shared`, `check-citations` and
