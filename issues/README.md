@@ -31,12 +31,6 @@ left out.
 |---|---|---|---|
 | <a id="bt56"></a>[BT56](BT56-Sub-Agent-Briefs-Beside-Their-Issue.md) | M | - | A sub-agent's work is a sub-issue `<parent>.<n>` with its own state, its file beside the parent and its row in the same index; the index reading, the checks and the stories count it, and the briefs-as-files rules go. |
 
-## Estimated
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
-
 ## Backlog
 
 | # | Size | Blocked by | What it covers |
@@ -45,6 +39,7 @@ left out.
 | <a id="bt81"></a>[BT81](BT81-Every-Repositorys-Issue-Heads-Checked-Before-A-Push.md) | - | - | Every repository's checks and the coordinator's prepush run porelo-release's issue-head check against issue-1.json, so a head the planner's board refuses (no size, a rank of null) is refused before it reaches main. |
 | <a id="bt67"></a>[BT67](BT67-The-Notices-Read-The-Bouncy-Castle-Licence-As-MIT.md) | XS | - | `third-party-notices` takes a component whose bill names the license `Bouncy Castle Licence` with Bouncy Castle's own licence URL as MIT, which that licence is, so porelo's notices take the Bouncy Castle jars. |
 | <a id="bt71"></a>[BT71](BT71-The-Work-Format-Handed-To-The-Planner.md) | M | - | Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows run the planner's native executable, downloaded from Artifactory pinned by version and sha256, instead. |
+| <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |

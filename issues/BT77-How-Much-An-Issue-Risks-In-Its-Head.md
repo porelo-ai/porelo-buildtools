@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT77",
   "title": "How Much An Issue Risks In Its Head",
-  "state": "Estimated",
+  "state": "Backlog",
   "size": "XS",
   "priority": "High",
   "rank": 30,
