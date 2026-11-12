@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The repositories a project names in its {@code project.yml}: its own, under {@code project}, and
@@ -41,9 +42,29 @@ public record Project(
     private static final ObjectMapper YAML =
             new ObjectMapper(
                     new YAMLFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
-    private static final Pattern UPSTREAM =
+    // A user without a password, a host name or a bracketed address; neither opens with a dash.
+    private static final String USER = "(?:[A-Za-z0-9][A-Za-z0-9._~-]*@)?";
+    private static final String HOST =
+            "(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\\[[0-9A-Fa-f:.]+\\])";
+
+    // A scp-like host of two characters at least, so a drive letter such as C: is no host.
+    private static final String SCP_HOST =
+            "(?:[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]|\\[[0-9A-Fa-f:.]+\\])";
+
+    // https:// and ssh:// with a path, or scp-like user@host:path, whose path opens with no slash
+    // and no dash and holds no colon and no at sign, so no password and no option hides in it.
+    private static final Pattern CLONE_URL =
             Pattern.compile(
-                    "^(?:git@github\\.com:|https://github\\.com/)porelo-ai/([A-Za-z0-9][A-Za-z0-9_.-]*?)(?:\\.git)?$");
+                    "^(?:(?:https|ssh)://"
+                            + USER
+                            + HOST
+                            + "(?::[0-9]{1,5})?/(?<url>[^\\s]*)"
+                            + "|"
+                            + USER
+                            + SCP_HOST
+                            + ":(?<scp>[^/:@\\s-][^:@\\s]*))$");
+
+    private static final Pattern NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
 
     /**
      * Refuses a project that does not hold its own repository or whose centrals name other
@@ -247,11 +268,32 @@ public record Project(
         // A project.yml not yet renamed still names the central remote "upstream".
         final String key = data.has("central") ? "central" : "upstream";
         final String central = string(data, key, where);
-        final Matcher match = UPSTREAM.matcher(central);
-        if (!match.matches()) {
+        final String name = name(central);
+        if (name == null) {
             throw new IllegalArgumentException(
                     where + ": unsupported repository " + key + " " + central);
         }
-        return new Repository(match.group(1), central);
+        return new Repository(name, central);
+    }
+
+    /**
+     * The repository a clone URL names: the last part of its path without {@code .git}.
+     *
+     * @param central an {@code https://}, an {@code ssh://} or a scp-like {@code user@host:path}
+     *     URL on any host
+     * @return the name, or null when the value is no such URL or names no repository
+     */
+    static @Nullable String name(String central) {
+        if (central.chars().anyMatch(c -> Character.isISOControl(c) || Character.isWhitespace(c))) {
+            return null;
+        }
+        final Matcher match = CLONE_URL.matcher(central);
+        if (!match.matches()) {
+            return null;
+        }
+        final String path = match.group("url") != null ? match.group("url") : match.group("scp");
+        final String last = path.substring(path.lastIndexOf('/') + 1);
+        final String name = last.endsWith(".git") ? last.substring(0, last.length() - 4) : last;
+        return NAME.matcher(name).matches() ? name : null;
     }
 }

@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT68",
   "title": "Project.read Takes Any Clone URL",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 3,

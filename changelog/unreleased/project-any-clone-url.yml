@@ -1,0 +1,2 @@
+title: "`Project.read` takes any project's centrals: `https://`, `ssh://` and scp-like URLs on any host and under any owner, the name being the last part of the path without `.git`; anything else is refused naming the key and the value."
+type: changed
