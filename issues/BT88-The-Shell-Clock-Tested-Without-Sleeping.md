@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT88",
   "title": "The Shell Clock Tested Without Sleeping",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 6,
@@ -22,3 +22,11 @@ of it sleeps longer than 50 ms.
 
 **Why.** [BT57](README.md#bt57)'s acceptance holds every test to sleeps of 50 ms at most. Its fixes gave Java's waits a
 clock the tests move; this test sleeps 1.3 s in `python3` because the shell's clock is the real one.
+
+## As built
+
+The test no longer waits for the clock to move. It reads `pinned_now`, sets `SECONDS` forward to 100000, reads it
+again, sets `SECONDS` back to -100000, reads it a third time, and reads `/proc/uptime` itself. Each step may move at
+most one second, and the clock must be the uptime's. `pinned.sh` is unchanged, so the shared rule's text stays the
+same everywhere. The test took 1.3 s and now takes 35 ms, with no sleep at all. A `pinned_now` that echoes
+`$SECONDS` was seen to fail it.
