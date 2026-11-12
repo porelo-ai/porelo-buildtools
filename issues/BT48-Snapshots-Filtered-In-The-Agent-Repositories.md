@@ -54,3 +54,9 @@ S over the five repositories, XS here.
 - With Agent Smith: the order beside the move of their parent to 0.2.2-SNAPSHOT, best after it.
 - Whether porelo, porelo-frontend, porelo-ecosystems, porelo-intellij and porelo-parent, which hold no `.mvn/rrf/`
   either, read snapshots at all. If they do, they are a second step.
+
+## Built here (2026-11-12)
+
+- `doc/index.md`, under *What `check-snapshot-filter` reads*, states that every repository reading Sonatype's
+  snapshots holds the shape and runs the check in its Build, with `org.fuin.porelo` as its one listed group. The five
+  agent repositories' commits stay with Agent Smith.

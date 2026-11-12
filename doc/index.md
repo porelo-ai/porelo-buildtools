@@ -311,6 +311,10 @@ On a forge the registry is read with `PORELO_PACKAGES_READ_TOKEN`, which can onl
 A repository whose `settings.xml` names no snapshot repository has nothing to hold. An empty filter file pins a
 repository to what the host built, while central's copy is newer than its own and not yet brought in.
 
+Every repository that reads Sonatype's snapshots holds this shape and runs `check-snapshot-filter .` in its Build,
+beside its other checks, as porelo-message-matrix and porelo-message-sluice do; its one listed group is
+`org.fuin.porelo`, which holds porelo-parent, these tools and Porelo's own artifacts.
+
 ## What `check-releases` reads
 
 The effective pom Maven writes, taken on a release tag before the build:
