@@ -57,6 +57,28 @@ class TestRunsApartTest {
         assertThat(text(pom, "/project/properties/porelo.skipIntegration")).isEqualTo("false");
     }
 
+    // Prevents the native parity check from selecting a class the inherited exclusion leaves out,
+    // so `verify -Pnative` runs no test and stays green.
+    @Test
+    void theNativeParityRunTakesItsIntegrationTest() throws Exception {
+        final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        final Document stories =
+                factory.newDocumentBuilder().parse(Path.of("../stories/pom.xml").toFile());
+        final String execution =
+                "/project/profiles/profile/build/plugins/plugin[artifactId='maven-surefire-plugin']"
+                        + "/executions/execution[id='native-parity']/configuration";
+        assertThat(text(stories, execution + "/includes/include"))
+                .isEqualTo("**/NativeStoriesTest.java");
+        assertThat(text(stories, execution + "/groups")).isEqualTo("integration");
+        assertThat(text(stories, execution + "/excludedGroups")).isEqualTo("none");
+        assertThat(
+                        Files.readString(
+                                Path.of(
+                                        "../stories/src/test/java/org/fuin/porelo/stories/NativeStoriesTest.java")))
+                .contains("@Tag(\"integration\")");
+    }
+
     // Prevents the documents run from leaving out a document test that also starts a process.
     @Test
     void theDocumentsRunExcludesNothing() throws Exception {

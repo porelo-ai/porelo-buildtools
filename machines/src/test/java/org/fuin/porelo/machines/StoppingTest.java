@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * Tests for {@link Stopping}: the watch over a process held in memory and looks given by hand, the
@@ -39,8 +40,12 @@ class StoppingTest {
 
         private final Semaphore looked = new Semaphore(0);
 
+        /** The thread that looks, once it has. */
+        volatile Thread watch;
+
         @Override
         public void next() throws InterruptedException {
+            watch = Thread.currentThread();
             looked.release();
             due.acquire();
         }
@@ -114,13 +119,16 @@ class StoppingTest {
         }
         step.alive = false;
         looks.letLook();
+        looks.watch.join(TimeUnit.SECONDS.toMillis(5));
 
+        assertThat(looks.watch.isAlive()).as("the watch ended with close").isFalse();
         assertThat(stops).as("after close, the step ending is none of its business").hasValue(0);
         assertThat(exits).as("nor does the leg end for it").hasValue(-1);
     }
 
     // Prevents close from cutting the machine's deletion off half-way.
     @Test
+    @Timeout(30)
     void aLegClosingWhileItStopsLetsTheStopFinish() throws Exception {
         // Measured on a cancelled build: the suite ended, the leg's own thread closed this, and the
         // machine's deletion was interrupted half-way.
@@ -146,7 +154,10 @@ class StoppingTest {
         assertThat(began.await(5, TimeUnit.SECONDS)).isTrue();
 
         final Thread closing = Thread.ofPlatform().start(stopping::close);
+        // A close that waited without a time limit would show WAITING, and fail here rather than
+        // hang.
         while (closing.getState() != Thread.State.TIMED_WAITING
+                && closing.getState() != Thread.State.WAITING
                 && closing.getState() != Thread.State.TERMINATED) {
             Thread.onSpinWait();
         }

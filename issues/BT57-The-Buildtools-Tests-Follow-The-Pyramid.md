@@ -186,3 +186,8 @@ paid in money or in another team's red Build.
 a DNS lookup or a connection off the loopback. Two points are not met, and are in the Backlog: the unit run summed
 26 s of test time, not under 15 s, at a load of about 40 on 16 cores ([BT87](README.md#bt87)); and
 `PinnedRetryTest` still sleeps 1.3 s to prove the shell's clock ([BT88](README.md#bt88)).
+
+**After the reading (Sonnet).** The native parity run in porelo-stories inherited the exclusion of `integration` and
+ran no test once `NativeStoriesTest` carried the tag; it now selects that group, and `TestRunsApartTest` holds it. A
+`-Dtest` naming tests of one side no longer fails the other execution. `StoppingTest` waits for the watch to end after
+close, and its close test fails within 30 s instead of hanging.

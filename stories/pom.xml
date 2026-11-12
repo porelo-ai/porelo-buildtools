@@ -119,6 +119,10 @@
                                 <goals><goal>test</goal></goals>
                                 <configuration>
                                     <includes><include>**/NativeStoriesTest.java</include></includes>
+                                    <!-- The class is tagged integration, which the parent leaves out
+                                         of every other run. -->
+                                    <groups>integration</groups>
+                                    <excludedGroups>none</excludedGroups>
                                     <systemPropertyVariables>
                                         <stories.native>true</stories.native>
                                         <stories.native.executable>${project.build.directory}/stories-fixture</stories.native.executable>

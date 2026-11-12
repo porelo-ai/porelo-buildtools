@@ -216,6 +216,9 @@
                              tagged integration starts a real process, socket or server and runs in the
                              execution below, at `verify`. -->
                         <excludedGroups>${porelo.excludedGroups}</excludedGroups>
+                        <!-- A -Dtest naming tests of one side only leaves the other execution
+                             empty, which is no failure. -->
+                        <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
                         <!-- Panama downcalls are a restricted operation and will be blocked
                              outright in a future release without this. -->
                         <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
