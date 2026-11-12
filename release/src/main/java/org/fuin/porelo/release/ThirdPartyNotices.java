@@ -166,10 +166,15 @@ final class ThirdPartyNotices {
             try {
                 Files.writeString(temporary, text, UTF_8);
                 // A temporary file is the owner's alone; the notice is for everyone the package
-                // reaches.
-                Files.setPosixFilePermissions(
-                        temporary,
-                        java.nio.file.attribute.PosixFilePermissions.fromString("rw-r--r--"));
+                // reaches. A file system without POSIX permissions, such as Windows' NTFS, keeps
+                // the access its directory gives.
+                if (Files.getFileAttributeView(
+                                temporary, java.nio.file.attribute.PosixFileAttributeView.class)
+                        != null) {
+                    Files.setPosixFilePermissions(
+                            temporary,
+                            java.nio.file.attribute.PosixFilePermissions.fromString("rw-r--r--"));
+                }
                 Files.move(
                         temporary,
                         target,

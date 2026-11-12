@@ -1,0 +1,2 @@
+title: "`third-party-notices` writes `THIRD-PARTY-NOTICES` on a file system without POSIX permissions, such as Windows' NTFS, instead of ending in `UnsupportedOperationException`; on Linux the file stays `rw-r--r--`."
+type: fixed

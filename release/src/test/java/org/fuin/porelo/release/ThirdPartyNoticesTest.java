@@ -9,8 +9,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URISyntaxException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -891,6 +894,36 @@ class ThirdPartyNoticesTest {
                 .as("a notice every user of the package may read")
                 .isEqualTo("rw-r--r--");
         assertThat(Files.readString(out)).contains("org.example:alpha:1");
+    }
+
+    // Prevents a build on Windows, whose NTFS has no POSIX permissions, from ending without
+    // notices.
+    @Test
+    void writesTheFileWhereTheFileSystemHasNoPosixPermissions() throws Exception {
+        final Path good =
+                jar("alpha-1.jar", "org.example", "alpha", "1", Map.of("META-INF/LICENSE", "A\n"));
+        final Path classpath = Files.writeString(dir.resolve("cp.txt"), good + "\n");
+        final Path bill =
+                Files.writeString(
+                        dir.resolve("bom.json"),
+                        "{\"bomFormat\": \"CycloneDX\", \"components\": [{\"group\":"
+                                + " \"org.example\", \"name\": \"alpha\", \"version\": \"1\","
+                                + " \"licenses\": [{\"license\": {\"id\": \"MIT\"}}]}]}");
+        // A ZIP file system offers no POSIX view unless asked to, as NTFS offers none.
+        try (FileSystem plain =
+                FileSystems.newFileSystem(dir.resolve("plain.zip"), Map.of("create", "true"))) {
+            final Path out = plain.getPath("/THIRD-PARTY-NOTICES");
+            assertThat(Files.getFileAttributeView(out.getParent(), PosixFileAttributeView.class))
+                    .as("the file system has no POSIX view")
+                    .isNull();
+
+            final int written =
+                    new ThirdPartyNotices(nowhere(), nowhere())
+                            .write(classpath, bill, jdk(), out, NONE_OWN);
+
+            assertThat(written).as("written without POSIX permissions").isZero();
+            assertThat(Files.readString(out)).contains("org.example:alpha:1");
+        }
     }
 
     @Test
