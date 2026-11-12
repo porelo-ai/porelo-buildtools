@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT57",
   "title": "The Buildtools' Tests Follow The Pyramid",
-  "state": "Estimated",
+  "state": "Implementing",
   "size": "L",
   "priority": "Medium",
   "rank": 1,
@@ -138,3 +138,19 @@ Read in porelo-buildtools 15012b0 against the audit above:
 The operator called the pyramid very important, and ST296 asks every repository to follow it. The costliest flows here
 — leases, snapshots and agent legs — are proven only on rented machines or in other repositories. A fault in them is
 paid in money or in another team's red Build.
+
+## As built, fixes 1 to 3 (2026-11-12)
+
+- **Fix 1.** `RemoteSession`, which `Ssh` implements and `Lease.ssh()` now returns, an `SshDialer` and a `Waiting`
+  clock on `Lease`. `LeaseWaitTest` proves `awaitSsh` and `restart` over a fake machine and clock in milliseconds;
+  `RentalTest` makes no DNS lookup any more and proves `Rental.run`'s steps, its record and its daemon check. `Main.local`
+  waits in `LocalVms`, so it moves to fix 9 with that class's clock.
+- **Fix 2.** `SnapshotsBuildTest` proves the snapshot's steps, its Fedora restart and policy, the tree build and its
+  removal, and that a failed step takes no image and gives the machine back. No `SnapshotCatalog` was cut: `Machines`
+  already is the interface that shuts down, images and prunes, so the test fakes it. No `TreeArchive` either: the one
+  `git archive` call in `Main` is the real tool it stands for, and nothing in the flow branches on it.
+- **Fix 3.** `AgentLeg.run` takes an `SshDialer`, an `AcceptanceSuite` and its environment. `AgentLegRunTest` proves
+  that the suite's credentials reach the machine on standard input alone and the suite runs as the leg's user, the
+  candidate it sent is installed, extra accounts are set up over their own connections, scenarios run beside each other
+  before the restarts run alone, and a failed suite still gives the machine back.
+- Each of the 20 guarded rules was removed once and its test went red.
