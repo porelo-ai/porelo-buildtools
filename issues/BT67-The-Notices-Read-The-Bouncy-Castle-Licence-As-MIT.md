@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT67",
   "title": "The Notices Read The Bouncy Castle Licence As MIT",
-  "state": "Backlog",
+  "state": "Review",
   "size": "XS",
   "priority": "High",
   "rank": 2,

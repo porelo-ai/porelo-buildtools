@@ -376,6 +376,12 @@ final class ThirdPartyNotices {
         return null;
     }
 
+    /** The name Bouncy Castle's POMs give their licence, read as MIT only with its own URL. */
+    private static final String BOUNCY_CASTLE_NAME = "Bouncy Castle Licence";
+
+    /** Bouncy Castle's own licence page, the URL its POMs give beside that name. */
+    private static final String BOUNCY_CASTLE_URL = "https://www.bouncycastle.org/licence.html";
+
     private static Component component(@Nullable Object list, @Nullable String sha256) {
         final List<String> licenses = new ArrayList<>();
         final List<String> exceptions = new ArrayList<>();
@@ -391,7 +397,14 @@ final class ThirdPartyNotices {
                     licenses.add(id);
                 } else if (choice.get("license") instanceof Map<?, ?> license
                         && license.get("name") instanceof String name) {
-                    licenses.add(name);
+                    // Bouncy Castle's POMs name their licence with no SPDX id; it is the MIT
+                    // license
+                    // with its own copyright line, told apart by its exact name and its own URL.
+                    licenses.add(
+                            BOUNCY_CASTLE_NAME.equals(name)
+                                            && BOUNCY_CASTLE_URL.equals(license.get("url"))
+                                    ? "MIT"
+                                    : name);
                 } else {
                     unread.add(String.valueOf(choice));
                 }

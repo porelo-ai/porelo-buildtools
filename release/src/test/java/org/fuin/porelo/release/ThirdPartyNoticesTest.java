@@ -384,6 +384,34 @@ class ThirdPartyNoticesTest {
     }
 
     @Test
+    void readsTheBouncyCastleLicenceByItsNameAndUrlAsMit() throws Exception {
+        final Path bill =
+                Files.writeString(
+                        dir.resolve("bom.json"),
+                        """
+                        {"bomFormat": "CycloneDX", "components": [
+                          {"group": "org.bouncycastle", "name": "bcprov-jdk18on", "version": "1.85",
+                           "licenses": [{"license": {"name": "Bouncy Castle Licence",
+                                                     "url": "https://www.bouncycastle.org/licence.html"}}]},
+                          {"group": "g", "name": "other-url", "version": "1",
+                           "licenses": [{"license": {"name": "Bouncy Castle Licence",
+                                                     "url": "https://example.org/licence.html"}}]},
+                          {"group": "g", "name": "no-url", "version": "1",
+                           "licenses": [{"license": {"name": "Bouncy Castle Licence"}}]}
+                        ]}
+                        """);
+
+        final var read = ThirdPartyNotices.licenses(bill);
+        assertThat(read.get("org.bouncycastle:bcprov-jdk18on:1.85").licenses())
+                .as("Bouncy Castle's licence is MIT with its own copyright line")
+                .containsExactly("MIT");
+        assertThat(read.get("g:other-url:1").licenses())
+                .as("the name alone, with another URL or none, stays a name no text is pinned for")
+                .containsExactly("Bouncy Castle Licence");
+        assertThat(read.get("g:no-url:1").licenses()).containsExactly("Bouncy Castle Licence");
+    }
+
+    @Test
     void readsExpressionOperatorsInAnyCaseAndKeepsExceptionsApart() throws Exception {
         final Path bill =
                 Files.writeString(
