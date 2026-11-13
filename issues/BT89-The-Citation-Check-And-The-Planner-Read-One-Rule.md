@@ -18,9 +18,8 @@
 the rule has to match a reader in another repository: one module, its tests, the guide's words, and a reading of
 `StoreReader` and `IssueLinks` in porelo-planner.
 
-Filed 2026-11-13 from the Coordinator's finding. The planner reported 40 board faults that the prepush gate had let
-through, read live at 09:41 UTC: porelo-planner 28 and porelo-project 12. The list is in the handover
-`board-faults-2026-11-13.md`.
+The planner's board shows 40 citation faults that the prepush gate let through: porelo-planner 28 and porelo-project
+12.
 
 **What must be true.** A repository whose prepush `check-citations` passes shows no citation fault on the planner's
 board. These are the three gaps:
@@ -48,4 +47,4 @@ board. These are the three gaps:
 ## Acceptance
 
 - `check-citations` fails on each of the three kinds, and a test fails without each fix.
-- Over the two repositories as they stood on 2026-11-13, it names the planner's 40 faults, and no other.
+- Over the two repositories at the commits the faults were read on, it names the planner's 40 faults, and no other.
