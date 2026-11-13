@@ -59,5 +59,9 @@ board. These are the three gaps:
 - **The plain numbers and the story files** were no gap in the check: on its main it names porelo-project's 12, the
   seven plain numbers and the five story files. They passed because the prepush gate does not run `check-citations`.
   `CheckCitationsTest.refusesALinkToAStorysFileFromAnIssue` holds the story file's case, green before and after.
+- **A story's index row** was refused: a link from an issue to `../stories/README.md#st<n>`, the form the planner asks
+  for, read as a row that is not there, since only the pages under `issues/` gave anchors. The stories' index gives its
+  rows' anchors too. Red first: `CheckCitationsTest.acceptsALinkToAStorysIndexRowFromAnIssue`. A story of one digit,
+  `ST9`, is no issue number to the check at all, so its file link passes where `ST11`'s does not.
 - The guide's words under *What `check-citations` reads* and the class comment say the rule.
 

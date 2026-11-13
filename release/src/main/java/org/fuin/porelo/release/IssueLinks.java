@@ -211,6 +211,14 @@ final class IssueLinks {
                 anchors.put(page.toAbsolutePath().normalize(), anchorsIn(text));
             }
         }
+        // A story is cited by its index row, as porelo-planner asks; that row is the stories'
+        // index's.
+        final Path stories = root.resolve("stories/README.md");
+        if (Files.isRegularFile(stories)) {
+            anchors.putIfAbsent(
+                    stories.toAbsolutePath().normalize(),
+                    anchorsIn(Files.readString(stories, StandardCharsets.UTF_8)));
+        }
         for (final Map.Entry<Path, String> page : texts.entrySet()) {
             readPage(
                     root,

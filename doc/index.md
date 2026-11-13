@@ -44,6 +44,8 @@ repository's state never decides this one's check.
 - **No page under `issues/`, the index among them, names a settled issue's file**: `<NUMBER>-<name>.md` of a number
   whose row is left without its file. It is read as porelo-planner's reader reads it, so a check that passes leaves
   no link to a deleted file on the planner's board.
+- **A story** is cited from an issue by its row in the stories' index, `[ST<n>](../stories/README.md#st<n>)`, never by
+  its file; the anchor must be there.
 - **An issue's head**, the JSON fenced right below its heading, is data: its `blockedBy` and `parent` ids are not
   asked to be links, and each must name an issue file or an index row of the repository, else it is refused on its
   line. Issue files and rows of a sub-issue, `<parent>.<n>`, count.

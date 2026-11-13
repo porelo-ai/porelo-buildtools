@@ -397,6 +397,24 @@ class CheckCitationsTest {
         assertThat(stderr()).contains("issues/B11-Another.md:1 -> ../stories/ST12-A-Story.md");
     }
 
+    // The form the planner asks for, a story's index row, must be one the check finds.
+    @Test
+    void acceptsALinkToAStorysIndexRowFromAnIssue() throws IOException {
+        write(
+                "stories/ST12-A-Story.md",
+                "# ST12 — A Story\n\n## Data\n\n```json\n{\"id\": \"ST12\", \"issues\": []}\n```\n");
+        write(
+                "stories/README.md",
+                "# Stories\n\n| <a id=\"st12\"></a>[ST12](ST12-A-Story.md) | - | - |\n");
+        write("issues/B11-Another.md", "For [ST12](../stories/README.md#st12).\n");
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+
+        write("issues/B11-Another.md", "For [ST13](../stories/README.md#st13).\n");
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> ../stories/README.md#st13");
+    }
+
     @Test
     void readsNothingOutsideItsOwnRepository() throws IOException {
         // Another repository's state must not decide this one's check, nor need its checkout.
