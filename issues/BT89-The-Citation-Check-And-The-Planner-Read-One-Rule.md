@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT89",
   "title": "The Citation Check And The Planner Read One Rule",
-  "state": "Implementing",
+  "state": "Review",
   "size": "M",
   "priority": "Medium",
   "rank": 32,
@@ -48,3 +48,16 @@ board. These are the three gaps:
 
 - `check-citations` fails on each of the three kinds, and a test fails without each fix.
 - Over the two repositories at the commits the faults were read on, it names the planner's 40 faults, and no other.
+
+## What is built
+
+- **The index's dead links.** `check-citations` reads every page of its own `issues/`, the index among them, for the
+  file of a settled issue, one whose row is left without its file: the number, a dash and a name ending in `.md`, as
+  `StoreReader.mentions` reads it. Red first:
+  `CheckCitationsTest.refusesALinkToTheDeletedFileOfAFinishedIssueInTheIndexToo`. Over porelo-planner at 09b665e it
+  names the 28 places the board showed; at 012bd3d, none.
+- **The plain numbers and the story files** were no gap in the check: on its main it names porelo-project's 12, the
+  seven plain numbers and the five story files. They passed because the prepush gate does not run `check-citations`.
+  `CheckCitationsTest.refusesALinkToAStorysFileFromAnIssue` holds the story file's case, green before and after.
+- The guide's words under *What `check-citations` reads* and the class comment say the rule.
+

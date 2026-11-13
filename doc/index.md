@@ -41,6 +41,9 @@ repository's state never decides this one's check.
   index has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
   Which prefixes are issue numbers is read from the root's own issue files and index rows, so `SHA256` or a
   guideline's `LLM03` is none, and neither is a prefix a test's fixture deeper down carries.
+- **No page under `issues/`, the index among them, names a settled issue's file**: `<NUMBER>-<name>.md` of a number
+  whose row is left without its file. It is read as porelo-planner's reader reads it, so a check that passes leaves
+  no link to a deleted file on the planner's board.
 - **An issue's head**, the JSON fenced right below its heading, is data: its `blockedBy` and `parent` ids are not
   asked to be links, and each must name an issue file or an index row of the repository, else it is refused on its
   line. Issue files and rows of a sub-issue, `<parent>.<n>`, count.

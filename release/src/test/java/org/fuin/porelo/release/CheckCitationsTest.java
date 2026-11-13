@@ -366,6 +366,37 @@ class CheckCitationsTest {
         assertThat(check()).as(stderr()).isEqualTo(0);
     }
 
+    // A finished row that still links its deleted file is the planner's board fault, index or not.
+    @Test
+    void refusesALinkToTheDeletedFileOfAFinishedIssueInTheIndexToo() throws IOException {
+        write(
+                "issues/README.md",
+                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
+                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
+                        + "| <a id=\"b09\"></a>[B09](B09-The-First.md) | Built: the first thing. |\n");
+        write("issues/B11-Another.md", "After [B09](README.md#b09), once B09-The-First.md.\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("issues/README.md:7 -> B09-The-First.md")
+                .contains("issues/B11-Another.md:1 -> B09-The-First.md")
+                .doesNotContain("-> B10")
+                .doesNotContain("-> B11");
+    }
+
+    // The planner reads a story's file in an issue as a link that skips the story's index row.
+    @Test
+    void refusesALinkToAStorysFileFromAnIssue() throws IOException {
+        write(
+                "stories/ST12-A-Story.md",
+                "# ST12 — A Story\n\n## Data\n\n```json\n{\"id\": \"ST12\", \"issues\": []}\n```\n");
+        write("stories/README.md", "# Stories\n\n| [ST12](ST12-A-Story.md) | - | - |\n");
+        write("issues/B11-Another.md", "For [ST12](../stories/ST12-A-Story.md).\n");
+
+        assertThat(check()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("issues/B11-Another.md:1 -> ../stories/ST12-A-Story.md");
+    }
+
     @Test
     void readsNothingOutsideItsOwnRepository() throws IOException {
         // Another repository's state must not decide this one's check, nor need its checkout.

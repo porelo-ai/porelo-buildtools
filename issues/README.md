@@ -39,12 +39,6 @@ left out.
 | <a id="bt87"></a>[BT87](BT87-The-Unit-Run-Under-Fifteen-Seconds.md) | S | - | `./mvnw test` takes under 15 s of test time, the last acceptance point the test pyramid's fixes did not reach: the slowest unit classes, which load a whole tree or a class graph per test, share it or shrink it. |
 | <a id="bt71"></a>[BT71](BT71-The-Work-Format-Handed-To-The-Planner.md) | M | - | Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows run the planner's native executable, downloaded from Artifactory pinned by version and sha256, instead. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt89"></a>[BT89](BT89-The-Citation-Check-And-The-Planner-Read-One-Rule.md) | M | - | `check-citations` refuses what porelo-planner's reader counts as a board fault: an index row linking an issue file that was deleted, an issue number in issue text that is not a link to its index row, and a link to a story's file instead of its index row; the two read one rule. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
@@ -95,6 +89,7 @@ left out.
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
 | <a id="bt78"></a>[BT78](BT78-Outside-Downloads-Cached-Newest-Copy-Kept.md) | S | - | Every download porelo-buildtools' CI takes from outside is cached or named as not cacheable, and of each cache only the newest copy is kept: the Maven repository's cache no longer grows by restore-keys, and a saved key removes the copies it replaces. |
 | <a id="bt84"></a>[BT84](BT84-Acceptance-Takes-The-Pool-A-Job-Is-Told.md) | S | - | `porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, and `sweep --mine` passes where the job rented from the pool, so one workflow runs on the host's forge and on GitHub (porelo-host's HO27). |
+| <a id="bt89"></a>[BT89](BT89-The-Citation-Check-And-The-Planner-Read-One-Rule.md) | M | - | `check-citations` refuses what porelo-planner's reader counts as a board fault: an index row linking an issue file that was deleted, an issue number in issue text that is not a link to its index row, and a link to a story's file instead of its index row; the two read one rule. |
 
 ## Finished
 

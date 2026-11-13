@@ -29,7 +29,9 @@ import org.fuin.porelo.stories.IssueHead;
  * names something nobody can look up. The index is the one page that may name files, because naming
  * them is what an index is; issues may name each other's files and numbers, since they are deleted
  * together with every mention of their number - but a number of this repository's own there must
- * still name an issue that exists, or it is the mention a deletion missed.
+ * still name an issue that exists, or it is the mention a deletion missed, and neither the index
+ * nor an issue may name the file of a settled issue, one whose row is left without its file: that
+ * is the fault porelo-planner's board shows as a link to a deleted file.
  *
  * <p>Every committed text file is read: in a git checkout what {@code git ls-files} names, in an
  * exported tree every file. A binary file is skipped and counted. Nothing outside the repository is
@@ -49,6 +51,14 @@ final class CheckCitations {
      */
     private static final Pattern DIES =
             Pattern.compile("/[A-Z]+\\d{2,3}-[^/]*\\.md$|_design\\.md$|/[A-Z]{1,3}\\d{2,3}\\.sub/");
+
+    /**
+     * A name of an issue's file: the number, not part of a longer word, a dash, and a name ending
+     * in {@code .md} without a blank, a parenthesis or a slash, as porelo-planner's reader reads
+     * it.
+     */
+    private static final Pattern DELETED_FILE =
+            Pattern.compile("(?<![A-Za-z0-9_])([A-Z]{1,3}\\d{2,3})-[^\\s)/]*\\.md");
 
     /** The directory of an issue's sub-agent briefs, beside its file: {@code <ID>.sub}. */
     private static final Pattern BRIEFS =
@@ -198,6 +208,7 @@ final class CheckCitations {
         final List<String> pointers = new ArrayList<>();
         final List<String> numbers = new ArrayList<>();
         final List<String> gone = new ArrayList<>();
+        final List<String> deleted = new ArrayList<>();
         final List<String> briefs = briefsOutOfPlace(root, files, listed);
         final IssueLinks issueLinks = IssueLinks.ownOnly();
         int read = 0;
@@ -208,6 +219,9 @@ final class CheckCitations {
             final Set<String> named = new java.util.HashSet<>(issues);
             // A finished issue keeps its row when its file goes, so a row is as good as a file.
             named.addAll(issueLinks.rows);
+            // A row without a file is a settled issue's, whose file was deleted when it settled.
+            final Set<String> settled = new java.util.TreeSet<>(issueLinks.rows);
+            settled.removeAll(issues);
             for (final Path page : pages) {
                 final Optional<String> text = text(page);
                 if (text.isPresent()) {
@@ -222,6 +236,7 @@ final class CheckCitations {
                     final Optional<String> text =
                             ownIssue(root, file) ? text(file) : Optional.empty();
                     if (text.isPresent()) {
+                        deleted.addAll(namesOfDeletedFiles(root, file, text.get(), settled));
                         gone.addAll(referencesThatAreGone(root, file, text.get(), named));
                         gone.addAll(
                                 ownNumbersThatAreGone(
@@ -261,6 +276,7 @@ final class CheckCitations {
                 && pointers.isEmpty()
                 && numbers.isEmpty()
                 && gone.isEmpty()
+                && deleted.isEmpty()
                 && briefs.isEmpty()
                 && unanchored.isEmpty()
                 && unlinked.isEmpty()
@@ -302,6 +318,11 @@ final class CheckCitations {
                 "a number of this repository's own issues, among the issues, that names no issue"
                         + " file: the mention its deletion missed");
         report(
+                deleted,
+                "the deleted file of a settled issue, named among the issues, the index too: link"
+                        + " its row, [<NUMBER>](<index>#<number>), since the file went when the issue"
+                        + " was settled");
+        report(
                 briefs,
                 "a sub-agent brief out of place: briefs lie in <ID>.sub/ beside the issue's own file,"
                         + " named builder, tester or reader, or builder-2 and on, each a plain .md file;"
@@ -329,6 +350,7 @@ final class CheckCitations {
                                 + pointers.size()
                                 + numbers.size()
                                 + gone.size()
+                                + deleted.size()
                                 + briefs.size()
                                 + unanchored.size()
                                 + unlinked.size()
@@ -473,6 +495,27 @@ final class CheckCitations {
                     && DIES.matcher(target.replaceFirst("#.*$", "")).find()) {
                 faults.add(
                         relative(root, page) + ":" + lineOf(text, link.start()) + " -> " + target);
+            }
+        }
+        return faults;
+    }
+
+    /**
+     * The places among the issues, the index among them, that name the file of a settled issue: its
+     * number, a dash and a name ending in {@code .md}, as porelo-planner's reader finds them.
+     */
+    private static List<String> namesOfDeletedFiles(
+            Path root, Path file, String text, Set<String> settled) {
+        final List<String> faults = new ArrayList<>();
+        final Matcher name = DELETED_FILE.matcher(text);
+        while (name.find()) {
+            if (settled.contains(name.group(1))) {
+                faults.add(
+                        relative(root, file)
+                                + ":"
+                                + lineOf(text, name.start())
+                                + " -> "
+                                + name.group());
             }
         }
         return faults;
