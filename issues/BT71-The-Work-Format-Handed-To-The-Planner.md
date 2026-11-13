@@ -7,7 +7,7 @@
   "title": "The Work Format Handed To The Planner",
   "state": "Backlog",
   "size": "M",
-  "priority": "High",
+  "priority": "Medium",
   "rank": 25,
   "blockedBy": [],
   "covers": "Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows run the planner's native executable, downloaded from Artifactory pinned by version and sha256, instead."
