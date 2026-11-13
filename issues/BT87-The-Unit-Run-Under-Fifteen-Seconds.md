@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT87",
   "title": "The Unit Run Under Fifteen Seconds",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 5,
@@ -38,3 +38,11 @@ the 26 s was the load is part of the measure.
   for loading it. The release module's `StoriesIndexTest.writesWhatTheCommandWrote` (2.3 s) and the two
   index-fixture tests (1.0 s and 0.8 s) run the real command over the 335-file checkouts fixture. Making that fixture
   smaller would change what they prove.
+
+## Measured on a quiet host (2026-11-13)
+
+On the rented build box (32 threads, 125 GB), at main 977861e, a clean `-q clean test` twice: the unit run summed from
+Surefire's reports is 10.4 s and 11.8 s, 1051 tests in 86 classes, at a load of 14 to 22 of 32 threads with other
+agents' builds beside it. Both are under 15 s; no test left the unit run. The slowest classes are the two
+`StoriesIndexTest`s (1.1 to 1.5 s each), then `MainTest`, `IssuesIndexTest`, `AgentLegTest` and `CompareBillsTest` at
+about half a second. Most of the 27.5 s measured before was the development machine's load, not the tests.
