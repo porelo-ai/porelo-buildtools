@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT03",
   "title": "A Rebuilt Snapshot Removes Its Predecessors",
-  "state": "Backlog",
+  "state": "Review",
   "size": "S",
   "priority": "Medium",
   "rank": 2,
@@ -54,12 +54,12 @@ per system.
 - A rebuild whose snapshot never becomes available deletes nothing.
 - `doc/index.md` says it under `porelo-machines`.
 
-## To be checked
-
-- Whether the sweep should also delete `porelo=ci` snapshots of an `os` no workflow builds any more.
-
 ## What is built
 
 As the plan says, with one narrowing: what is kept is the snapshot just taken and the newest other available one, and only
 available snapshots are ever deleted, so one still being made elsewhere stays. The wiring in `Main` is not tested: it runs
 after a whole snapshot build over ssh, which the stand-in does not hold; the first Build that makes a snapshot shows it.
+
+A system the Build stops building keeps its `porelo=ci` snapshots: the sweep reads only the system it has just built, so
+they are deleted by hand when the system is dropped. A sweep over every system's snapshots is left out until a system is
+dropped.
