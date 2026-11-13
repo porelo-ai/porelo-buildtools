@@ -14,13 +14,22 @@ class SnapshotsTreeBuildTest {
 
     @TempDir Path dir;
 
+    /** The one native image the proof builds, after everything on the JVM. */
+    private static final String ONE_IMAGE =
+            "mvnw -B -s settings.xml -Pnative -DskipTests -Dspotless.check.skip=true package"
+                    + " -pl agents/stub -am";
+
+    // Prevents a proof that builds every native image: seven took 11 minutes each on the
+    // snapshot's machine, and the step's 60 minutes ended both snapshots of 7b37e81.
     @Test
-    void aTreeWithItsOwnBuildScriptIsBuiltByItAndNoModuleListHereIsUsed() throws Exception {
+    void aTreeWithItsOwnBuildScriptIsBuiltByItOnTheJvmThenOneImage() throws Exception {
         final Path tree = tree();
         Files.createDirectories(tree.resolve("ci"));
-        Files.writeString(tree.resolve("ci/leg-build.sh"), "echo the own build of the tree\n");
+        Files.writeString(
+                tree.resolve("ci/leg-build.sh"), "echo the own build of the tree $MAVEN_ARGS\n");
 
-        assertThat(sh(tree, Snapshots.TREE_BUILD)).isEqualTo("the own build of the tree");
+        assertThat(sh(tree, Snapshots.TREE_BUILD).lines())
+                .containsExactly("the own build of the tree -P!native", ONE_IMAGE);
     }
 
     @Test
@@ -30,23 +39,47 @@ class SnapshotsTreeBuildTest {
         final Path grouped = tree();
         Files.createDirectories(grouped.resolve("apps/app"));
         Files.createDirectories(grouped.resolve("builds/stub"));
-        assertThat(sh(grouped, Snapshots.TREE_BUILD))
-                .endsWith("-pl apps/app,daemon,hooks,agents/stub,builds/stub -am");
+        assertThat(sh(grouped, Snapshots.TREE_BUILD).lines())
+                .containsExactly(
+                        "mvnw -B -s settings.xml -DskipTests package"
+                                + " -pl apps/app,daemon,hooks,agents/stub,builds/stub -am",
+                        ONE_IMAGE);
 
         final Path older = Files.createDirectories(dir.resolve("older"));
         mvnw(older);
-        assertThat(sh(older, Snapshots.TREE_BUILD))
-                .endsWith("-pl app,daemon,hooks,agents/stub -am");
+        assertThat(sh(older, Snapshots.TREE_BUILD).lines())
+                .containsExactly(
+                        "mvnw -B -s settings.xml -DskipTests package"
+                                + " -pl app,daemon,hooks,agents/stub -am",
+                        ONE_IMAGE);
+    }
+
+    @Test
+    void aFailedJvmBuildBuildsNoImage() throws Exception {
+        final Path tree = tree();
+        Files.createDirectories(tree.resolve("ci"));
+        Files.writeString(tree.resolve("ci/leg-build.sh"), "echo broken; exit 3\n");
+
+        final Process process =
+                new ProcessBuilder("sh", "-c", Snapshots.TREE_BUILD)
+                        .directory(tree.toFile())
+                        .redirectErrorStream(true)
+                        .start();
+        final String out =
+                new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
+        assertThat(process.waitFor()).as(out).isEqualTo(3);
+        assertThat(out).isEqualTo("broken");
     }
 
     // Prevents the native image running out of memory on the small machine a snapshot needs.
     @Test
-    void theBuildAsksForMoreHeapThanTheSmallMachineWouldGiveIt() throws Exception {
-        final Path tree = tree();
-        Files.createDirectories(tree.resolve("ci"));
-        Files.writeString(tree.resolve("ci/leg-build.sh"), "echo \"$NATIVE_IMAGE_OPTIONS\"\n");
+    void theImageAsksForMoreHeapThanTheSmallMachineWouldGiveIt() throws Exception {
+        final Path tree = Files.createDirectories(dir.resolve("heap"));
+        final Path mvnw = tree.resolve("mvnw");
+        Files.writeString(mvnw, "#!/bin/sh\necho \"$NATIVE_IMAGE_OPTIONS\"\n");
+        Files.setPosixFilePermissions(mvnw, PosixFilePermissions.fromString("rwx------"));
 
-        assertThat(sh(tree, Snapshots.TREE_BUILD)).isEqualTo("-J-Xmx5g");
+        assertThat(sh(tree, Snapshots.TREE_BUILD).lines()).containsExactly("-J-Xmx5g", "-J-Xmx5g");
     }
 
     // Prevents the snapshot carrying a swap file, or a machine without it running out of memory.

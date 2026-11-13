@@ -63,19 +63,27 @@ public final class Snapshots {
     static final String SWAP_OFF = "swapoff /swap.prepare && rm -f /swap.prepare";
 
     /**
-     * How the product is built once to prove an image can: the tree's own {@code ci/leg-build.sh},
-     * which knows its module layout, so a regrouping there needs no release here. A tree from
-     * before the script gets the module list it had, with the app where that tree keeps it. Shell,
-     * run from the checkout with the JDK on the PATH; no single quote, since it is passed inside
-     * one.
+     * How the product is built once to prove an image can: every module the legs build, on the JVM,
+     * which fills the repository with what they need, then one native image, the stub agent's,
+     * which proves GraalVM, its toolchain and the native plugins work here. All seven images took
+     * about 11 minutes each on the snapshot's machine (2 CPUs, 3.8 GB, swapping), and the step's 60
+     * minutes ended both snapshots of 7b37e81; the legs build the images on machines of their own.
+     * The JVM part is the tree's own {@code ci/leg-build.sh}, its native profile switched off, so a
+     * regrouping there needs no release here; a tree from before the script gets the module list it
+     * had, with the app where that tree keeps it. Shell, run from the checkout with the JDK on the
+     * PATH; no single quote, since it is passed inside one.
      */
     static final String TREE_BUILD =
             "export NATIVE_IMAGE_OPTIONS=-J-Xmx5g; "
-                    + "if [ -f ci/leg-build.sh ]; then sh ci/leg-build.sh; "
+                    // Maven reads MAVEN_ARGS before the script's own arguments; a profile switched
+                    // off stays off whatever else asks for it.
+                    + "if [ -f ci/leg-build.sh ]; then MAVEN_ARGS=-P!native sh ci/leg-build.sh; "
                     // porelo's settings.xml, where the build tooling's snapshots come from.
-                    + "else ./mvnw -B -s settings.xml -Pnative -DskipTests package "
+                    + "else ./mvnw -B -s settings.xml -DskipTests package "
                     + "-pl $(test -d apps/app && echo apps/app || echo app),daemon,hooks,agents/stub"
-                    + "$(test -d builds/stub && echo ,builds/stub) -am; fi";
+                    + "$(test -d builds/stub && echo ,builds/stub) -am; fi"
+                    + " && ./mvnw -B -s settings.xml -Pnative -DskipTests -Dspotless.check.skip=true"
+                    + " package -pl agents/stub -am";
 
     /**
      * What a snapshot is made of, as the pom pins it: the JDK a leg builds with and the base images
@@ -475,7 +483,9 @@ public final class Snapshots {
     /**
      * How long the proof build may take: the step has 60 minutes, about 5 go before the build and
      * up to 15 after it, to the policy, the shutdown and the image. Fedora's first build of 46f0cde
-     * said nothing for 56 minutes after it began, and the step's own timeout ended it.
+     * said nothing for 56 minutes after it began, and the step's own timeout ended it. The JVM
+     * build and the one image are expected in about 20 minutes: the JVM part reached the first
+     * image in 3 minutes and the stub's image took 4 in 7b37e81's run, so 40 leave twice that.
      */
     static final Duration PROOF_LIMIT = Duration.ofMinutes(40);
 
