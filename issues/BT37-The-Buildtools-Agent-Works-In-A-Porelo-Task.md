@@ -52,7 +52,8 @@ Read in today's `porelo.yml`, `settings.xml` and the six workflows, against the 
     forge's registry after the merge.
   - The move's check, red before, green after; then the way back.
 - **Not in the task:** machine credentials, release keys, and the snapshots and Publish legs that rent machines.
-  Neither Codex CLI nor Antigravity CLI is in the task, so the reading is done from outside, as the procedure says.
+  Neither Codex CLI nor Antigravity CLI is in the task, so the reading before the hand-over is done on the host, by a
+  reader started apart from the task.
 
 ## Acceptance
 
