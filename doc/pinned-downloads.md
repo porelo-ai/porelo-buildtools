@@ -22,8 +22,8 @@ porelo-buildtools' own Build keeps one entry of each cache, the newest under its
   records the first read. A directory is kept whole, since Maven only asks whether a jar exists. A runner that records
   no reads, as a probe file shows, keeps the repository whole and says so.
 - **The wrapper's Maven**, shfmt and the GraalVM keep their keys; the wrapper's is saved once the wrapper ran.
-- **build.yml's `prune` job** deletes every older entry under each prefix, `maven-`, `maven-wrapper-`, `pinned-shfmt-`
-  and `pinned-graalvm-`, of the Build's own ref only. It keeps the key the build restored or saved, and deletes
+- **build.yml's `prune` job** deletes every older entry under each prefix, `maven-Linux-`, `maven-wrapper-Linux-`,
+  `pinned-shfmt-` and `pinned-graalvm-`, of the Build's own ref only. It keeps the key the build restored or saved, and deletes
   nothing of a prefix whose key is not stored for that ref. It takes only those four prefixes, each with a key of its
   own. It is a job of its own, since no code it fetches runs beside a token that deletes. On another forge it does not
   run; that forge ages its caches out by its own rule. A deletion that fails is a warning and the Build stays green.
@@ -35,7 +35,8 @@ same release on Windows x86-64, each checked against its own digest before anyth
 architecture is refused. On Windows the zip is unpacked by the command itself, and an entry that would land outside the
 JDK's directory is refused. With `--github` it sets `JAVA_HOME` and `GRAALVM_HOME` and puts its `bin` first on the
 `PATH` for the job's later steps, on either system; it prints one line,
-`GraalVM <version> in <directory>, checked against <sha256>`, and `--print-sha256` prints that system's digest alone.
+`GraalVM <version> in <directory>, checked against <sha256>`, with `; JAVA_HOME and PATH set for the rest of the job`
+after it under `--github`, and `--print-sha256` prints that system's digest alone.
 
 Both builds are one pin: `porelo.release.pin.graalvm.also` names `windows`, and its `also.windows.digest`,
 `.sha256` and `.url` say where its digest is read and which properties it is written to. The pin's update reads every

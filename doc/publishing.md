@@ -32,7 +32,8 @@ A job without the pinned GraalVM runs it with the runner's Java, `"$JAVA_HOME_25
   - the properties are set with the upload. A Debian package needs `deb.distribution`, `deb.component` and
     `deb.architecture`, or it is stored and never indexed.
   - A link in place of the file is refused, and so is a file that changes while it is sent.
-  - A target holds letters, digits and `._+~@,=-` in its segments, a property `KEY=VALUE` the same less `=`. Nothing
+  - A target holds letters, digits and `._+~@,=-` in its segments, a property `KEY=VALUE` has a key of letters, digits and
+    `._-` and a value of letters, digits and `._+~:@,-`. Nothing
     is escaped or taken apart.
 - `artifactory api METHOD /PATH`: a call to the REST interface under `/artifactory`, a query included. It prints the
   answer. A 404 fails. A path with a `.` or `..` segment, escaped or not, is refused, so a call never leaves
