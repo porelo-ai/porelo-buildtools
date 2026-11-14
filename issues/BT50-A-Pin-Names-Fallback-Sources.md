@@ -15,12 +15,12 @@
 ```
 
 **What must be true.** A pinned download names more than one source, each checked against the same sha256: the
-GraalVM archive, shfmt and the like. When the first source cannot answer after the retry rule of
-[BT49](README.md#bt49), the next one is asked, and the file is taken only when its digest matches.
+GraalVM archive, shfmt and the like. When the first source cannot answer after the pinned retry rule,
+the next one is asked, and the file is taken only when its digest matches.
 
 ## Why
 
-A cache ([BT49](README.md#bt49)) helps once an archive was fetched once, and the retry rule outlasts a short outage.
+A cache of the pinned downloads helps once an archive was fetched once, and the retry rule outlasts a short outage.
 Neither helps when GitHub's release download fails for longer, or when a new pin is fetched for the first time during
 an outage. The digest makes any source as good as the first, since nothing is taken that does not match.
 

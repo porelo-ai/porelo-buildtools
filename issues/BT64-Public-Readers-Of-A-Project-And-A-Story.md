@@ -37,7 +37,7 @@ plan forbids a second parser. Agent Planner builds it for Agent Machines after P
   on the same parsing, so the index and the reader are one parser; `Heads.Head` stays package-private, since it
   carries the file's path, Jackson's `JsonNode` and the raw lines.
 - **Small and closed:** immutable values or records, no setters, javadoc on each public type; the library is
-  LGPL-3.0-or-later ([BT61](README.md#bt61)), so others link it.
+  LGPL-3.0-or-later, so others link it.
 - **Red first:** a test in another package reads a project and a story through the public API alone; it does not
   compile while they are package-private.
 - **Docs:** the stories library's page names the two readers.

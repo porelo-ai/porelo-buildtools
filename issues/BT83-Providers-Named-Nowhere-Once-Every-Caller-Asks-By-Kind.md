@@ -18,14 +18,14 @@
 the shared rules refuse one that does:
 
 - `check-providers` runs in every repository's *Shared rules check*, not only here.
-- The deprecated call of [BT25](README.md#bt25) is gone: `--type` on `snapshot`, `acceptance` and `lease`, `Spec`'s
+- The deprecated call by provider and server types is gone: `--type` on `snapshot`, `acceptance` and `lease`, `Spec`'s
   type constructors and accessors, and the routing of an explicit type order onto a kind.
 - `porelo-machines` reads only `PORELO_MACHINES_API` and `PORELO_MACHINES_SSH`; the fallback to `HETZNER_API` and
   `HETZNER_SSH` is gone.
 
 ## Why
 
-[BT25](README.md#bt25) kept the old call and the old variable names so that no caller had to move at once. On main of
+The move to kinds kept the old call and the old variable names so that no caller had to move at once. On main of
 2026-11-12, porelo-frontend, porelo-claude-code, porelo-pi, porelo-omp and porelo-agy ask by kind; only porelo still
 names `HETZNER_API`, `HETZNER_SSH` and `--type` (`.github/workflows/build.yml`, `sweep.yml`, and its legs' `Main`). Once
 porelo has moved, through its own issue, nothing calls the old way any more.

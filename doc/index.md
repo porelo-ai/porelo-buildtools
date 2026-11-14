@@ -9,7 +9,7 @@ may publish, and checks the packages before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo`: every module the tree's own `ci/leg-build.sh` names, on the JVM, then the stub agent's native image alone. It says where that build stands as it moves, and every five minutes while it does not, and stops it after 40 minutes with the log's end, the load, the memory and the SELinux denials. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, and that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-workflows`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `check-pin`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names, and that no file outside the provider implementation names a cloud provider or its server types; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory. | `check-actions`, `check-workflows`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `check-pin`, `check-providers`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-json` | The JSON reader and writer `porelo-release` and `porelo-machines` share, and `porelo`'s `dist/package-check` reads. | - |
 
 See [test machines](machines.md) for requests by kind, credentials, and cleanup.
@@ -335,6 +335,11 @@ On a forge the registry is read with `PORELO_PACKAGES_READ_TOKEN`, which can onl
 
 A repository whose `settings.xml` names no snapshot repository has nothing to hold. An empty filter file pins a
 repository to what the host built, while central's copy is newer than its own and not yet brought in.
+Central's copy won when the build's log says `Downloaded from central.sonatype.snapshots: …`, and
+`_remote.repositories` beside a jar in the local repository names where each came from. The remedy is to bring
+central's `main` into the host's through the usual pull and review: its Build deploys a newer snapshot, which wins
+again. Until then, `-Daether.remoteRepositoryFilter.groupId.basedir=<dir>`, a directory whose file for that repository
+is empty, asks central nothing and takes the host's snapshot.
 
 Every repository that reads Sonatype's snapshots holds this shape and runs `check-snapshot-filter .` in its Build,
 beside its other checks, as porelo-message-matrix and porelo-message-sluice do; its one listed group is
@@ -471,12 +476,16 @@ modules are jars; `--own` leaves out the project's own modules by `groupId:artif
   FastDoubleParser or plexus-utils' Extreme! Lab code. A class, a source, a properties file or an image is never read.
   `A OR B` and `A AND B` give every text named, in any case; `A WITH exception` gives the license and the exception.
   The standard texts are pinned in `porelo-release`, taken unchanged from one tag of the SPDX license list, and
-  GPL-3.0-or-later's from gnu.org's `gpl-3.0.txt`, as `licenses/SOURCE.txt` names; a test holds each to its SHA-256.
-  A license the set lacks is added there.
+  GPL-3.0-or-later's from gnu.org's `gpl-3.0.txt` and LGPL-3.0's from its `lgpl-3.0.txt`, as `licenses/SOURCE.txt`
+  names; a test holds each to its SHA-256. LGPL-3.0-or-later gives the LGPL-3.0 and the GPL-3.0 text, whose
+  permissions it adds to. A license named exactly `Bouncy Castle Licence` with the URL
+  `https://www.bouncycastle.org/licence.html` reads as MIT; any other name or URL is refused as unknown. A license the
+  set lacks is added there.
 - **The runtime is one more section**: the JDK's own license files and its whole `legal/` directory. Which of its
   modules an image reaches no build output says, and every one is never less than the image needs.
 - **A text that stood once is named, not repeated**, and the same input gives the same bytes. The file is readable by
-  everyone.
+  everyone where the file system has POSIX permissions, and elsewhere, as on Windows, keeps the access its directory
+  gives.
 
 Refused, each named, and nothing written: a jar the bill has no entry for, one whose SHA-256 differs from the bill's,
 one jar twice on the classpath, a bill naming one component twice differently, a classes directory instead of a jar,
@@ -673,7 +682,9 @@ with `IllegalArgumentException` in the same words, the file named `workflow.yml`
 Set<String> ownPrefixes)` reads the text of `project.yml` into a `Project`: `own()`, the project's own repository,
 and `repositories()`, every repository it names with its issue prefixes, the own one with the prefixes given, since
 `project.yml` names none for it, and `centrals()`, each repository's central address by name in the same order, as
-`project.yml` writes it under `central` or a not yet renamed `upstream`; `central(String name)` gives one and throws
+`project.yml` writes it under `central` or a not yet renamed `upstream`; each may be an `https://` or `ssh://` URL or a scp-like `user@host:path`, on any host and under any owner,
+the repository's name the last part of its path without `.git`, and any other form is refused naming the key and the
+value; `central(String name)` gives one and throws
 `IllegalArgumentException` for a name the project does not hold. `Workflow.storyState(String stated, List<String>
 issueStates)` is the rule the index gives a story its state by: the stated one (which may be null) without issues,
 else the earliest open issue state in board order, else the first issue's state when all are rejected, else the

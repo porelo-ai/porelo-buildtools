@@ -15,8 +15,8 @@
 ```
 
 **What must be true.** `porelo-machines` asks for a machine through one interface, and each place a machine can come
-from is a provider behind it that knows what providing one takes. A workflow names only the kind
-([BT25](README.md#bt25)); which providers serve that kind, with their parameters and in which order, is data: the same
+from is a provider behind it that knows what providing one takes. A workflow names only the kind;
+which providers serve that kind, with their parameters and in which order, is data: the same
 variable on both forges, with a different value on each.
 
 ## Why
@@ -119,7 +119,7 @@ One variable on both forges, for example `vars.PORELO_MACHINES`, a JSON document
 
 ### What stays as it is
 
-- The workflow's call: `porelo-machines acceptance --kind … --os …` ([BT25](README.md#bt25)).
+- The workflow's call: `porelo-machines acceptance --kind … --os …`.
 - The lease and what a leg does with it (`AgentLeg`, `Rental`).
 - The check that no workflow names a provider (`check-providers`).
 

@@ -24,7 +24,7 @@ lower can show.
 
 ## Where the tests stand
 
-The audit was done on 2026-11-09 against main plus [BT55](README.md#bt55)'s build (3f99ccd). The counts are by agy's
+The audit was done on 2026-11-09 against main plus the workflow file's build (3f99ccd). The counts are by agy's
 reading. The times are from the Surefire reports of `./mvnw -B -s settings.xml -Pnative verify`, whose whole Build takes
 1:56 min.
 

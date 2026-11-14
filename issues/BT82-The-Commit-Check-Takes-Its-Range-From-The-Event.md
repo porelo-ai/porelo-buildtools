@@ -22,8 +22,8 @@ unit-tested over the event's fields, and a workflow only calls it:
   `origin/main` elsewhere. Today `build.yml` of every repository decides this in shell.
 - **A pull request's origin.** For a pull request it takes base, head, the head's repository, the author's
   association, the author and the server, and decides `--outside` itself: inside when it comes from the same
-  repository by an `OWNER` or `MEMBER`, from `github-actions[bot]`, or on a server other than github.com
-  ([BT36](README.md#bt36)); outside otherwise. Today `shared-rules.yml` decides this in shell.
+  repository by an `OWNER` or `MEMBER`, from `github-actions[bot]`, or on a server other than github.com;
+  outside otherwise. Today `shared-rules.yml` decides this in shell.
 - **Every workflow loads.** A command `check-workflows`, beside `check-actions`, refuses a workflow file that does not
   load as YAML or names no trigger or no job. Today `workflows.yml` runs this as inline Python.
 
@@ -31,7 +31,7 @@ unit-tested over the event's fields, and a workflow only calls it:
 
 Asked by Agent Adapters for porelo-adapters' GH23 (its test pyramid, ST296), 2026-11-12: the same shell sits in every
 repository's workflows, untested, and each copy is changed by hand. Moved into `porelo-release`, each rule is a unit
-test, and the commands keep [BT79](README.md#bt79)'s rule that a commit's own words earn no exemption.
+test, and the commands keep the rule that a commit's own words earn no exemption.
 
 ## Plan
 
@@ -49,8 +49,8 @@ Read in porelo-buildtools 727a1cc: `check-commits RANGE [--outside]` (`Main.chec
   checkout holds a commit, gives the range and `--outside`, or the error the shell gives today. Cases in
   `CommitRangeTest`, each seen red with its rule removed: no `before`; a tag (`sha~1..sha`); a start not held, on `main`
   (error) and elsewhere (`origin/main`); a pull request from the same repository by `OWNER`, `MEMBER`, `CONTRIBUTOR`, by
-  `github-actions[bot]`, from another repository, and on a server other than github.com with an empty association
-  ([BT36](README.md#bt36)); an event that is neither a push nor a pull request is refused.
+  `github-actions[bot]`, from another repository, and on a server other than github.com with an empty association;
+  an event that is neither a push nor a pull request is refused.
 - **The reader (XS).** `GitHubEvent.read(environment, text)` parses with the Jackson already on the class path; cases
   for a push and a pull request payload as strings, and for a missing field named in the error. One narrow test in
   `CheckCommitsTest` runs `--event` on a temporary repository with an event file.
@@ -63,8 +63,8 @@ Read in porelo-buildtools 727a1cc: `check-commits RANGE [--outside]` (`Main.chec
   Porelo repository but porelo-org, porelo-website and, in part, porelo-parent and porelo-project) move through issues
   of their own owners once the command is released.
 - **Order and size.** Reader, decision, `check-commits --event`, `check-workflows`, this repository's workflows; S 27 +
-  XS 8 + S 27 + S 27, about 89 min, so M. [BT79](README.md#bt79) also changes `CheckCommits`; whichever comes second
-  rebases on the first, without a wait between them.
+  XS 8 + S 27 + S 27, about 89 min, so M. It builds on `CheckCommits` as it stands, which already trusts no commit's
+  own word.
 
 ## Decided by the operator (2026-11-12)
 
