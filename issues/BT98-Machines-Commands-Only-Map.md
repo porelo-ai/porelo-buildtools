@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT98",
   "title": "Machines Commands Only Map",
-  "state": "Analyzed",
+  "state": "Estimated",
   "size": "S",
   "priority": "High",
   "rank": 4,

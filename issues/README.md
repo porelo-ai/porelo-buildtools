@@ -30,8 +30,13 @@ left out.
 |---|---|---|---|
 | <a id="bt96"></a>[BT96](BT96-Velocity-Leaves-Git-With-The-Issues.md) | M | - | `porelo-release stage` and the stage records go: no `stats/`, no `seed.csv`, no stage rule in `check-commits`, since every project keeps its issues and their measurements in a tracker. Built after the carry-over has read the Markdown store. |
 | <a id="bt97"></a>[BT97](BT97-The-Issue-And-Story-Tools-Leave-With-The-Markdown-Store.md) | M | [BT96](README.md#bt96) | `porelo-release issues` and `stories`, the index-row and issue-link rules of `check-citations`, the `issues/` reading of `check-commits` and the tracker lookup go, since no project keeps issues or stories in Markdown. Built after the carry-over has read the Markdown store. |
-| <a id="bt98"></a>[BT98](BT98-Machines-Commands-Only-Map.md) | S | - | porelo-machines' `snapshot` and `sweep` commands parse their options, call one method of `Snapshots` or `Machines` and print its answer; the snapshot's current-build-prune use case, the archive of the working tree and the sweep's run file and pool rule move out of `Main`. |
 | <a id="bt83"></a>[BT83](BT83-Providers-Named-Nowhere-Once-Every-Caller-Asks-By-Kind.md) | M | - | Once porelo asks for machines by kind, `check-providers` joins the shared rules of every repository, and `porelo-machines` drops the old call with a provider's server types and the `HETZNER_API` and `HETZNER_SSH` fallbacks (ST22). |
+
+## Estimated
+
+| # | Size | Blocked by | What it covers |
+|---|---|---|---|
+| <a id="bt98"></a>[BT98](BT98-Machines-Commands-Only-Map.md) | S | - | porelo-machines' `snapshot` and `sweep` commands parse their options, call one method of `Snapshots` or `Machines` and print its answer; the snapshot's current-build-prune use case, the archive of the working tree and the sweep's run file and pool rule move out of `Main`. |
 
 ## Backlog
 
