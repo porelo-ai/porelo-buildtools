@@ -28,6 +28,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt96"></a>[BT96](BT96-Velocity-Leaves-Git-With-The-Issues.md) | S | - | In a project whose `project.yml` names GitHub Issues, `stage median` and `stage p80` refuse instead of answering no number, `check-commits` refuses a commit that adds a stage record, and the documentation says the measurements live in the tracker's items. |
 | <a id="bt83"></a>[BT83](BT83-Providers-Named-Nowhere-Once-Every-Caller-Asks-By-Kind.md) | M | - | Once porelo asks for machines by kind, `check-providers` joins the shared rules of every repository, and `porelo-machines` drops the old call with a provider's server types and the `HETZNER_API` and `HETZNER_SSH` fallbacks (ST22). |
 
 ## Backlog
