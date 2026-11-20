@@ -6,58 +6,45 @@
   "id": "BT96",
   "title": "Velocity Leaves Git With The Issues",
   "state": "Analyzed",
-  "size": "S",
+  "size": "M",
   "priority": "High",
   "rank": 2,
   "blockedBy": [],
-  "covers": "In a project whose `project.yml` names GitHub Issues, `stage median` and `stage p80` refuse instead of answering no number, `check-commits` refuses a commit that adds a stage record, and the documentation says the measurements live in the tracker's items."
+  "covers": "`porelo-release stage` and the stage records go: no `stats/`, no `seed.csv`, no stage rule in `check-commits`, since every project keeps its issues and their measurements in a tracker. Built after the carry-over has read the Markdown store."
 }
 ```
 
-**Why this size.** One module, `release/`, and its documentation: two refusals and a section, no contract another
-repository reads.
+**Why this size.** It removes one command other repositories call (`stage`), its two classes and the stage rule of
+`check-commits`. That makes it a contract change with documentation, though the work is mostly removal.
 
-**What must be true.** Once a project keeps its issues in GitHub Issues, nothing about an issue is kept in Git, its
-measurements included. Those measurements are size, start, ready, minutes and the stages the median needs. They are
-fields of the issue's item, set through the tracker's interface like its status. The median per size is computed from
-the project's finished items, and the starting value per size stands once in `project.yml`. These tools then read and
-write no `stats/` and ask for none, and they never answer as though they still could.
+**What must be true.** Porelo keeps issues only in a tracker, and a task's measurements are fields of its item:
+size, start, ready, minutes and the stages the median needs. The planner computes each size's median from the
+finished items, and the starting value per size stands once in `project.yml`. So these tools record, read and ask
+for no measurement in Git, and a project that drops `stats/` stays green.
 
 ## Plan
 
-What stands in the code already: with `tracker: {kind: github}` in the nearest `project.yml` (`Tracker`),
-`check-commits` reads no stage record, a commit that deletes `stats/` passes, and `stage` passes through
-`Main.unlessTracked`, printing that nothing is written. `issues check` and `stories check` behave the same way.
-Three gaps remain:
+It is built only after the carry-over has read the Markdown store once, as a step of its own.
 
-- **`stage median` and `stage p80` refuse in a tracked project**, exit 2, naming the tracker's file and saying the
-  median comes from the tracker's finished items. Today they pass through `unlessTracked` with exit 0 and an `OK`
-  line where a number is expected, so a script that reads the number reads a sentence. `stage begin` and `end` keep
-  passing: a workflow step left over from the Markdown issues stays green, and the line says nothing was written.
-  In `Main`, the `stage` case tells the two reading verbs from the writing ones before `unlessTracked`.
-- **`check-commits` refuses, in a tracked project, a commit that adds or changes `stats/seed.csv` or a
-  `stats/<ISSUE>.jsonl`**, naming the file: a measurement written there would be a second copy beside the item, read
-  by nobody. Deleting one keeps passing. This sits in `CheckCommits`' tracked branch, from `git.changed(hash)`, as
-  `stageFaults` already reads a commit's changes.
-- **`doc/index.md`, "Where the issues are kept"**: a tracked project keeps no `stats/`. Its measurements are fields of
-  each item, and its starting value per size stands in `project.yml`, read by the planner. `stats/seed.csv`,
-  `stage begin`/`end` and the stage rule of `check-commits` hold for the Markdown issues alone. One changelog entry
-  under `[Unreleased]`.
+- **`stage` goes:** `Stage.java` and `StageTokens.java`, the `stage` case and its usage line in `Main`, and the
+  command's name in `Main`'s list of commands. Their tests go with them: `StageTest`, `StageFixtures` and the
+  `stages` test resources.
+- **`check-commits` reads no stage record:** `stageFaults`, the `NOTE no stats/seed.csv` line, the delete-guard on
+  `stats/` and the measured-state rule that needs `stats/<ISSUE>.jsonl` all go from `CheckCommits`. So does the
+  `Stage.status` and workflow reading they use. A commit that deletes `stats/` passes as any other deletion does. The
+  matching cases go from `CheckCommitsTest`.
+- **`check-citations`** loses its exemption for `stats/*.jsonl`, since no such file is kept.
+- **Documentation:** the sections on stage records, `stats/seed.csv` and `stage median` go from `doc/index.md`, and
+  one line says where the measurements live: the tracker's item fields, with the starting value per size in
+  `project.yml`, both read by the planner. One changelog entry under `[Unreleased]`, *Removed*.
+- **This repository's own `stats/`** goes in the same commit.
 
-Red first, as unit tests over a fixture `project.yml` with the tracker: `stage median M` exits 2 and prints no number
-(`MainTest`); a commit adding `stats/HO1.jsonl` is refused and one deleting it passes (`CheckCommitsTest`). Each is
-seen red against today's code.
-
-A repository's own `stats/` and the Markdown issues go in one commit by its owner at the cut-over. Here that commit is
-this repository's own, as for `issues/`, and it is not part of this issue.
+Red first: a `CheckCommitsTest` case where a commit adding an issue in a measured state, with no `stats/` beside it,
+passes. Today it is refused. A `MainTest` case where `stage` is answered as an unknown command, exit 2. Each is seen
+red against today's code.
 
 ## Acceptance
 
-- The two unit tests above, seen red first, and the full build green.
-- In a scratch clone with `tracker: {kind: github}`, `stage median M` exits 2 and names the tracker's file. A commit
-  adding `stats/BT1.jsonl` is refused by `check-commits`, and one deleting `stats/` passes.
-
-## To be checked
-
-- The name of the starting-value key in `project.yml`, which porelo-project's schema owns. The documentation names it
-  as the schema does once it stands.
+- The two tests above, seen red first, and the full build green.
+- A scratch clone of a repository that still has `stats/` and an issue in a measured state: deleting `stats/` passes
+  `check-commits`, and `porelo-release stage median M` answers as an unknown command.
