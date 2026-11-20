@@ -39,13 +39,17 @@ runs:
     using: composite
     steps:
         # The local Maven repository, restored by its prefix and never saved here: build.yml's build job saves it
-        # with maven-cache-keep as its last step, holding only what it read, so old versions do not pile up.
+        # with maven-cache-keep as its last step, holding only what it read, so old versions do not pile up. Keyed by
+        # the run and its attempt, so a run that fetched what a moved parent or BOM brought can save it: an existing
+        # key is never saved over, and the poms alone do not say what they resolve to.
         - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
           id: maven-cache
           with:
               path: ~/.m2/repository
-              key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-              restore-keys: maven-${{ runner.os }}-
+              key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+              restore-keys: |
+                  maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-
+                  maven-${{ runner.os }}-
 
         # Every restored file is marked unread, at the epoch: the runner's relatime then records the first read of each,
         # and maven-cache-keep keeps only the files read after this step.
@@ -53,7 +57,6 @@ runs:
           id: maven-unread
           shell: bash
           env:
-              HIT: ${{ steps.maven-cache.outputs.cache-hit }}
               KEY: ${{ steps.maven-cache.outputs.cache-primary-key }}
               MATCHED: ${{ steps.maven-cache.outputs.cache-matched-key }}
           run: |
@@ -61,7 +64,6 @@ runs:
               mkdir -p "$HOME/.m2/repository"
               {
                   echo "PORELO_MAVEN_CACHE_KEY=$KEY"
-                  echo "PORELO_MAVEN_CACHE_HIT=${HIT:-false}"
                   echo "PORELO_MAVEN_CACHE_SINCE=$(date +%s)"
               } >> "$GITHUB_ENV"
               # The entry restored, which the prune keeps unless maven-cache-keep saves a newer one.
@@ -70,6 +72,9 @@ runs:
               # A file beside the repository, read only before the save, says whether its file system records reads.
               touch "$HOME/.m2/porelo-atime-probe"
               touch -a -d @0 "$HOME/.m2/porelo-atime-probe"
+              # What changes after this marker the job fetched: by status-change time, since Maven dates a downloaded
+              # file by the server's Last-Modified, and the touch above already changed every restored file's status.
+              touch "$HOME/.m2/porelo-cache-restored"
 
         # The wrapper's Maven, fetched once per pin: without it every job fetched it with one wget and no retry, and a
         # single network hiccup failed a Build (2026-11-06). Saved once the wrapper ran, below.

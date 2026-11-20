@@ -98,11 +98,14 @@ jobs:
                       > target/deploy-dry-run.log 2>&1 || true
                   ./mvnw -B -q -s settings.xml -pl release exec:java@check-deploy
 
-            # The job's last step: the local Maven repository, with only what this job read, the one entry the others
-            # restore.
+            # The job's last step, even after a failure: the local Maven repository, when this job fetched into it, the
+            # one entry the others restore. Only this job saves it, so two jobs of one run never race for its key.
             - name: Keep the Maven repository
               id: keep
+              if: always()
               uses: ./.github/actions/maven-cache-keep
+              with:
+                  job-status: ${{ job.status }}
 
     # Only the newest entry of each cache the build restored or saved: the others are deleted, so a moved pin or a
     # changed pom leaves no old copy behind. A job of its own, as no code it fetches runs beside a token that deletes.

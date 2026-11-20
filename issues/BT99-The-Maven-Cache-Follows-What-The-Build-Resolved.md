@@ -1,7 +1,7 @@
 # BT99 — The Maven Cache Follows What The Build Resolved
 
 ```json
-{ "$schema": "issue-1.json", "id": "BT99", "title": "The Maven Cache Follows What The Build Resolved", "state": "Implementing",
+{ "$schema": "issue-1.json", "id": "BT99", "title": "The Maven Cache Follows What The Build Resolved", "state": "Review",
   "size": "S", "priority": "High", "rank": 1, "blockedBy": [],
   "covers": "Bug: the Build's Maven cache is keyed by the poms alone and never saved after an exact hit, so versions that porelo-parent's snapshot moves are fetched from Central on every Build until a pom changes." }
 ```
@@ -14,14 +14,15 @@ before: once a moved parent or BOM brings new versions, the next Build finds the
 
 ## Plan
 
-- Today `pinned-jdk` restores `maven-<os>-<hashFiles(**/pom.xml)>`, and `maven-cache-keep` saves only on a miss
-  ("Nothing is saved after an exact hit"). The versions come from `porelo-parent`'s snapshot, which moves while no
-  pom here changes, so after an exact hit whatever the move added is fetched again by every Build and never kept.
-- `maven-cache-keep` also saves after an exact hit when the job wrote any file into the repository after
-  `PORELO_MAVEN_CACHE_SINCE`, under the key with the run's id appended; `pinned-jdk`'s restore key prefix then takes
-  the newest such entry, and the prune job deletes the entries it replaces, as it does today.
-- The `-q` Maven calls in `pinned-jdk` say what they fetched (`-B -ntp` without `-q`, or a count of files written
-  after the restore), so a Build log shows downloads after a hit.
+- `pinned-jdk` restores `maven-<os>-<hashFiles(**/pom.xml)>-<run id>-<attempt>` by the prefixes
+  `maven-<os>-<hashFiles>-`, then `maven-<os>-`: no run hits exactly, so every run that fetched can save.
+- `maven-cache-keep`, the build job's last step even after a failure (`if: always()`), saves only when a jar or pom
+  changed status after a marker touched at the restore (`find -cnewer`: Maven dates a downloaded file by the
+  server's Last-Modified, so its mtime says nothing), with the job's `job.status` as an input. After a green job it
+  first drops what the job did not read; after a failed one it saves whole. Only the build job saves, so two jobs of
+  one run never race for the run's key; the prune job keeps the saved or restored entry and deletes the others.
+- The other repositories take the form proven in porelo-planner: `pinned-jdk`'s restore by run key and a marker, and
+  a `maven-cache-save` action as each saving job's last step.
 
 ## Acceptance
 

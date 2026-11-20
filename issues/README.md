@@ -47,18 +47,13 @@ left out.
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt99"></a>[BT99](BT99-The-Maven-Cache-Follows-What-The-Build-Resolved.md) | S | - | Bug: the Build's Maven cache is keyed by the poms alone and never saved after an exact hit, so versions that porelo-parent's snapshot moves are fetched from Central on every Build until a pom changes. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt92"></a>[BT92](BT92-The-Tools-Recognize-The-Cut-Over.md) | M | - | Once the project's `project.yml` names GitHub Issues as its tracker, `issues check`, `stories check` and `stage` pass on purpose with one line, and `check-commits` reads no `issues/` and tells an issue number by its shape; without a tracker every check stays as it is, and `check-citations` refuses a reference to a project's GitHub issue either way. |
 | <a id="bt95"></a>[BT95](BT95-Sshj-Brings-No-Bouncy-Castle-Of-Its-Own.md) | XS | - | porelo-machines excludes sshj's bcprov and bcpkix, so a build resolving its published pom never reads bcpkix 1.80 and the version range it declares for bcutil, and a missing metadata fetch for that range no longer fails a caller's Build. |
+| <a id="bt99"></a>[BT99](BT99-The-Maven-Cache-Follows-What-The-Build-Resolved.md) | S | - | Bug: the Build's Maven cache is keyed by the poms alone and never saved after an exact hit, so versions that porelo-parent's snapshot moves are fetched from Central on every Build until a pom changes. |
 | <a id="bt73"></a>[BT73](BT73-A-Persons-Move-Passes-The-Stage-Check.md) | XS | - | `Stage.validate` takes a person's move on the board, `actor: person` with `stage: move`, `size` null or a size, `wall_min` and `vm_min` null, and the median leaves every move out; `stage begin` still refuses a move. |
 | <a id="bt75"></a>[BT75](BT75-Who-Works-An-Issue-In-Its-Head.md) | XS | - | An issue head may say who works it, `"worker": "Agent"` or `"Manual"`: issue-1.json takes the field and refuses any other value, and IssueHead reads it and writes it last, after the optional fields it writes today. |
 | <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
