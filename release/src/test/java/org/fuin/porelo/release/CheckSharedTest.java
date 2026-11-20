@@ -444,6 +444,28 @@ class CheckSharedTest {
     }
 
     @Test
+    void readsTheSkillsLinkByItsNamesAsItsFileSystemSeparatesThem() {
+        assertThat(SharedSkills.linksToSkills("..\\.agents\\skills", "\\"))
+                .as("Windows gives the right link back with backslashes")
+                .isTrue();
+        assertThat(SharedSkills.linksToSkills("../.agents/skills", "/"))
+                .as("as Linux gives it")
+                .isTrue();
+        assertThat(SharedSkills.linksToSkills("..\\.agents\\skills", "/"))
+                .as("backslashes are part of one name where the separator is a slash")
+                .isFalse();
+        assertThat(SharedSkills.linksToSkills("/repository/.agents/skills", "/"))
+                .as("an absolute link")
+                .isFalse();
+        assertThat(SharedSkills.linksToSkills("..\\other\\skills", "\\"))
+                .as("another directory")
+                .isFalse();
+        assertThat(SharedSkills.linksToSkills("../.agents/skills/", "/"))
+                .as("a trailing separator")
+                .isTrue();
+    }
+
+    @Test
     void refusesAnOwnSkillWithoutTheFrontmatterAgentskillsAsksFor() throws IOException {
         ownSkill("host-build", "");
         ownSkill("host-notes", "description: " + "x".repeat(1025) + "\n");

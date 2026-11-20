@@ -201,9 +201,26 @@ final class SharedSkills {
             return;
         }
         final String target = Files.readSymbolicLink(link).toString();
-        if (!LINK.equals(target)) {
+        if (!linksToSkills(target, link.getFileSystem().getSeparator())) {
             faults.add(link + ": links to " + target + ", not to " + LINK);
         }
+    }
+
+    /**
+     * Tells whether a link's target, as its file system gives it back, is {@link #LINK}.
+     *
+     * @param target the target, as read from the link
+     * @param separator the name separator of the link's file system
+     * @return whether it names the shared skills directory beside {@code .claude}
+     */
+    static boolean linksToSkills(String target, String separator) {
+        final List<String> names =
+                new ArrayList<>(List.of(target.split(Pattern.quote(separator), -1)));
+        // A trailing separator names the same directory.
+        if (names.size() > 1 && names.get(names.size() - 1).isEmpty()) {
+            names.remove(names.size() - 1);
+        }
+        return names.equals(List.of(LINK.split("/")));
     }
 
     /**

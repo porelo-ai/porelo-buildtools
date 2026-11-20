@@ -1,0 +1,2 @@
+title: "`check-shared` reads the `.claude/skills` link by its names as its file system separates them, so a right link passes on Windows, which gives it back with backslashes."
+type: fixed
