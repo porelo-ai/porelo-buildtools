@@ -25,7 +25,7 @@ GitHub reference.
 
 ## Plan
 
-It is built only after the carry-over has read the Markdown store once, as a step of its own, and after BT96, since
+It is built only after the carry-over has read the Markdown store once, as a step of its own, and after [BT96](README.md#bt96), since
 both change `CheckCommits` and `Main`.
 
 - **`issues` and `stories` go:** `Issues.java`, `Stories.java`, their cases and usage lines in `Main`, and their
