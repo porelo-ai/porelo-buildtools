@@ -25,7 +25,7 @@ a repository whose `issues/` and `stats/` are gone.
 
 - **Until the cut-over, nothing here changes.** `issues index|check|convert`, `stories index|check|cut`, `stage`, the
   `issue-1.json` and `story-*.json` schemas, `check-commits`' stage rule and `check-citations`' rules for issue links
-  and issue files keep their behavior. On the cut-over day the carry-over writes a new key, `issueFloor`, into
+  and issue files keep their behavior. On the cut-over day the carry-over writes a new key, `issue_floor`, into
   `project.yml`, and the checks that read `project.yml` until then accept it.
 - **At the cut-over, these go:**
   - the `issues`, `stories` and `stage` commands with `Issues`, `Stories`, `IssueLinks`, `ProjectFile`, `Stage` and
