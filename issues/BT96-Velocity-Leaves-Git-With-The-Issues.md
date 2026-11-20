@@ -35,8 +35,9 @@ It is built only after the carry-over has read the Markdown store once, as a ste
   matching cases go from `CheckCommitsTest`.
 - **`check-citations`** loses its exemption for `stats/*.jsonl`, since no such file is kept.
 - **Documentation:** the sections on stage records, `stats/seed.csv` and `stage median` go from `doc/index.md`, and
-  one line says where the measurements live: the tracker's item fields, with the starting value per size in
-  `project.yml`, both read by the planner. One changelog entry under `[Unreleased]`, *Removed*.
+  one line says where the measurements live. They are the tracker's item fields, and the starting value per
+  repository and size is `velocity.seed` in `project.yml`. Both are read by the planner, whose `porelo-planner
+  velocity median|p80 <size> --project <dir>` answers what `stage median` and `stage p80` did. One changelog entry under `[Unreleased]`, *Removed*.
 - **This repository's own `stats/`** goes in the same commit.
 
 Red first: a `CheckCommitsTest` case where a commit adding an issue in a measured state, with no `stats/` beside it,
