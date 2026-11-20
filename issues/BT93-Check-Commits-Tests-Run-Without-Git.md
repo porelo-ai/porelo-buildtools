@@ -5,9 +5,9 @@
   "$schema": "issue-1.json",
   "id": "BT93",
   "title": "Check Commits Tests Run Without Git",
-  "state": "Analyzed",
+  "state": "Backlog",
   "size": "XS",
-  "priority": "Medium",
+  "priority": "High",
   "rank": 1,
   "blockedBy": ["BT92"],
   "covers": "`CheckCommitsTest` holds `check-commits`' rules over an in-memory `CheckCommits.Git`; one integration test still runs real `git`, so the log format is proven against git itself."

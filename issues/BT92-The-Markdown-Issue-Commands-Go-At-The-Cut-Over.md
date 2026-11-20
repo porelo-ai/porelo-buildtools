@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT92",
   "title": "The Markdown Issue Commands Go At The Cut-Over",
-  "state": "Analyzed",
+  "state": "Backlog",
   "size": "M",
   "priority": "High",
   "rank": 1,
