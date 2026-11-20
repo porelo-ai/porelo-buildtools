@@ -1,7 +1,7 @@
 # BT99 — The Maven Cache Follows What The Build Resolved
 
 ```json
-{ "$schema": "issue-1.json", "id": "BT99", "title": "The Maven Cache Follows What The Build Resolved", "state": "Backlog",
+{ "$schema": "issue-1.json", "id": "BT99", "title": "The Maven Cache Follows What The Build Resolved", "state": "Implementing",
   "size": "S", "priority": "High", "rank": 1, "blockedBy": [],
   "covers": "Bug: the Build's Maven cache is keyed by the poms alone and never saved after an exact hit, so versions that porelo-parent's snapshot moves are fetched from Central on every Build until a pom changes." }
 ```
