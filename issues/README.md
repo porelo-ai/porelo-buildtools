@@ -28,7 +28,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt94"></a>[BT94](BT94-Check-Commits-Takes-The-Porelo-Issue-Trailer.md) | S | [BT92](README.md#bt92) | From the cut-over day `check-commits` takes a `Porelo-Issue: <tracker reference>` trailer, one per issue, holds it to GitHub's reference form, still refuses an issue number in the subject, and refuses a closing keyword followed by an issue reference anywhere in the message; until then nothing changes. |
 | <a id="bt83"></a>[BT83](BT83-Providers-Named-Nowhere-Once-Every-Caller-Asks-By-Kind.md) | M | - | Once porelo asks for machines by kind, `check-providers` joins the shared rules of every repository, and `porelo-machines` drops the old call with a provider's server types and the `HETZNER_API` and `HETZNER_SSH` fallbacks (ST22). |
 
 ## Backlog
@@ -36,6 +35,7 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt93"></a>[BT93](BT93-Check-Commits-Tests-Run-Without-Git.md) | XS | [BT92](README.md#bt92) | `CheckCommitsTest` holds `check-commits`' rules over an in-memory `CheckCommits.Git`; one integration test still runs real `git`, so the log format is proven against git itself. |
+| <a id="bt94"></a>[BT94](BT94-Check-Commits-Takes-The-Porelo-Issue-Trailer.md) | S | [BT92](README.md#bt92) | From the cut-over day `check-commits` takes a `Porelo-Issue: <tracker reference>` trailer, one per issue, holds it to GitHub's reference form, still refuses an issue number in the subject, and refuses a closing keyword followed by an issue reference anywhere in the message; until then nothing changes. |
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 

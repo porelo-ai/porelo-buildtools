@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT94",
   "title": "Check Commits Takes The Porelo-Issue Trailer",
-  "state": "Analyzed",
+  "state": "Backlog",
   "size": "S",
   "priority": "High",
   "rank": 1,
