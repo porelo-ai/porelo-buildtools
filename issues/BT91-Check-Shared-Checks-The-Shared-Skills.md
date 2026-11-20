@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT91",
   "title": "Check Shared Checks The Shared Skills",
-  "state": "Backlog",
+  "state": "Implementing",
   "size": "M",
   "priority": "Medium",
   "rank": 2,
