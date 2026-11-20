@@ -35,6 +35,7 @@ left out.
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
+| <a id="bt91"></a>[BT91](BT91-Check-Shared-Checks-The-Shared-Skills.md) | M | - | `check-shared` takes `.agents/skills`: each shared skill's block hashed with its frontmatter, its name equal to its directory's and its frontmatter's, every skill the shared block's skill table names present, `.claude/skills` a link to `../.agents/skills`, and a repository's own skill held to the agentskills.io frontmatter. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 | <a id="bt71"></a>[BT71](BT71-The-Work-Format-Handed-To-The-Planner.md) | M | - | Once porelo-planner publishes the work format and its checks, porelo-buildtools drops them: the porelo-stories module, the `stories`, `issues`, `stage`, `check-commits` and `check-pushes` commands with Stage, StageTokens, IssueLinks and Who, and `stats/`; every repository's workflows run the planner's native executable, downloaded from Artifactory pinned by version and sha256, instead. |
 
