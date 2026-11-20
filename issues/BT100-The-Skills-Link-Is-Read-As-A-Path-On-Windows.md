@@ -1,7 +1,7 @@
 # BT100 — The Skills Link Is Read As A Path On Windows
 
 ```json
-{ "$schema": "issue-1.json", "id": "BT100", "title": "The Skills Link Is Read As A Path On Windows", "state": "Backlog",
+{ "$schema": "issue-1.json", "id": "BT100", "title": "The Skills Link Is Read As A Path On Windows", "state": "Implementing",
   "size": "XS", "priority": "High", "rank": 1, "blockedBy": [],
   "covers": "Bug: check-shared compares the target of `.claude/skills` as a string, so on Windows, which gives it back with backslashes, a right link is refused." }
 ```
