@@ -69,7 +69,10 @@ jobs:
 
             # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
             # It is also where porelo's snapshot libraries come from.
+            # A limit of its own, below the job's, so the Maven repository is still kept after it runs out: measured at
+            # under three minutes on GitHub's runner.
             - name: Build and unit tests
+              timeout-minutes: 20
               run: ./mvnw -B -Pnative verify -s settings.xml
 
             # A direct push to main never meets the pull request's check, so the push's own range is read here, by the
