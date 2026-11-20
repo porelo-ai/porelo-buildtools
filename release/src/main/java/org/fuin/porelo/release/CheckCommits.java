@@ -70,6 +70,12 @@ final class CheckCommits {
     /** A word of an issue number's shape, its prefix apart; whether it is one the prefixes say. */
     private static final Pattern NUMBER = Pattern.compile("\\b([A-Z]{1,3})\\d+\\b");
 
+    /**
+     * A number GitHub links in a commit message to an issue of the same repository: {@code #<n>},
+     * not part of a word, a path or a colour.
+     */
+    private static final Pattern BARE_REFERENCE = Pattern.compile("(?<![\\w&/#$])#\\d+\\b");
+
     /** What git writes ahead of each commit, and between its fields. */
     private static final char RECORD = '\u001e';
 
@@ -82,6 +88,9 @@ final class CheckCommits {
     private final Git git;
 
     private final Prefixes prefixes;
+
+    /** Whether the project keeps its issues in GitHub Issues, so nothing reads {@code issues/}. */
+    private final boolean tracked;
 
     /** Reads the log of a range. */
     @FunctionalInterface
@@ -341,10 +350,27 @@ final class CheckCommits {
      * @param prefixes where the issue prefixes are read, once a commit needs them
      */
     CheckCommits(PrintStream out, PrintStream err, Git git, Prefixes prefixes) {
+        this(out, err, git, prefixes, false);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param out where the result goes
+     * @param err where a refusal goes
+     * @param git where the log is read
+     * @param prefixes where the issue prefixes are read, once a commit needs them; never read when
+     *     tracked
+     * @param tracked true when the project keeps its issues in GitHub Issues: then no stage record
+     *     is read and an issue number is told by its shape, an old id or a GitHub reference, every
+     *     other rule unchanged
+     */
+    CheckCommits(PrintStream out, PrintStream err, Git git, Prefixes prefixes, boolean tracked) {
         this.out = out;
         this.err = err;
         this.git = git;
         this.prefixes = prefixes;
+        this.tracked = tracked;
     }
 
     /**
@@ -418,6 +444,11 @@ final class CheckCommits {
         }
         final List<String> faults = new ArrayList<>();
         Set<String> known = null;
+        if (tracked) {
+            out.println(
+                    "NOTE  the issues are kept in GitHub Issues, as the project's tracker says: no"
+                            + " stage record is read, and an issue number is told by its shape");
+        }
         int exempt = 0;
         int breaking = 0;
         boolean rolloutNote = false;
@@ -425,6 +456,14 @@ final class CheckCommits {
             // From outside, a recorded name is the writer's own word, which anyone can write.
             if (!outside && commit.exempt()) {
                 exempt++;
+                continue;
+            }
+            if (tracked) {
+                final List<String> broken = faults(commit, null, outside);
+                if (!broken.isEmpty()) {
+                    breaking++;
+                }
+                broken.forEach(fault -> faults.add(commit.hash() + "  " + fault));
                 continue;
             }
             final List<String> broken;
@@ -613,7 +652,14 @@ final class CheckCommits {
         return changes.isEmpty() ? null : "changes " + String.join(" and ", changes);
     }
 
-    private static List<String> faults(Commit commit, Set<String> known, boolean outside) {
+    /**
+     * The faults of one commit's message.
+     *
+     * @param known the issue prefixes, or null when the issues are in the tracker and a number is
+     *     told by its shape
+     */
+    private static List<String> faults(
+            Commit commit, @Nullable Set<String> known, boolean outside) {
         final List<String> faults = new ArrayList<>();
         final String[] lines = commit.message().split("\n", -1);
         final String subject = lines[0];
@@ -646,10 +692,25 @@ final class CheckCommits {
                 named.append('\n').append(trailer);
             }
         }
-        final Matcher number = NUMBER.matcher(words);
-        while (number.find()) {
-            if (known.contains(number.group(1))) {
-                faults.add("names a requirement number: " + number.group());
+        if (known != null) {
+            final Matcher number = NUMBER.matcher(words);
+            while (number.find()) {
+                if (known.contains(number.group(1))) {
+                    faults.add("names a requirement number: " + number.group());
+                }
+            }
+        } else {
+            for (final Pattern shape :
+                    List.of(
+                            CheckCitations.SHAPE,
+                            CheckCitations.GITHUB_REFERENCE,
+                            BARE_REFERENCE)) {
+                final Matcher number = shape.matcher(words);
+                while (number.find()) {
+                    if (!CheckCitations.NOT_CITATIONS.contains(number.group())) {
+                        faults.add("names a requirement number: " + number.group());
+                    }
+                }
             }
         }
         Who.named(named.toString(), List.of(commit.author(), commit.committer()))

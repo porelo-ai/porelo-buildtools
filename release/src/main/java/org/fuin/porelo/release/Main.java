@@ -69,7 +69,13 @@ public final class Main {
             return stories.index(Path.of(rest.get(1)));
         }
         if (rest.size() == 2 && rest.getFirst().equals("check")) {
-            return stories.check(Path.of(rest.get(1)));
+            return unlessTracked(
+                    Path.of(rest.get(1)),
+                    web,
+                    out,
+                    err,
+                    "stories check",
+                    () -> stories.check(Path.of(rest.get(1))));
         }
         if (rest.size() == 5
                 && rest.getFirst().equals("cut")
@@ -86,21 +92,55 @@ public final class Main {
         return usage(err, expected);
     }
 
-    private static int issues(List<String> rest, PrintStream out, PrintStream err) {
+    private static int issues(List<String> rest, PrintStream out, PrintStream err, Web web) {
         final String expected = "issues index <dir> | issues check <dir> | issues convert <dir>";
         if (rest.size() != 2) return usage(err, expected);
         final Issues issues = new Issues(out, err);
         final Path dir = Path.of(rest.get(1));
         return switch (rest.getFirst()) {
             case "index" -> issues.index(dir);
-            case "check" -> issues.check(dir);
+            case "check" ->
+                    unlessTracked(dir, web, out, err, "issues check", () -> issues.check(dir));
             case "convert" -> issues.convert(dir);
             default -> usage(err, expected);
         };
     }
 
+    /**
+     * Runs a command that reads the Markdown issues, unless the project keeps its issues in GitHub
+     * Issues: then it passes on purpose with one line saying so.
+     *
+     * @param directory the directory the command is given, whose project is read
+     * @param web where porelo-project's file is read when none stands above the directory
+     * @param out where the line goes
+     * @param err where a refusal goes
+     * @param command the command, for the line
+     * @param markdown the command itself, for the Markdown issues
+     * @return 0 when tracked, else the command's; the tracker's stop when it cannot be told
+     */
+    private static int unlessTracked(
+            Path directory,
+            Web web,
+            PrintStream out,
+            PrintStream err,
+            String command,
+            java.util.function.IntSupplier markdown) {
+        final Tracker tracker;
+        try {
+            tracker = Tracker.of(directory, web);
+        } catch (Stop ex) {
+            err.println(ex.getMessage());
+            return ex.code();
+        }
+        if (tracker.github()) {
+            out.println(tracker.passes(command));
+            return 0;
+        }
+        return markdown.getAsInt();
+    }
+
     private static int checkCommits(
-            List<String> rest, PrintStream out, PrintStream err, Map<String, String> env) {
+            List<String> rest, PrintStream out, PrintStream err, Web web, Map<String, String> env) {
         final Options options = Options.parse(rest, Set.of(), Set.of("--outside", "--event"));
         final boolean event = options != null && options.flag("--event");
         if (options == null
@@ -111,12 +151,20 @@ public final class Main {
         }
         // git and the issues are read where the command runs: a repository's root.
         final Path here = Path.of(".");
+        final Tracker tracker;
+        try {
+            tracker = Tracker.of(here, web);
+        } catch (Stop ex) {
+            err.println(ex.getMessage());
+            return ex.code();
+        }
         final CheckCommits check =
                 new CheckCommits(
                         out,
                         err,
                         CheckCommits.Git.in(here, Map.of()),
-                        () -> CheckCitations.issuePrefixes(here));
+                        () -> CheckCitations.issuePrefixes(here),
+                        tracker.github());
         if (!event) {
             return check.check(options.positional().getFirst(), options.flag("--outside"));
         }
@@ -135,6 +183,13 @@ public final class Main {
         }
         // The pushes' commits are read where the command runs: a repository's root that holds them.
         final Path here = Path.of(".");
+        final Tracker tracker;
+        try {
+            tracker = Tracker.of(here, web);
+        } catch (Stop ex) {
+            err.println(ex.getMessage());
+            return ex.code();
+        }
         return new CheckPushes(
                         out,
                         err,
@@ -146,7 +201,8 @@ public final class Main {
                                                 out,
                                                 err,
                                                 CheckCommits.Git.in(here, Map.of()),
-                                                () -> CheckCitations.issuePrefixes(here))
+                                                () -> CheckCitations.issuePrefixes(here),
+                                                tracker.github())
                                         .check(range, false))
                 .check(java.time.Duration.ofHours(Integer.parseInt(since)));
     }
@@ -351,10 +407,23 @@ public final class Main {
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
             case "stories" -> stories(rest, out, err, web);
-            case "issues" -> issues(rest, out, err);
-            case "check-commits" -> checkCommits(rest, out, err, env);
+            case "issues" -> issues(rest, out, err, web);
+            case "check-commits" -> checkCommits(rest, out, err, web, env);
             case "stage" ->
-                    new Stage(Path.of("."), java.time.Clock.systemUTC(), out, err, env).run(rest);
+                    unlessTracked(
+                            Path.of("."),
+                            web,
+                            out,
+                            err,
+                            "stage",
+                            () ->
+                                    new Stage(
+                                                    Path.of("."),
+                                                    java.time.Clock.systemUTC(),
+                                                    out,
+                                                    err,
+                                                    env)
+                                            .run(rest));
             case "check-pushes" -> checkPushes(rest, out, err, web, env);
             case "check-doc-site" ->
                     rest.size() > 2

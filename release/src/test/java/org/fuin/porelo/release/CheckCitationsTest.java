@@ -658,6 +658,39 @@ class CheckCitationsTest {
                 .isEqualTo(0);
     }
 
+    // Prevents a GitHub issue of the project from being cited in code, where the number says
+    // nothing.
+    @Test
+    void refusesAReferenceToAProjectsGitHubIssueButNotToAnUpstreamOne() throws IOException {
+        final Path bare = folder.resolve("bare");
+        write(bare, "README.md", "# A repository\n\nSee [the fix](#12-the-fix) and #12.\n");
+        write(bare, "src/A.java", "// Waits for porelo-ai/porelo-host#12.\nclass A {}\n");
+        write(
+                bare,
+                "doc/b.md",
+                "Built as https://github.com/porelo-ai/porelo/issues/9 asks.\n"
+                        + "Upstream's https://github.com/flutter/flutter/issues/57146 is why.\n"
+                        + "Then github.com/porelo-ai/porelo/issues/10, www.github.com/porelo-ai/porelo/issues/11.\n"
+                        + "And GH-13, ...GH-14 and -GH-15.\n");
+        write(bare, "www/a.css", "a { color: #123; }\n");
+
+        assertThat(new CheckCitations(stream(out), stream(err)).check(bare))
+                .as(stderr())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("the project's references refused, an upstream issue and a bare #12 not")
+                .contains("src/A.java:1 -> porelo-ai/porelo-host#12")
+                .contains("doc/b.md:1 -> https://github.com/porelo-ai/porelo/issues/9")
+                .contains("doc/b.md:3 -> github.com/porelo-ai/porelo/issues/10")
+                .contains("doc/b.md:3 -> www.github.com/porelo-ai/porelo/issues/11")
+                .contains("doc/b.md:4 -> GH-13")
+                .contains("doc/b.md:4 -> GH-14")
+                .contains("doc/b.md:4 -> GH-15")
+                .doesNotContain("flutter")
+                .doesNotContain("README.md")
+                .doesNotContain("a.css");
+    }
+
     @Test
     void cannotAnswerForARootThatDoesNotExist() {
         assertThat(new CheckCitations(stream(out), stream(err)).check(root.resolve("missing")))
@@ -789,6 +822,10 @@ class CheckCitationsTest {
     }
 
     private void write(String name, String text) throws IOException {
+        write(root, name, text);
+    }
+
+    private static void write(Path root, String name, String text) throws IOException {
         final Path file = root.resolve(name);
         Files.createDirectories(file.getParent());
         Files.writeString(file, text, StandardCharsets.UTF_8);

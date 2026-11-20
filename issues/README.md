@@ -39,16 +39,11 @@ left out.
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt92"></a>[BT92](BT92-The-Markdown-Issue-Commands-Go-At-The-Cut-Over.md) | M | - | Until the day stories and issues move to GitHub Issues, the `issues`, `stories` and `stage` commands, `stats/`, check-commits' stage rule and the issue-link rules of `check-citations` keep working unchanged; on that day they go with the porelo-stories library and their workflow step, the rule against citing an issue number stays for the old ids and the GitHub numbers, and no check of the GitHub side takes their place here. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt92"></a>[BT92](BT92-The-Tools-Recognize-The-Cut-Over.md) | M | - | Once the project's `project.yml` names GitHub Issues as its tracker, `issues check`, `stories check` and `stage` pass on purpose with one line, and `check-commits` reads no `issues/` and tells an issue number by its shape; without a tracker every check stays as it is, and `check-citations` refuses a reference to a project's GitHub issue either way. |
 | <a id="bt73"></a>[BT73](BT73-A-Persons-Move-Passes-The-Stage-Check.md) | XS | - | `Stage.validate` takes a person's move on the board, `actor: person` with `stage: move`, `size` null or a size, `wall_min` and `vm_min` null, and the median leaves every move out; `stage begin` still refuses a move. |
 | <a id="bt75"></a>[BT75](BT75-Who-Works-An-Issue-In-Its-Head.md) | XS | - | An issue head may say who works it, `"worker": "Agent"` or `"Manual"`: issue-1.json takes the field and refuses any other value, and IssueHead reads it and writes it last, after the optional fields it writes today. |
 | <a id="bt77"></a>[BT77](BT77-How-Much-An-Issue-Risks-In-Its-Head.md) | XS | - | An issue head may say how much the issue risks, `"risk": "harm"`, `"ordinary"` or `"small"`: issue-1.json and the issues check take it and refuse any other value, and IssueHead reads it and writes it last, after `worker`. |
@@ -135,6 +130,6 @@ left out.
 | # | Title | Why |
 |---|---|---|
 | <a id="bt71"></a>BT71 | The Work Format Handed To The Planner | The work format moves to GitHub Issues, and what is left, `check-commits` and `check-pushes`, are build tools that stay in porelo-buildtools. |
-| <a id="bt59"></a>BT59 | The Stories Library Names No Host Of Its Own | The stories library goes at the cut-over to GitHub Issues ([BT92](README.md#bt92)), so its fixed hosts need no change. |
+| <a id="bt59"></a>BT59 | The Stories Library Names No Host Of Its Own | The stories library is idle once the issues are in GitHub Issues ([BT92](README.md#bt92)) and goes after, so its fixed hosts need no change. |
 | <a id="bt56"></a>BT56 | Sub-Agent Briefs Beside Their Issue | Rejected by the operator (2026-11-12): check-citations goes under ST321 with the work format's hand-over to the planner. |
 | <a id="bt06"></a>BT06 | The Gathered Push Refuses A Moved Central Forge | Moved to porelo-host, which installs the command on the host, where there is no Java. |

@@ -26,7 +26,7 @@ cut-over.
 - The median and p80 add no minutes and no sample for a move.
 - `stage begin <issue> move` is refused: a move is never a stage an agent opens.
 
-No cross-check against the issue's head is built: the stage records go at the cut-over to GitHub Issues
+No cross-check against the issue's head is built: no stage record is written once the issues are in GitHub Issues
 ([BT92](README.md#bt92)). Nothing else in `Stage` changes.
 
 **Review (2026-11-11).** On main, so Review by the operator's order of 15:44Z. Its stage lines were recorded afterwards: start from the session's first work on it, end at its commit, tokens not read (`no-session`).

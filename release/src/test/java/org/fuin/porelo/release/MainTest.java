@@ -49,6 +49,56 @@ class MainTest {
                 .contains("stories");
     }
 
+    // Prevents a workflow step that still checks the Markdown issues from failing after the
+    // cut-over, and from reading or writing anything there.
+    @Test
+    void theIssueCommandsPassOnPurposeOnceTheProjectNamesTheTracker() throws IOException {
+        Files.writeString(
+                directory.resolve("project.yml"),
+                "project:\n  name: sample\ntracker:\n  kind: github\n",
+                StandardCharsets.UTF_8);
+        final Path issues = Files.createDirectories(directory.resolve("issues"));
+        Files.writeString(issues.resolve("HO12-Broken.md"), "no head at all\n"); // not-a-citation
+        final Path stories = Files.createDirectories(directory.resolve("stories"));
+
+        assertThat(run("issues", "check", issues.toString())).as(stderr()).isZero();
+        assertThat(run("stories", "check", stories.toString())).as(stderr()).isZero();
+        assertThat(stdout())
+                .as("one line each, naming the file that says so")
+                .contains("OK    issues check: the issues are kept in GitHub Issues")
+                .contains("OK    stories check: the issues are kept in GitHub Issues")
+                .contains(directory.resolve("project.yml").toString());
+        assertThat(asked).as("the project's own file, nothing over the network").isEmpty();
+    }
+
+    // Prevents a stage record from being written, or a missing issue refused, after the cut-over.
+    @Test
+    void stageWritesNothingOnceTheProjectsFileOnGitHubNamesTheTracker() {
+        final Web tracked =
+                (address, headers) -> {
+                    asked.add(address);
+                    return Optional.of(
+                            "project: {}\ntracker:\n  kind: github\n"
+                                    .getBytes(StandardCharsets.UTF_8));
+                };
+
+        final int code =
+                Main.run(
+                        new String[] {"stage", "begin", "EX12", "implement"}, // not-a-citation
+                        new PrintStream(out, true, StandardCharsets.UTF_8),
+                        new PrintStream(err, true, StandardCharsets.UTF_8),
+                        tracked,
+                        java.util.Map.of(),
+                        (tree, manifest, lockfile, work) -> lockfile);
+
+        assertThat(code).as(stderr()).isZero();
+        assertThat(stdout())
+                .as("one line, naming why nothing is written")
+                .contains("OK    stage: the issues are kept in GitHub Issues");
+        assertThat(asked).as("porelo-project's file").containsExactly(Tracker.PROJECT);
+        assertThat(Path.of("stats")).as("no record written where it ran").doesNotExist();
+    }
+
     @Test
     void aFaultInsideACommandIsUnansweredNeverAStop() throws IOException {
         final Web broken =
@@ -261,5 +311,9 @@ class MainTest {
 
     private String stderr() {
         return err.toString(StandardCharsets.UTF_8);
+    }
+
+    private String stdout() {
+        return out.toString(StandardCharsets.UTF_8);
     }
 }

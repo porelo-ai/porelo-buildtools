@@ -32,6 +32,9 @@ read - no other repository's index or `project.yml`, no checkout beside it, noth
 repository's state never decides this one's check.
 
 - **Outside `issues/`**, no file names an issue number, and no link goes to an issue's file or a design document.
+  A reference GitHub links to an issue of the project counts as one: `porelo-ai/<repository>#<n>`, `GH-<n>` or the
+  issue's address, with or without its scheme and `www.`, the owner in any case. A bare `#<n>` does not, being far more often a
+  colour, a stack frame or an anchor in a file, and neither does another project's issue address.
 - **Among the issues**, a number of the repository's own prefixes - the prefixes its issue files carry - names an
   issue file or an index row that exists, and a number beside an `[index](…)` link into the repository names one too.
 - **Every index row** under `issues/` opens with the anchor of its number, `<a id="<number in lower case>"></a>`.
@@ -93,7 +96,9 @@ Each commit is held to the shared rule, and each fault is one line with the comm
 - **No requirement number**, in the subject or in any trailer's value: a word made of an issue prefix and digits. The prefixes are the ones `check-citations`
   reads: those of the repository's own issue files and index rows, never another repository's. So `IPv4` or `x86_64`
   is none, and another repository's number is not caught here but left to a check across repositories; a repository
-  with no issue prefix at all is not checked but refused, exit 2.
+  with no issue prefix at all is not checked but refused, exit 2. Once the project keeps its issues in GitHub Issues
+  (see [Where the issues are kept](#where-the-issues-are-kept)), no prefix is read: a number is told by its shape, an
+  old id of one or two capitals and two or three digits (`S256` aside) or a GitHub reference, `#<n>` among them.
 - **Nobody named as having asked for or made the change.** A heuristic: a match is refused, and a pass proves nothing.
   It matches a party named - `operator`, `coordinator`, `Smith`, `Agent` and a capitalized name, an `@handle`, or the
   commit's own author or committer name - and a phrase that gives credit, taken whole: "at X's word", "as X chose",
@@ -497,6 +502,24 @@ others may link it.
 A package ships the file as `/usr/share/doc/<package>/THIRD-PARTY-NOTICES`, named in the Debian `copyright` file, and
 as `%license` in the rpm.
 
+
+## Where the issues are kept
+
+Projects keep their issues either as Markdown under each repository's `issues/` or in GitHub Issues, and move from
+one to the other on one day by changing only the project's `project.yml`. It names GitHub Issues in the shape porelo
+reads, a top-level `tracker:` mapping with `kind: github`; without `tracker` the issues are Markdown. Another kind, or
+a `tracker` of another shape, is refused, since these tools read no other.
+
+The file read is the nearest `project.yml` above the directory a command is given, or the working directory for
+`stage`, `check-commits` and `check-pushes`; where none stands above it, porelo-project's `project.yml` on GitHub's
+`main`, read without a token. One that cannot be read stops the command, exit 2. Once the tracker is named:
+
+- `issues check` and `stories check` pass, saying in one line that the issues are kept in GitHub Issues and which file
+  says so, and `stage` writes nothing and says the same; so a workflow step left over from the Markdown issues stays
+  green until its owner drops it.
+- `check-commits` and `check-pushes` read no stage record and no `issues/`, and tell an issue number by its shape;
+  every other rule on a message stays.
+- `check-citations` reads as before: its rules among the issues hold for as long as `issues/` is there.
 
 ## Issues
 

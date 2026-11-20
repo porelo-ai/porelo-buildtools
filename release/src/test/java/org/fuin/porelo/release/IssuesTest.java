@@ -26,6 +26,10 @@ class IssuesTest {
     @BeforeEach
     void repository() throws IOException {
         issues = Files.createDirectories(work.resolve("issues"));
+        // The repository's own project, with no tracker: its Markdown issues are checked, and
+        // nothing is
+        // read over the network.
+        Files.writeString(work.resolve("project.yml"), "project:\n  name: sample\n");
         Files.copy(
                 Path.of("../stories/src/test/resources/workflow.yml"),
                 issues.resolve("workflow.yml"));

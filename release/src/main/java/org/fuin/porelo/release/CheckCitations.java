@@ -86,14 +86,26 @@ final class CheckCitations {
     private static final Pattern STORY_FILE = Pattern.compile("^stories/(ST\\d+)(-[^/]*)?\\.md$");
 
     /** The shape of an issue number. */
-    private static final Pattern NUMBER = Pattern.compile("\\b[A-Z]{1,2}\\d{2,3}\\b");
+    static final Pattern SHAPE = Pattern.compile("\\b[A-Z]{1,2}\\d{2,3}\\b");
+
+    /**
+     * A reference GitHub links to an issue of the project, the owner in any case: the issue's
+     * address, with or without its scheme, {@code porelo-ai/<repository>#<n>}, or {@code GH-<n>}. A
+     * bare {@code #<n>} is no such reference in a file, where it is far more often a colour, a
+     * stack frame or an anchor; a commit message holds it to the rule too.
+     */
+    static final Pattern GITHUB_REFERENCE =
+            Pattern.compile(
+                    "(?<!\\w)(?:(?:https?://)?(?:www\\.)?github\\.com/porelo-ai/[\\w.-]+/issues/\\d+"
+                            + "|porelo-ai/[\\w.-]+#\\d+|GH-\\d+)\\b",
+                    Pattern.CASE_INSENSITIVE);
 
     /** An issue number with its prefix apart, for the repository's own among the issues. */
     private static final Pattern NUMBER_OF_ANY_PREFIX =
             Pattern.compile("\\b([A-Z]{1,3})\\d{2,3}\\b");
 
     /** Names of an issue number's shape that are something else: PKCE's challenge method. */
-    private static final Set<String> NOT_CITATIONS = Set.of("S256");
+    static final Set<String> NOT_CITATIONS = Set.of("S256");
 
     /**
      * A linter's codes on the line it silences ({@code # noqa: E402}), which have an issue number's
@@ -544,7 +556,8 @@ final class CheckCitations {
 
     private static List<String> numbersIn(Path root, Path file, String text, Set<String> stories) {
         final List<String> faults = new ArrayList<>();
-        final Matcher number = NUMBER.matcher(blank(MARKED, blank(LINT_CODES, text)));
+        final String read = blank(MARKED, blank(LINT_CODES, text));
+        final Matcher number = SHAPE.matcher(read);
         while (number.find()) {
             if (!NOT_CITATIONS.contains(number.group()) && !stories.contains(number.group())) {
                 faults.add(
@@ -554,6 +567,15 @@ final class CheckCitations {
                                 + " -> "
                                 + number.group());
             }
+        }
+        final Matcher reference = GITHUB_REFERENCE.matcher(read);
+        while (reference.find()) {
+            faults.add(
+                    relative(root, file)
+                            + ":"
+                            + lineOf(text, reference.start())
+                            + " -> "
+                            + reference.group());
         }
         return faults;
     }
