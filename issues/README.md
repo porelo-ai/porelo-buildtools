@@ -59,7 +59,6 @@ left out.
 | <a id="bt64"></a>[BT64](BT64-Public-Readers-Of-A-Project-And-A-Story.md) | M | - | `porelo-stories` reads a project's repositories from the text of `project.yml` and a story from its file's text through public readers, the very code the stories index uses, so porelo-planner reads its board without a second parser. |
 | <a id="bt88"></a>[BT88](BT88-The-Shell-Clock-Tested-Without-Sleeping.md) | S | - | `PinnedRetryTest.theShellsClockCountsUpWhateverTheCallerDoesWithSeconds` proves `pinned_now` without waiting 1.3 s of real time, so no test of the buildtools sleeps longer than 50 ms. |
 | <a id="bt65"></a>[BT65](BT65-The-Public-Readers-Give-The-Centrals-And-A-Storys-State.md) | S | - | `porelo-stories`' public `Project` also gives each repository's central address from the same reading of `project.yml`, and the rule the stories index gives a story its state by is public, so porelo-planner clones every repository and shows the index's state without a second implementation. |
-| <a id="bt45"></a>[BT45](BT45-Each-Issue-Counts-Its-Stages.md) | M | - | `porelo-release stage begin` and `end` record each stage of an issue with its time and tokens in `stats/<issue>.jsonl`, `check-commits` refuses an open stage, and `stage median` reads the estimate. |
 | <a id="bt70"></a>[BT70](BT70-The-Release-Plan-Commands-Removed.md) | S | - | porelo-release has no `plan` command any more: Plan, PlanCheck, PlanRender, PlanStand and PlanTemplate, their tests, documentation and changelog entries are deleted, not moved. |
 | <a id="bt72"></a>[BT72](BT72-The-Native-Image-Checks-Handed-To-Core.md) | S | - | Once porelo builds porelo-ffm-check and porelo-cpu-check itself, porelo-buildtools drops both modules; porelo-json stays here, where porelo-release and porelo-machines read it. |
 | <a id="bt84"></a>[BT84](BT84-Acceptance-Takes-The-Pool-A-Job-Is-Told.md) | S | - | `porelo-machines acceptance` takes the host's VM pool from `PORELO_MACHINES_POOL` when `--pool` is not given, and `sweep --mine` passes where the job rented from the pool, so one workflow runs on the host's forge and on GitHub (porelo-host's HO27). |
@@ -68,6 +67,7 @@ left out.
 
 | # | Title | What was built |
 |---|---|---|
+| <a id="bt45"></a>BT45 | Each Issue Counts Its Stages | `porelo-release stage` records each stage of an issue with its time and tokens in `stats/`, `check-commits` refuses an open stage, and `stage median` reads the estimate. |
 | <a id="bt90"></a>BT90 | The Docs Say What The Code Does | The README, `doc/` and the changelog were read against the code, and six claims the code did not bear out were corrected in the documents. |
 | <a id="bt80"></a>BT80 | A Story Names Issues Of Any Repository | A story's `issues` and an issue's `blockedBy` name an issue of any repository, `<repository>#<id>`, by the planner's own pattern, and refuse a name no repository can have. |
 | <a id="bt86"></a>BT86 | A Story Head May Name Its Size | A story head may name its `size`, one of XS, S, M, L and XL, and any other value is refused naming the field. |
