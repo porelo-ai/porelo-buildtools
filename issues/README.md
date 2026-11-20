@@ -20,7 +20,6 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
-| <a id="bt92"></a>[BT92](BT92-The-Markdown-Issue-Commands-Go-At-The-Cut-Over.md) | M | - | Until the day stories and issues move to GitHub Issues, the `issues`, `stories` and `stage` commands, `stats/`, check-commits' stage rule and the issue-link rules of `check-citations` keep working unchanged; on that day they go with the porelo-stories library and their workflow step, the rule against citing an issue number stays for the old ids and the GitHub numbers, and no check of the GitHub side takes their place here. |
 | <a id="bt41"></a>[BT41](BT41-Mutation-Testing-With-PIT.md) | - | - | A `pit` profile run by hand, PIT and its JUnit 5 plugin pinned, on a VM where tests call real tools, and a report sorting survivors into real gaps and harmless ones. |
 | <a id="bt30"></a>[BT30](BT30-Check-Actions-Reads-Workflows-As-YAML.md) | - | - | `check-actions` judges permissions, pins and `persist-credentials` on the parsed YAML, so a quoted or flow-style form meets the same refusals as the plain one. |
 | <a id="bt09"></a>[BT09](BT09-A-Limit-Wait-Names-The-Limit.md) | - | - | The waiting line at `resource_limit_exceeded` says which limit the API names (dedicated vCPUs, shared vCPUs, primary IPs), not only the server limit. |
@@ -29,6 +28,7 @@ left out.
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
+| <a id="bt92"></a>[BT92](BT92-The-Markdown-Issue-Commands-Go-At-The-Cut-Over.md) | M | - | Until the day stories and issues move to GitHub Issues, the `issues`, `stories` and `stage` commands, `stats/`, check-commits' stage rule and the issue-link rules of `check-citations` keep working unchanged; on that day they go with the porelo-stories library and their workflow step, the rule against citing an issue number stays for the old ids and the GitHub numbers, and no check of the GitHub side takes their place here. |
 | <a id="bt83"></a>[BT83](BT83-Providers-Named-Nowhere-Once-Every-Caller-Asks-By-Kind.md) | M | - | Once porelo asks for machines by kind, `check-providers` joins the shared rules of every repository, and `porelo-machines` drops the old call with a provider's server types and the `HETZNER_API` and `HETZNER_SSH` fallbacks (ST22). |
 
 ## Backlog
