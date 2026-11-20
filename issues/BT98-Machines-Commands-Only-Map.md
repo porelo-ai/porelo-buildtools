@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT98",
   "title": "Machines Commands Only Map",
-  "state": "Accepted",
+  "state": "Analyzed",
   "size": "S",
   "priority": "High",
   "rank": 4,
@@ -31,15 +31,31 @@ the answer back. The piece that does the work is tested without the command line
 
 ## Plan
 
-- **`Snapshots.renew(machines, os, kind, types, credential, archive, musl, unlessCurrent)`** answers whether it
-  built, and holds current, build and prune. `snapshot` maps its options to it and prints the answer. `archiveOf`
-  moves beside it, into `Snapshots`.
-- **`Machines.deleteLeased(Path)`** reads the lease file and deletes its run, refusing a file with no run. The pool
-  rule becomes one static method, which `sweep` calls before it opens a provider.
-- **Red first:** a unit test over `Snapshots.renew` with a fake `Machines`, where a current snapshot builds nothing
-  and prunes nothing, and one where a new build prunes the older one. A unit test over `deleteLeased` where a file
-  with no run is refused and deletes nothing. Today each path is reachable only through `Main`.
-- `MainTest`'s cases for `snapshot` and `sweep` stay as they are, as the proof that the command lines did not change.
+Read in `machines/src/main/java/org/fuin/porelo/machines/Main.java`, `Snapshots.java`, `Machines.java` and the
+tests' `RecordingMachines`.
+
+- **`Snapshots.renew(Machines machines, String os, List<String> types, Credential credential, @Nullable Path repo,
+  boolean unlessCurrent)`** answers a record: built or current, with the inputs. It reads `inputs(os)` and
+  `muslInstaller()`, archives the working tree when `repo` is given, and asks `current`. When `unlessCurrent` holds
+  and the snapshot is current, it stops there. Otherwise it calls today's `build` with `Kind.AMD64_SNAPSHOT` and
+  then `pruneSnapshots`. `archiveOf` moves into `Snapshots` unchanged, with its temporary file deleted after the
+  build as today.
+- **`snapshot` in `Main`** keeps its option parsing and the `--kind`/`--type` refusals. It opens the provider with
+  its limit, calls `renew` and prints the line it prints today for a current snapshot.
+- **`Machines.deleteLeased(Path leaseFile)`**, a default method beside `deleteRun`, reads the file's `run` and
+  refuses with `IllegalArgumentException` when there is none; `Main` prints that refusal as today, exit 2.
+  `tookThePool` moves to `LocalPool` as `tookThePool(Map<String, String> env)`, beside the pool it names. `sweep`
+  calls it before opening a provider, as now.
+- **Red first,** over `RecordingMachines`:
+  - `renew` with a current snapshot records no build and no prune.
+  - `renew` without `unlessCurrent` records one build and then a prune keeping that build.
+  - `deleteLeased` on a file without `run` is refused and deletes nothing.
+
+  They fail today because the methods do not exist; each is seen red once by breaking the method it tests.
+- The harm guarded is a snapshot built and billed again, or a prune or delete reaching servers that are not this
+  run's, while the paths are reachable only through `Main`.
+- `MainTest`'s sweep cases stay as they are, as the proof that the command line did not change. `snapshot` has no
+  `MainTest` case today, so the new `renew` tests are its first below the provider.
 
 ## Acceptance
 
