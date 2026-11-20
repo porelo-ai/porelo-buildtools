@@ -336,7 +336,7 @@ public final class Main {
                                     .check(Path.of(rest.isEmpty() ? ".github" : rest.getFirst()));
             case "check-shared" -> {
                 final Options options = Options.parse(rest, Set.of(), Set.of());
-                if (options == null) yield usage(err, "check-shared [FILES]");
+                if (options == null) yield usage(err, "check-shared [FILES|DIRECTORIES]");
                 yield new CheckShared(out, err)
                         .check(
                                 (options.positional().isEmpty()

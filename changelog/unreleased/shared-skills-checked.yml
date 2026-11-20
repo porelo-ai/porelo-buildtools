@@ -1,0 +1,2 @@
+title: "`check-shared` checks a repository's `.agents/skills` as well, even when the call does not name it: each shared skill whole, its frontmatter in the hash; each skill a shared table of skills to load names present; `.claude/skills` a link to `../.agents/skills`; and every skill's `name` and `description` as agentskills.io asks."
+type: added

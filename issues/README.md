@@ -40,12 +40,6 @@ left out.
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt91"></a>[BT91](BT91-Check-Shared-Checks-The-Shared-Skills.md) | M | - | `check-shared` takes `.agents/skills`: each shared skill's block hashed with its frontmatter, its name equal to its directory's and its frontmatter's, every skill the shared block's skill table names present, `.claude/skills` a link to `../.agents/skills`, and a repository's own skill held to the agentskills.io frontmatter. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
@@ -56,6 +50,7 @@ left out.
 | <a id="bt57"></a>[BT57](BT57-The-Buildtools-Tests-Follow-The-Pyramid.md) | L | - | The buildtools' tests follow the pyramid (ST296): leases, snapshots and agent legs unit-tested behind seams, unit and integration run apart, no real network and no fixed sleeps in a test. |
 | <a id="bt82"></a>[BT82](BT82-The-Commit-Check-Takes-Its-Range-From-The-Event.md) | M | - | The test pyramid (ST296) for the workflows' shared shell: `check-commits` decides a push's range and a pull request's origin from the event itself, and `check-workflows` checks that every workflow loads with a trigger and a job, each unit-tested, so a workflow only calls a command. |
 | <a id="bt03"></a>[BT03](BT03-A-Rebuilt-Snapshot-Removes-Its-Predecessors.md) | S | - | A new CI snapshot, once available, deletes the older `porelo=ci` snapshots of its `os`, keeping one before it; nothing else is touched, each deletion said. |
+| <a id="bt91"></a>[BT91](BT91-Check-Shared-Checks-The-Shared-Skills.md) | M | - | `check-shared` takes `.agents/skills`: each shared skill's block hashed with its frontmatter, its name equal to its directory's and its frontmatter's, every skill the shared block's skill table names present, `.claude/skills` a link to `../.agents/skills`, and a repository's own skill held to the agentskills.io frontmatter. |
 | <a id="bt58"></a>[BT58](BT58-One-Build-Per-Commit.md) | S | - | A commit is built once: on a task branch by its pull request, on `main` by its push; the shared template says so and the shared check refuses a workflow that builds both. |
 | <a id="bt87"></a>[BT87](BT87-The-Unit-Run-Under-Fifteen-Seconds.md) | S | - | `./mvnw test` takes under 15 s of test time, the last acceptance point the test pyramid's fixes did not reach: the slowest unit classes, which load a whole tree or a class graph per test, share it or shrink it. |
 | <a id="bt64"></a>[BT64](BT64-Public-Readers-Of-A-Project-And-A-Story.md) | M | - | `porelo-stories` reads a project's repositories from the text of `project.yml` and a story from its file's text through public readers, the very code the stories index uses, so porelo-planner reads its board without a second parser. |

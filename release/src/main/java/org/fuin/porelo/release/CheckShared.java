@@ -34,6 +34,10 @@ import org.jspecify.annotations.Nullable;
  * <p>So is {@code .github/actions/pinned-jdk/pinned.sh}, the rule for pinned downloads, the one
  * helper a repository copies unchanged from porelo-buildtools, since its step runs before there is
  * Java. A repository that holds it has it compared even when the call does not name it.
+ *
+ * <p>A directory named, and a repository's {@code .agents/skills} even when the call does not name
+ * it, is checked by {@link SharedSkills}; each skill a shared block's table of skills to load names
+ * must be there whole.
  */
 final class CheckShared {
 
@@ -48,6 +52,9 @@ final class CheckShared {
      * #SHARED_EDITORCONFIG}.
      */
     static final String EDITORCONFIG = ".editorconfig";
+
+    /** The file whose shared blocks name the skills to load. */
+    static final String RULES = "AGENTS.md";
 
     /** Where on the class path the shared {@code .editorconfig} is. */
     static final String SHARED_EDITORCONFIG = "/org/fuin/porelo/release/.editorconfig";
@@ -77,7 +84,7 @@ final class CheckShared {
      * Checks every shared block in each file.
      *
      * @param files usually {@code AGENTS.md}, {@code .AGENTS.md} where it exists, and {@code
-     *     .editorconfig}
+     *     .editorconfig}; a directory is a skills directory
      * @return 0 when every block fits its hash and every {@code .editorconfig} is the shared one,
      *     {@link Stop#REFUSED} when one does not, a marker is missing or a named {@code
      *     .editorconfig} is missing, {@link Stop#UNANSWERED} when a file cannot be read
@@ -98,8 +105,23 @@ final class CheckShared {
         // Each file once, however it is named; a link counts as held, and is refused below.
         final java.util.Set<Path> seen = new java.util.HashSet<>();
         final List<Path> all = new ArrayList<>();
+        // Each skills directory once, by its absolute path, with the form it was named in.
+        final Map<Path, Path> skills = new LinkedHashMap<>();
         for (final Path file : files) {
-            if (seen.add(file.toAbsolutePath().normalize())) {
+            final Path absolute = file.toAbsolutePath().normalize();
+            final Path name = file.getFileName();
+            final Path parent = absolute.getParent();
+            if (name != null && name.toString().equals(SharedSkills.SKILL) && parent != null) {
+                // A skill's own file is checked with its whole skills directory.
+                final Path directory = parent.getParent();
+                if (directory != null) {
+                    skills.putIfAbsent(directory, directory);
+                    continue;
+                }
+            }
+            if (Files.isDirectory(file) || absolute.endsWith(SharedSkills.DIRECTORY)) {
+                skills.putIfAbsent(absolute, file);
+            } else if (seen.add(absolute)) {
                 all.add(file);
             }
         }
@@ -108,8 +130,34 @@ final class CheckShared {
                 && seen.add(pinned.toAbsolutePath().normalize())) {
             all.add(pinned);
         }
+        // The skills of the root and of every repository whose rules are named go with them, a link
+        // in
+        // their place too, so it is refused rather than passed over.
+        final List<Path> bases = new ArrayList<>(List.of(root));
+        for (final Path file : all) {
+            final Path parent = file.toAbsolutePath().normalize().getParent();
+            final Path name = file.getFileName();
+            if (parent != null && name != null && name.toString().equals(RULES)) {
+                bases.add(parent);
+            }
+        }
+        for (final Path base : bases) {
+            final Path directory = base.resolve(SharedSkills.DIRECTORY);
+            if (Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+                skills.putIfAbsent(directory.toAbsolutePath().normalize(), directory);
+            }
+        }
+        // And the rules of every repository whose skills are checked, whose tables name them.
+        for (final Path directory : skills.keySet()) {
+            final Path rules = rootOf(directory, root).resolve(RULES);
+            if (Files.isRegularFile(rules) && seen.add(rules.toAbsolutePath().normalize())) {
+                all.add(rules);
+            }
+        }
         final List<String> faults = new ArrayList<>();
         final List<String> fine = new ArrayList<>();
+        // Per skills directory, the skills the tables of its repository's rules name.
+        final Map<Path, java.util.Set<String>> named = new LinkedHashMap<>();
         for (final Path file : all) {
             final String whole = wholeOf(file);
             if (whole != null && Files.isSymbolicLink(file)) {
@@ -151,8 +199,40 @@ final class CheckShared {
                 }
                 compare(file, nameOf(whole), lines, shared, faults, fine);
             } else {
-                check(file, lines, faults, fine);
+                final Path parent = file.toAbsolutePath().normalize().getParent();
+                check(
+                        file,
+                        lines,
+                        faults,
+                        fine,
+                        named.computeIfAbsent(
+                                (parent == null ? root.toAbsolutePath() : parent)
+                                        .resolve(SharedSkills.DIRECTORY),
+                                key -> new java.util.LinkedHashSet<>()));
             }
+        }
+        // Per skills directory, the shared skills found whole in it.
+        final Map<Path, java.util.Set<String>> whole = new LinkedHashMap<>();
+        try {
+            for (final Map.Entry<Path, Path> directory : skills.entrySet()) {
+                SharedSkills.check(
+                        rootOf(directory.getKey(), root),
+                        directory.getValue(),
+                        whole.computeIfAbsent(directory.getKey(), key -> new java.util.HashSet<>()),
+                        faults,
+                        fine);
+            }
+        } catch (IOException ex) {
+            err.println("could not read the skills: " + ex.getMessage());
+            return Stop.UNANSWERED;
+        }
+        for (final Map.Entry<Path, java.util.Set<String>> table : named.entrySet()) {
+            final Path key = table.getKey().toAbsolutePath().normalize();
+            SharedSkills.present(
+                    skills.getOrDefault(key, table.getKey()),
+                    table.getValue(),
+                    whole.getOrDefault(key, java.util.Set.of()),
+                    faults);
         }
         if (!faults.isEmpty()) {
             faults.forEach(err::println);
@@ -163,6 +243,12 @@ final class CheckShared {
             err.println(
                     "    sed -n '/^> \\*\\*BEGIN <name>\\*\\*/,/^> \\*\\*END <name>\\*\\*/p' FILE | sed '1d;$d'"
                             + " | sha256sum | cut -c1-16");
+            err.println(
+                    "A shared skill's markers carry the hash of its frontmatter, the lines between its '---',"
+                            + " followed by those lines:");
+            err.println(
+                    "    { sed -n '2,/^---$/p' SKILL.md | sed '$d'; sed -n '/^> \\*\\*BEGIN /,/^> \\*\\*END /p'"
+                            + " SKILL.md | sed '1d;$d'; } | sha256sum | cut -c1-16");
             return Stop.REFUSED;
         }
         fine.forEach(out::println);
@@ -176,6 +262,15 @@ final class CheckShared {
             return SHARED_EDITORCONFIG;
         }
         return file.toAbsolutePath().normalize().endsWith(PINNED) ? SHARED_PINNED : null;
+    }
+
+    /** The root a skills directory belongs to, where its {@code .claude/skills} link is. */
+    private static Path rootOf(Path directory, Path root) {
+        final Path absolute = directory.toAbsolutePath().normalize();
+        final Path parent = absolute.getParent();
+        return absolute.endsWith(SharedSkills.DIRECTORY) && parent != null
+                ? java.util.Objects.requireNonNullElse(parent.getParent(), root)
+                : root;
     }
 
     private static String nameOf(String resource) {
@@ -250,7 +345,11 @@ final class CheckShared {
     }
 
     private static void check(
-            Path file, List<String> lines, List<String> faults, List<String> fine) {
+            Path file,
+            List<String> lines,
+            List<String> faults,
+            List<String> fine,
+            java.util.Set<String> named) {
         final Map<String, Integer> begun = new LinkedHashMap<>();
         final Map<String, String> declared = new LinkedHashMap<>();
         final List<String> closed = new ArrayList<>();
@@ -279,6 +378,7 @@ final class CheckShared {
                     continue;
                 }
                 closed.add(name);
+                named.addAll(SharedSkills.named(file, lines.subList(from + 1, at), faults));
                 final String said =
                         java.util.Objects.requireNonNull(
                                 declared.get(name), "declared with its BEGIN");
