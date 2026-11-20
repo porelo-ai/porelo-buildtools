@@ -108,8 +108,9 @@ Read in porelo-buildtools 15012b0 against the audit above:
 
 - **Gone since the audit.** The `plan` commands went with [BT70](README.md#bt70), so `PlanCommandsTest`,
   `PlanStandTest` and fix 8's `LocalCommitTime` seam are gone. `Snapshots` no longer names `Hetzner`, so fix 2 keeps
-  only its `SnapshotCatalog` and `TreeArchive` seams. `CheckCommitsTest`'s `git` calls and fix 8's `Stage` seam leave
-  with the commands [BT71](README.md#bt71) hands to the planner; they are not built here.
+  only its `SnapshotCatalog` and `TreeArchive` seams. Fix 8's `Stage` seam leaves with `Stage` at the cut-over to GitHub
+  Issues ([BT92](README.md#bt92)) and is not built here. `CheckCommitsTest`'s `git` calls stay as audited:
+  `check-commits` stays in this repository, and their fix is not part of this issue.
 - **Still as audited.** `RentalTest` still resolves `porelo-test.invalid`; `AgentLeg.run` still reaches the machine
   through the static `Ssh.to(...)` (lines 310 and 320) after `lease.awaitSsh()`.
 - **Order and size.** Fixes 1 (M), 2 (M), 3 (S), 4 (S), 5 (S), 6 (XS), 7 (`CheckProviders` only, XS), 9 (S + S) and 10

@@ -16,8 +16,8 @@
 
 **Why.** It is part of ST320 (porelo-project). The planner writes a stats line when a person moves an issue on the
 board. Today's `check-commits` reads every `stats/*.jsonl` through `Stage.records`, which takes only `agent` and
-`subagent` lines. The planner's first move line would turn a repository's Build red until the planner's own commit
-checks replace `check-commits`.
+`subagent` lines. The planner's first move line would turn a repository's Build red until the stage records go at the
+cut-over.
 
 **What must be true.**
 - A closed line with `actor: person` and `stage: move` passes. Its `size` may be null, and its `wall_min` and `vm_min`
@@ -26,7 +26,7 @@ checks replace `check-commits`.
 - The median and p80 add no minutes and no sample for a move.
 - `stage begin <issue> move` is refused: a move is never a stage an agent opens.
 
-The cross-checks against the issue's head come with the planner's commit checks, not here. Nothing else in `Stage`
-changes; the rest of the format is handed over as it is ([BT71](README.md#bt71)).
+No cross-check against the issue's head is built: the stage records go at the cut-over to GitHub Issues
+([BT92](README.md#bt92)). Nothing else in `Stage` changes.
 
 **Review (2026-11-11).** On main, so Review by the operator's order of 15:44Z. Its stage lines were recorded afterwards: start from the session's first work on it, end at its commit, tokens not read (`no-session`).
