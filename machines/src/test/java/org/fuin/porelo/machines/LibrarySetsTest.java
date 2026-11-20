@@ -2,6 +2,10 @@ package org.fuin.porelo.machines;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -22,6 +26,26 @@ class LibrarySetsTest {
         assertThat(release("org.bouncycastle.asn1.cmc.BodyPartID"))
                 .as("bcutil beside bcprov %s", provider)
                 .isEqualTo(provider);
+    }
+
+    // Prevents a caller's Build from resolving sshj's older bcpkix, whose version range for bcutil
+    // needs a metadata fetch that fails the Build when it fails, though its answer is never used.
+    @Test
+    void theFlattenedPomTakesNoBouncyCastleFromSshj() throws IOException {
+        final String pom =
+                Files.readString(Path.of(".flattened-pom.xml"), StandardCharsets.UTF_8)
+                        .replaceAll("\\s+", "");
+        final Matcher sshj =
+                Pattern.compile("<artifactId>sshj</artifactId>.*?</dependency>").matcher(pom);
+        assertThat(sshj.find()).as("sshj in the pom a caller resolves").isTrue();
+
+        assertThat(sshj.group())
+                .as("sshj's own Bouncy Castle excluded")
+                .contains(
+                        "<exclusion><groupId>org.bouncycastle</groupId>"
+                                + "<artifactId>bcprov-jdk18on</artifactId></exclusion>",
+                        "<exclusion><groupId>org.bouncycastle</groupId>"
+                                + "<artifactId>bcpkix-jdk18on</artifactId></exclusion>");
     }
 
     /**

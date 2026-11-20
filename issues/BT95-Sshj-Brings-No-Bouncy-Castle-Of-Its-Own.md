@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT95",
   "title": "Sshj Brings No Bouncy Castle Of Its Own",
-  "state": "Implementing",
+  "state": "Review",
   "size": "XS",
   "priority": "High",
   "rank": 1,

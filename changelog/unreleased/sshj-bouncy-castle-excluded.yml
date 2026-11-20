@@ -1,0 +1,2 @@
+title: "porelo-machines excludes sshj's own `bcprov-jdk18on` and `bcpkix-jdk18on`, so a build resolving it reads only the Bouncy Castle release it declares, and no longer needs the repositories' metadata for the bcutil version range of sshj's older bcpkix."
+type: fixed

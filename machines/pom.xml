@@ -88,6 +88,18 @@
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
             <version>${sshj.version}</version>
+            <!-- Excluded so bcpkix 1.80's version range for bcutil is never resolved, which needs a metadata fetch
+                 in every caller's Build; the release declared below takes their place. -->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcprov-jdk18on</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcpkix-jdk18on</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -95,7 +107,7 @@
             <artifactId>bcprov-jdk18on</artifactId>
         </dependency>
 
-        <!-- Declared, so the flattened pom carries them: sshj alone would bring 1.80 beside bcprov's 1.85.2. -->
+        <!-- Declared, so the flattened pom carries them: sshj's own are excluded above. -->
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk18on</artifactId>
