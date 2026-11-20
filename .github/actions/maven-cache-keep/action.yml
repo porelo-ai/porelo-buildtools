@@ -43,8 +43,12 @@ runs:
                   echo "::warning::the root pom names no version; this repository's own modules stay in the cache"
               fi
               # By status-change time: Maven dates a downloaded file by the server's Last-Modified.
-              first=$(find "$repository" -type f \( -name '*.jar' -o -name '*.pom' \) -cnewer "$marker" -print -quit)
-              if [ -n "$first" ]; then
+              # A cache that cannot be read whole is not saved, and never fails the job: it is only a cache.
+              if ! first=$(find "$repository" -type f \( -name '*.jar' -o -name '*.pom' \) -cnewer "$marker" \
+                  -print -quit); then
+                  echo "::warning::the Maven repository could not be read whole: nothing saved"
+                  echo "save=false" >> "$GITHUB_OUTPUT"
+              elif [ -n "$first" ]; then
                   echo "fetched after the restore, among others: ${first#"$repository"/}"
                   echo "save=true" >> "$GITHUB_OUTPUT"
               else
