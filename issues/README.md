@@ -30,6 +30,7 @@ left out.
 |---|---|---|---|
 | <a id="bt92"></a>[BT92](BT92-The-Markdown-Issue-Commands-Go-At-The-Cut-Over.md) | M | - | Until the day stories and issues move to GitHub Issues, the `issues`, `stories` and `stage` commands, `stats/`, check-commits' stage rule and the issue-link rules of `check-citations` keep working unchanged; on that day they go with the porelo-stories library and their workflow step, the rule against citing an issue number stays for the old ids and the GitHub numbers, and no check of the GitHub side takes their place here. |
 | <a id="bt83"></a>[BT83](BT83-Providers-Named-Nowhere-Once-Every-Caller-Asks-By-Kind.md) | M | - | Once porelo asks for machines by kind, `check-providers` joins the shared rules of every repository, and `porelo-machines` drops the old call with a provider's server types and the `HETZNER_API` and `HETZNER_SSH` fallbacks (ST22). |
+| <a id="bt93"></a>[BT93](BT93-Check-Commits-Tests-Run-Without-Git.md) | XS | [BT92](README.md#bt92) | `CheckCommitsTest` holds `check-commits`' rules over an in-memory `CheckCommits.Git`; one integration test still runs real `git`, so the log format is proven against git itself. |
 
 ## Backlog
 
