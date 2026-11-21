@@ -16,7 +16,7 @@
 
 **Why this size.** One class and its tests, the documents and a changelog entry: S. The form of the trailer is
 decided, so no contract is designed here. It waits for [BT92](README.md#bt92), which moves the number rule off
-`issues/` and adds the GitHub number to it; this issue builds on that rule, and both are built on the cut-over day.
+`issues/` and adds the GitHub number to it; this issue builds on that rule.
 
 **What must be true.** From the cut-over day every commit made for an issue names it in a trailer. The tracker then
 links the commit to the issue without the subject citing a number, and GitHub never closes the issue, since only the
@@ -43,7 +43,7 @@ operator sets Finished.
   line, instead of "a line that is not a trailer".
 - Both rules hold only once the project's tracker is GitHub Issues, as `check-commits` already tells it: without the
   tracker a `Porelo-Issue` line stays a line that is not a trailer and a closing keyword is not read, so nothing
-  changes before the cut-over even if this is pushed earlier.
+  changes before the cut-over.
 - `faults`: the number rule reads every trailer but `Porelo-Issue`, as `Who` reads every trailer but the sign-off.
   A pattern `CLOSING` (the nine keywords, case-insensitive, an optional colon, then `#<n>`, `<owner>/<repository>#<n>`
   or `https://github.com/<owner>/<repository>/issues/<n>`) is matched over the whole message, trailers included, and
@@ -60,7 +60,6 @@ operator sets Finished.
 - The tests above pass, each refusal seen to fail first with its own message.
 - `check-commits` over the last 200 commits of porelo, porelo-buildtools, porelo-host and porelo-planner refuses no
   commit the current version passes, so the closing-keyword rule hits no subject in use today.
-- Before the cut-over: nothing of this is merged.
 
 ## Declined from the code reading
 
