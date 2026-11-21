@@ -30,7 +30,7 @@ class IssueHeadRiskTest {
             """;
 
     private static Workflow workflow() throws IOException {
-        return Workflow.read(Path.of("../issues/workflow.yml"));
+        return Workflow.read(Path.of("src/test/resources/workflow.yml"));
     }
 
     // Prevents the planner's risk of an issue from being lost or moved on a rewrite.

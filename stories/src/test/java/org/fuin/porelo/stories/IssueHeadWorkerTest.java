@@ -30,7 +30,7 @@ class IssueHeadWorkerTest {
             """;
 
     private static Workflow workflow() throws IOException {
-        return Workflow.read(Path.of("../issues/workflow.yml"));
+        return Workflow.read(Path.of("src/test/resources/workflow.yml"));
     }
 
     // Prevents the planner's choice of who works an issue from being lost or moved on a rewrite.
