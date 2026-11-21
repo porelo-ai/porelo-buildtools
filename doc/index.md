@@ -519,8 +519,12 @@ reads, a top-level `tracker:` mapping with `kind: github`; without `tracker` the
 a `tracker` of another shape, is refused, since these tools read no other.
 
 The file read is the nearest `project.yml` above the directory a command is given, or the working directory for
-`stage`, `check-commits` and `check-pushes`; where none stands above it, porelo-project's `project.yml` on GitHub's
-`main`, read without a token. One that cannot be read stops the command, exit 2. Once the tracker is named:
+`stage`, `check-commits` and `check-pushes`. Where none stands above it, a git checkout whose `origin`, as its own
+config holds it, is a repository of `porelo-ai` on any forge reads porelo-project's `project.yml` on GitHub's `main`,
+without a token. Any other directory keeps Markdown issues and reads nothing over the network: a test's fixture, a
+directory outside any checkout, and a checkout whose `origin` is a local path or names another owner. A file or an
+origin that cannot be read stops the command, exit 2, as does a missing `git` or a checkout git refuses, such as one
+of another owner without `safe.directory`. Once the tracker is named:
 
 - `issues check` and `stories check` pass, saying in one line that the issues are kept in GitHub Issues and which file
   says so, and `stage` writes nothing and says the same; so a workflow step left over from the Markdown issues stays

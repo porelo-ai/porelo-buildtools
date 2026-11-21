@@ -88,6 +88,7 @@ class MainTest {
                         new PrintStream(out, true, StandardCharsets.UTF_8),
                         new PrintStream(err, true, StandardCharsets.UTF_8),
                         tracked,
+                        at -> Optional.of("https://github.com/porelo-ai/porelo-buildtools.git"),
                         java.util.Map.of(),
                         (tree, manifest, lockfile, work) -> lockfile);
 
@@ -97,6 +98,33 @@ class MainTest {
                 .contains("OK    stage: the issues are kept in GitHub Issues");
         assertThat(asked).as("porelo-project's file").containsExactly(Tracker.PROJECT);
         assertThat(Path.of("stats")).as("no record written where it ran").doesNotExist();
+    }
+
+    // Prevents a test's fixture from being checked against the project's live tracker.
+    @Test
+    void issuesCheckReadsAFixtureOutsideTheProjectAsMarkdownIssues() throws IOException {
+        final Path fixture = Files.createDirectories(directory.resolve("fixture/issues"));
+        final Web tracked =
+                (address, headers) -> {
+                    asked.add(address);
+                    return Optional.of(
+                            "project: {}\ntracker:\n  kind: github\n"
+                                    .getBytes(StandardCharsets.UTF_8));
+                };
+
+        Main.run(
+                new String[] {"issues", "check", fixture.toString()},
+                new PrintStream(out, true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8),
+                tracked,
+                at -> Optional.empty(),
+                java.util.Map.of(),
+                (tree, manifest, lockfile, work) -> lockfile);
+
+        assertThat(stdout() + stderr())
+                .as("the fixture's own Markdown issues checked")
+                .doesNotContain("GitHub Issues");
+        assertThat(asked).as("nothing read over the network").isEmpty();
     }
 
     @Test

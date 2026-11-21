@@ -11,6 +11,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.regex.Pattern;
 
 /**
  * Where a project keeps its issues, as its {@code project.yml} says in {@code tracker.kind}, the
@@ -18,36 +25,102 @@ import java.nio.file.Path;
  * under each repository's {@code issues/}. Another kind is refused, since this reads no other.
  *
  * <p>The {@code project.yml} read is the nearest one above the directory a command is given, so the
- * project's own repository and a test's fixture each answer for themselves. A repository with none
- * above it belongs to the project whose {@code project.yml} stands on porelo-project's {@code
- * main}, read without a token. What cannot be read stops the command unanswered: taking the
- * Markdown issues for granted would fail every Build after the cut-over, and taking the tracker
- * would pass a check that still has issues to read.
+ * project's own repository and a test's fixture each answer for themselves. A git checkout of a
+ * repository of {@value #OWNER}, by its {@code origin}, with none above it belongs to the project
+ * whose {@code project.yml} stands on porelo-project's {@code main}, read without a token. Any
+ * other directory with none above it, a test's fixture among them, is a project of its own with
+ * Markdown issues, and nothing is read over the network for it. What cannot be read stops the
+ * command unanswered: taking the Markdown issues for granted would fail every Build after the
+ * cut-over, and taking the tracker would pass a check that still has issues to read.
  */
 record Tracker(boolean github, String where) {
 
-    /** The project's file where no {@code project.yml} stands above a directory. */
+    /** The project's file where no {@code project.yml} stands above a checkout of the project. */
     static final URI PROJECT =
             URI.create(
                     "https://raw.githubusercontent.com/porelo-ai/porelo-project/main/project.yml");
 
+    /** The owner of the project's repositories on every forge. */
+    static final String OWNER = "porelo-ai";
+
     /** The one kind of tracker this reads. */
     static final String GITHUB = "github";
+
+    /**
+     * A repository of {@value #OWNER} as a remote names it: by an address or as {@code
+     * host:owner/repository}, the owner in any case, with or without {@code .git} and a last slash.
+     */
+    private static final Pattern PROJECT_REMOTE =
+            Pattern.compile(
+                    "^(?:[a-z][a-z0-9+.-]*://[^/]+/|[^/:@]+@[^/:]+:|[^/:]+:)"
+                            + OWNER
+                            + "/[A-Za-z0-9._-]+?(?:\\.git)?/?$",
+                    Pattern.CASE_INSENSITIVE);
 
     private static final ObjectMapper YAML =
             new ObjectMapper(
                     new YAMLFactory().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION));
 
     /**
-     * Reads where the project of a directory keeps its issues.
+     * Variables that point git at another repository than the directory's own, as a hook or {@code
+     * git rebase --exec} sets them.
+     */
+    private static final List<String> ELSEWHERE =
+            List.of(
+                    "GIT_DIR",
+                    "GIT_WORK_TREE",
+                    "GIT_COMMON_DIR",
+                    "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY",
+                    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_NAMESPACE");
+
+    /** What git says, and only says, where no checkout stands at or above a directory. */
+    private static final String NO_CHECKOUT =
+            "fatal: not a git repository (or any of the parent directories): .git";
+
+    /** The {@code origin} of the git checkout a directory lies in. */
+    interface Origin {
+
+        /**
+         * Asks git, from the nearest directory that exists, for {@code remote.origin.url} as the
+         * checkout's own config holds it, no {@code insteadOf} applied.
+         */
+        Origin GIT = git(Map.of());
+
+        /**
+         * Reads the origin.
+         *
+         * @param directory the directory, which need not exist yet
+         * @return the origin's address; empty outside a checkout or in one without {@code origin}
+         * @throws IOException when it cannot be told, git missing among the reasons
+         */
+        Optional<String> of(Path directory) throws IOException;
+
+        /**
+         * Asks git as {@link #GIT} does, with variables of its own.
+         *
+         * @param environment variables set for git besides the inherited ones, but never one that
+         *     points it at another repository
+         * @return the reader
+         */
+        static Origin git(Map<String, String> environment) {
+            return directory -> gitOrigin(directory, environment);
+        }
+    }
+
+    /**
+     * Reads where the project of a directory keeps its issues, its checkout's origin read as given.
      *
      * @param directory the directory a command was given, or the repository's root
-     * @param web where porelo-project's file is read when none stands above the directory
+     * @param web where porelo-project's file is read when none stands above a checkout of the
+     *     project
+     * @param origin where the origin of the directory's checkout is read
      * @return the answer, with the file it was read from
-     * @throws Stop refused when the file says something else than this reads, unanswered when it
-     *     cannot be read
+     * @throws Stop refused when the file says something else than this reads, unanswered when it or
+     *     the origin cannot be read
      */
-    static Tracker of(Path directory, Web web) throws Stop {
+    static Tracker of(Path directory, Web web, Origin origin) throws Stop {
         Path at = directory.toAbsolutePath().normalize();
         while (at != null && !Files.exists(at.resolve("project.yml"), LinkOption.NOFOLLOW_LINKS)) {
             at = at.getParent();
@@ -63,6 +136,20 @@ record Tracker(boolean github, String where) {
                 throw Stop.unanswered("could not read " + file + ": " + Web.reason(ex), ex);
             }
         }
+        final Optional<String> remote;
+        try {
+            remote = origin.of(directory);
+        } catch (IOException | UncheckedIOException ex) {
+            throw Stop.unanswered(
+                    "no project.yml above "
+                            + directory
+                            + ", and the origin of its checkout could not be told: "
+                            + Web.reason(ex),
+                    ex);
+        }
+        if (remote.isEmpty() || !PROJECT_REMOTE.matcher(remote.get().strip()).matches()) {
+            return new Tracker(false, "no project.yml above " + directory);
+        }
         try {
             final String text =
                     web.text(PROJECT)
@@ -77,6 +164,75 @@ record Tracker(boolean github, String where) {
                             + " could not be read: "
                             + Web.reason(ex),
                     ex);
+        }
+    }
+
+    private static Optional<String> gitOrigin(Path directory, Map<String, String> environment)
+            throws IOException {
+        Path at = directory.toAbsolutePath().normalize();
+        while (at != null && !Files.isDirectory(at)) {
+            at = at.getParent();
+        }
+        if (at == null) {
+            return Optional.empty();
+        }
+        final Said checkout = git(at, environment, "rev-parse", "--git-dir");
+        if (checkout.code() == 128 && checkout.err().equals(NO_CHECKOUT)) {
+            return Optional.empty();
+        }
+        checkout.orFail();
+        final Said url = git(at, environment, "config", "--local", "--get", "remote.origin.url");
+        // 1: the key is not set.
+        if (url.code() == 1 && url.err().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(url.orFail());
+    }
+
+    /** What one git command said. */
+    private record Said(String command, int code, String out, String err) {
+
+        /** The output, or the failure as an exception. */
+        String orFail() throws IOException {
+            if (code != 0) {
+                throw new IOException(command + " exited " + code + ": " + err);
+            }
+            return out;
+        }
+    }
+
+    private static Said git(Path at, Map<String, String> environment, String... arguments)
+            throws IOException {
+        final List<String> command = new ArrayList<>(List.of("git", "-C", at.toString()));
+        command.addAll(List.of(arguments));
+        final ProcessBuilder builder = new ProcessBuilder(command);
+        builder.environment().putAll(environment);
+        ELSEWHERE.forEach(builder.environment()::remove);
+        builder.environment().put("LC_ALL", "C");
+        final Process git = builder.start();
+        try {
+            git.getOutputStream().close();
+            final CompletableFuture<byte[]> err =
+                    CompletableFuture.supplyAsync(
+                            () -> {
+                                try {
+                                    return git.getErrorStream().readAllBytes();
+                                } catch (IOException ex) {
+                                    throw new UncheckedIOException(ex);
+                                }
+                            });
+            final String out =
+                    new String(git.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            final int code = git.waitFor();
+            final String said = new String(err.join(), StandardCharsets.UTF_8).strip();
+            return new Said(String.join(" ", command), code, out.strip(), said);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted while git read the origin", ex);
+        } catch (CompletionException ex) {
+            throw new IOException("could not read what git said", ex.getCause());
+        } finally {
+            git.destroy();
         }
     }
 
