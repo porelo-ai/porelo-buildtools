@@ -99,6 +99,14 @@ Each commit is held to the shared rule, and each fault is one line with the comm
   with no issue prefix at all is not checked but refused, exit 2. Once the project keeps its issues in GitHub Issues
   (see [Where the issues are kept](#where-the-issues-are-kept)), no prefix is read: a number is told by its shape, an
   old id of one or two capitals and two or three digits (`S256` aside) or a GitHub reference, `#<n>` among them.
+- **Once the issues are kept in GitHub Issues, one `Porelo-Issue:` trailer per issue** the commit was made for, the
+  key in any case, the reference GitHub's `<owner>/<repository>#<number>`: `Porelo-Issue: octo-org/project#123`. It is
+  the one place a number may stand, so the number rule does not read it; one of another form is refused, naming the
+  line. While the issues are Markdown it is a line that is not a trailer, as before.
+- **Once the issues are kept in GitHub Issues, no closing keyword before an issue reference**, anywhere in the
+  message: `close`, `fix` or `resolve` in any of their forms, an optional colon, then `#<n>`, `GH-<n>`,
+  `<owner>/<repository>#<n>` or an issue's address, since a push must not close an issue whose Finished the person
+  sets. The bare word stays allowed: "Fix the pin".
 - **Nobody named as having asked for or made the change.** A heuristic: a match is refused, and a pass proves nothing.
   It matches a party named - `operator`, `coordinator`, `Smith`, `Agent` and a capitalized name, an `@handle`, or the
   commit's own author or committer name - and a phrase that gives credit, taken whole: "at X's word", "as X chose",

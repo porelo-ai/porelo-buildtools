@@ -46,17 +46,12 @@ left out.
 | <a id="bt48"></a>[BT48](BT48-Snapshots-Filtered-In-The-Agent-Repositories.md) | S | - | The five agent repositories read Sonatype's snapshots only for the groups in `.mvn/rrf/`, in the shape `check-snapshot-filter` holds, and their Build runs it; built by Agent Smith there. |
 | <a id="bt37"></a>[BT37](BT37-The-Buildtools-Agent-Works-In-A-Porelo-Task.md) | S | - | porelo-buildtools' agent, `Agent Buildtools`, in a Porelo task on the move's host: first `machines.yml` and the scheduled `check-pushes` held to GitHub, then the trial move with Forgejo's build publishing `main`'s snapshots to its registry. |
 
-## Implementing
-
-| # | Size | Blocked by | What it covers |
-|---|---|---|---|
-| <a id="bt94"></a>[BT94](BT94-Check-Commits-Takes-The-Porelo-Issue-Trailer.md) | S | [BT92](README.md#bt92) | From the cut-over day `check-commits` takes a `Porelo-Issue: <tracker reference>` trailer, one per issue, holds it to GitHub's reference form, still refuses an issue number in the subject, and refuses a closing keyword followed by an issue reference anywhere in the message; until then nothing changes. |
-
 ## Review
 
 | # | Size | Blocked by | What it covers |
 |---|---|---|---|
 | <a id="bt92"></a>[BT92](BT92-The-Tools-Recognize-The-Cut-Over.md) | M | - | Once the project's `project.yml` names GitHub Issues as its tracker, `issues check`, `stories check` and `stage` pass on purpose with one line, and `check-commits` reads no `issues/` and tells an issue number by its shape; without a tracker every check stays as it is, and `check-citations` refuses a reference to a project's GitHub issue either way. |
+| <a id="bt94"></a>[BT94](BT94-Check-Commits-Takes-The-Porelo-Issue-Trailer.md) | S | [BT92](README.md#bt92) | From the cut-over day `check-commits` takes a `Porelo-Issue: <tracker reference>` trailer, one per issue, holds it to GitHub's reference form, still refuses an issue number in the subject, and refuses a closing keyword followed by an issue reference anywhere in the message; until then nothing changes. |
 | <a id="bt95"></a>[BT95](BT95-Sshj-Brings-No-Bouncy-Castle-Of-Its-Own.md) | XS | - | porelo-machines excludes sshj's bcprov and bcpkix, so a build resolving its published pom never reads bcpkix 1.80 and the version range it declares for bcutil, and a missing metadata fetch for that range no longer fails a caller's Build. |
 | <a id="bt99"></a>[BT99](BT99-The-Maven-Cache-Follows-What-The-Build-Resolved.md) | S | - | Bug: the Build's Maven cache is keyed by the poms alone and never saved after an exact hit, so versions that porelo-parent's snapshot moves are fetched from Central on every Build until a pom changes. |
 | <a id="bt100"></a>[BT100](BT100-The-Skills-Link-Is-Read-As-A-Path-On-Windows.md) | XS | - | Bug: check-shared compares the target of `.claude/skills` as a string, so on Windows, which gives it back with backslashes, a right link is refused. |

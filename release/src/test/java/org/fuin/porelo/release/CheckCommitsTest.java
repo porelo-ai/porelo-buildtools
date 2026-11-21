@@ -171,6 +171,115 @@ class CheckCommitsTest {
                 .contains("a000048  below the subject, a line that is not a trailer");
     }
 
+    // Prevents a commit from losing its link to the issue it was made for once the tracker keeps
+    // the issues, which the trailer alone gives.
+    @Test
+    void passesOnePoreloIssueTrailerPerIssueOnceTheIssuesAreInTheTracker() {
+        commit(
+                "a000060",
+                "Take the issue trailer\n\n"
+                        + AGENT
+                        + "\nPorelo-Issue: porelo-ai/porelo#123\nporelo-issue: Porelo-AI/porelo-host#7");
+
+        assertThat(checkTracked()).as(stderr()).isEqualTo(0);
+    }
+
+    // Prevents the trailer from slipping in while the issues are still under issues/.
+    @Test
+    void refusesThePoreloIssueTrailerWhileTheIssuesAreMarkdown() {
+        commit(
+                "a000061",
+                "Take the issue trailer\n\n" + AGENT + "\nPorelo-Issue: porelo-ai/porelo#123");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "a000061  below the subject, a line that is not a trailer:"
+                                + " Porelo-Issue: porelo-ai/porelo#123");
+    }
+
+    // Prevents a trailer the tracker cannot link from passing as if it named its issue.
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "Porelo-Issue: #123",
+                "Porelo-Issue: porelo-ai/porelo",
+                "Porelo-Issue: porelo-ai/porelo#123 too",
+                "Porelo-Issue: porelo-ai/porelo#0",
+                "Porelo-Issue: https://github.com/porelo-ai/porelo/issues/123",
+                "Porelo-Issue:porelo-ai/porelo#123",
+                "Porelo-Issue: porelo-ai/..#1",
+                "Porelo-Issue: porelo-ai/.#1"
+            })
+    void refusesAPoreloIssueTrailerOfAnotherForm(String trailer) {
+        commit("a000062", "Take the issue trailer\n\n" + AGENT + "\n" + trailer);
+
+        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains(
+                        "a000062  a Porelo-Issue trailer not of the form"
+                                + " 'Porelo-Issue: <owner>/<repository>#<number>': "
+                                + trailer);
+    }
+
+    // Prevents a push from closing an issue, whose Finished only the person sets.
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "Fixes #12",
+                "closes porelo-ai/porelo#12",
+                "Resolved: https://github.com/o/r/issues/12",
+                "FIX octo/cat#3",
+                "Closes: #3",
+                "RESOLVES http://www.github.com/o/r/issues/4",
+                "fixes\n#5",
+                "Fixes GH-12"
+            })
+    void refusesAClosingKeywordBeforeAnIssueReferenceOnceTheIssuesAreInTheTracker(String closing) {
+        commit("a000063", "Take the pin\n\n" + AGENT + "\nPorelo-Issue: porelo-ai/porelo#12");
+        commit("a000064", "Take the pin, " + closing.replace('\n', ' ') + "\n\n" + AGENT);
+        // In a trailer's value, the one place no other rule refuses it.
+        commit("a000065", "Take the pin\n\n" + AGENT + ", " + closing);
+
+        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .doesNotContain("a000063  ")
+                .contains("a000064  closes an issue on push: " + closing.replace('\n', ' '))
+                .contains("a000065  closes an issue on push: " + closing);
+    }
+
+    // Prevents the closing rule from reaching a project whose issues are still Markdown.
+    @Test
+    void readsNoClosingKeywordWhileTheIssuesAreMarkdown() {
+        commit("a000068", "Take the pin, fixes octo/cat#3\n\n" + AGENT);
+
+        assertThat(check()).as(stderr()).isEqualTo(0);
+    }
+
+    // Prevents the closing rule from refusing the words a subject needs, which would block pushes.
+    @Test
+    void passesAClosingWordWithoutAnIssueReferenceOnceTheIssuesAreInTheTracker() {
+        commit("a000066", "Fix the pin, close the gap and resolve the prefix #fff\n\n" + AGENT);
+
+        assertThat(checkTracked()).as(stderr()).isEqualTo(0);
+    }
+
+    // Prevents the trailer from carrying a number into the subject past the number rule.
+    @Test
+    void refusesANumberInTheSubjectBesideAPoreloIssueTrailer() {
+        commit(
+                "a000067",
+                "Take porelo-ai/porelo#123 and #12\n\n"
+                        + AGENT
+                        + "\nPorelo-Issue: porelo-ai/porelo#123");
+
+        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .contains("a000067  names a requirement number: porelo-ai/porelo#123")
+                .contains("a000067  names a requirement number: #12")
+                .contains("2 fault(s) in 1 of 1 commit(s)");
+    }
+
     @Test
     void refusesTheOperatorAndTheLengthEachOnItsOwnLine() {
         commit(

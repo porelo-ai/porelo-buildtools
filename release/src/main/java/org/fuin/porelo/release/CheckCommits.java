@@ -25,14 +25,16 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>A subject of one line of at most 72 characters, {@code [skip ci]} counted; below it only a
  * blank line and trailers; no requirement number, since the issue is deleted once it is done; and
- * nobody named as having asked for or made the change, as far as {@link Who} can tell. A commit
- * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt
- * from these checks: told by the author and committer the commit records, never by what its message
- * says. Other trees' stage records must be closed, and a tree with a seed must hold stats for each
- * issue it adds in a workflow state marked measured, and for each whose state or size it changes
- * while that issue ends in such a state; both are read as {@link Stage#issue} reads them, in the
- * commit and in its first parent, and a parent's version that cannot be read is refused, never
- * taken as unchanged.
+ * nobody named as having asked for or made the change, as far as {@link Who} can tell. Once the
+ * project keeps its issues in GitHub Issues, a {@code Porelo-Issue} trailer per issue, in GitHub's
+ * reference form, is the one place a number may stand, and no closing keyword may precede an issue
+ * reference anywhere in the message, so no push closes an issue. A commit Dependabot or GitHub's
+ * Actions bot authored, or GitHub committed in its web interface, is exempt from these checks: told
+ * by the author and committer the commit records, never by what its message says. Other trees'
+ * stage records must be closed, and a tree with a seed must hold stats for each issue it adds in a
+ * workflow state marked measured, and for each whose state or size it changes while that issue ends
+ * in such a state; both are read as {@link Stage#issue} reads them, in the commit and in its first
+ * parent, and a parent's version that cannot be read is refused, never taken as unchanged.
  */
 final class CheckCommits {
 
@@ -57,6 +59,34 @@ final class CheckCommits {
                     "^(?:(?:Assisted-by|Signed-off-by): \\S.*"
                             + "|Porelo-Change-Id: \\S+"
                             + "|Porelo-Signs-Anew: (?!/)(?!(?:.*/)?\\.\\.(?:/|$))[A-Za-z0-9._/-]+)$",
+                    Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The trailer that names the issue a commit was made for, once the project keeps its issues in
+     * GitHub Issues: its key in any case, the reference GitHub's {@code <owner>/<repository>#<n>},
+     * the owner and repository as GitHub names them, a repository never of dots alone, and the
+     * number from 1.
+     */
+    private static final Pattern PORELO_ISSUE =
+            Pattern.compile(
+                    "^Porelo-Issue: [A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/(?!\\.+#)[A-Za-z0-9._-]+"
+                            + "#[1-9]\\d*$",
+                    Pattern.CASE_INSENSITIVE);
+
+    /** That trailer's key, in any case, to tell a trailer of another form from a body line. */
+    private static final Pattern PORELO_ISSUE_KEY =
+            Pattern.compile("Porelo-Issue:", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * A word GitHub closes an issue by when the commit reaches the default branch, followed by an
+     * issue reference as GitHub reads one: {@code #<n>}, {@code GH-<n>}, {@code
+     * <owner>/<repository>#<n>} or the issue's address.
+     */
+    private static final Pattern CLOSING =
+            Pattern.compile(
+                    "\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(?::\\s*|\\s+)"
+                            + "(?:#\\d+|GH-\\d+|[\\w.-]+/[\\w.-]+#\\d+"
+                            + "|https?://(?:www\\.)?github\\.com/[\\w.-]+/[\\w.-]+/issues/\\d+)\\b",
                     Pattern.CASE_INSENSITIVE);
 
     /** A sign-off, its key in any case, and the address it names. */
@@ -673,9 +703,18 @@ final class CheckCommits {
         final StringBuilder words = new StringBuilder(subject);
         final List<String> trailers = new ArrayList<>();
         final int first = lines.length > 1 && lines[1].isEmpty() ? 2 : 1;
+        final boolean tracked = known == null;
         for (int i = first; i < lines.length; i++) {
             if (TRAILER.matcher(lines[i]).matches()) {
                 trailers.add(lines[i]);
+            } else if (tracked && PORELO_ISSUE.matcher(lines[i]).matches()) {
+                // The one place a number may stand, so the number rule reads it not.
+                continue;
+            } else if (tracked && PORELO_ISSUE_KEY.matcher(lines[i]).lookingAt()) {
+                faults.add(
+                        "a Porelo-Issue trailer not of the form"
+                                + " 'Porelo-Issue: <owner>/<repository>#<number>': "
+                                + lines[i]);
             } else {
                 faults.add(
                         "below the subject, a line that is not a trailer: "
@@ -711,6 +750,11 @@ final class CheckCommits {
                         faults.add("names a requirement number: " + number.group());
                     }
                 }
+            }
+            // Only the person sets Finished, never a push.
+            final Matcher closing = CLOSING.matcher(commit.message());
+            while (closing.find()) {
+                faults.add("closes an issue on push: " + closing.group());
             }
         }
         Who.named(named.toString(), List.of(commit.author(), commit.committer()))

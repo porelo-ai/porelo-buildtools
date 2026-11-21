@@ -5,7 +5,7 @@
   "$schema": "issue-1.json",
   "id": "BT94",
   "title": "Check Commits Takes The Porelo-Issue Trailer",
-  "state": "Implementing",
+  "state": "Review",
   "size": "S",
   "priority": "High",
   "rank": 1,
@@ -41,11 +41,15 @@ operator sets Finished.
   `<owner>/<repository>#<number>` (owner and repository as GitHub names them, the number from 1). `TRAILER` takes it as
   one more key; a line whose key is `Porelo-Issue` but whose value is of another form gets its own fault, naming the
   line, instead of "a line that is not a trailer".
+- Both rules hold only once the project's tracker is GitHub Issues, as `check-commits` already tells it: without the
+  tracker a `Porelo-Issue` line stays a line that is not a trailer and a closing keyword is not read, so nothing
+  changes before the cut-over even if this is pushed earlier.
 - `faults`: the number rule reads every trailer but `Porelo-Issue`, as `Who` reads every trailer but the sign-off.
   A pattern `CLOSING` (the nine keywords, case-insensitive, an optional colon, then `#<n>`, `<owner>/<repository>#<n>`
   or `https://github.com/<owner>/<repository>/issues/<n>`) is matched over the whole message, trailers included, and
   each hit is a fault naming it.
-- `CheckCommitsTest`: red first, a commit carrying `Porelo-Issue: porelo-ai/porelo#123` is refused today. Then: two
+- `CheckCommitsTest`, over the in-memory log: red first, a commit carrying `Porelo-Issue: porelo-ai/porelo#123` is
+  refused today with the tracker named; without the tracker it stays refused. Then: two
   such trailers pass; `Porelo-Issue: #123`, `Porelo-Issue: porelo-ai/porelo` and a trailing word are refused with the
   trailer's own message; `Fixes #12`, `closes porelo-ai/porelo#12` and `Resolved: https://github.com/o/r/issues/12`
   are refused; "Fix the pin" passes; `#12` in the subject is still refused.
@@ -57,3 +61,10 @@ operator sets Finished.
 - `check-commits` over the last 200 commits of porelo, porelo-buildtools, porelo-host and porelo-planner refuses no
   commit the current version passes, so the closing-keyword rule hits no subject in use today.
 - Before the cut-over: nothing of this is merged.
+
+## Declined from the code reading
+
+- A valid `Porelo-Issue` trailer is not read by the rule that nobody is named: it names an issue, never who asked,
+  and its owner or repository name, such as `operator-tools`, would be refused as a party named.
+- `Fixes #12` gives two faults, the number and the closing keyword: each names a rule it breaks, and the commit is
+  refused either way.
