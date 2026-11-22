@@ -2,10 +2,13 @@ package org.fuin.porelo.machines;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -99,7 +102,7 @@ public final class Main {
             return jdk(args, complain, env, PinnedJdk.overHttps(PinnedJdk.githubToken(env)));
         }
         if (args.length > 0 && "musl".equals(args[0])) {
-            return musl(args, complain, Main::runInBash);
+            return musl(args, complain, System.out::println, Main::runInBash);
         }
         if (args.length > 0 && !"sweep".equals(args[0])) {
             // Named rather than answered with the usage text alone. A repository that resolves this
@@ -136,9 +139,11 @@ public final class Main {
                                 <sha256>.tar.gz or <sha256>.zip and takes it from there, checked
                                 again. --print-sha256 prints this system's pinned digest alone,
                                 fetching nothing.
-                       musl     - installs the musl cross-toolchain and a musl-built zlib that the
-                                hooks link against, both checked against their digests, under
-                                MUSL_PREFIX (default ~/.local/opt).
+                       musl     [--pins] - installs the musl cross-toolchain and a musl-built zlib
+                                that the hooks link against, both checked against their digests,
+                                under MUSL_PREFIX (default ~/.local/opt). --pins prints the two
+                                digests alone, MUSL_SHA256=<hex> and ZLIB_SHA256=<hex>, installing
+                                nothing: the key a CI cache keeps the toolchain under.
 
                   --mine                 delete what this run created, whatever its expiry. What a
                                          job uses to clean up after itself - deleting by age
@@ -681,28 +686,62 @@ public final class Main {
     }
 
     /**
-     * Installs the musl toolchain the hooks link against, with the installer this build carries.
+     * Installs the musl toolchain the hooks link against, with the installer this build carries, or
+     * prints the two digests it pins.
      *
      * <p>The one installer for every repository that builds the hooks, and the same one a snapshot
      * runs: a checkout that kept a copy of its own let the two drift. Where it installs is the
      * installer's own {@code MUSL_PREFIX}.
      *
-     * @param args {@code musl}, and nothing else.
+     * @param args {@code musl}, or {@code musl --pins}.
      * @param complain Where a refusal goes.
+     * @param say Where the digests go, one line each.
      * @param run Runs the installer's text with bash and returns its exit code.
-     * @return The installer's exit code, or 2 for an option it does not take.
+     * @return The installer's exit code, 0 once the digests are printed, or 2 for an option it does
+     *     not take.
      * @throws IOException If the installer cannot be run.
      */
-    static int musl(String[] args, Consumer<String> complain, Installer run) throws IOException {
+    static int musl(String[] args, Consumer<String> complain, Consumer<String> say, Installer run)
+            throws IOException {
+        if (args.length == 2 && "--pins".equals(args[1])) {
+            muslPins(Snapshots.muslInstaller()).forEach(say);
+            return 0;
+        }
         if (args.length > 1) {
             complain.accept(
-                    "musl takes no option, not "
-                            + args[1]
+                    "musl takes only --pins, not "
+                            + String.join(" ", List.of(args).subList(1, args.length))
                             + "; where it installs is MUSL_PREFIX in the"
                             + " environment (default ~/.local/opt)");
             return 2;
         }
         return run.run(Snapshots.muslInstaller());
+    }
+
+    /**
+     * The two digests a musl installer pins, as the lines {@code musl --pins} prints.
+     *
+     * @param installer The installer's text.
+     * @return {@code MUSL_SHA256=<hex>}, then {@code ZLIB_SHA256=<hex>}.
+     * @throws IllegalStateException When the installer pins either not exactly once.
+     */
+    static List<String> muslPins(String installer) {
+        final List<String> lines = new ArrayList<>();
+        for (final String name : List.of("MUSL_SHA256", "ZLIB_SHA256")) {
+            final Matcher found =
+                    Pattern.compile("(?m)^" + name + "=([0-9a-f]{64})$").matcher(installer);
+            if (!found.find()) {
+                throw new IllegalStateException(
+                        "the musl installer pins no " + name + "=<64 hex digits>");
+            }
+            final String digest = found.group(1);
+            if (found.find()) {
+                // The installer checks against the last one, a cache key would take the first.
+                throw new IllegalStateException("the musl installer pins " + name + " twice");
+            }
+            lines.add(name + "=" + digest);
+        }
+        return List.copyOf(lines);
     }
 
     /** Runs an installer's text. */

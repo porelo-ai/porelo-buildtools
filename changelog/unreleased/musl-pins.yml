@@ -1,0 +1,2 @@
+title: "`porelo-machines musl --pins` prints the two digests the musl installer pins, `MUSL_SHA256` and `ZLIB_SHA256`, and installs nothing, so a workflow keys its toolchain cache by them without a copy of its own."
+type: added

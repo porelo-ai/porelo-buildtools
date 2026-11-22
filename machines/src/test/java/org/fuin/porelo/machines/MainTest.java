@@ -541,6 +541,7 @@ class MainTest {
                 Main.musl(
                         new String[] {"musl"},
                         QUIET,
+                        QUIET,
                         script -> {
                             ran.add(script);
                             return 3;
@@ -560,12 +561,100 @@ class MainTest {
                 Main.musl(
                         new String[] {"musl", "--prefix", "/opt"},
                         said::add,
+                        QUIET,
                         script -> {
                             throw new AssertionError("refused before anything ran");
                         });
 
         assertThat(code).isEqualTo(2);
-        assertThat(said).singleElement().asString().contains("--prefix").contains("MUSL_PREFIX");
+        assertThat(said)
+                .as("the option refused, where the prefix is set instead, and what musl takes")
+                .singleElement()
+                .asString()
+                .contains("--prefix")
+                .contains("MUSL_PREFIX")
+                .contains("--pins");
+    }
+
+    @Test
+    void refusesAnArgumentAfterPins() throws IOException {
+        final List<String> said = new ArrayList<>();
+
+        final int code =
+                Main.musl(
+                        new String[] {"musl", "--pins", "extra"},
+                        said::add,
+                        QUIET,
+                        script -> {
+                            throw new AssertionError("refused before anything ran");
+                        });
+
+        assertThat(code).as("an argument musl does not take").isEqualTo(2);
+        assertThat(said)
+                .as("the refusal names what was given, not only the option it does take")
+                .singleElement()
+                .asString()
+                .contains("--pins extra");
+    }
+
+    @Test
+    void printsTheTwoDigestsTheMuslInstallerPinsAndInstallsNothing() throws IOException {
+        // A workflow keys its toolchain cache by these; a second copy of them in the workflow
+        // would keep the old toolchain restored after a pin moved here.
+        final List<String> printed = new ArrayList<>();
+
+        final int code =
+                Main.musl(
+                        new String[] {"musl", "--pins"},
+                        QUIET,
+                        printed::add,
+                        script -> {
+                            throw new AssertionError("--pins installs nothing");
+                        });
+
+        assertThat(code).as("the digests printed").isZero();
+        assertThat(printed)
+                .as("two lines a step appends to GITHUB_OUTPUT as they are")
+                .containsExactly(
+                        "MUSL_SHA256=" + pin(Snapshots.muslInstaller(), "MUSL_SHA256"),
+                        "ZLIB_SHA256=" + pin(Snapshots.muslInstaller(), "ZLIB_SHA256"));
+        assertThat(printed)
+                .as("each a full sha256")
+                .allSatisfy(line -> assertThat(line).matches("[A-Z]+_SHA256=[0-9a-f]{64}"));
+    }
+
+    @Test
+    void refusesAMuslInstallerThatLacksAPin() {
+        final String installer = Snapshots.muslInstaller().replaceAll("(?m)^ZLIB_SHA256=.*$", "");
+
+        assertThatThrownBy(() -> Main.muslPins(installer))
+                .as("a cache keyed by one digest alone would miss a moved zlib")
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ZLIB_SHA256");
+    }
+
+    @Test
+    void refusesAMuslInstallerThatPinsTwice() {
+        final String installer =
+                Snapshots.muslInstaller() + "\nMUSL_SHA256=" + "0".repeat(64) + "\n";
+
+        assertThatThrownBy(() -> Main.muslPins(installer))
+                .as("which of the two the installer checks against is not the key's to guess")
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("MUSL_SHA256");
+    }
+
+    private static String pin(String installer, String name) {
+        // Read line by line, not with the regex under test, so a wrong pattern cannot agree with
+        // itself.
+        final List<String> values =
+                installer
+                        .lines()
+                        .filter(line -> line.startsWith(name + "="))
+                        .map(line -> line.substring(name.length() + 1))
+                        .toList();
+        assertThat(values).as("the installer pins " + name + " once").hasSize(1);
+        return values.get(0);
     }
 
     @Test
