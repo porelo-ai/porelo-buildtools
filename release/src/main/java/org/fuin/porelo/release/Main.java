@@ -50,7 +50,8 @@ public final class Main {
                     "third-party-notices",
                     "check-snapshot-filter",
                     "prune-snapshots",
-                    "artifactory");
+                    "artifactory",
+                    "pinned-mirror");
 
     private static int checkCitations(List<String> rest, PrintStream out, PrintStream err) {
         // An option, such as a directory of other checkouts, is no root to check.
@@ -484,6 +485,7 @@ public final class Main {
             case "third-party-notices" -> thirdPartyNotices(rest, out, err);
             case "prune-snapshots" -> pruneSnapshots(rest, out, err, env);
             case "artifactory" -> artifactory(rest, out, err, env);
+            case "pinned-mirror" -> pinnedMirror(rest, out, err, env, web);
             default -> unknown(command, err);
         };
     }
@@ -551,6 +553,31 @@ public final class Main {
             return Stop.UNANSWERED;
         }
         return new ArtifactoryCommand(artifactory, out, err, Thread::sleep).run(rest);
+    }
+
+    private static int pinnedMirror(
+            List<String> rest, PrintStream out, PrintStream err, Map<String, String> env, Web web) {
+        if (rest.size() > 1 || (rest.size() == 1 && rest.getFirst().startsWith("--"))) {
+            return usage(err, PinnedMirror.USAGE);
+        }
+        final List<PinnedMirror.Pin> pins;
+        try {
+            pins = PinnedMirror.pins(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
+        } catch (Stop ex) {
+            err.println("::error::pinned-mirror: " + ex.getMessage());
+            return ex.code();
+        }
+        final Artifactory artifactory = artifactoryOf("pinned-mirror", env, err);
+        if (artifactory == null) {
+            return Stop.UNANSWERED;
+        }
+        return PinnedMirror.of(
+                        artifactory,
+                        web.askedAgain(Thread::sleep, err::println),
+                        out,
+                        err,
+                        Thread::sleep)
+                .run(pins);
     }
 
     static int checkLinkage(List<String> rest, PrintStream out, PrintStream err) {

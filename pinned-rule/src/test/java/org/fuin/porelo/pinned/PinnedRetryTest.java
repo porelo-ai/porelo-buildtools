@@ -50,4 +50,22 @@ class PinnedRetryTest {
                 .as("a clock behind counts as none")
                 .contains(Duration.ofSeconds(15));
     }
+
+    // Prevents a first source that eats the whole budget and leaves the mirror no time to answer.
+    @Test
+    void theFirstSourceStartsNoAttemptAfterTenMinutesAndTheSecondNoneAfterFifteen() {
+        assertThat(PinnedRetry.FIRST_SOURCE).as("the first source's share").hasMinutes(10);
+        assertThat(PinnedRetry.pauseAfter(5, Duration.ofSeconds(590), PinnedRetry.FIRST_SOURCE))
+                .as("cut to the first source's deadline")
+                .contains(Duration.ofSeconds(10));
+        assertThat(PinnedRetry.pauseAfter(1, Duration.ofSeconds(600), PinnedRetry.FIRST_SOURCE))
+                .as("at the first source's deadline")
+                .isEmpty();
+        assertThat(PinnedRetry.pauseAfter(1, Duration.ofSeconds(600), PinnedRetry.BUDGET))
+                .as("the second source's first pause, counted from the same start")
+                .contains(Duration.ofSeconds(15));
+        assertThat(PinnedRetry.pauseAfter(5, Duration.ofSeconds(890), PinnedRetry.BUDGET))
+                .as("cut to the whole budget")
+                .contains(Duration.ofSeconds(10));
+    }
 }

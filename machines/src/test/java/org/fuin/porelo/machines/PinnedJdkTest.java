@@ -319,7 +319,8 @@ class PinnedJdkTest {
         final Path path = dir.resolve("github-path");
         Files.writeString(env, "EARLIER=kept\n");
 
-        PinnedJdk.exportTo(new PinnedJdk.Installed(dir.resolve("jdk"), "25.4.4.1.1"), env, path);
+        PinnedJdk.exportTo(
+                new PinnedJdk.Installed(dir.resolve("jdk"), "25.4.4.1.1", URL), env, path);
 
         assertThat(Files.readString(env))
                 .isEqualTo(
@@ -555,6 +556,171 @@ class PinnedJdkTest {
         assertThat(waited).isEqualTo(PinnedRetry.pauses());
     }
 
+    private static final URI MIRROR = URI.create("https://mirror.example/files");
+
+    /** A clock that only the attempts and the pauses move. */
+    private static final class Clock implements PinnedJdk.Pause {
+
+        Instant now = Instant.parse("2026-11-08T11:10:00Z");
+
+        final Instant first = now;
+
+        @Override
+        public void of(Duration time) {
+            now = now.plus(time);
+        }
+
+        @Override
+        public Instant now() {
+            return now;
+        }
+    }
+
+    // Prevents a Build that goes red while the organization's Artifactory holds the archive: the
+    // pinned address gives way after ten minutes, and the mirror's archive is taken once it
+    // matches.
+    @Tag("integration")
+    @Test
+    void takesTheArchiveFromTheMirrorWhenThePinnedAddressAnswers503PastTenMinutes()
+            throws IOException {
+        final byte[] archive = archive("java", "native-image");
+        final Clock clock = new Clock();
+        final List<Instant> started = new ArrayList<>();
+        final List<URI> mirrored = new ArrayList<>();
+        final List<String> said = new ArrayList<>();
+
+        final PinnedJdk.Installed installed =
+                PinnedJdk.install(
+                        contents(sha256(archive)),
+                        PinnedJdk.Platform.LINUX_X64,
+                        dir.resolve("jdk"),
+                        (address, into) -> {
+                            started.add(clock.now);
+                            clock.now = clock.now.plus(Duration.ofMinutes(2));
+                            throw new PinnedJdk.Unavailable(address + " answered HTTP 503");
+                        },
+                        new PinnedJdk.Mirror(
+                                MIRROR,
+                                (address, into) -> {
+                                    mirrored.add(address);
+                                    into.write(archive);
+                                }),
+                        null,
+                        clock,
+                        said::add);
+
+        assertThat(installed.home().resolve("bin/java")).isExecutable();
+        assertThat(started)
+                .as("no attempt at the pinned address after 600 s")
+                .containsExactly(
+                        clock.first,
+                        clock.first.plusSeconds(135),
+                        clock.first.plusSeconds(285),
+                        clock.first.plusSeconds(465),
+                        clock.first.plusSeconds(600));
+        final URI expected =
+                URI.create(
+                        MIRROR
+                                + "/pinned/"
+                                + sha256(archive)
+                                + "/graalvm-community-jdk_linux-x64_bin.tar.gz");
+        assertThat(mirrored)
+                .as("the mirror by digest and file name, once")
+                .containsExactly(expected);
+        assertThat(installed.source())
+                .as("the source that answered")
+                .isEqualTo(expected.toString());
+        assertThat(String.join("\n", said)).as("the switch is told").contains(expected.toString());
+    }
+
+    // Prevents a mirror that serves something else from being installed as the pinned JDK.
+    @Test
+    void refusesAnArchiveFromTheMirrorThatDoesNotMatch() throws IOException {
+        final AtomicInteger mirrored = new AtomicInteger();
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        PinnedJdk.Platform.LINUX_X64,
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            // A moved release asset.
+                                            throw new IOException(address + " answered HTTP 404");
+                                        },
+                                        new PinnedJdk.Mirror(
+                                                MIRROR,
+                                                (address, into) -> {
+                                                    mirrored.incrementAndGet();
+                                                    into.write(1);
+                                                }),
+                                        null,
+                                        new Clock(),
+                                        message -> {}))
+                .hasMessageContaining(MIRROR + "/pinned/" + "0".repeat(64))
+                .hasMessageContaining("not the pinned");
+        assertThat(mirrored).as("asked once").hasValue(1);
+        assertThat(dir.resolve("jdk/bin")).doesNotExist();
+        try (var left = Files.list(dir)) {
+            assertThat(left).as("nothing left beside it").containsExactly(dir.resolve("jdk"));
+        }
+    }
+
+    // Prevents a wrong digest, which is a fault and not an outage, from being covered by the
+    // mirror.
+    @Test
+    void failsAtOnceOnAWrongDigestFromThePinnedAddressAndNeverAsksTheMirror() throws IOException {
+        final AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(
+                        () ->
+                                PinnedJdk.install(
+                                        contents("0".repeat(64)),
+                                        PinnedJdk.Platform.LINUX_X64,
+                                        dir.resolve("jdk"),
+                                        (address, into) -> {
+                                            attempts.incrementAndGet();
+                                            into.write(1);
+                                        },
+                                        new PinnedJdk.Mirror(
+                                                MIRROR,
+                                                (address, into) -> {
+                                                    throw new AssertionError(
+                                                            "the mirror was asked: " + address);
+                                                }),
+                                        null,
+                                        new Clock(),
+                                        message -> {}))
+                .hasMessageContaining(URL + " has the digest")
+                .hasMessageContaining("not the pinned");
+        assertThat(attempts).as("one attempt").hasValue(1);
+    }
+
+    // Prevents a mirror set to anything but an https address from being asked, and one turned off
+    // from being asked all the same.
+    @Test
+    void theMirrorIsTheOrganizationsArtifactoryUnlessTheEnvironmentNamesAnotherOrNone()
+            throws IOException {
+        assertThat(PinnedJdk.mirror(Map.of())).as("unset").isEqualTo(PinnedJdk.MIRROR);
+        assertThat(PinnedJdk.mirror(Map.of(PinnedJdk.MIRROR_VARIABLE, ""))).as("empty").isNull();
+        assertThat(PinnedJdk.mirror(Map.of(PinnedJdk.MIRROR_VARIABLE, MIRROR.toString())))
+                .as("another")
+                .isEqualTo(MIRROR);
+        for (final String wrong :
+                List.of(
+                        "http://mirror.example/files",
+                        "https://mirror.example/a b",
+                        "https://user:secret@mirror.example/files",
+                        "https://mirror.example/files?token=secret",
+                        "https://mirror.example/files#secret",
+                        "mirror.example")) {
+            assertThatThrownBy(() -> PinnedJdk.mirror(Map.of(PinnedJdk.MIRROR_VARIABLE, wrong)))
+                    .as(wrong)
+                    .hasMessageContaining(PinnedJdk.MIRROR_VARIABLE)
+                    .hasMessageNotContaining("secret");
+        }
+    }
+
     @Tag("integration")
     @Test
     void keepsTheCheckedArchiveInTheCacheByItsDigest() throws IOException {
@@ -692,7 +858,7 @@ class PinnedJdkTest {
                                             cache.toString()
                                         },
                                         message -> {},
-                                        Map.of(),
+                                        Map.of(PinnedJdk.MIRROR_VARIABLE, ""),
                                         (address, into) -> {
                                             attempts.incrementAndGet();
                                             throw new IOException("HTTP 404");

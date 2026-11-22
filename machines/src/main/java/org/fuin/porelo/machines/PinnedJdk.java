@@ -46,6 +46,13 @@ import org.jspecify.annotations.Nullable;
  * starts over with an empty file and a new digest. A 4xx and a wrong digest will not get better by
  * waiting and fail at once.
  *
+ * <p><strong>From the mirror when the pinned address fails.</strong> The organization's Artifactory
+ * keeps each pinned archive as {@code pinned/<sha256>/<file name>}, read without a token. When the
+ * pinned address has not served the archive within the first ten minutes - a 5xx or no answer that
+ * lasts, a 4xx - the mirror is asked by the same pauses until fifteen minutes from the first
+ * attempt are spent, and its archive is taken only when its digest matches. A wrong digest from the
+ * pinned address is a fault, not an outage, and fails at once.
+ *
  * <p><strong>Kept in a cache by its digest.</strong> Given a cache directory, the archive that
  * matched is kept there as {@code <sha256>.tar.gz}, where a CI cache keyed by the same digest
  * brings it back. A cached archive is hashed again before it is used; one that does not match is
@@ -75,6 +82,76 @@ final class PinnedJdk {
 
     /** Where the token is named, set by the action only on github.com. */
     static final String TOKEN_VARIABLE = "PORELO_PINNED_GITHUB_TOKEN";
+
+    /**
+     * The organization's Artifactory, which keeps each pinned file under {@code
+     * pinned/<sha256>/<file name>}, read without a token.
+     */
+    static final URI MIRROR = URI.create("https://fuinorg.jfrog.io/artifactory/porelo-files");
+
+    /** Where the environment names another mirror, or none when it is empty. */
+    static final String MIRROR_VARIABLE = "PORELO_PINNED_MIRROR";
+
+    /**
+     * Where a pinned archive is fetched from when its own address fails, and how.
+     *
+     * @param base the mirror's address, under which {@code pinned/<sha256>/<file name>} lies
+     * @param download how it is fetched, never with the job's token
+     */
+    record Mirror(URI base, Download download) {
+
+        /**
+         * Where the mirror keeps a file.
+         *
+         * @param sha256 its pinned digest
+         * @param source the address it is pinned at, whose last path segment names it
+         * @return the address, or null when that segment is no file name the mirror can hold
+         */
+        @Nullable URI of(String sha256, URI source) {
+            final String path = String.valueOf(source.getPath());
+            final String name = path.substring(path.lastIndexOf('/') + 1);
+            if (!name.matches("[A-Za-z0-9][A-Za-z0-9._+-]*")) {
+                return null;
+            }
+            final String text = base.toString();
+            return URI.create(
+                    (text.endsWith("/") ? text.substring(0, text.length() - 1) : text)
+                            + "/pinned/"
+                            + sha256
+                            + "/"
+                            + name);
+        }
+    }
+
+    /**
+     * The mirror the environment names: the organization's Artifactory unless {@value
+     * #MIRROR_VARIABLE} names another, and none when it is set empty.
+     *
+     * @param env the job's environment
+     * @return the mirror's address, or null for none
+     * @throws IOException when it is set to anything but an https address
+     */
+    static @Nullable URI mirror(Map<String, String> env) throws IOException {
+        final String set = env.get(MIRROR_VARIABLE);
+        if (set == null) {
+            return MIRROR;
+        }
+        if (set.isEmpty()) {
+            return null;
+        }
+        // Not repeated: a user or a query in the address could carry a secret into the log.
+        if (!set.matches("https://[^\\s@?#\\[\\]]+")) {
+            throw new IOException(
+                    MIRROR_VARIABLE
+                            + " is no https:// address without whitespace, a user, a query or a"
+                            + " fragment");
+        }
+        try {
+            return new URI(set);
+        } catch (java.net.URISyntaxException ex) {
+            throw new IOException(MIRROR_VARIABLE + " is no address", ex);
+        }
+    }
 
     /** How many redirects a download follows. */
     private static final int REDIRECTS = 10;
@@ -239,8 +316,9 @@ final class PinnedJdk {
      *
      * @param home the JDK's home directory
      * @param version the pinned version
+     * @param source where the archive came from: its pinned address, the mirror's, or the cache
      */
-    record Installed(Path home, String version) {}
+    record Installed(Path home, String version, String source) {}
 
     private PinnedJdk() {
         throw new UnsupportedOperationException("Utility class");
@@ -315,6 +393,35 @@ final class PinnedJdk {
             Pause pause,
             Consumer<String> say)
             throws IOException {
+        return install(contents, platform, home, download, null, cache, pause, say);
+    }
+
+    /**
+     * Downloads, checks and unpacks the pinned GraalVM, from the mirror when its pinned address
+     * fails.
+     *
+     * @param contents what the pom pins
+     * @param platform the system whose archive is installed
+     * @param home where the JDK goes; it must not exist yet, or be empty
+     * @param download where the archive is fetched from
+     * @param mirror where it is fetched from when its pinned address fails, or null for nowhere
+     * @param cache where the checked archive is kept by its digest, or null to keep none
+     * @param pause how a wait is spent
+     * @param say where an attempt that failed is told
+     * @return what was installed
+     * @throws IOException if it cannot be fetched, does not match its digest, or does not unpack to
+     *     a JDK
+     */
+    static Installed install(
+            Snapshots.Contents contents,
+            Platform platform,
+            Path home,
+            Download download,
+            @Nullable Mirror mirror,
+            @Nullable Path cache,
+            Pause pause,
+            Consumer<String> say)
+            throws IOException {
         if (Files.isDirectory(home)) {
             try (var entries = Files.list(home)) {
                 if (entries.findAny().isPresent()) {
@@ -330,7 +437,7 @@ final class PinnedJdk {
             if (digestOf(cached).equals(pinned)) {
                 say.accept(url + " taken from the cache, checked against " + pinned);
                 unpack(platform, cached, home);
-                return checked(contents, platform, home);
+                return checked(contents, platform, home, cached.toString());
             }
             say.accept(cached + " did not match the pinned " + pinned + "; fetching it again");
             Files.delete(cached);
@@ -339,17 +446,9 @@ final class PinnedJdk {
         final Path folder =
                 cache != null ? Files.createDirectories(cache) : home.toAbsolutePath().getParent();
         final Path archive = Files.createTempFile(folder, "graalvm-", platform.suffix);
+        final String source;
         try {
-            final String got = fetchedDigest(URI.create(url), archive, download, pause, say);
-            if (!got.equals(pinned)) {
-                throw new IOException(
-                        url
-                                + " has the digest "
-                                + got
-                                + ", not the pinned "
-                                + pinned
-                                + "; nothing was installed");
-            }
+            source = fetched(URI.create(url), pinned, archive, download, mirror, pause, say);
             if (cached != null) {
                 Files.move(archive, cached, StandardCopyOption.ATOMIC_MOVE);
                 unpack(platform, cached, home);
@@ -359,11 +458,90 @@ final class PinnedJdk {
         } finally {
             Files.deleteIfExists(archive);
         }
-        return checked(contents, platform, home);
+        return checked(contents, platform, home, source);
+    }
+
+    /**
+     * Fetches the archive from its pinned address until the first source's deadline, then from the
+     * mirror until the whole budget is spent; a wrong digest from the pinned address fails at once.
+     *
+     * @return the address whose archive matched
+     */
+    private static String fetched(
+            URI address,
+            String pinned,
+            Path archive,
+            Download download,
+            @Nullable Mirror mirror,
+            Pause pause,
+            Consumer<String> say)
+            throws IOException {
+        final Instant start = pause.now();
+        final URI second = mirror == null ? null : mirror.of(pinned, address);
+        if (mirror != null && second == null) {
+            say.accept(address + " names no file the mirror can hold; it is not asked");
+        }
+        if (mirror == null || second == null) {
+            matches(
+                    address,
+                    fetchedDigest(
+                            address, archive, download, pause, say, start, PinnedRetry.BUDGET),
+                    pinned);
+            return address.toString();
+        }
+        final String got;
+        try {
+            got =
+                    fetchedDigest(
+                            address,
+                            archive,
+                            download,
+                            pause,
+                            say,
+                            start,
+                            PinnedRetry.FIRST_SOURCE);
+        } catch (IOException failed) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw failed;
+            }
+            say.accept(failed.getMessage() + "; asking the mirror, " + second);
+            final String again;
+            try {
+                again =
+                        fetchedDigest(
+                                second,
+                                archive,
+                                mirror.download(),
+                                pause,
+                                say,
+                                start,
+                                PinnedRetry.BUDGET);
+            } catch (IOException alsoFailed) {
+                alsoFailed.addSuppressed(failed);
+                throw alsoFailed;
+            }
+            matches(second, again, pinned);
+            return second.toString();
+        }
+        matches(address, got, pinned);
+        return address.toString();
+    }
+
+    private static void matches(URI address, String got, String pinned) throws IOException {
+        if (!got.equals(pinned)) {
+            throw new IOException(
+                    address
+                            + " has the digest "
+                            + got
+                            + ", not the pinned "
+                            + pinned
+                            + "; nothing was installed");
+        }
     }
 
     // Windows keeps no executable bit, so there a tool is a regular file.
-    private static Installed checked(Snapshots.Contents contents, Platform platform, Path home)
+    private static Installed checked(
+            Snapshots.Contents contents, Platform platform, Path home, String source)
             throws IOException {
         for (final String tool : platform.tools) {
             final Path file = home.resolve("bin").resolve(tool);
@@ -373,14 +551,19 @@ final class PinnedJdk {
                         platform.url(contents) + " unpacked to no bin/" + tool + " in " + home);
             }
         }
-        return new Installed(home, contents.graalvmVersion());
+        return new Installed(home, contents.graalvmVersion(), source);
     }
 
     private static String fetchedDigest(
-            URI address, Path archive, Download download, Pause pause, Consumer<String> say)
+            URI address,
+            Path archive,
+            Download download,
+            Pause pause,
+            Consumer<String> say,
+            Instant start,
+            Duration deadline)
             throws IOException {
         final int attempts = PinnedRetry.attempts();
-        final Instant start = pause.now();
         for (int attempt = 1; ; attempt++) {
             final MessageDigest sha256 = sha256();
             try (OutputStream out =
@@ -390,7 +573,7 @@ final class PinnedJdk {
                 return HexFormat.of().formatHex(sha256.digest());
             } catch (Unavailable ex) {
                 final Duration elapsed = Duration.between(start, pause.now());
-                final Optional<Duration> after = PinnedRetry.pauseAfter(attempt, elapsed);
+                final Optional<Duration> after = PinnedRetry.pauseAfter(attempt, elapsed, deadline);
                 if (after.isEmpty()) {
                     throw new Unavailable(
                             ex.getMessage()

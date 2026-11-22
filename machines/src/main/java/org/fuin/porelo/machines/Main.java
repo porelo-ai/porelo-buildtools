@@ -99,7 +99,13 @@ public final class Main {
             return lease(args, complain, env, open);
         }
         if (args.length > 0 && "jdk".equals(args[0])) {
-            return jdk(args, complain, env, PinnedJdk.overHttps(PinnedJdk.githubToken(env)));
+            // The mirror is fetched without the job's token, whatever address it has.
+            return jdk(
+                    args,
+                    complain,
+                    env,
+                    PinnedJdk.overHttps(PinnedJdk.githubToken(env)),
+                    PinnedJdk.overHttps(null));
         }
         if (args.length > 0 && "musl".equals(args[0])) {
             return musl(args, complain, System.out::println, Main::runInBash);
@@ -581,6 +587,28 @@ public final class Main {
             Map<String, String> env,
             PinnedJdk.Download download)
             throws IOException {
+        return jdk(args, complain, env, download, download);
+    }
+
+    /**
+     * Installs the pinned GraalVM, fetching the mirror its own way.
+     *
+     * @param args The command line.
+     * @param complain Where a refusal goes.
+     * @param env The environment: {@code RUNNER_TEMP}, {@code GITHUB_ENV}, {@code GITHUB_PATH},
+     *     {@code PORELO_PINNED_MIRROR}.
+     * @param download Where the archive is fetched from at its pinned address.
+     * @param mirror How the mirror is fetched from.
+     * @return An exit code.
+     * @throws IOException If it cannot be installed.
+     */
+    static int jdk(
+            String[] args,
+            Consumer<String> complain,
+            Map<String, String> env,
+            PinnedJdk.Download download,
+            PinnedJdk.Download mirror)
+            throws IOException {
         final PinnedJdk.Platform platform;
         try {
             platform = PinnedJdk.Platform.running();
@@ -588,7 +616,7 @@ public final class Main {
             complain.accept(ex.getMessage());
             return 2;
         }
-        return jdk(args, complain, env, download, platform);
+        return jdk(args, complain, env, download, mirror, platform);
     }
 
     /**
@@ -607,6 +635,30 @@ public final class Main {
             Consumer<String> complain,
             Map<String, String> env,
             PinnedJdk.Download download,
+            PinnedJdk.Platform platform)
+            throws IOException {
+        return jdk(args, complain, env, download, download, platform);
+    }
+
+    /**
+     * Installs the pinned GraalVM of a given system, fetching the mirror its own way.
+     *
+     * @param args The command line.
+     * @param complain Where a refusal goes.
+     * @param env The environment: {@code RUNNER_TEMP}, {@code GITHUB_ENV}, {@code GITHUB_PATH},
+     *     {@code PORELO_PINNED_MIRROR}.
+     * @param download Where the archive is fetched from at its pinned address.
+     * @param mirrorDownload How the mirror is fetched from.
+     * @param platform The system whose archive is installed.
+     * @return An exit code.
+     * @throws IOException If it cannot be installed.
+     */
+    static int jdk(
+            String[] args,
+            Consumer<String> complain,
+            Map<String, String> env,
+            PinnedJdk.Download download,
+            PinnedJdk.Download mirrorDownload,
             PinnedJdk.Platform platform)
             throws IOException {
         String into = null;
@@ -661,12 +713,20 @@ public final class Main {
                     "--github needs GITHUB_ENV and GITHUB_PATH, which only a GitHub job sets");
             return 2;
         }
+        final java.net.URI mirror;
+        try {
+            mirror = PinnedJdk.mirror(env);
+        } catch (IOException ex) {
+            complain.accept(ex.getMessage());
+            return 2;
+        }
         final PinnedJdk.Installed installed =
                 PinnedJdk.install(
                         contents,
                         platform,
                         java.nio.file.Path.of(into),
                         download,
+                        mirror == null ? null : new PinnedJdk.Mirror(mirror, mirrorDownload),
                         cache == null ? null : java.nio.file.Path.of(cache),
                         Thread::sleep,
                         System.err::println);
@@ -679,6 +739,8 @@ public final class Main {
                         + installed.version()
                         + " in "
                         + installed.home()
+                        + ", from "
+                        + installed.source()
                         + ", checked against "
                         + platform.sha256(contents)
                         + (github ? "; JAVA_HOME and PATH set for the rest of the job" : ""));

@@ -36,11 +36,15 @@ class PinnedRetryTest {
         }
         expected.add("none");
         expected.add("attempts " + PinnedRetry.attempts());
+        expected.add("first " + PinnedRetry.FIRST_SOURCE.toSeconds());
+        expected.add("mirror " + PinnedJdk.MIRROR);
 
         final Ran ran =
                 shell(
                         "for n in 1 2 3 4 5 6 7 8; do pinned_pause \"$n\" || echo none; done;"
-                                + " echo \"attempts $pinned_attempts\"",
+                                + " echo \"attempts $pinned_attempts\";"
+                                + " echo \"first $pinned_first_deadline\";"
+                                + " echo \"mirror $pinned_mirror\"",
                         "exit 99");
 
         assertThat(ran.out().lines()).containsExactlyElementsOf(expected);
@@ -51,26 +55,48 @@ class PinnedRetryTest {
     void theShellKeepsTheDeadlineAsJavaDoes() throws IOException, InterruptedException {
         final List<String> expected = new ArrayList<>();
         final StringBuilder calls = new StringBuilder();
-        for (int attempt = 0; attempt <= 8; attempt++) {
-            for (final int elapsed : new int[] {-5, 0, 100, 400, 600, 780, 890, 899, 900, 1000}) {
-                expected.add(
-                        attempt
-                                + " "
-                                + elapsed
-                                + " "
-                                + PinnedRetry.pauseAfter(attempt, Duration.ofSeconds(elapsed))
-                                        .map(pause -> Long.toString(pause.toSeconds()))
-                                        .orElse("none"));
-                calls.append("echo \"")
-                        .append(attempt)
-                        .append(' ')
-                        .append(elapsed)
-                        .append(" $(pinned_pause ")
-                        .append(attempt)
-                        .append(' ')
-                        .append(elapsed)
-                        .append(" || echo none)\"; ");
+        for (final Duration deadline :
+                new Duration[] {PinnedRetry.FIRST_SOURCE, PinnedRetry.BUDGET}) {
+            for (int attempt = 0; attempt <= 8; attempt++) {
+                for (final int elapsed :
+                        new int[] {-5, 0, 100, 400, 590, 599, 600, 780, 890, 899, 900, 1000}) {
+                    expected.add(
+                            attempt
+                                    + " "
+                                    + elapsed
+                                    + " "
+                                    + PinnedRetry.pauseAfter(
+                                                    attempt, Duration.ofSeconds(elapsed), deadline)
+                                            .map(pause -> Long.toString(pause.toSeconds()))
+                                            .orElse("none"));
+                    calls.append("echo \"")
+                            .append(attempt)
+                            .append(' ')
+                            .append(elapsed)
+                            .append(" $(pinned_pause ")
+                            .append(attempt)
+                            .append(' ')
+                            .append(elapsed)
+                            .append(' ')
+                            .append(deadline.toSeconds())
+                            .append(" || echo none)\"; ");
+                }
             }
+        }
+        // Without a deadline, the whole budget.
+        for (final int elapsed : new int[] {600, 890}) {
+            expected.add(
+                    "default "
+                            + elapsed
+                            + " "
+                            + PinnedRetry.pauseAfter(5, Duration.ofSeconds(elapsed))
+                                    .map(pause -> Long.toString(pause.toSeconds()))
+                                    .orElse("none"));
+            calls.append("echo \"default ")
+                    .append(elapsed)
+                    .append(" $(pinned_pause 5 ")
+                    .append(elapsed)
+                    .append(" || echo none)\"; ");
         }
 
         final Ran ran = shell(calls.toString(), "exit 99");
@@ -468,6 +494,267 @@ class PinnedRetryTest {
                 .doesNotContain(TOKEN);
     }
 
+    private static final String MIRROR = "https://mirror.example/files";
+
+    /** Where the stand-in mirror keeps the pinned file. */
+    private static final String MIRRORED = MIRROR + "/pinned/" + sha("pinned") + "/tool";
+
+    // Prevents a Build that goes red while the organization's Artifactory holds the file: the first
+    // source gives way after ten minutes, and the mirror's file is taken once it matches.
+    @Test
+    void theShellTakesTheFileFromTheMirrorWhenTheFirstSourceAnswers503PastTenMinutes()
+            throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+
+        // Each attempt at the first source hangs two minutes before it answers 503.
+        final Ran ran =
+                mirrored(
+                        "pinned_now() { cat " + clock + "; }; " + fetchTool(),
+                        clock,
+                        "echo $(($(cat " + clock + ") + 120)) > " + clock + "; printf 503",
+                        "printf pinned > \"$out\"; printf 200");
+
+        assertThat(ran.exit()).as(ran.out()).isZero();
+        assertThat(dir.resolve("tool")).as("the mirror's file, checked").hasContent("pinned");
+        final List<String> calls = Files.readAllLines(dir.resolve("calls"));
+        assertThat(calls)
+                .as("the first source until 600 s, then the mirror")
+                .containsExactly(
+                        "0 https://example.invalid/tool",
+                        "135 https://example.invalid/tool",
+                        "285 https://example.invalid/tool",
+                        "465 https://example.invalid/tool",
+                        "600 https://example.invalid/tool",
+                        "720 " + MIRRORED);
+        assertThat(ran.out())
+                .as("the source that answered is named")
+                .contains("taken from " + MIRRORED)
+                .doesNotContain("::error::");
+        assertNoPartLeft(dir.resolve("tool"));
+    }
+
+    // Prevents a mirror that serves something else from being taken for the pinned file.
+    @Test
+    void theShellRefusesAFileFromTheMirrorThatDoesNotMatch()
+            throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+
+        // A 404 at the first source, as a moved release asset answers.
+        final Ran ran =
+                mirrored(fetchTool(), clock, "printf 404", "printf planted > \"$out\"; printf 200");
+
+        assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        assertThat(Files.readAllLines(dir.resolve("calls")))
+                .as("the first source once, the mirror once")
+                .containsExactly("0 https://example.invalid/tool", "0 " + MIRRORED);
+        assertThat(ran.out()).contains(MIRRORED + " has the digest of something else");
+        assertThat(dir.resolve("tool")).doesNotExist();
+        assertNoPartLeft(dir.resolve("tool"));
+    }
+
+    // Prevents a Build from waiting on with nothing to take when neither source holds the file.
+    @Test
+    void theShellFailsNamingBothSourcesWhenTheMirrorLacksTheFileToo()
+            throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+
+        final Ran ran = mirrored(fetchTool(), clock, "printf 404", "printf 404");
+
+        assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        assertThat(Files.readAllLines(dir.resolve("calls")))
+                .as("each source once, since a 404 does not mend by asking again")
+                .containsExactly("0 https://example.invalid/tool", "0 " + MIRRORED);
+        assertThat(ran.out())
+                .as("both answers named")
+                .contains("https://example.invalid/tool answered HTTP 404")
+                .contains(MIRRORED + " answered HTTP 404");
+        assertThat(dir.resolve("tool")).as("nothing taken").doesNotExist();
+        assertNoPartLeft(dir.resolve("tool"));
+    }
+
+    // Prevents one hanging attempt from running far past its source's deadline: curl is told how
+    // long the deadline leaves, and at least 30 s.
+    @Test
+    void theShellBoundsEachAttemptByWhatItsSourcesDeadlineLeaves()
+            throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+        final Path limits = dir.resolve("limits");
+
+        final Ran ran =
+                shell(
+                        "pinned_now() { cat " + clock + "; }; " + fetchTool(),
+                        "for a; do last=$a; done\n"
+                                + "while [ $# -gt 0 ]; do case $1 in -o) out=$2 ;; --max-time)"
+                                + " echo \"$(cat "
+                                + clock
+                                + ") $2\" >> "
+                                + limits
+                                + " ;; esac; shift; done\n"
+                                + "case $last in "
+                                + MIRROR
+                                + "/*) printf pinned > \"$out\"; printf 200 ;;"
+                                + " *) echo $(($(cat "
+                                + clock
+                                + ") + 120)) > "
+                                + clock
+                                + "; printf 503 ;; esac",
+                        "echo $(($(cat " + clock + ") + $1)) > " + clock,
+                        Map.of("PORELO_PINNED_MIRROR", MIRROR));
+
+        assertThat(ran.exit()).as(ran.out()).isZero();
+        assertThat(Files.readAllLines(limits))
+                .as("the first source's attempts end by 600 s, the mirror's by 900 s")
+                .containsExactly("0 600", "135 465", "285 315", "465 135", "600 30", "720 180");
+    }
+
+    // Prevents a wrong digest, which is a fault and not an outage, from being covered by the
+    // mirror.
+    @Test
+    void theShellFailsAtOnceOnAWrongDigestFromTheFirstSourceAndNeverAsksTheMirror()
+            throws IOException, InterruptedException {
+        final Path clock = dir.resolve("clock");
+        Files.writeString(clock, "0\n");
+
+        final Ran ran =
+                mirrored(
+                        fetchTool(),
+                        clock,
+                        "printf planted > \"$out\"; printf 200",
+                        "printf pinned > \"$out\"; printf 200");
+
+        assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        assertThat(Files.readAllLines(dir.resolve("calls")))
+                .as("the mirror never asked")
+                .containsExactly("0 https://example.invalid/tool");
+        assertThat(ran.out()).contains("https://example.invalid/tool has the digest");
+        assertThat(dir.resolve("tool")).doesNotExist();
+    }
+
+    // Prevents the job's token from going to the mirror, which is no GitHub address.
+    @Test
+    void theShellSendsTheJobsTokenNeverToTheMirror() throws IOException, InterruptedException {
+        final Path calls = dir.resolve("calls");
+
+        final Ran ran =
+                shell(
+                        "pinned_fetch https://github.com/x/tool "
+                                + sha("pinned")
+                                + " "
+                                + dir.resolve("tool"),
+                        "in=; case \" $* \" in *' -K - '*) in=$(cat) ;; esac\n"
+                                + "for a; do last=$a; done\n"
+                                + "printf '%s stdin %s\\n' \"$last\" \"$in\" >> "
+                                + calls
+                                + "\nwhile [ $# -gt 0 ]; do [ \"$1\" = -o ] && out=$2; shift; done\n"
+                                + "case $last in "
+                                + MIRROR
+                                + "/*) printf pinned > \"$out\"; printf 200 ;; *) printf '404 ' ;; esac",
+                        "echo \"slept $1\" >&2",
+                        Map.of(
+                                "GITHUB_SERVER_URL",
+                                "https://github.com",
+                                "PORELO_PINNED_GITHUB_TOKEN",
+                                TOKEN,
+                                "PORELO_PINNED_MIRROR",
+                                MIRROR));
+
+        assertThat(ran.exit()).as(ran.out()).isZero();
+        assertThat(Files.readAllLines(calls))
+                .as("the token to github.com, the mirror without it")
+                .containsExactly(
+                        "https://github.com/x/tool stdin header = \"Authorization: Bearer "
+                                + TOKEN
+                                + "\"",
+                        MIRROR + "/pinned/" + sha("pinned") + "/tool stdin ");
+        assertThat(ran.out()).doesNotContain(TOKEN);
+    }
+
+    // Prevents a mirror set to something other than an https address from being asked.
+    @Test
+    void theShellRefusesAMirrorThatIsNoHttpsAddress() throws IOException, InterruptedException {
+        for (final String mirror :
+                List.of(
+                        "http://mirror.example/files",
+                        "https://mirror.example/a b",
+                        "https://user:secret@mirror.example/files",
+                        "https://mirror.example/files?token=secret",
+                        "https://mirror.example/files#secret",
+                        "mirror.example")) {
+            Files.deleteIfExists(dir.resolve("calls"));
+            final Ran ran =
+                    shell(
+                            fetchTool(),
+                            "echo called >> " + dir.resolve("calls") + "; exit 99",
+                            "echo \"slept $1\" >&2",
+                            Map.of("PORELO_PINNED_MIRROR", mirror));
+
+            assertThat(ran.exit()).as(mirror + ": " + ran.out()).isEqualTo(1);
+            assertThat(ran.out())
+                    .as(mirror)
+                    .contains("PORELO_PINNED_MIRROR")
+                    .doesNotContain("secret");
+            assertThat(dir.resolve("calls")).as(mirror + ": nothing fetched").doesNotExist();
+        }
+    }
+
+    // Prevents a mirror that a caller turned off from being asked all the same.
+    @Test
+    void theShellAsksNoMirrorWhenItIsSetEmptyAndTheOrganizationsOneWhenItIsUnset()
+            throws IOException, InterruptedException {
+        final Path calls = dir.resolve("calls");
+        final String curl = "for a; do last=$a; done; echo \"$last\" >> " + calls + "; printf 404";
+
+        final Ran off = shell(fetchTool(), curl);
+        final List<String> offCalls = Files.readAllLines(calls);
+        Files.delete(calls);
+        final Ran unset = shell("unset PORELO_PINNED_MIRROR; " + fetchTool(), curl);
+
+        assertThat(off.exit()).isEqualTo(1);
+        assertThat(offCalls).as("no mirror").containsExactly("https://example.invalid/tool");
+        assertThat(unset.exit()).isEqualTo(1);
+        assertThat(Files.readAllLines(calls))
+                .as("the organization's Artifactory by the file's digest and name")
+                .containsExactly(
+                        "https://example.invalid/tool",
+                        PinnedJdk.MIRROR + "/pinned/" + sha("pinned") + "/tool");
+    }
+
+    private String fetchTool() {
+        return "pinned_fetch https://example.invalid/tool "
+                + sha("pinned")
+                + " "
+                + dir.resolve("tool");
+    }
+
+    /**
+     * Fetches with {@link #MIRROR} as the mirror and a stand-in curl that writes each call, with
+     * the clock's time, to {@code calls}, and answers as the first source or the mirror is told.
+     */
+    private Ran mirrored(String body, Path clock, String first, String mirror)
+            throws IOException, InterruptedException {
+        return shell(
+                body,
+                "for a; do last=$a; done\n"
+                        + "echo \"$(cat "
+                        + clock
+                        + ") $last\" >> "
+                        + dir.resolve("calls")
+                        + "\nwhile [ $# -gt 0 ]; do [ \"$1\" = -o ] && out=$2; shift; done\n"
+                        + "case $last in "
+                        + MIRROR
+                        + "/*) "
+                        + mirror
+                        + " ;; *) "
+                        + first
+                        + " ;; esac",
+                "echo $(($(cat " + clock + ") + $1)) > " + clock + "; echo \"slept $1\" >&2",
+                Map.of("PORELO_PINNED_MIRROR", MIRROR));
+    }
+
     private static final String TOKEN = "ghs_" + "B".repeat(36);
 
     /**
@@ -565,6 +852,8 @@ class PinnedRetryTest {
         builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
         builder.environment().remove("GITHUB_SERVER_URL");
         builder.environment().remove("PORELO_PINNED_GITHUB_TOKEN");
+        // No mirror unless a test names one, so a fake curl never answers for the real one.
+        builder.environment().put("PORELO_PINNED_MIRROR", "");
         builder.environment().putAll(env);
         final Process bash = builder.start();
         final String out = new String(bash.getInputStream().readAllBytes(), StandardCharsets.UTF_8);

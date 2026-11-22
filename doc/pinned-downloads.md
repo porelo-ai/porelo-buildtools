@@ -35,7 +35,8 @@ same release on Windows x86-64, each checked against its own digest before anyth
 architecture is refused. On Windows the zip is unpacked by the command itself, and an entry that would land outside the
 JDK's directory is refused. With `--github` it sets `JAVA_HOME` and `GRAALVM_HOME` and puts its `bin` first on the
 `PATH` for the job's later steps, on either system; it prints one line,
-`GraalVM <version> in <directory>, checked against <sha256>`, with `; JAVA_HOME and PATH set for the rest of the job`
+`GraalVM <version> in <directory>, from <source>, checked against <sha256>`, where the source is the pinned address,
+the mirror's or the cached archive, with `; JAVA_HOME and PATH set for the rest of the job`
 after it under `--github`, and `--print-sha256` prints that system's digest alone.
 
 Both builds are one pin: `porelo.release.pin.graalvm.also` names `windows`, and its `also.windows.digest`,
@@ -52,7 +53,8 @@ When a file must be fetched:
   one attempt then running, however long a failing attempt hangs. The time is a clock that only counts up, in whole
   seconds.
 - **Only an answer that may be better next time** is tried again: a 5xx, or a connection that could not be made,
-  timed out or broke off. A 4xx, a refused certificate, a full disk and a wrong digest fail at once.
+  timed out or broke off. A 4xx, a refused certificate and a full disk are not asked again at the same source, and a
+  wrong digest fails at once.
 - **A command whose failure does not say why**, such as the wrapper's Maven, is run again on any failure by the same
   pauses and deadline. It runs in a subshell under `set -e`, so a function given stops at its first failing command,
   as long as `pinned_retry` is a statement of its own and not a condition.
@@ -68,6 +70,45 @@ A test holds the two to the same numbers. A script that fetches something pinned
 
 What the two say goes to standard error, so it reaches the log when the command's own output is discarded.
 
+## From the mirror when the source fails
+
+A pinned file has a second source, the organization's Artifactory, which keeps it by its digest:
+
+```
+https://fuinorg.jfrog.io/artifactory/porelo-files/pinned/<sha256>/<file name>
+```
+
+The file name is the last path segment of the pinned address. The repository `porelo-files` is read without a token,
+so no pin names the mirror and nothing is configured to use it:
+- **The budget split:** the pinned address is tried by the rule until 10 min after the first attempt started, and no
+  attempt there starts later. The mirror is then tried by the same pauses until the 15 min are spent, counted from
+  the same start. Without a mirror, the pinned address has the whole 15 min.
+- **What moves on to the mirror:** anything the pinned address did not serve, such as a 5xx or no answer that lasts, a
+  4xx from a release asset that moved, or a refused certificate. A wrong digest from the pinned address is a fault,
+  not an outage, and fails at once without asking the mirror.
+- **Checked the same:** the mirror's file is taken only when its digest matches the pin, and is moved into place only
+  then. What the two say names each address, and the line of a file taken names the source that served it.
+- **No token:** the job's GitHub token never goes to the mirror, whatever address it has.
+- **Another mirror or none:** `PORELO_PINNED_MIRROR` names another mirror's base, an `https://` address without
+  whitespace, a user, a query or a fragment; set empty, it turns the mirror off. Any other value fails before anything is
+  fetched.
+
+`pinned.sh` keeps the base in `pinned_mirror`, porelo-machines in `PinnedJdk.MIRROR`, and the test that holds the two
+to one rule holds both to the same base and the same 10 min, `PinnedRetry.FIRST_SOURCE`.
+
+### How the mirror is filled
+
+`porelo-release pinned-mirror [<root>]`, run in a porelo-buildtools checkout, reads every file the checkout pins: the
+GraalVM for Linux and Windows from `machines/pom.xml` and shfmt from `.github/actions/pinned-jdk/action.yml`. The
+musl installer is not among them: it fetches without the rule, and musl.cc does not answer GitHub's runners. For each:
+- a file already under `pinned/<sha256>/<name>` is left alone;
+- any other is fetched from its pinned address by the rule, checked against its digest, and uploaded by the code of
+  `artifactory put`, which sends its SHA-1 and SHA-256, so Artifactory refuses bytes that do not match them.
+
+A pin that fails does not keep the others out. The command ends with 1 when a file did not match or a source answered
+404, 2 when a source or Artifactory did not answer. The Build's Publish job runs it on `main` on github.com, with
+`JF_URL` and `JF_ACCESS_TOKEN`, after the jars are deployed.
+
 ## With the job's token
 
 On GitHub, a download from `https://github.com` goes with the job's token, so GitHub counts it against the job's own
@@ -79,7 +120,7 @@ limit and not against the shared runner's address:
   any address a redirect leads to.
 - **Never told:** `pinned.sh` hands it to curl on its standard input, never as an argument; Java sends it as a header.
   Neither puts it in a message.
-- **A 401 or 403 fails at once,** as any 4xx does.
+- **A 401 or 403 is not asked again,** as any 4xx is not; the mirror is asked next.
 
 The token comes from the step's environment, `PORELO_PINNED_GITHUB_TOKEN`, which each step that downloads sets:
 

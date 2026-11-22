@@ -66,7 +66,14 @@ final class ArtifactoryCommand {
     }
 
     /** A call that may be asked again. */
-    private interface Call<T> {
+    interface Call<T> {
+
+        /**
+         * Makes the call once.
+         *
+         * @return its answer
+         * @throws IOException when it failed
+         */
         T run() throws IOException;
     }
 
@@ -210,7 +217,16 @@ final class ArtifactoryCommand {
         out.println("  put   " + target);
     }
 
-    private <T> T retried(String what, Call<T> call) throws IOException {
+    /**
+     * Makes a call, asked again by the pinned rule while Artifactory does not answer.
+     *
+     * @param <T> what it answers
+     * @param what the call, for what is said
+     * @param call the call
+     * @return its answer
+     * @throws IOException when it was refused, or not answered within the rule
+     */
+    <T> T retried(String what, Call<T> call) throws IOException {
         final Instant start = pause.now();
         for (int attempt = 1; ; attempt++) {
             try {

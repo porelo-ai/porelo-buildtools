@@ -255,7 +255,8 @@ jobs:
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
             PORELO_PACKAGES_READ_TOKEN: ${{ secrets.PORELO_PACKAGES_READ_TOKEN }}
-        timeout-minutes: 35
+        # 15 more for the mirror's fetches, which may each wait out the pinned rule.
+        timeout-minutes: 50
         needs: [build]
         if: >-
             github.event_name == 'push'
@@ -340,3 +341,28 @@ jobs:
                       exit 1
                   fi
                   ./mvnw -B deploy -P"$PORELO_DEPLOY_PROFILE" -Dgpg.signer=bc -s settings.xml -DskipTests
+
+            # Every file this repository pins goes into the organization's Artifactory by its digest, where a pinned
+            # download whose own source fails is fetched from. The command from this commit's own build, built before
+            # the token is in reach; main on github.com alone, whose Artifactory it is.
+            - name: Build the command that fills the mirror
+              if: github.ref == 'refs/heads/main' && github.server_url == 'https://github.com'
+              run: |
+                  set -eu
+                  ./mvnw -B -q -s settings.xml -pl release -am install -DskipTests
+                  ./mvnw -B -q -s settings.xml -pl release dependency:build-classpath \
+                      -Dmdep.outputFile=target/mirror-cp.txt
+
+            # A file already there is left alone; any other is fetched from its pinned address, checked against its
+            # digest and uploaded with its checksums. The token reaches the command through its environment alone.
+            - name: The pinned files in the mirror
+              if: github.ref == 'refs/heads/main' && github.server_url == 'https://github.com'
+              env:
+                  JF_URL: ${{ vars.JF_URL }}
+                  JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+              run: |
+                  set -eu
+                  [ -n "$JF_URL" ] || { echo "::error::variable JF_URL is not set"; exit 1; }
+                  [ -n "${JF_ACCESS_TOKEN:+set}" ] || { echo "::error::secret JF_ACCESS_TOKEN is not set"; exit 1; }
+                  java -cp "release/target/classes:$(cat release/target/mirror-cp.txt)" org.fuin.porelo.release.Main \
+                      pinned-mirror
