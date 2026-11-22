@@ -50,7 +50,7 @@ public final class Rental {
      * @param write Where to record what was leased.
      * @param candidate A directory of packages built here to install over the published ones, or
      *     {@code null} for the published Porelo.
-     * @param providerOverride Previous explicit type order, or empty to select by kind.
+     * @param providerOverride Explicit types to try in order, or empty to select by kind.
      * @param channel Which channel Porelo is installed from: {@code snapshots} or {@code releases}.
      */
     public record Options(
@@ -80,7 +80,7 @@ public final class Rental {
          * @param artifactory The package repository.
          * @param write Where to record the rental, or null.
          * @param candidate Candidate packages, or null.
-         * @param providerOverride Previous explicit type order, or empty to select by kind.
+         * @param providerOverride Explicit types to try in order, or empty to select by kind.
          */
         public Options(
                 String os,
@@ -108,37 +108,6 @@ public final class Rental {
                 @Nullable Path write,
                 @Nullable Path candidate) {
             this(os, kind, artifactory, write, candidate, List.of());
-        }
-
-        /**
-         * Requests a rental using a previous type order.
-         *
-         * @param os The operating system.
-         * @param types Types to try, in order.
-         * @param artifactory The package repository.
-         * @param write Where to record the rental, or null.
-         * @param candidate Candidate packages, or null.
-         * @deprecated Use {@link #Options(String, Kind, String, Path, Path)}.
-         */
-        @Deprecated(forRemoval = true)
-        public Options(
-                String os,
-                List<String> types,
-                String artifactory,
-                @Nullable Path write,
-                @Nullable Path candidate) {
-            this(os, Spec.kindOf(types), artifactory, write, candidate, List.copyOf(types));
-        }
-
-        /**
-         * Returns the previous type order.
-         *
-         * @return The type order, empty for a request by kind.
-         * @deprecated Use {@link #kind()}.
-         */
-        @Deprecated(forRemoval = true)
-        public List<String> types() {
-            return providerOverride;
         }
     }
 

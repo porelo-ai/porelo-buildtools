@@ -46,17 +46,6 @@ public final class Hetzner implements Machines {
             DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmm'Z'").withZone(ZoneOffset.UTC);
 
     /**
-     * How long a job holds a server unless it says otherwise.
-     *
-     * <p>The longest job that rents today: {@code porelo}'s legs and the snapshot step both stop at
-     * 60 minutes.
-     *
-     * @deprecated Use {@link Machines#DEFAULT_TIME_LIMIT}.
-     */
-    @Deprecated(forRemoval = true)
-    public static final Duration DEFAULT_TIME_LIMIT = Machines.DEFAULT_TIME_LIMIT;
-
-    /**
      * Added to a job's time limit to make a server's expiry.
      *
      * <p>The limit a caller names is its step's, and the clean-up after it runs past that - the
@@ -117,19 +106,6 @@ public final class Hetzner implements Machines {
         this.waiting = waiting;
         this.timeLimit = timeLimit;
         this.clock = clock;
-    }
-
-    /**
-     * Opens the API with a token.
-     *
-     * @param token The API token, from the environment and never from an argument.
-     * @param runId Identifies this run, so its servers can be told from another run's.
-     * @return The API.
-     * @deprecated Use {@link Machines#setup(String, String)}.
-     */
-    @Deprecated(forRemoval = true)
-    public static Hetzner with(String token, String runId) {
-        return (Hetzner) Machines.setup(token, runId);
     }
 
     static Machines open(String token, String runId) {

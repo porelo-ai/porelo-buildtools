@@ -1,0 +1,2 @@
+title: "porelo-machines drops the calls it kept for earlier callers: `Spec`'s type-list constructor, `of` without a kind, `DEFAULT_TYPES`, `serverTypes()` and `tryingInOrder`, and `order` is no longer public; `Snapshots.BUILD_TYPES` and its `build` overloads that take a type list; `Hetzner.with` and `Hetzner.DEFAULT_TIME_LIMIT`; and the type-list constructors and `types()` of `AgentLeg.Options` and `Rental.Options`. A caller asks for a `Kind`, or names explicit types through the record's own `providerOverride`."
+type: removed

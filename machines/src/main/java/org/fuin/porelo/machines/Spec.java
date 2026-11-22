@@ -14,7 +14,8 @@ import java.util.Objects;
  * @param credential The connection key.
  * @param keep Whether to leave it running.
  * @param accounts How many accounts share the machine.
- * @param providerOverride Explicit types retained for compatibility; empty selects by kind.
+ * @param providerOverride Explicit types to try in order, as {@code --type} names them; empty
+ *     selects by kind.
  */
 public record Spec(
         String name,
@@ -36,7 +37,7 @@ public record Spec(
      * @param credential The connection key.
      * @param keep Whether to keep the machine.
      * @param accounts How many accounts share it.
-     * @param providerOverride Compatibility types, or empty to select by kind.
+     * @param providerOverride Explicit types to try in order, or empty to select by kind.
      */
     public Spec {
         Objects.requireNonNull(kind, "A machine kind is required.");
@@ -62,52 +63,9 @@ public record Spec(
         this(name, os, kind, user, credential, keep, 1, List.of());
     }
 
-    /**
-     * Requests a machine using the previous type-based API.
-     *
-     * @param name The name.
-     * @param os The operating system.
-     * @param serverTypes Explicit types to try, in order.
-     * @param user The connection account.
-     * @param credential The key.
-     * @param keep Whether to keep the machine.
-     * @deprecated Use {@link #Spec(String, String, Kind, String, Credential, boolean)}.
-     */
-    @Deprecated(forRemoval = true)
-    public Spec(
-            String name,
-            String os,
-            List<String> serverTypes,
-            String user,
-            Credential credential,
-            boolean keep) {
-        this(name, os, kindOf(serverTypes), user, credential, keep, 1, serverTypes);
-    }
-
-    /** Maps a previous type order onto the capacity it requested. */
+    /** Maps an explicit type order onto the capacity it requests. */
     static Kind kindOf(List<String> types) {
         return CentralSetup.kindOf(types);
-    }
-
-    /**
-     * The previous build-leg type order.
-     *
-     * @deprecated Request {@link Kind#AMD64_BUILD} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public static final List<String> DEFAULT_TYPES = CentralSetup.DEFAULT_TYPES;
-
-    /**
-     * Returns the previous explicit type order, or the kind's defaults for a new request.
-     *
-     * @return The types to try.
-     * @deprecated Use {@link #kind()} and let the setup choose its capacity.
-     */
-    @Deprecated(forRemoval = true)
-    public List<String> serverTypes() {
-        return providerOverride.isEmpty()
-                ? CentralSetup.typesFor(kind, accounts)
-                : providerOverride;
     }
 
     /**
@@ -124,45 +82,10 @@ public record Spec(
         return new Spec(name, os, kind, user, credential, false);
     }
 
-    /**
-     * Requests the previous default build capacity.
-     *
-     * @param name The name.
-     * @param os The operating system.
-     * @param user The connection account.
-     * @param credential The key.
-     * @return The request.
-     * @deprecated Use {@link #of(String, String, Kind, String, Credential)}.
-     */
-    @Deprecated(forRemoval = true)
-    public static Spec of(String name, String os, String user, Credential credential) {
-        return new Spec(name, os, DEFAULT_TYPES, user, credential, false);
-    }
-
-    /**
-     * Retains an explicit type order for a previous caller.
-     *
-     * @param types Types to try, in order.
-     * @return The mapped request with its explicit override.
-     * @deprecated Request a {@link Kind} with {@link #of(String, String, Kind, String,
-     *     Credential)}.
-     */
-    @Deprecated(forRemoval = true)
-    public Spec tryingInOrder(List<String> types) {
-        return new Spec(name, os, kindOf(types), user, credential, keep, accounts, types);
-    }
-
-    /**
-     * Reads the previous comma-separated type option.
-     *
-     * @param types The type order, or blank for the previous default.
-     * @return The types in order.
-     * @deprecated Read a kind with {@link Kind#of(String)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public static List<String> order(String types) {
+    /** Reads the comma-separated {@code --type} option, blank for the build kind's types. */
+    static List<String> order(String types) {
         if (types == null || types.isBlank()) {
-            return DEFAULT_TYPES;
+            return CentralSetup.DEFAULT_TYPES;
         }
         final List<String> wanted = new ArrayList<>();
         for (final String each : types.split(",")) {
@@ -170,7 +93,7 @@ public record Spec(
                 wanted.add(each.strip());
             }
         }
-        return wanted.isEmpty() ? DEFAULT_TYPES : List.copyOf(wanted);
+        return wanted.isEmpty() ? CentralSetup.DEFAULT_TYPES : List.copyOf(wanted);
     }
 
     /**

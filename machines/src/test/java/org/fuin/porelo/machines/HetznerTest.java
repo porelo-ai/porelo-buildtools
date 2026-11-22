@@ -21,70 +21,6 @@ import org.junit.jupiter.api.Test;
 /** Tests for {@link Hetzner}, against an API that answers what the test tells it to. */
 class HetznerTest {
 
-    @Tag("integration")
-    @Test
-    void anOldProviderCallUsesTheBuildKindAndKeepsItsExplicitTypes() throws IOException {
-        // A heavy leg must keep its capacity when its old request is routed by kind.
-        final Credential credential = Keys.generated();
-        final Spec spec = new Spec("heavy", "ubuntu", List.of("ccx33"), "root", credential, false);
-        assertThat(spec.kind())
-                .as("the old request reaches acquisition by kind")
-                .isEqualTo(Kind.AMD64_BUILD);
-        assertThat(spec.providerOverride())
-                .as("the old request keeps its provider override")
-                .containsExactly("ccx33");
-        final java.util.concurrent.atomic.AtomicReference<String> sent =
-                new java.util.concurrent.atomic.AtomicReference<>();
-        try (StubApi stub =
-                new StubApi()
-                        .answering(
-                                "/images?type=snapshot&label_selector=porelo=ci,os=ubuntu&page=1&per_page=50",
-                                """
-                        {"images":[{"id":11,"description":"ubuntu","status":"available",
-                        "created":"2026-09-01T00:00:00+00:00"}],"meta":{"pagination":{"next_page":null}}}
-                        """)
-                        .answering(
-                                "/locations?page=1&per_page=50",
-                                """
-                        {"locations":[{"name":"nbg1","network_zone":"eu-central"}],"meta":{"pagination":{"next_page":null}}}
-                        """)
-                        .answering(
-                                "/server_types?name=ccx33&page=1&per_page=50",
-                                """
-                        {"server_types":[{"locations":[{"name":"nbg1","available":true}]}],"meta":{"pagination":{"next_page":null}}}
-                        """)
-                        .answering(
-                                "/ssh_keys?page=1&per_page=50",
-                                "{\"ssh_keys\":[{\"id\":2,\"name\":\"ours\",\"fingerprint\":\""
-                                        + Fingerprint.md5(credential)
-                                        + "\"}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
-                        .answering(
-                                "/servers",
-                                exchange -> {
-                                    try {
-                                        sent.set(
-                                                new String(
-                                                        exchange.getRequestBody().readAllBytes(),
-                                                        java.nio.charset.StandardCharsets.UTF_8));
-                                    } catch (IOException ex) {
-                                        throw new java.io.UncheckedIOException(ex);
-                                    }
-                                    return new StubApi.Answer(201, Acquisition.created());
-                                })
-                        .answering(
-                                "/servers/77", "{\"action\":{\"id\":5,\"status\":\"success\"}}")) {
-            try (Hetzner provider = Hetzner.against(stub.base(), "compatibility");
-                    Lease lease = provider.acquire(spec)) {
-
-                assertThat(
-                                Values.object(org.fuin.porelo.json.Json.parse(sent.get()))
-                                        .get("server_type"))
-                        .as("the explicit type reaches the provider unchanged")
-                        .isEqualTo("ccx33");
-            }
-        }
-    }
-
     private static final String NOW = "2999-01-01T00:00:00+00:00";
 
     private static final String LONG_AGO = "2000-01-01T00:00:00+00:00";
@@ -678,15 +614,22 @@ class HetznerTest {
         /**
          * The type these stubs answer for.
          *
-         * <p>Named here rather than taken from {@link Spec#DEFAULT_TYPES}: a test that follows the
+         * <p>Named here rather than taken from the build kind's defaults: a test that follows the
          * default breaks when the default moves for a reason that has nothing to do with it, which
          * is what happened when the images gained a 320 GB floor.
          */
         private static final String TYPE = "cpx41";
 
         private static Spec spec(Credential credential) {
-            return Spec.of("porelo-ci-test", "ubuntu", "build", credential)
-                    .tryingInOrder(List.of(TYPE));
+            return new Spec(
+                    "porelo-ci-test",
+                    "ubuntu",
+                    Kind.AMD64_BUILD,
+                    "build",
+                    credential,
+                    false,
+                    1,
+                    List.of(TYPE));
         }
 
         @Test
@@ -983,8 +926,15 @@ class HetznerTest {
                 final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", new MovingClock());
                 try (Lease lease =
                         hetzner.acquire(
-                                Spec.of("p", "ubuntu", "build", credential)
-                                        .tryingInOrder(List.of("cx23", "cpx42")))) {
+                                new Spec(
+                                        "p",
+                                        "ubuntu",
+                                        Kind.AMD64_BUILD,
+                                        "build",
+                                        credential,
+                                        false,
+                                        1,
+                                        List.of("cx23", "cpx42")))) {
                     assertThat(lease.address()).isEqualTo("1.2.3.4");
                 }
                 assertThat(creates.get()).as("did not try the second type").isEqualTo(2);
@@ -1026,8 +976,15 @@ class HetznerTest {
                                 () ->
                                         Hetzner.against(stub.base(), "run-1", new MovingClock())
                                                 .acquire(
-                                                        Spec.of("p", "ubuntu", "build", credential)
-                                                                .tryingInOrder(List.of("cx23"))))
+                                                        new Spec(
+                                                                "p",
+                                                                "ubuntu",
+                                                                Kind.AMD64_BUILD,
+                                                                "build",
+                                                                credential,
+                                                                false,
+                                                                1,
+                                                                List.of("cx23"))))
                         .isInstanceOf(IOException.class)
                         .hasMessageContaining("could host")
                         .hasMessageContaining("smaller disk");
@@ -1416,48 +1373,6 @@ class HetznerTest {
     }
 
     @Test
-    void previousTypeOrdersReachAcquisitionByKindWithTheirOverridesIntact() {
-        // A compatibility adapter must neither lose capacity nor bypass the kind-based source.
-        for (final List<String> types :
-                List.of(
-                        List.of("cpx12"),
-                        Spec.DEFAULT_TYPES,
-                        Snapshots.BUILD_TYPES,
-                        List.of("ccx33"),
-                        List.of("cx23", "cpx42"))) {
-            final Kind expected =
-                    types.equals(List.of("cpx12"))
-                            ? Kind.AMD64
-                            : types.equals(Snapshots.BUILD_TYPES)
-                                    ? Kind.AMD64_SNAPSHOT
-                                    : Kind.AMD64_BUILD;
-            final Spec old = new Spec("old", "ubuntu", types, "root", Keys.generated(), false);
-            final RecordingMachines source = new RecordingMachines();
-            assertThatThrownBy(() -> source.acquire(old))
-                    .as("the old request reaches the shared acquisition function")
-                    .hasMessage("acquisition recorded");
-            final Spec received = source.requested.getFirst();
-            assertThat(received.kind()).as("%s maps to its capacity", types).isEqualTo(expected);
-            assertThat(received.providerOverride())
-                    .as("the explicit order survives routing")
-                    .isEqualTo(types);
-            assertThat(received.kept().serverTypes())
-                    .as("keeping an old request preserves its override")
-                    .isEqualTo(types);
-        }
-        assertThat(Spec.order(" ccx33, cpx42 "))
-                .as("old comma-separated type orders still work")
-                .containsExactly("ccx33", "cpx42");
-        assertThat(Spec.order(" "))
-                .as("old blank orders retain the old defaults")
-                .isEqualTo(Spec.DEFAULT_TYPES);
-        assertThatThrownBy(
-                        () -> new Spec("bad", "ubuntu", List.of(), "root", Keys.generated(), false))
-                .as("empty legacy orders must not start renting")
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
     void oldCommandLineTypesStillReachAcquisitionWithTheirOverrides() {
         // Existing workflows must keep the capacity they explicitly chose.
         for (final String command : List.of("snapshot", "acceptance", "lease")) {
@@ -1485,6 +1400,33 @@ class HetznerTest {
                     .as("%s preserves its explicit type", command)
                     .containsExactly("ccx33");
         }
+    }
+
+    @Test
+    void aTypeListIsReadInOrderAndAKeptRequestStillTriesIt() {
+        // A misread or dropped type list rents other machines than the job named.
+        assertThat(Spec.order(" ccx33, cpx42 ,"))
+                .as("each named type, stripped, in the order given")
+                .containsExactly("ccx33", "cpx42");
+        assertThat(Spec.order(" "))
+                .as("a blank list asks for the build kind's types")
+                .isEqualTo(CentralSetup.DEFAULT_TYPES);
+        final Spec named =
+                new Spec(
+                        "named",
+                        "ubuntu",
+                        Kind.AMD64_BUILD,
+                        "root",
+                        Keys.generated(),
+                        false,
+                        1,
+                        List.of("ccx33", "cpx42"));
+        assertThat(named.kept().providerOverride())
+                .as("keeping the machine keeps the types it tries")
+                .containsExactly("ccx33", "cpx42");
+        assertThat(named.forAccounts(4).providerOverride())
+                .as("more accounts keep the types it tries")
+                .containsExactly("ccx33", "cpx42");
     }
 
     @Tag("integration")
@@ -1564,67 +1506,5 @@ class HetznerTest {
                 }
             }
         }
-    }
-
-    @Test
-    void oldLegAndRentalOptionsReachTheKindBasedSourceWithoutLosingCapacity() {
-        // Previous library callers must keep their explicit capacity and account count.
-        final Credential key = Keys.generated();
-        final AgentLeg.Options single =
-                new AgentLeg.Options(
-                        "ubuntu",
-                        List.of("ccx33"),
-                        "https://packages.invalid",
-                        "porelo-agent",
-                        null,
-                        null,
-                        false,
-                        null);
-        final AgentLeg.Options several =
-                new AgentLeg.Options(
-                        "ubuntu",
-                        List.of("ccx33"),
-                        "https://packages.invalid",
-                        "porelo-agent",
-                        null,
-                        null,
-                        false,
-                        null,
-                        4);
-        for (final AgentLeg.Options options : List.of(single, several)) {
-            final RecordingMachines source = new RecordingMachines();
-            assertThatThrownBy(() -> AgentLeg.run(source, options, key))
-                    .as("the old leg reaches the shared acquisition function")
-                    .hasMessage("acquisition recorded");
-            final Spec request = source.requested.getFirst();
-            assertThat(request.kind())
-                    .as("a heavy old leg still requests build capacity")
-                    .isEqualTo(Kind.AMD64_BUILD);
-            assertThat(request.accounts())
-                    .as("the leg retains its account count")
-                    .isEqualTo(options == single ? 1 : 4);
-            assertThat(request.providerOverride())
-                    .as("the old leg retains its explicit type")
-                    .containsExactly("ccx33");
-            assertThat(options.types())
-                    .as("the previous accessor remains usable")
-                    .containsExactly("ccx33");
-        }
-        final RecordingMachines source = new RecordingMachines();
-        final Rental.Options rental =
-                new Rental.Options(
-                        "ubuntu", List.of("ccx33"), "https://packages.invalid", null, null);
-        assertThatThrownBy(() -> Rental.run(source, rental, key))
-                .as("the old rental reaches the shared acquisition function")
-                .hasMessage("acquisition recorded");
-        assertThat(source.requested.getFirst().kind())
-                .as("the old rental retains build capacity")
-                .isEqualTo(Kind.AMD64_BUILD);
-        assertThat(source.requested.getFirst().providerOverride())
-                .as("the old rental retains its explicit type")
-                .containsExactly("ccx33");
-        assertThat(rental.types())
-                .as("the previous rental accessor remains usable")
-                .containsExactly("ccx33");
     }
 }

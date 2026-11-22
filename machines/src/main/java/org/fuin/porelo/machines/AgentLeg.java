@@ -79,7 +79,7 @@ public final class AgentLeg {
      * @param keep Whether to leave the machine running.
      * @param cucumber The repository to run the Cucumber suite from, or {@code null} not to.
      * @param accounts How many accounts run the scenarios beside each other; 1 runs them in order.
-     * @param providerOverride Previous explicit type order, or empty to select by kind.
+     * @param providerOverride Explicit types to try in order, or empty to select by kind.
      * @param channel Which channel Porelo is installed from: {@code snapshots} or {@code releases}.
      */
     public record Options(
@@ -116,7 +116,7 @@ public final class AgentLeg {
          * @param keep Whether to keep the machine.
          * @param cucumber The scenarios, or null.
          * @param accounts How many accounts run beside each other.
-         * @param providerOverride Previous explicit type order, or empty to select by kind.
+         * @param providerOverride Explicit types to try in order, or empty to select by kind.
          */
         public Options(
                 String os,
@@ -177,83 +177,6 @@ public final class AgentLeg {
                     cucumber,
                     accounts,
                     List.of());
-        }
-
-        /**
-         * Options using a previous explicit type order.
-         *
-         * @param os The operating system.
-         * @param types The previous type order.
-         * @param artifactory The package repository.
-         * @param packageName The package to install.
-         * @param script The script, or null.
-         * @param candidate The candidate directory, or null.
-         * @param keep Whether to keep the machine.
-         * @param cucumber The scenarios, or null.
-         * @param accounts How many accounts run beside each other.
-         * @deprecated Use {@link #Options(String, Kind, String, String, String, Path, boolean,
-         *     Path, int)}.
-         */
-        @Deprecated(forRemoval = true)
-        public Options(
-                String os,
-                List<String> types,
-                String artifactory,
-                String packageName,
-                @Nullable String script,
-                @Nullable Path candidate,
-                boolean keep,
-                @Nullable Path cucumber,
-                int accounts) {
-            this(
-                    os,
-                    Spec.kindOf(types),
-                    artifactory,
-                    packageName,
-                    script,
-                    candidate,
-                    keep,
-                    cucumber,
-                    accounts,
-                    List.copyOf(types));
-        }
-
-        /**
-         * Returns the previous type order.
-         *
-         * @return The type order, empty for a request by kind.
-         * @deprecated Use {@link #kind()}.
-         */
-        @Deprecated(forRemoval = true)
-        public List<String> types() {
-            return providerOverride;
-        }
-
-        /**
-         * Options for one account, as before several could run beside each other.
-         *
-         * @param os Which operating system.
-         * @param types Server types to try, in order.
-         * @param artifactory Where the packages are published.
-         * @param packageName The agent package.
-         * @param script The acceptance script, or {@code null}.
-         * @param candidate A directory holding a package built in this run, or {@code null}.
-         * @param keep Whether to leave the machine running.
-         * @param cucumber The repository to run the Cucumber suite from, or {@code null}.
-         * @deprecated Use {@link #Options(String, Kind, String, String, String, Path, boolean,
-         *     Path, int)}.
-         */
-        @Deprecated(forRemoval = true)
-        public Options(
-                String os,
-                List<String> types,
-                String artifactory,
-                String packageName,
-                @Nullable String script,
-                @Nullable Path candidate,
-                boolean keep,
-                @Nullable Path cucumber) {
-            this(os, types, artifactory, packageName, script, candidate, keep, cucumber, 1);
         }
     }
 

@@ -29,15 +29,6 @@ import org.jspecify.annotations.Nullable;
  */
 public final class Snapshots {
 
-    /**
-     * The previous snapshot-build type order.
-     *
-     * @deprecated Request {@link Kind#AMD64_SNAPSHOT} in {@link #build(Machines, String, Kind,
-     *     Credential)}.
-     */
-    @Deprecated(forRemoval = true)
-    public static final List<String> BUILD_TYPES = CentralSetup.BUILD_TYPES;
-
     /** Which stock image each operating system starts from. */
     private static final Map<String, String> STOCK =
             Map.of(
@@ -244,59 +235,6 @@ public final class Snapshots {
 
     private Snapshots() {
         throw new UnsupportedOperationException("Utility class");
-    }
-
-    /**
-     * Builds one snapshot and leaves nothing running.
-     *
-     * @param machines Where to build it.
-     * @param os Which operating system, as the {@code os} label will say.
-     * @param types Server types to try, smallest disk first.
-     * @param credential The key to connect with.
-     * @return The new image's id.
-     * @throws IOException If it cannot be built.
-     * @deprecated Use {@link #build(Machines, String, Kind, Credential)}.
-     */
-    @Deprecated(forRemoval = true)
-    public static long build(
-            Machines machines, String os, List<String> types, Credential credential)
-            throws IOException {
-        return build(machines, os, types, credential, null, null);
-    }
-
-    /**
-     * Builds one snapshot, proving it by building the product on it.
-     *
-     * <p><strong>The image is verified by the thing it exists for.</strong> Two rebuilds of these
-     * snapshots shipped broken because they were checked by booting them and running a hello-world
-     * native image - which links nothing statically and so never touched the musl toolchain the
-     * hooks need, and needs no JDK on the machine at all. A snapshot that has compiled Porelo once
-     * cannot be missing what compiling Porelo needs.
-     *
-     * <p>It also leaves {@code ~/.m2} warm, which is the difference between a leg that downloads
-     * its dependencies and one that does not - and a leg's wall-clock is charged to CI minutes.
-     *
-     * @param machines Where to build it.
-     * @param os Which operating system.
-     * @param types Server types to try, smallest disk first.
-     * @param credential The key to connect with.
-     * @param archive A tar of the working tree to build once, or {@code null} to skip that.
-     * @param musl The {@code install-musl.sh} to run, or {@code null} to skip it.
-     * @return The new image's id.
-     * @throws IOException If it cannot be built.
-     * @deprecated Use {@link #build(Machines, String, Kind, Credential, java.nio.file.Path,
-     *     String)}.
-     */
-    @Deprecated(forRemoval = true)
-    public static long build(
-            Machines machines,
-            String os,
-            List<String> types,
-            Credential credential,
-            java.nio.file.@Nullable Path archive,
-            @Nullable String musl)
-            throws IOException {
-        return build(machines, os, Kind.AMD64_SNAPSHOT, types, credential, archive, musl);
     }
 
     /**
