@@ -1,2 +1,0 @@
-title: "`check-commits`, `check-pushes`, `issues check` and `stories check` read the project's `project.yml` from the https address `PORELO_PROJECT_FILE` names where none stands above the directory, so a job on a host's forge, whose repositories stand under the project's own name rather than porelo-ai, finds the project's tracker instead of falling back to `issues/`; a value with a credential, a query or a fragment, or no https address, is refused."
-type: fixed

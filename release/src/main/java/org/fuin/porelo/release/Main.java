@@ -36,8 +36,6 @@ public final class Main {
                     "check-shared",
                     "check-citations",
                     "check-providers",
-                    "stories",
-                    "issues",
                     "check-commits",
                     "check-pushes",
                     "check-doc-site",
@@ -60,118 +58,8 @@ public final class Main {
         return new CheckCitations(out, err).check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
     }
 
-    private static int stories(
-            List<String> rest,
-            PrintStream out,
-            PrintStream err,
-            Web web,
-            Tracker.Origin origin,
-            Map<String, String> env) {
-        final String expected =
-                "stories index <dir> | stories check <dir>"
-                        + " | stories cut <version> <dir> --after <yyyy-mm-dd>";
-        final Stories stories = new Stories(out, err, web);
-        if (rest.size() == 2 && rest.getFirst().equals("index")) {
-            return stories.index(Path.of(rest.get(1)));
-        }
-        if (rest.size() == 2 && rest.getFirst().equals("check")) {
-            return unlessTracked(
-                    Path.of(rest.get(1)),
-                    web,
-                    origin,
-                    env,
-                    out,
-                    err,
-                    "stories check",
-                    () -> stories.check(Path.of(rest.get(1))));
-        }
-        if (rest.size() == 5
-                && rest.getFirst().equals("cut")
-                && rest.get(1).matches("[0-9A-Za-z][0-9A-Za-z._-]*")
-                && rest.get(3).equals("--after")
-                && rest.get(4).matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) {
-            try {
-                return stories.cut(
-                        rest.get(1), Path.of(rest.get(2)), java.time.LocalDate.parse(rest.get(4)));
-            } catch (java.time.format.DateTimeParseException ex) {
-                return usage(err, expected);
-            }
-        }
-        return usage(err, expected);
-    }
-
-    private static int issues(
-            List<String> rest,
-            PrintStream out,
-            PrintStream err,
-            Web web,
-            Tracker.Origin origin,
-            Map<String, String> env) {
-        final String expected = "issues index <dir> | issues check <dir> | issues convert <dir>";
-        if (rest.size() != 2) return usage(err, expected);
-        final Issues issues = new Issues(out, err);
-        final Path dir = Path.of(rest.get(1));
-        return switch (rest.getFirst()) {
-            case "index" -> issues.index(dir);
-            case "check" ->
-                    unlessTracked(
-                            dir,
-                            web,
-                            origin,
-                            env,
-                            out,
-                            err,
-                            "issues check",
-                            () -> issues.check(dir));
-            case "convert" -> issues.convert(dir);
-            default -> usage(err, expected);
-        };
-    }
-
-    /**
-     * Runs a command that reads the Markdown issues, unless the project keeps its issues in GitHub
-     * Issues: then it passes on purpose with one line saying so.
-     *
-     * @param directory the directory the command is given, whose project is read
-     * @param web where porelo-project's file is read when none stands above the directory
-     * @param origin where the origin of the directory's checkout is read
-     * @param env the command's variables, which may name the project's file
-     * @param out where the line goes
-     * @param err where a refusal goes
-     * @param command the command, for the line
-     * @param markdown the command itself, for the Markdown issues
-     * @return 0 when tracked, else the command's; the tracker's stop when it cannot be told
-     */
-    private static int unlessTracked(
-            Path directory,
-            Web web,
-            Tracker.Origin origin,
-            Map<String, String> env,
-            PrintStream out,
-            PrintStream err,
-            String command,
-            java.util.function.IntSupplier markdown) {
-        final Tracker tracker;
-        try {
-            tracker = Tracker.of(directory, web, origin, env);
-        } catch (Stop ex) {
-            err.println(ex.getMessage());
-            return ex.code();
-        }
-        if (tracker.github()) {
-            out.println(tracker.passes(command));
-            return 0;
-        }
-        return markdown.getAsInt();
-    }
-
     private static int checkCommits(
-            List<String> rest,
-            PrintStream out,
-            PrintStream err,
-            Web web,
-            Tracker.Origin origin,
-            Map<String, String> env) {
+            List<String> rest, PrintStream out, PrintStream err, Map<String, String> env) {
         final Options options = Options.parse(rest, Set.of(), Set.of("--outside", "--event"));
         final boolean event = options != null && options.flag("--event");
         if (options == null
@@ -180,22 +68,9 @@ public final class Main {
                         : options.positional().size() != 1)) {
             return usage(err, "check-commits RANGE [--outside] | check-commits --event");
         }
-        // git and the issues are read where the command runs: a repository's root.
-        final Path here = Path.of(".");
-        final Tracker tracker;
-        try {
-            tracker = Tracker.of(here, web, origin, env);
-        } catch (Stop ex) {
-            err.println(ex.getMessage());
-            return ex.code();
-        }
+        // git is read where the command runs: a repository's root.
         final CheckCommits check =
-                new CheckCommits(
-                        out,
-                        err,
-                        CheckCommits.Git.in(here, Map.of()),
-                        () -> CheckCitations.issuePrefixes(here),
-                        tracker.github());
+                new CheckCommits(out, err, CheckCommits.Git.in(Path.of("."), Map.of()));
         if (!event) {
             return check.check(options.positional().getFirst(), options.flag("--outside"));
         }
@@ -203,12 +78,7 @@ public final class Main {
     }
 
     private static int checkPushes(
-            List<String> rest,
-            PrintStream out,
-            PrintStream err,
-            Web web,
-            Tracker.Origin origin,
-            Map<String, String> env) {
+            List<String> rest, PrintStream out, PrintStream err, Web web, Map<String, String> env) {
         final Options options = Options.parse(rest, Set.of("--since"), Set.of());
         final String since = options == null ? null : options.value("--since");
         if (options == null
@@ -219,13 +89,6 @@ public final class Main {
         }
         // The pushes' commits are read where the command runs: a repository's root that holds them.
         final Path here = Path.of(".");
-        final Tracker tracker;
-        try {
-            tracker = Tracker.of(here, web, origin, env);
-        } catch (Stop ex) {
-            err.println(ex.getMessage());
-            return ex.code();
-        }
         return new CheckPushes(
                         out,
                         err,
@@ -233,12 +96,7 @@ public final class Main {
                         env,
                         java.time.Clock.systemUTC(),
                         range ->
-                                new CheckCommits(
-                                                out,
-                                                err,
-                                                CheckCommits.Git.in(here, Map.of()),
-                                                () -> CheckCitations.issuePrefixes(here),
-                                                tracker.github())
+                                new CheckCommits(out, err, CheckCommits.Git.in(here, Map.of()))
                                         .check(range, false))
                 .check(java.time.Duration.ofHours(Integer.parseInt(since)));
     }
@@ -270,19 +128,8 @@ public final class Main {
             Web web,
             Map<String, String> env,
             Relock relock) {
-        return run(args, out, err, web, Tracker.Origin.GIT, env, relock);
-    }
-
-    static int run(
-            String[] args,
-            PrintStream out,
-            PrintStream err,
-            Web web,
-            Tracker.Origin origin,
-            Map<String, String> env,
-            Relock relock) {
         try {
-            return dispatch(args, out, err, web, origin, env, relock);
+            return dispatch(args, out, err, web, env, relock);
         } catch (RuntimeException ex) {
             // A fault here is never an answer: the JVM's own exit 1 would read as "stop" or "they
             // disagree".
@@ -297,7 +144,6 @@ public final class Main {
             PrintStream out,
             PrintStream err,
             Web web,
-            Tracker.Origin origin,
             Map<String, String> env,
             Relock relock) {
         final String command = args.length > 0 ? args[0] : "";
@@ -454,10 +300,8 @@ public final class Main {
                             ? usage(err, "check-providers [REPOSITORY ROOT, default .]")
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
-            case "stories" -> stories(rest, out, err, web, origin, env);
-            case "issues" -> issues(rest, out, err, web, origin, env);
-            case "check-commits" -> checkCommits(rest, out, err, web, origin, env);
-            case "check-pushes" -> checkPushes(rest, out, err, web, origin, env);
+            case "check-commits" -> checkCommits(rest, out, err, env);
+            case "check-pushes" -> checkPushes(rest, out, err, web, env);
             case "check-doc-site" ->
                     rest.size() > 2
                             ? usage(

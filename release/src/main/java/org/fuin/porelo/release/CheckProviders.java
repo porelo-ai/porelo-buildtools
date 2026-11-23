@@ -95,9 +95,7 @@ final class CheckProviders {
         try {
             for (final Path file : tracked.of(root)) {
                 final String name = root.relativize(file).toString().replace('\\', '/');
-                if (EXEMPT.contains(name)
-                        || name.startsWith("issues/")
-                        || name.startsWith("changelog/")) {
+                if (EXEMPT.contains(name) || name.startsWith("changelog/")) {
                     continue;
                 }
                 final Optional<String> text = text(file);

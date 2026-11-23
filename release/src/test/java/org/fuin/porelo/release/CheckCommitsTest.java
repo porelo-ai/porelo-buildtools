@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -35,8 +34,6 @@ class CheckCommitsTest {
     private final List<String> askedRanges = new ArrayList<>();
 
     private final StringBuilder log = new StringBuilder();
-
-    private Set<String> prefixes = Set.of("BT", "SL", "PJ");
 
     // Each refused subject below was on a main branch, as measured over a day's commits.
 
@@ -69,18 +66,9 @@ class CheckCommitsTest {
                 .contains("a000003  names a requirement number: SL25");
     }
 
-    @Test
-    void passesAWordOfANumbersShapeWhosePrefixNoIndexHas() {
-        // A word list of capitals and digits would refuse these; only the indexes' prefixes are
-        // numbers.
-        commit("a000004", "Take IPv4 only, and build for x86_64 with UTF8 and SHA256 names");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
     // Prevents an issue number from reaching main once the issues are kept in GitHub Issues.
     @Test
-    void refusesAnOldIdAndAGitHubReferenceOnceTheIssuesAreInTheTracker() {
+    void refusesAnOldIdAndAGitHubReference() {
         commit("a000041", "Close HO12 at last");
         commit("a000042", "Fix the pin for #12");
         commit("a000043", "Follow the planner\n\nAssisted-by: porelo-ai/porelo-host#7");
@@ -88,7 +76,7 @@ class CheckCommitsTest {
         commit("a000049", "Close \"#13\", '#14' and --#15");
         commit("a000050", "Follow www.github.com/porelo-ai/porelo/issues/16 and -GH-17");
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .as("each number by its shape, no prefix read")
                 .contains("a000041  names a requirement number: HO12")
@@ -109,23 +97,20 @@ class CheckCommitsTest {
 
     // Prevents the shape rule from refusing words a subject needs, which would block every push.
     @Test
-    void passesWordsOfNoNumbersShapeOnceTheIssuesAreInTheTracker() {
+    void passesWordsOfNoNumbersShape() {
         commit("a000045", "Take IPv4 only, and build for x86_64 with UTF8 and SHA256 names");
         commit("a000046", "Keep the S256 challenge and the colour #fff\n\n" + AGENT);
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(0);
-        assertThat(stdout())
-                .as("says why no issue is read")
-                .contains("the issues are kept in GitHub Issues");
+        assertThat(check()).as(stderr()).isEqualTo(0);
     }
 
     // Prevents the tracker from switching off the rules that are not about issues.
     @Test
-    void keepsEveryOtherRuleOnceTheIssuesAreInTheTracker() {
+    void keepsEveryOtherRule() {
         commit("a000047", "Take " + "x".repeat(70) + "\n\nBecause it was slow.");
         commit("a000048", "Read the pins once\n\nCo-Authored-By: A <a@example.org>");
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .as("the length, the body and the co-author, as without the tracker")
                 .contains("a000047  subject is 75 characters, at most 72")
@@ -136,28 +121,14 @@ class CheckCommitsTest {
     // Prevents a commit from losing its link to the issue it was made for once the tracker keeps
     // the issues, which the trailer alone gives.
     @Test
-    void passesOnePoreloIssueTrailerPerIssueOnceTheIssuesAreInTheTracker() {
+    void passesOnePoreloIssueTrailerPerIssue() {
         commit(
                 "a000060",
                 "Take the issue trailer\n\n"
                         + AGENT
                         + "\nPorelo-Issue: porelo-ai/porelo#123\nporelo-issue: Porelo-AI/porelo-host#7");
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(0);
-    }
-
-    // Prevents the trailer from slipping in while the issues are still under issues/.
-    @Test
-    void refusesThePoreloIssueTrailerWhileTheIssuesAreMarkdown() {
-        commit(
-                "a000061",
-                "Take the issue trailer\n\n" + AGENT + "\nPorelo-Issue: porelo-ai/porelo#123");
-
-        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains(
-                        "a000061  below the subject, a line that is not a trailer:"
-                                + " Porelo-Issue: porelo-ai/porelo#123");
+        assertThat(check()).as(stderr()).isEqualTo(0);
     }
 
     // Prevents a trailer the tracker cannot link from passing as if it named its issue.
@@ -176,7 +147,7 @@ class CheckCommitsTest {
     void refusesAPoreloIssueTrailerOfAnotherForm(String trailer) {
         commit("a000062", "Take the issue trailer\n\n" + AGENT + "\n" + trailer);
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .contains(
                         "a000062  a Porelo-Issue trailer not of the form"
@@ -197,33 +168,25 @@ class CheckCommitsTest {
                 "fixes\n#5",
                 "Fixes GH-12"
             })
-    void refusesAClosingKeywordBeforeAnIssueReferenceOnceTheIssuesAreInTheTracker(String closing) {
+    void refusesAClosingKeywordBeforeAnIssueReference(String closing) {
         commit("a000063", "Take the pin\n\n" + AGENT + "\nPorelo-Issue: porelo-ai/porelo#12");
         commit("a000064", "Take the pin, " + closing.replace('\n', ' ') + "\n\n" + AGENT);
         // In a trailer's value, the one place no other rule refuses it.
         commit("a000065", "Take the pin\n\n" + AGENT + ", " + closing);
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .doesNotContain("a000063  ")
                 .contains("a000064  closes an issue on push: " + closing.replace('\n', ' '))
                 .contains("a000065  closes an issue on push: " + closing);
     }
 
-    // Prevents the closing rule from reaching a project whose issues are still Markdown.
-    @Test
-    void readsNoClosingKeywordWhileTheIssuesAreMarkdown() {
-        commit("a000068", "Take the pin, fixes octo/cat#3\n\n" + AGENT);
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
     // Prevents the closing rule from refusing the words a subject needs, which would block pushes.
     @Test
-    void passesAClosingWordWithoutAnIssueReferenceOnceTheIssuesAreInTheTracker() {
+    void passesAClosingWordWithoutAnIssueReference() {
         commit("a000066", "Fix the pin, close the gap and resolve the prefix #fff\n\n" + AGENT);
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(0);
+        assertThat(check()).as(stderr()).isEqualTo(0);
     }
 
     // Prevents the trailer from carrying a number into the subject past the number rule.
@@ -235,7 +198,7 @@ class CheckCommitsTest {
                         + AGENT
                         + "\nPorelo-Issue: porelo-ai/porelo#123");
 
-        assertThat(checkTracked()).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
                 .contains("a000067  names a requirement number: porelo-ai/porelo#123")
                 .contains("a000067  names a requirement number: #12")
@@ -630,28 +593,17 @@ class CheckCommitsTest {
                         stream(err),
                         range -> {
                             throw new java.io.IOException("fatal: bad revision 'RANGE'");
-                        },
-                        () -> prefixes);
+                        });
 
         assertThat(check.check("RANGE", false)).isEqualTo(Stop.UNANSWERED);
         assertThat(stderr()).contains("fatal: bad revision 'RANGE'");
     }
 
     @Test
-    void noPrefixFoundIsUnansweredNeverAPass() {
-        // Without a prefix the number rule would hold nothing and say so nowhere.
-        prefixes = Set.of();
-        commit("a000025", "Read the pins once");
-
-        assertThat(check()).isEqualTo(Stop.UNANSWERED);
-        assertThat(stderr()).contains("no issue prefix");
-    }
-
-    @Test
     void aRangeThatGitWouldReadAsAnOptionIsNotRun() {
         // 'git log --output=FILE' writes a file: a range from a workflow must not become an option.
         assertThat(
-                        new CheckCommits(stream(out), stream(err), this::fakeLog, () -> prefixes)
+                        new CheckCommits(stream(out), stream(err), this::fakeLog)
                                 .check("--output=/tmp/x", false))
                 .isEqualTo(Stop.UNANSWERED);
         assertThat(askedRanges).as("git was not run").isEmpty();
@@ -661,10 +613,8 @@ class CheckCommitsTest {
     @Test
     void readsWhatGitItselfWrites() throws IOException, InterruptedException {
         git("init", "-q", "-b", "main");
-        write(
-                "issues/workflow.yml",
-                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
-        git("add", "issues/workflow.yml");
+        write("README.md", "x\n");
+        git("add", "README.md");
         git("commit", "-q", "--allow-empty", "-m", "Read the pins once", "-m", AGENT);
         git(
                 "commit",
@@ -681,8 +631,7 @@ class CheckCommitsTest {
                 new CheckCommits(
                                 stream(out),
                                 stream(err),
-                                CheckCommits.Git.in(directory, isolated()),
-                                () -> prefixes)
+                                CheckCommits.Git.in(directory, isolated()))
                         .check("HEAD", false);
 
         assertThat(code).as(stderr()).isEqualTo(Stop.REFUSED);
@@ -702,10 +651,8 @@ class CheckCommitsTest {
     @Test
     void checksThePushTheEventNames() throws IOException, InterruptedException {
         git("init", "-q", "-b", "main");
-        write(
-                "issues/workflow.yml",
-                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
-        git("add", "issues/workflow.yml");
+        write("README.md", "x\n");
+        git("add", "README.md");
         git("commit", "-q", "-m", "Read the pins at first", "-m", AGENT);
         final String start = git("rev-parse", "HEAD").strip();
         git("commit", "-q", "--allow-empty", "-m", "Read the pins once", "-m", AGENT);
@@ -728,8 +675,7 @@ class CheckCommitsTest {
                 new CheckCommits(
                                 stream(out),
                                 stream(err),
-                                CheckCommits.Git.in(directory, isolated()),
-                                () -> prefixes)
+                                CheckCommits.Git.in(directory, isolated()))
                         .checkEvent(environment);
 
         assertThat(code).as(stderr()).isEqualTo(Stop.REFUSED);
@@ -740,59 +686,9 @@ class CheckCommitsTest {
                 .contains("1 fault(s) in 1 of 2 commit(s)");
     }
 
-    @Test
-    void takesOnlyThePrefixesOfItsOwnIssuesAndTheirRows() throws IOException {
-        // Without a prefix a requirement number of that repository goes through as a word; another
-        // repository's index is not read, so its state cannot decide this repository's check.
-        write(
-                "issues/workflow.yml",
-                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"bt17\"></a>[BT17](BT17-A.md) | x |\n"
-                        + "| <a id=\"xy05\"></a>XY05 | done |\n");
-        write(
-                "issues/BT17-A.md",
-                "As [PJ27](https://github.com/porelo-ai/porelo-project/blob/main/issues/README.md#pj27)"
-                        + " says.\n");
-        // A test's fixture deeper down holds issues of whatever prefix it was written with.
-        write(
-                "src/test/resources/sample/issues/README.md",
-                "| <a id=\"f05\"></a>[F05](F05-A-Fixture.md) | a fixture |\n");
-        write("src/test/resources/sample/issues/F05-A-Fixture.md", "# F05 - A Fixture\n");
-
-        assertThat(CheckCitations.issuePrefixes(directory))
-                .as("its own file's and a finished row's, never the linked index's or a fixture's")
-                .containsExactlyInAnyOrder("BT", "XY");
-    }
-
-    // Prevents check-commits from asking for a measurement Git no longer keeps.
-    @Tag("integration")
-    @Test
-    void passesANewIssueInAMeasuredStateWithNoStatsBesideIt() throws Exception {
-        git("init", "-q", "-b", "main");
-        write(
-                "issues/workflow.yml",
-                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
-        write("stats/seed.csv", "size,minutes\nM,53\n");
-        git("add", "issues", "stats");
-        git("commit", "-q", "-m", "Keep the issues");
-        write(
-                "issues/EX12-Sample.md",
-                "# EX12 — Sample\n\n**Status:** Review.\n**Size:** M - x.\n");
-        git("add", "issues");
-        git("commit", "-q", "-m", "Describe work");
-
-        assertThat(checkLast()).as(stderr()).isZero();
-        assertThat(stderr()).as("no stage record asked for").doesNotContain("stats/");
-    }
-
     private int checkRepository() {
         return new CheckCommits(
-                        stream(out),
-                        stream(err),
-                        CheckCommits.Git.in(directory, isolated()),
-                        () -> prefixes)
+                        stream(out), stream(err), CheckCommits.Git.in(directory, isolated()))
                 .check("HEAD", false);
     }
 
@@ -800,8 +696,8 @@ class CheckCommitsTest {
     @Tag("integration")
     @Test
     void passesACommitThatDeletesStats() throws Exception {
-        commitIssueWithSeed("# EX12 — Sample\n\n**Status:** Idea.\n**Size:** M - x.\n");
-        write("stats/EX12.jsonl", "{}\n");
+        commitSeed();
+        write("stats/records.jsonl", "{}\n");
         git("add", "stats");
         git("commit", "-q", "-m", "Keep a record");
         git("rm", "-q", "-r", "stats");
@@ -810,14 +706,17 @@ class CheckCommitsTest {
         assertThat(checkLast()).as(stderr()).isZero();
     }
 
-    // Prevents every Build after the cut-over from stopping on a repository without issues/.
+    // Prevents a number of another repository's prefix from passing where no project.yml stands
+    // and no issues/ is read, and the check from asking anything outside the repository.
     @Tag("integration")
     @Test
-    void runsInARepositoryWithoutIssuesOnceTheProjectNamesTheTracker() throws Exception {
+    void refusesAnotherRepositorysNumberWithNoProjectFileAndNothingReached() throws Exception {
         git("init", "-q", "-b", "main");
-        write("project.yml", "project:\n  name: sample\ntracker:\n  kind: github\n");
-        git("add", "project.yml");
-        git("commit", "-q", "-m", "Name the tracker", "-m", AGENT);
+        write("README.md", "x\n");
+        git("add", "README.md");
+        git("commit", "-q", "-m", "Keep a page", "-m", AGENT);
+        // What the tracker's lookup once followed: a porelo-ai origin and a named project file.
+        git("remote", "add", "origin", "https://github.com/porelo-ai/porelo-buildtools.git");
         final String clean = git("rev-parse", "--short", "HEAD").strip();
         git("commit", "-q", "--allow-empty", "-m", "Close HO12 at last", "-m", AGENT);
         final String numbered = git("rev-parse", "--short", "HEAD").strip();
@@ -828,7 +727,7 @@ class CheckCommitsTest {
 
         assertThat(process.waitFor()).as(output).isEqualTo(Stop.REFUSED);
         assertThat(output)
-                .as("the old id refused without issues/, the clean commit passed")
+                .as("the old id refused by its shape alone, the clean commit passed")
                 .contains(numbered + "  names a requirement number: HO12")
                 .contains("1 fault(s) in 1 of 2 commit(s)")
                 .doesNotContain(clean + "  ");
@@ -840,6 +739,11 @@ class CheckCommitsTest {
                 new ProcessBuilder(
                                 Path.of(System.getProperty("java.home"), "bin/java").toString(),
                                 "-XX:-UsePerfData",
+                                // Every address outside goes to a port nothing answers on.
+                                "-Dhttp.proxyHost=127.0.0.1",
+                                "-Dhttp.proxyPort=9",
+                                "-Dhttps.proxyHost=127.0.0.1",
+                                "-Dhttps.proxyPort=9",
                                 "-cp",
                                 System.getProperty("java.class.path"),
                                 "org.fuin.porelo.release.Main",
@@ -847,6 +751,7 @@ class CheckCommitsTest {
                                 range)
                         .directory(directory.toFile());
         builder.environment().putAll(isolated());
+        builder.environment().put("PORELO_PROJECT_FILE", "https://127.0.0.1:9/project.yml");
         return builder;
     }
 
@@ -870,22 +775,15 @@ class CheckCommitsTest {
     /** Checks only the last commit. */
     private int checkLast() {
         return new CheckCommits(
-                        stream(out),
-                        stream(err),
-                        CheckCommits.Git.in(directory, isolated()),
-                        () -> prefixes)
+                        stream(out), stream(err), CheckCommits.Git.in(directory, isolated()))
                 .check("HEAD^..HEAD", false);
     }
 
-    /** Commits a repository with a stats seed and one issue, EX12, with no stage record. */
-    private void commitIssueWithSeed(String issue) throws Exception {
+    /** Commits a repository with a stats seed. */
+    private void commitSeed() throws Exception {
         git("init", "-q", "-b", "main");
-        write(
-                "issues/workflow.yml",
-                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
         write("stats/seed.csv", "size,minutes\nM,53\n");
-        write("issues/EX12-Sample.md", issue);
-        git("add", "issues", "stats");
+        git("add", "stats");
         git("commit", "-q", "-m", "Describe work");
     }
 
@@ -896,26 +794,11 @@ class CheckCommitsTest {
     }
 
     private int check() {
-        return new CheckCommits(stream(out), stream(err), this::fakeLog, () -> prefixes)
-                .check("RANGE", false);
-    }
-
-    /** Checks with the issues in the tracker; the prefixes must never be read then. */
-    private int checkTracked() {
-        return new CheckCommits(
-                        stream(out),
-                        stream(err),
-                        this::fakeLog,
-                        () -> {
-                            throw new IOException("the prefixes were read");
-                        },
-                        true)
-                .check("RANGE", false);
+        return new CheckCommits(stream(out), stream(err), this::fakeLog).check("RANGE", false);
     }
 
     private int checkOutside() {
-        return new CheckCommits(stream(out), stream(err), this::fakeLog, () -> prefixes)
-                .check("RANGE", true);
+        return new CheckCommits(stream(out), stream(err), this::fakeLog).check("RANGE", true);
     }
 
     private String fakeLog(String range) {

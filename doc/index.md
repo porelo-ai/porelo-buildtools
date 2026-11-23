@@ -9,7 +9,7 @@ may publish, and checks the packages before they go out.
 | Artifact | What it does | Commands |
 |---|---|---|
 | `porelo-machines` | Rents test machines and the snapshots they boot from, runs the agent repositories' acceptance legs on them, and installs the pinned GraalVM and musl toolchain in a build; `musl --pins` prints the toolchain's two digests for a cache key. A rebuilt snapshot deletes the older ones of its system labelled for CI, keeping the one before it as a fallback, and says each. A leg whose build is cancelled ends its suite and gives its machines back at once. A leg installs Porelo from the repository's `releases` on a tag run and from its `snapshots` otherwise; `--channel` on `acceptance` and `lease` names one, and `acceptance --candidate` needs no `--package`. A snapshot proves itself by building `porelo`: every module the tree's own `ci/leg-build.sh` names, on the JVM, then the stub agent's native image alone. It says where that build stands as it moves, and every five minutes while it does not, and stops it after 40 minutes with the log's end, the load, the memory and the SELinux denials. Every server it rents carries the end of its job's time, and `sweep` deletes only servers past it or without one. | `sweep`, `snapshot`, `acceptance`, `lease`, `jdk`, `musl` |
-| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules, its shared skills and its `.editorconfig` are copied byte for byte, that no page or source cites an issue in a way that goes stale, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that each issue's data stands in a head its index is generated from, that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names, and that no file outside the provider implementation names a cloud provider or its server types; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory; fills the organization's Artifactory with every file this repository pins. | `check-actions`, `check-workflows`, `check-shared`, `check-citations`, `check-commits`, `issues`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `pinned-mirror`, `check-pin`, `check-providers`, `add-fetched-cli`, `compare-bills`, `update`, … |
+| `porelo-release` | Checks that every workflow step is pinned by commit, that a repository's shared rules, its shared skills and its `.editorconfig` are copied byte for byte, that no page or source cites an issue by its number, that every commit message of a range keeps the shared rule, that a release builds and packages with no snapshot, that a repository asks Sonatype only about the snapshot groups it lists, that a deploy dry run went through the publishing plugin in every module and sent nothing off the machine, that native binaries need no newer C library or zlib than their packages declare, that the built `.deb` and `.rpm` carry the project's version, writes a package's third-party notices from the jars compiled into it and its bill, that every page of a documentation chapter is in its navigation once and every link on it can be followed, that every Maven module has a README linking its submodules, that an agent's pinned CLI, each artifact of it by its own pin, is the one its download names, and that no file outside the provider implementation names a cloud provider or its server types; records those artifacts in the package's bill; moves named pins; deletes old snapshot packages from Artifactory; fills the organization's Artifactory with every file this repository pins. | `check-actions`, `check-workflows`, `check-shared`, `check-citations`, `check-commits`, `check-doc-site`, `check-readmes`, `check-releases`, `check-deploy`, `check-linkage`, `check-package-version`, `third-party-notices`, `prune-snapshots`, `pinned-mirror`, `check-pin`, `check-providers`, `add-fetched-cli`, `compare-bills`, `update`, … |
 | `porelo-json` | The JSON reader and writer `porelo-release` and `porelo-machines` share, and `porelo`'s `dist/package-check` reads. | - |
 
 See [test machines](machines.md) for requests by kind, credentials, and cleanup.
@@ -28,38 +28,17 @@ See [test machines](machines.md) for requests by kind, credentials, and cleanup.
 Every committed text file: what `git ls-files` names in a checkout, every file in a tree exported from a commit. A
 binary file - one holding a NUL byte or bytes that are not UTF-8 - is skipped and counted, and so is a file no person
 writes: an SVG image's path data, a lock file's hashes. Build output is not read. Nothing outside the repository is
-read - no other repository's index or `project.yml`, no checkout beside it, nothing over the network - so another
-repository's state never decides this one's check.
+read - no other repository's `project.yml`, no checkout beside it, nothing over the network - so another repository's
+state never decides this one's check. Issues live in a tracker, so no file names one:
 
-- **Outside `issues/`**, no file names an issue number, and no link goes to an issue's file or a design document.
-  A reference GitHub links to an issue of the project counts as one: `porelo-ai/<repository>#<n>`, `GH-<n>` or the
-  issue's address, with or without its scheme and `www.`, the owner in any case. A bare `#<n>` does not, being far more often a
-  colour, a stack frame or an anchor in a file, and neither does another project's issue address.
-- **Among the issues**, a number of the repository's own prefixes - the prefixes its issue files carry - names an
-  issue file or an index row that exists, and a number beside an `[index](…)` link into the repository names one too.
-- **Every index row** under `issues/` opens with the anchor of its number, `<a id="<number in lower case>"></a>`.
-- **Every issue number under `issues/`** is a link to its row, `[<NUMBER>](<index>#<number>)`, never to its file:
-  the row outlives the file. Headings, code spans, fenced code and a row's own first cell are not read. A link into
-  this repository's own indexes reaches an anchor that is there. A number of the repository's own prefixes that no
-  index has a row for, an issue finished before rows were kept, is said apart: its text is rewritten, not linked.
-  Which prefixes are issue numbers is read from the root's own issue files and index rows, so `SHA256` or a
-  guideline's `LLM03` is none, and neither is a prefix a test's fixture deeper down carries.
-- **No page under `issues/`, the index among them, names a settled issue's file**: `<NUMBER>-<name>.md` of a number
-  whose row is left without its file. It is read as porelo-planner's reader reads it, so a check that passes leaves
-  no link to a deleted file on the planner's board.
-- **A story** is cited from an issue by its row in the stories' index, `[ST<n>](../stories/README.md#st<n>)`, never by
-  its file; the anchor must be there.
-- **An issue's head**, the JSON fenced right below its heading, is data: its `blockedBy` and `parent` ids are not
-  asked to be links, and each must name an issue file or an index row of the repository, else it is refused on its
-  line. Issue files and rows of a sub-issue, `<parent>.<n>`, count.
-- **An issue's sub-agent briefs** lie beside its file in `issues/<group>/<ID>.sub/<name>.md`, `<name>` one of
-  `builder`, `tester` and `reader`, or a numbered variant from `-2` on, such as `builder-2`. A brief is read as a page
-  under `issues/`, never as an issue: it has no row, its own issue's number is a link to the row,
-  and it dies with its issue, so no lasting page links to it. A brief beside no issue file, a file of another name,
-  a nested directory or a link in `<ID>.sub/` is refused, naming the path.
-- **Left to a check across repositories:** a link into another repository's index is counted, not followed, and a
-  citation of another repository's issue is not looked for. One `NOTE` line says so, with the count, and does not
-  fail the check.
+- **No issue number**: an old id of one or two capitals and two or three digits (`S256`, PKCE's challenge method,
+  aside), or a reference GitHub links to an issue of the project: `porelo-ai/<repository>#<n>`, `GH-<n>` or the
+  issue's address, with or without its scheme and `www.`, the owner in any case. A bare `#<n>` is none, being far more
+  often a colour, a stack frame or an anchor in a file, and neither is another project's issue address. A number is
+  told by its shape alone, so `IPv4`, `x86_64` or `SHA256` is none, and an id of another form - one digit, four, or
+  three capitals - passes.
+- **The root's `issues/` and `stories/`** are read like any other directory. A directory named `issues` below the
+  root holds a test's fixture of Markdown issues, read by the test that holds it, and is skipped and counted.
 - **A line that holds an issue number's shape on purpose**, as test data for something that reads such text, says
   `not-a-citation` in its own text. A linter's codes after `noqa:` are not read.
 - **A whole file of such text** is named in `citations-exempt.txt` at the repository's root, one path per line,
@@ -93,17 +72,13 @@ Each commit is held to the shared rule, and each fault is one line with the comm
 - **Below it, only a blank line and trailers** - `Assisted-by:` and `Signed-off-by:`, and on Porelo's own commits
   `Porelo-Change-Id:` and `Porelo-Signs-Anew:`; any other line is a body and refused, `Co-authored-by:` among them,
   since an agent never writes one.
-- **No requirement number**, in the subject or in any trailer's value: a word made of an issue prefix and digits. The prefixes are the ones `check-citations`
-  reads: those of the repository's own issue files and index rows, never another repository's. So `IPv4` or `x86_64`
-  is none, and another repository's number is not caught here but left to a check across repositories; a repository
-  with no issue prefix at all is not checked but refused, exit 2. Once the project keeps its issues in GitHub Issues
-  (see [Where the issues are kept](#where-the-issues-are-kept)), no prefix is read: a number is told by its shape, an
-  old id of one or two capitals and two or three digits (`S256` aside) or a GitHub reference, `#<n>` among them.
-- **Once the issues are kept in GitHub Issues, one `Porelo-Issue:` trailer per issue** the commit was made for, the
-  key in any case, the reference GitHub's `<owner>/<repository>#<number>`: `Porelo-Issue: octo-org/project#123`. It is
-  the one place a number may stand, so the number rule does not read it; one of another form is refused, naming the
-  line. While the issues are Markdown it is a line that is not a trailer, as before.
-- **Once the issues are kept in GitHub Issues, no closing keyword before an issue reference**, anywhere in the
+- **No issue number**, in the subject or in any trailer's value, told by its shape as `check-citations` tells it, or a
+  GitHub reference, `#<n>` among them. Nothing is read from the repository's files or over the network, so the check
+  answers alike with or without a `project.yml`.
+- **One `Porelo-Issue:` trailer per issue** the commit was made for, the key in any case, the reference GitHub's
+  `<owner>/<repository>#<number>`: `Porelo-Issue: octo-org/project#123`. It is the one place a number may stand, so the
+  number rule does not read it; one of another form is refused, naming the line.
+- **No closing keyword before an issue reference**, anywhere in the
   message: `close`, `fix` or `resolve` in any of their forms, an optional colon, then `#<n>`, `GH-<n>`,
   `<owner>/<repository>#<n>` or an issue's address, since a push must not close an issue whose Finished the person
   sets. The bare word stays allowed: "Fix the pin".
@@ -125,7 +100,7 @@ Exempt, on a push and on a pull request from inside only, are the commits author
 `github-actions[bot]`, and those GitHub committed in its web interface (committer `GitHub`), told by the author and
 committer the commit records, never by its message. With `--outside` no commit is exempt: anyone can record those
 names, so every commit is held to every rule. Exit 0 when no commit breaks the rule, an empty range among them; 1 when
-one does; 2 when git or the issues cannot be read, when the range starts with `-`, since git would read it as an
+one does; 2 when git cannot be read, when the range starts with `-`, since git would read it as an
 option, or when the log splits into another number of commits than `git rev-list --count` gives for the range, as a
 message holding git's record and field separators would make it.
 
@@ -423,142 +398,10 @@ A package ships the file as `/usr/share/doc/<package>/THIRD-PARTY-NOTICES`, name
 as `%license` in the rpm.
 
 
-## Where the issues are kept
+## The stories library
 
-Projects keep their issues either as Markdown under each repository's `issues/` or in GitHub Issues, and move from
-one to the other on one day by changing only the project's `project.yml`. It names GitHub Issues in the shape porelo
-reads, a top-level `tracker:` mapping with `kind: github`; without `tracker` the issues are Markdown. Another kind, or
-a `tracker` of another shape, is refused, since these tools read no other.
-
-The file read is the nearest `project.yml` above the directory a command is given, or the working directory for
-`check-commits` and `check-pushes`. Where none stands above it, a git checkout whose `origin`, as its own
-config holds it, is a repository of `porelo-ai` on any forge reads porelo-project's `project.yml` on GitHub's `main`,
-without a token. Where `PORELO_PROJECT_FILE` is set, the file at that https address answers instead of the
-`origin`: a host's forge keeps the project's repositories under the project's own name, so its jobs name the file. A
-value that is no https address with a host, or one with a credential, a query or a fragment, is refused, exit 1, and
-the value is not repeated. Any other directory keeps Markdown issues and reads nothing over the network: a test's
-fixture, a directory outside any checkout, and a checkout whose `origin` is a local path or names another owner. A
-file or an origin that cannot be read stops the command, exit 2, as does a missing `git` or a checkout git refuses,
-such as one of another owner without `safe.directory`. Once the tracker is named:
-
-- `issues check` and `stories check` pass, saying in one line that the issues are kept in GitHub Issues and which file
-  says so; so a workflow step left over from the Markdown issues stays green until its owner drops it.
-- `check-commits` and `check-pushes` read no `issues/`, and tell an issue number by its shape; every other rule on a
-  message stays.
-- `check-citations` reads as before: its rules among the issues hold for as long as `issues/` is there.
-
-## Issues
-
-```
-porelo-release issues index issues
-porelo-release issues check issues
-porelo-release issues convert issues
-```
-
-An issue's data stands in a JSON head right below the heading of its file, checked by `issue-1.json`; the index,
-each directory's `README.md` under `issues/`, is generated from the heads and never edited by hand. A file reads:
-
-````markdown
-# <ID> — <Title>
-
-```json
-{
-  "$schema": "issue-1.json",
-  "id": "<ID>",
-  "title": "<Title>",
-  "state": "Review",
-  "size": "M",
-  "priority": "Medium",
-  "rank": 1,
-  "blockedBy": [],
-  "covers": "What the index row says it covers."
-}
-```
-
-**What must be true.** ...
-````
-
-- **The fields:** `id` is the prefix and the number as the file name writes it, a sub-issue's `<parent>.<n>`;
-  `title` is what the heading repeats; `state` a state of the repository's `workflow.yml`; `size` one of `XS`, `S`,
-  `M`, `L`, `XL` or `-`; `priority` Jira's, `Highest` to `Lowest`; `rank` a whole number from 1, the order within one
-  priority; `blockedBy` the ids of the same repository it waits on, and in porelo-project alone also another
-  repository's as `<repository>#<id>`, such as `<repository>#<ID>`, which no check reads against local files;
-  `covers` the index row's text. Optional are
-  `parent`, which a sub-issue requires and which is its id before the dot, `role` (`builder`, `tester` or `reader`),
-  `severity` (`Blocker`, `Critical`, `Major`, `Minor`, `Trivial`), `kind` (`Feature`, `Bug`, `Task`),
-  `openQuestions`, a count, `worker` (`Agent`, `Manual`), who works the issue, and `risk` (`harm`, `ordinary`,
-  `small`), how much the issue risks, written last; the library reads an absent `worker` or `risk` as null and leaves
-  its meaning to the planner. Nothing else is allowed. The schema ships as
-  `org/fuin/porelo/stories/schemas/issue-1.json`; the check is hand-written and held to the schema by a test.
-- **`issues index`** writes each directory's index: the text above the first state's table as it was, then one table
-  for each state in the workflow's order, its rows by priority, then rank, then id, and a group with nothing in it left
-  out; a state's heading twice is refused, naming the second's line. An open state's table is `| # | Size | Blocked by | What it covers |`, with `Open questions` after it where a
-  head of that state counts them; a wait is a link to its row, another repository's a link to its row in that
-  repository's index, after the repository's name. A prose section between the tables, such as *What was
-  decided along the way*, stays after the state it followed. The rows of a closed state stay as the file has them,
-  since their files are gone; a head in a closed state adds its row there, in the form of the table's header (the open
-  form where the table keeps it), and a kept row of an issue that has a head goes. The workflow is
-  `issues/workflow.yml`, or in porelo-project `stories/workflow.yml`; where neither is there, the missing
-  `issues/workflow.yml` is named.
-- **`issues check`** writes nothing and refuses, each by file: a file without a head, a fence right below the heading
-  other than exactly ```` ```json ````, a head the schema or the workflow refuses, a size of `-` in a state that is
-  measured or done, a heading other than `# <id> — <title>`, a file not named after its id, an id twice, a wait or a
-  parent that is no issue of the repository (a file, or a closed state's row), a sub-issue's parent other than its id
-  before the dot, a parent on an issue that is no sub-issue, an open state's row with no file, a closed state's row
-  of an issue without a head whose cells do not fit its table's header, and an index other than the one
-  `issues index` writes, naming its first differing line. A misfit row of an issue with a head is not refused: index writes
-  it anew. A bar in a code span must be escaped as `\|`, or GitHub splits the cell. Outside porelo-project a wait on
-  another repository's issue is refused.
-- **`issues convert`** reads, for each file without a head, the first paragraph below its heading, its `**Status:**`,
-  `**Size:**`, `**Blocked by:**`, `**Priority:**`, `**Role:**` and `**Parent:**` lines, and its index row. Where
-  they agree on state, size and waits, it writes the head and drops those lines; a size's reason stays as the
-  paragraph `**Why this size.**`. The priority is `Medium` without a line, the rank the row's place in its table, and
-  `covers` the row's text. A closed row of the finished form (`| # | Title | What was built |`) gives no size, so the
-  file's stands; a closed table kept in the open form is compared by its Size column and gives `covers` from its
-  "What it covers". Where they do not agree, where a line says more than ids, links, punctuation, `none` or
-  `-`, where the heading is not the one the head gives, or where measured work has no size, it names every
-  difference and leaves that file as it was; exit 1. A second run finds nothing to do. Then `issues index` writes the
-  index.
-
-Exit 0 when nothing is refused, 1 when something is, 2 when a file cannot be read or written or the call is mistyped.
-
-Readers of an issue take the head where a file has one and today's lines or row otherwise: the stories library's local
-issue source the whole row, and `check-citations` the waits and parent as data.
-
-## Stories
-
-```
-porelo-release stories index stories
-porelo-release stories check stories
-porelo-release stories cut 0.6.0 stories --after 2026-11-01
-```
-
-porelo-project's `stories/` holds one file a story: a function of value to a user, the test the person runs at its
-end, and every issue it needs. Work follows the stories' priority; a release is a cut the person calls, holding every
-story tested since the last one. A story's file reads, top to bottom:
-
-1. the heading `# <id> — <title>`;
-2. the part `stories index` writes from the head: the priority with the state or the tested day, what a user gains,
-   the test, and the issues, one a line, each linked to its row in its index with its state;
-3. whatever a person writes by hand;
-4. `## Data` and the head, fenced `json`, by `story-2.json`; legacy heads also read as `story-1.json`.
-
-A story whose story-2 head states a state has that state, with issues or without. Where its issues give another state by
-the rule below, `stories index` and `stories check` print one line on standard output and still succeed:
-`WARN  ST<n>: stated Backlog, its issues give Accepted (<repository>#<issue> Accepted, ...)`. A story without a stated
-state takes the least advanced open issue state in the order of `stories/workflow.yml`. When all issues are closed, it
-takes the first closed state other than Rejected; if every issue is Rejected, it is Rejected. A stated completed story
-needs its `tested` day; a computed completed story may still await that test. A tested day belongs only to a completed
-story other than Rejected. Issue indexes are read from the checkouts beside the project's, else from the forge.
-
-`stories index` writes every story's part 2 and `stories/README.md`: the count in each state, then the stories by state
-in the states' sequence, the higher priority first within one, each with its issues counted by prefix. `stories check`
-refuses, naming the file and the field: a head the schema refuses, a heading other than the head's, a file not named
-after its id, an id twice, a stated completed story without a tested day or a tested day on an open or rejected story,
-an issue no index holds, a repository `project.yml` does not name, and a story's part 2 or the index other than `stories index` writes them. `stories cut` writes, for a release's
-notes, the stories tested after the day of the last release, the earliest first. `check-citations` skips the root's own
-stories and their index as generated, a story being made of issues, and takes `ST<n>` elsewhere as a
-story's number where `stories/` holds that story.
+`porelo-stories` reads and writes the Markdown stories and issues a project kept before its tracker, for a program
+that still reads them; no command of `porelo-release` uses it any more.
 
 ### Workflows
 
@@ -588,17 +431,16 @@ closed flag, rather than the phase name. An index heading or story state absent 
 the workflow. Reading a handwritten issue index preserves its rows and metadata; it does not rewrite that file.
 
 The project admin places and signs the workflow file once in each repository, as with `project.yml`.
-Each repository keeps its own signed copy: `stories/workflow.yml` in porelo-project and `issues/workflow.yml`
-elsewhere. Its checks read only that local copy and refuse a missing or invalid file; changes are placed and
-signed by the project admin. The stories library validates supplied issue indexes against the stories'
-workflow, and its local source validates each checkout against that checkout's own copy. The repository's
-own `check-citations` reads its issue index through
-`IssueIndexes.read` with this workflow. An ATX heading at any level from one to six is a state section when
+In a Markdown tree each repository kept its own signed copy: `stories/workflow.yml` in porelo-project and
+`issues/workflow.yml` elsewhere; the library reads only that local copy and refuses a missing or invalid file. The
+stories library validates supplied issue indexes against the stories'
+workflow, and its local source validates each checkout against that checkout's own copy. `IssueIndexes.read`
+reads an issue index with this workflow. An ATX heading at any level from one to six is a state section when
 an issue-table header (`| # | ...`) follows it before the next heading or blank-separated prose, or when its
 text names a workflow state. Empty or unknown headings with issue tables are refused with their file, heading
 line and workflow path, even if the tables have no issue rows. Tables without a state heading are refused at
 the table header. Other headings are prose and are left alone; known states may have empty sections without
-tables. An unknown state in `check-citations` is reported as a validation fault with its original file and line.
+tables.
 
 `Workflow.read(Path)` returns the immutable workflow or throws `IOException` for missing, unreadable or invalid
 YAML. Its other methods are `states()`, `closed(String)`, `measured(String)`, `rejected(String)`, `phases()`, and `order(String)`;
@@ -607,12 +449,12 @@ workflow; `order` is zero based. `rejected` identifies Rejected, the one closed 
 
 A new head declares `"$schema": "story-2.json"`. It requires `state` when `issues` is empty and allows it beside
 issues. It may name a `size`, one of XS, S, M, L and XL, which whoever estimated the story writes; a head without
-it is as valid as before. Legacy heads without `$schema` use story-1. The index command upgrades each legacy head by inserting
+it is as valid as before. Legacy heads without `$schema` use story-1. `StoriesIndex.write` upgrades each legacy head by inserting
 `  "$schema": "story-2.json",` as the object's first property line and removing the `state` line only when the
 story has issues. The other JSON bytes keep their indentation, colon spacing, key order, array layout, nulls,
 and escaping; heads already in story-2 retain their bytes. When a legacy stated state differs from computation,
 the operation returns one NOTE
-naming the story and both states; the command prints it. A subsequent operation on the migrated head has no
+naming the story and both states. A subsequent operation on the migrated head has no
 legacy state to compare. No tested day is invented during migration.
 
 ### Stories library
@@ -623,7 +465,6 @@ and a write checks every input before changing files. Symlinked story directorie
 refused before any writes. Changed files are published through temporary files in the same directory and atomic
 moves; unchanged files are untouched and absent from `written()`. Unreadable inputs or failed writes throw `IOException`.
 Invalid project configuration or unknown issue states throw `IllegalArgumentException`.
-The generated bytes and validation messages are the same as the stories commands.
 
 A program that reads a board without the index takes the index's own readers, so there is no second parser.
 `Workflow.read(String text)` reads the text of `workflow.yml` as `Workflow.read(Path)` reads the file, and refuses it
@@ -650,13 +491,12 @@ reads only the project's checkout and checkouts beside it, including linked inde
 when one is missing. Where an issue file of a directory has a head, it supplies that directory's index as the heads
 give it, a file without a head keeping its row, and fails on a head the schema refuses. `IssueHead.read(String,
 Workflow)` reads an issue file's head, null without one; `IssuesIndex.write`, `check` and `convert` take an issues
-directory and return `IssuesIndex.Result` with `faults()`, `written()` and `notes()`, as the commands do. Callers may supply another source; the library opens no connection. `IssueIndexes.read(String
+directory and return `IssuesIndex.Result` with `faults()`, `written()` and `notes()`. Callers may supply another source; the library opens no connection. `IssueIndexes.read(String
 index, String repository, Workflow workflow)` reads the text into public `IssueIndex` records: number, state, size, title, index path,
 source and blocked issue numbers. `location()` supplies the row's original `anchor()`, optional issue-file
 link `file()`, one-based `line()`, and the character offset `numberEnd()` after its first-cell number and link.
 The original seven-argument constructor remains available for rows constructed without a source location.
-Location data is excluded from metadata JSON. Citation checks use this same parser for every issue
-row, anchor and file link; prose examples supply none of them. A source can bundle pages by preceding each with
+Location data is excluded from metadata JSON; prose examples supply no row, anchor or file link. A source can bundle pages by preceding each with
 `<!-- porelo-issue-index {"path":"issues/base/README.md","source":"...","length":N} -->` and a newline. Replace `N`
 with the integer number of UTF-16 code units in that page after normalizing CRLF to LF. The parser consumes exactly
 that body before the next header; there is no unframed text between pages other than LF separators. JSON keys must

@@ -17,10 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class CheckCitationsTest {
 
-    private static final String FRONTEND =
-            "https://github.com/porelo-ai/porelo-frontend/blob/main/issues/README.md";
-
-    /** Holds the repository and, beside it, the checkouts, so that nothing lands outside it. */
+    /** Holds the repository and what lies beside it, so that nothing lands outside it. */
     @TempDir Path folder;
 
     private Path root;
@@ -30,73 +27,58 @@ class CheckCitationsTest {
     private final ByteArrayOutputStream err = new ByteArrayOutputStream();
 
     @BeforeEach
-    void aRepositoryWithTwoIssues() throws IOException {
+    void aRepository() throws IOException {
         root = folder.resolve("porelo-sample");
         write("README.md", "# A repository\n");
-        write(
-                "issues/workflow.yml",
-                Files.readString(Path.of("../stories/src/test/resources/workflow.yml")));
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n");
-        write("issues/B10-A-Thing.md", "# B10 - A Thing\n");
-        write("issues/B11-Another.md", "# B11 - Another\n");
     }
 
-    // Own-index validation must not permit a missing contract or an invented state.
-    // Prose examples must not invent durable issue rows or demand row anchors.
-    // Prefix consumers such as commit checks must receive the checked read failure they handle.
+    // Prevents an issue number from passing because it stands in the root's issues/ or stories/,
+    // which no tool keeps any more.
     @Test
-    void anInvalidIndexKeepsThePrefixReadersIoContract() throws IOException {
-        write("issues/README.md", "## Alien\n| # | Size | Title |\n");
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> CheckCitations.issuePrefixes(root))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("Alien")
-                .hasMessageContaining("issues/README.md:1");
-    }
-
-    @Test
-    void proseExamplesSupplyNeitherRowsNorIssueAnchors() throws Exception {
+    void readsTheRootsIssuesAndStoriesLikeAnyOtherFile() throws IOException {
+        write("issues/B11-Another.md", "Follows [B10](README.md#b10).\n");
         write(
-                "issues/README.md",
-                Files.readString(root.resolve("issues/README.md"))
-                        + "\n## Examples\n| B99 | An unanchored prose example |\n| <a id=\"b98\"></a>B98 | Another prose example |\n");
-        final IssueLinks links = IssueLinks.ownOnly();
-        links.read(root, List.of(root.resolve("issues/README.md")), java.util.Set.of("B"));
-        assertThat(links.rows).containsExactlyInAnyOrder("B10", "B11");
-        assertThat(links.unanchored).isEmpty();
-        write("issues/B10-A-Thing.md", "After [B98](README.md#b98).\n");
+                "stories/ST12-A-Story.md",
+                "# ST12 — A Story\n\n## Data\n\n```json\n{\"id\": \"ST12\"}\n```\n");
+        write("doc/next.md", "The next step is ST12.\n");
+
         assertThat(check()).isEqualTo(Stop.REFUSED);
         assertThat(stderr())
-                .contains("README.md#b98")
-                .doesNotContain("an index row that does not open");
+                .as("each number refused where it stands, the story's own among them")
+                .contains("issues/B11-Another.md:1 -> B10")
+                .contains("stories/ST12-A-Story.md:1 -> ST12")
+                .contains("doc/next.md:1 -> ST12");
     }
 
+    // Prevents a link to an issue's file from passing for want of an index, the number in it
+    // being the citation.
     @Test
-    void unknownStateTablesAreCitationFaultsRatherThanReadFailures() throws IOException {
-        write("issues/README.md", "# Issues\n\n## Alien\n| # | Size | Title |\n|---|---|---|\n");
+    void refusesTheNumberInALinkToAnIssuesFile() throws IOException {
+        write("doc/guide.md", "See [the design](../issues/B11-Another.md).\n");
+
         assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("issues/README.md:3", "Alien", "workflow.yml")
-                .doesNotContain("could not read");
+        assertThat(stderr()).contains("doc/guide.md:1 -> B11");
     }
 
+    // Prevents another repository's test fixtures of issues, read by their own tests, from
+    // turning its check red.
     @Test
-    void ownIndexRequiresItsWorkflowAndKnownStates() throws IOException {
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | S | - | Thing |\n");
-        final Path workflow = root.resolve("issues/workflow.yml");
-        Files.deleteIfExists(workflow);
-        assertThat(check()).isNotZero();
-        assertThat(stderr()).contains(workflow.toString());
-        write("issues/workflow.yml", "states:\n  - {name: Idea, closed: false}\nphases: []\n");
-        write(
-                "issues/README.md",
-                "## Alien\n| # | Size | Blocked by | What it covers |\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | S | - | Thing |\n");
-        assertThat(check()).isNotZero();
-        assertThat(stderr()).contains("Alien", "issues/README.md:1", "workflow.yml");
+    void skipsADirectoryNamedIssuesBelowTheRootAsAFixture() throws IOException {
+        write("src/test/resources/sample/issues/B12-A-Fixture.md", "# B12 - A Fixture\n");
+
+        assertThat(check()).as(stderr()).isZero();
+        assertThat(stdout()).contains("1 fixture issue file(s)");
+    }
+
+    // Prevents another repository's state, a project file above or a checkout beside, from
+    // deciding this one's check.
+    @Test
+    void readsNothingOutsideItsOwnRepository() throws IOException {
+        Files.writeString(folder.resolve("project.yml"), "not: [a project\n");
+        Files.createDirectories(folder.resolve("porelo-frontend/issues"));
+        Files.writeString(folder.resolve("porelo-frontend/issues/README.md"), "B10\n");
+
+        assertThat(check()).as(stderr()).isZero();
     }
 
     // Prevents a file under stats/ from passing unread once no tool writes stage records there.
@@ -117,28 +99,7 @@ class CheckCitationsTest {
         assertThat(check())
                 .as("the plan pages are gone, so their marker exempts nothing")
                 .isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("-> B99", "-> ../../issues/B99-Gone.md");
-    }
-
-    @Test
-    void skipsTheStoriesAsGeneratedAndTakesAStorysNumberWhereTheStoryIs() throws IOException {
-        write(
-                "stories/ST12-A-Story.md",
-                "# ST12 — A Story\n\n**Issues:**\n\n- [porelo#B99](https://github.com/porelo-ai/porelo/"
-                        + "blob/main/issues/README.md#b99) (Review)\n\n## Data\n\n```json\n"
-                        + "{\"id\": \"ST12\", \"issues\": [\"porelo#B99\"]}\n```\n");
-        write(
-                "stories/README.md",
-                "# Stories\n\nWritten by `porelo-release stories index` from each story's head.\n\n"
-                        + "| [ST12](ST12-A-Story.md) | B:1 | B98 |\n");
-        write("doc/next.md", "The next step is ST12.\n");
-
-        assertThat(check()).as("a story names issues by design: %s", stderr()).isZero();
-        assertThat(stdout()).contains("2 generated file(s) skipped");
-
-        write("doc/next.md", "The next step is ST13.\n");
-        assertThat(check()).as("no story ST13").isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("doc/next.md:1 -> ST13");
+        assertThat(stderr()).contains("plan/next/README.md:2 -> B99");
     }
 
     @Test
@@ -152,350 +113,8 @@ class CheckCitationsTest {
     }
 
     @Test
-    void acceptsIssuesCitingEachOtherByALinkToTheRow() throws IOException {
-        write("issues/B11-Another.md", "Needs **[B10](README.md#b10)**.\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-        assertThat(stdout()).contains("citations in").contains("2 issue(s)");
-    }
-
-    // Prevents a head's wait or parent on an issue that is not there from passing as a citation.
-    @Test
-    void takesAHeadsWaitsAndParentAsDataNamingOneThatIsNoIssue() throws IOException {
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b10.1\"></a>[B10.1](B10.1-Part.md) | a part |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n");
-        write(
-                "issues/B10.1-Part.md",
-                head("B10.1", "[\"B11\"]", ", \"parent\": \"B10\"") + "Text.\n");
-        write("issues/B11-Another.md", head("B11", "[\"B10.1\"]", "") + "Needs no link here.\n");
-
-        assertThat(check()).as("waits and a parent that are there: " + stderr()).isEqualTo(0);
-
-        write("issues/B11-Another.md", head("B11", "[\"B10.1\", \"B10.2\"]", ""));
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .as("the one id of the head that names nothing, on its line")
-                .contains("issues/B11-Another.md:4 -> B10.2")
-                .doesNotContain("-> B10.1")
-                .doesNotContain("B11-Another.md:4 -> B10\n");
-    }
-
-    // Prevents a head whose waits cannot be read from escaping the check of what it names.
-    @Test
-    void refusesAHeadWhoseWaitsCannotBeReadOnItsLine() throws IOException {
-        for (final String body :
-                List.of(
-                        "{\"blockedBy\": [\"B10.2\"",
-                        "{\"blockedBy\": \"B10.2\"}",
-                        "{\"parent\": 10}")) {
-            write("issues/B11-Another.md", "# B11 — Another\n\n```json\n" + body + "\n```\n");
-            err.reset();
-            assertThat(check()).as("head %s", body).isEqualTo(Stop.REFUSED);
-            assertThat(stderr()).contains("issues/B11-Another.md:3 -> ");
-        }
-    }
-
-    // Prevents another repository's issue named by porelo-project as data from failing the check.
-    @Test
-    void takesAWaitOnAnotherRepositoryAsData() throws IOException {
-        write(
-                "issues/B11-Another.md",
-                head("B11", "[\"B10\", \"porelo-frontend#F12\"]", "") + "Text.\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
-    private static String head(String id, String waits, String more) {
-        return "# "
-                + id
-                + " — Title\n\n```json\n{\"$schema\": \"issue-1.json\", \"id\": \""
-                + id
-                + "\", \"blockedBy\": "
-                + waits
-                + more
-                + "}\n```\n\n";
-    }
-
-    @Test
-    void acceptsTheIndexNamingIssueFilesAndAnIssueItsDesign() throws IOException {
-        // The index names files by being one; a design is deleted together with its issue.
-        write(
-                "issues/B10-A-Thing.md",
-                "Needs [B11](README.md#b11) and [its design](../issues/B11_design.md).\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
-    @Test
-    void refusesALinkToAnIssueFileFromAPage() throws IOException {
-        write("doc/guide.md", "Line one\nSee [the thing](../issues/B10-A-Thing.md#why).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("doc/guide.md:2 -> ../issues/B10-A-Thing.md#why");
-    }
-
-    @Test
-    void refusesALinkToADesignDocument() throws IOException {
-        write("README.md", "How: [design](issues/B10-A-Thing_design.md).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("README.md:1 -> issues/B10-A-Thing_design.md");
-    }
-
-    @Test
-    void acceptsALinkToAStandingDocumentUnderIssues() throws IOException {
-        write("doc/guide.md", "Compared in [this](../issues/Credential-Types-Compared.md).\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
-    @Test
-    void refusesAPointerToAnIssueThatIsGoneEvenWhenWrappedAndBold() throws IOException {
-        write("issues/B11-Another.md", "Waits on **XY12**\n  ([index](README.md)).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/B11-Another.md:1 -> XY12");
-    }
-
-    @Test
-    void leavesAPointerIntoAnotherRepositorysIndexAlone() throws IOException {
-        // Another repository's index is not read here, so a pointer into it is not judged.
-        write(
-                "issues/B11-Another.md",
-                "Blocked by F31"
-                        + " ([index](https://github.com/x/frontend/blob/main/issues/README.md)).\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
-    @Test
-    void refusesANumberOfThisRepositorysOwnAmongTheIssuesThatNamesNoIssue() throws IOException {
-        // The index row or the "blocked by" its deletion missed.
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | B12 | waits on the interface's consent"
-                        + " |\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/README.md:2 -> B12");
-    }
-
-    @Test
-    void refusesAnIndexRowWithoutItsAnchor() throws IOException {
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| [B11](B11-Another.md) | another |\n"
-                        + "| <a id=\"b10\"></a>B12 | finished, named wrong |\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("an index row that does not open with the anchor of its number")
-                .contains("issues/README.md:3 -> B11")
-                .contains("issues/README.md:4 -> B12");
-    }
-
-    @Test
-    void refusesANumberAmongTheIssuesThatIsNotALinkToItsRow() throws IOException {
-        write(
-                "issues/B11-Another.md",
-                "Follows B10.\nAnd [B10](B10-A-Thing.md#why), and [B10](README.md).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("an issue number under issues/ that is not a link to its row")
-                .contains("issues/B11-Another.md:1 -> B10")
-                .contains("issues/B11-Another.md:2 -> B10-A-Thing.md#why")
-                .contains("issues/B11-Another.md:2 -> README.md");
-    }
-
-    @Test
-    void refusesALinkToARowThatIsNotThere() throws IOException {
-        write(
-                "issues/B11-Another.md",
-                "See [B10](README.md#b11) and [the other](README.md#b12).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("a link to an index row that is not there")
-                .contains("issues/B11-Another.md:1 -> B10 linked to README.md#b11")
-                .contains("issues/B11-Another.md:1 -> README.md#b12");
-    }
-
-    @Test
-    void leavesHeadingsCodeAndAMarkedLineAlone() throws IOException {
-        write(
-                "issues/B11-Another.md",
-                "# B11 - Another\n\nThe form is `[B10](README.md#b10)`.\n\n```\nB10\n```\n"
-                        + "B10 as the parser reads it - not-a-citation\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
-    @Test
-    void acceptsALinkToARowOnTheSamePage() throws IOException {
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | after [B10](#b10), not"
-                        + " [B12](#b12) |\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/README.md:3 -> #b12").doesNotContain("-> #b10");
-    }
-
-    @Test
-    void acceptsAFinishedRowWhoseFileIsGone() throws IOException {
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
-                        + "| <a id=\"b09\"></a>B09 | Built: the first thing. |\n");
-        write("issues/B11-Another.md", "After [B09](README.md#b09).\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-    }
-
-    // A finished row that still links its deleted file is the planner's board fault, index or not.
-    @Test
-    void refusesALinkToTheDeletedFileOfAFinishedIssueInTheIndexToo() throws IOException {
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
-                        + "| <a id=\"b09\"></a>[B09](B09-The-First.md) | Built: the first thing. |\n");
-        write("issues/B11-Another.md", "After [B09](README.md#b09), once B09-The-First.md.\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("issues/README.md:7 -> B09-The-First.md")
-                .contains("issues/B11-Another.md:1 -> B09-The-First.md")
-                .doesNotContain("-> B10")
-                .doesNotContain("-> B11");
-    }
-
-    // The planner reads a story's file in an issue as a link that skips the story's index row.
-    @Test
-    void refusesALinkToAStorysFileFromAnIssue() throws IOException {
-        write(
-                "stories/ST12-A-Story.md",
-                "# ST12 — A Story\n\n## Data\n\n```json\n{\"id\": \"ST12\", \"issues\": []}\n```\n");
-        write("stories/README.md", "# Stories\n\n| [ST12](ST12-A-Story.md) | - | - |\n");
-        write("issues/B11-Another.md", "For [ST12](../stories/ST12-A-Story.md).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/B11-Another.md:1 -> ../stories/ST12-A-Story.md");
-    }
-
-    // The form the planner asks for, a story's index row, must be one the check finds.
-    @Test
-    void acceptsALinkToAStorysIndexRowFromAnIssue() throws IOException {
-        write(
-                "stories/ST12-A-Story.md",
-                "# ST12 — A Story\n\n## Data\n\n```json\n{\"id\": \"ST12\", \"issues\": []}\n```\n");
-        write(
-                "stories/README.md",
-                "# Stories\n\n| <a id=\"st12\"></a>[ST12](ST12-A-Story.md) | - | - |\n");
-        write("issues/B11-Another.md", "For [ST12](../stories/README.md#st12).\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-
-        write("issues/B11-Another.md", "For [ST13](../stories/README.md#st13).\n");
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/B11-Another.md:1 -> ../stories/README.md#st13");
-    }
-
-    @Test
-    void readsNothingOutsideItsOwnRepository() throws IOException {
-        // Another repository's state must not decide this one's check, nor need its checkout.
-        theProjectIn(folder);
-        Files.createDirectories(folder.resolve("porelo-frontend/issues"));
-        Files.writeString(
-                folder.resolve("porelo-frontend/issues/README.md"),
-                "| <a id=\"f31\"></a>F31 | x |\n");
-        write(
-                "issues/B11-Another.md",
-                "Its interface is [F31]("
-                        + FRONTEND
-                        + "#f31), not [F32]("
-                        + FRONTEND
-                        + "#f32).\nIt waits for F31 and PJ12, after [B10](README.md#b10).\n");
-
-        assertThat(check())
-                .as("the project and the index beside it are not opened: %s", stderr())
-                .isZero();
-        assertThat(stdout())
-                .as("what is left to the check across repositories is said once")
-                .containsOnlyOnce("NOTE  not checked here:")
-                .contains("2 link(s) into another repository's index");
-    }
-
-    @Test
-    void aFixturesIssueNumberIsNoneOfThisRepositorysOwn() throws IOException {
-        // A stale mention must not pass because a test's fixture happens to hold that number.
-        write(
-                "src/test/resources/sample/issues/README.md",
-                "| <a id=\"b12\"></a>[B12](B12-A-Fixture.md) | a fixture |\n");
-        write("src/test/resources/sample/issues/B12-A-Fixture.md", "# B12 - A Fixture\n");
-        write("issues/B11-Another.md", "It follows B12 ([index](README.md)).\nAnd B12 alone.\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .as("the pointer and the bare number name no issue of this repository")
-                .contains("a pointer to an issue that no longer exists")
-                .contains("the mention its deletion missed")
-                .contains("issues/B11-Another.md:2 -> B12")
-                .doesNotContain("not a link to its row");
-    }
-
-    @Test
-    void refusesANumberOfAPrefixOnlyFinishedRowsCarryThatHasNoRow() throws IOException {
-        // A number no row names cannot be linked, and would send a reader nowhere.
-        write(
-                "issues/README.md",
-                "## Idea\n| <a id=\"b10\"></a>[B10](B10-A-Thing.md) | a thing |\n"
-                        + "| <a id=\"b11\"></a>[B11](B11-Another.md) | another |\n\n## Finished\n\n"
-                        + "| <a id=\"xy05\"></a>XY05 | done |\n");
-        write("issues/B11-Another.md", "After [XY05](README.md#xy05), and XY06.\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("a number no index has a row for")
-                .contains("issues/B11-Another.md:1 -> XY06")
-                .doesNotContain("-> XY05");
-    }
-
-    @Test
-    void stillRefusesABrokenLinkWithinItsOwnIndexes() throws IOException {
-        // The check within the repository stays whole when the crossing is switched off.
-        write("issues/B11-Another.md", "After [B10](README.md#b12) and B10.\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("issues/B11-Another.md:1 -> B10 linked to README.md#b12")
-                .contains("issues/B11-Another.md:1 -> B10");
-    }
-
-    @Test
-    void aFixturesIssueDoesNotMakeAnotherRepositorysPrefixItsOwn() throws IOException {
-        write(
-                "src/test/resources/sample/issues/README.md",
-                "| <a id=\"f05\"></a>[F05](F05-A-Fixture.md) | a fixture |\n");
-        write("src/test/resources/sample/issues/F05-A-Fixture.md", "# F05 - A Fixture\n");
-        write("issues/B11-Another.md", "It waits for F31.\n");
-
-        assertThat(check())
-                .as("another repository's number is no deletion this one missed: %s", stderr())
-                .isZero();
-    }
-
-    @Test
     void acceptsALinkNamedLikeAnIssueThatIsNone() throws IOException {
-        write("issues/B11-Another.md", "Its digest is [S256](https://example.org/digest).\n");
+        write("doc/digest.md", "Its digest is [S256](https://example.org/digest).\n");
 
         assertThat(check()).as(stderr()).isZero();
     }
@@ -512,7 +131,7 @@ class CheckCitationsTest {
     }
 
     @Test
-    void refusesAnIssueNumberInEveryTextFileOutsideTheIssues() throws IOException {
+    void refusesAnIssueNumberInEveryTextFile() throws IOException {
         write("README.md", "Built for B10.\n");
         write("CHANGELOG.md", "- B11 done\n");
         write("src/test/resources/fixture.json", "{\"note\": \"from PJ18\"}\n");
@@ -549,17 +168,6 @@ class CheckCitationsTest {
 
         assertThat(check()).as(stderr()).isEqualTo(0);
         assertThat(stdout()).contains("3 generated file(s) skipped");
-    }
-
-    @Test
-    void refusesAnIssueNumberInAPublishedPageButNotInAnIssue() throws IOException {
-        write("doc/guide.md", "This came from B10.\n");
-        write("issues/B11-Another.md", "Follows [B10](README.md#b10).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("doc/guide.md:1 -> B10")
-                .doesNotContain("issues/B11-Another.md");
     }
 
     @Test
@@ -617,7 +225,7 @@ class CheckCitationsTest {
     void readsOnlyWhatGitTracksInACheckout() throws Exception {
         write("doc/guide.md", "Fine.\n");
         git("init", "-q");
-        git("add", "README.md", "issues", "doc");
+        git("add", "README.md", "doc");
         write("suite.log", "a log a tool left: B99\n");
 
         assertThat(check()).as(stderr()).isEqualTo(0);
@@ -691,117 +299,10 @@ class CheckCitationsTest {
                 .isEqualTo(Stop.UNANSWERED);
     }
 
-    @Test
-    void acceptsBriefsBesideTheirIssue() throws IOException {
-        write("issues/B10.sub/builder.md", "Builds [B10](../README.md#b10).\n");
-        write("issues/B10.sub/builder-2.md", "Also builds [B10](../README.md#b10).\n");
-        write("issues/B10.sub/tester.md", "Tests it.\n");
-        write("issues/B10.sub/reader-12.md", "Reads it.\n");
-
-        assertThat(check()).as(stderr()).isEqualTo(0);
-        assertThat(stdout()).contains("2 issue(s)");
-    }
-
-    @Test
-    void aBriefWithoutItsIssueIsRefused() throws IOException {
-        // B13 is finished: its row stays, its file is gone, and its briefs must have gone with it.
-        write(
-                "issues/README.md",
-                Files.readString(root.resolve("issues/README.md"))
-                        + "| <a id=\"b13\"></a>B13 | a finished thing |\n");
-        write("issues/B13.sub/tester.md", "Tests it.\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/B13.sub/tester.md");
-    }
-
-    @Test
-    void aSubDirectoryBesideNoIssueIsRefused() throws IOException {
-        write("issues/B12.sub/builder.md", "Builds it.\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/B12.sub/builder.md");
-    }
-
-    @Test
-    void aLastingPageMayNotLinkIntoABrief() throws IOException {
-        write("issues/B10.sub/builder.md", "Builds it.\n");
-        write("doc/guide.md", "See [the brief](../issues/B10.sub/builder.md).\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("doc/guide.md:1 -> ../issues/B10.sub/builder.md");
-    }
-
-    @Test
-    void aBriefOfAnotherNameIsRefused() throws IOException {
-        write("issues/B10.sub/planner.md", "Plans it.\n");
-        write("issues/B10.sub/builder-1.md", "Builds it.\n");
-        write("issues/B10.sub/more/builder.md", "Builds more.\n");
-        write("issues/B10.sub/builder.txt", "Builds it.\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("issues/B10.sub/planner.md")
-                .contains("issues/B10.sub/builder-1.md")
-                .contains("issues/B10.sub/more/builder.md")
-                .contains("issues/B10.sub/builder.txt");
-    }
-
-    @Test
-    void aLinkAmongTheBriefsIsRefusedWhereverItPoints() throws IOException {
-        write("issues/B11.sub/tester.md", "Tests it.\n");
-        Files.createDirectories(root.resolve("issues/B10.sub"));
-        Files.createSymbolicLink(root.resolve("issues/B10.sub/builder.md"), Path.of("nowhere.md"));
-        Files.createSymbolicLink(root.resolve("issues/B10.sub/reader.md"), Path.of("../B11.sub"));
-        Files.createSymbolicLink(root.resolve("issues/B12.sub"), Path.of("B11.sub"));
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .contains("issues/B10.sub/builder.md -> a link")
-                .contains("issues/B10.sub/reader.md -> a link")
-                .contains("issues/B12.sub -> a link");
-    }
-
-    @Test
-    void aBriefsOwnIssueNumberMustBeALink() throws IOException {
-        write("issues/B10.sub/builder.md", "Build B10 first.\n");
-
-        assertThat(check()).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("issues/B10.sub/builder.md:1 -> B10");
-    }
-
     private int check() {
         out.reset();
         err.reset();
         return new CheckCitations(stream(out), stream(err)).check(root);
-    }
-
-    /**
-     * The project's repository in a directory of checkouts: its repositories' prefixes and index.
-     */
-    private Path theProjectIn(Path checkouts) throws IOException {
-        Files.createDirectories(checkouts.resolve("porelo-project/issues"));
-        Files.writeString(
-                checkouts.resolve("porelo-project/project.yml"),
-                "project:\n"
-                        + "  upstream: \"git@github.com:porelo-ai/porelo-project.git\"\n"
-                        + "repositories:\n"
-                        + "  core:\n"
-                        + "    upstream: \"git@github.com:porelo-ai/porelo.git\"\n"
-                        + "    issues: [\"B\"]\n"
-                        + "  frontend:\n"
-                        + "    upstream: \"git@github.com:porelo-ai/porelo-frontend.git\"\n"
-                        + "    issues: [\"F\"]\n"
-                        + "  intellij:\n"
-                        + "    upstream: \"git@github.com:porelo-ai/porelo-intellij.git\"\n"
-                        + "    issues: [\"IJ\"]\n"
-                        + "  sums:\n"
-                        + "    upstream: \"git@github.com:porelo-ai/porelo-sums.git\"\n"
-                        + "    issues: [\"S\"]\n");
-        Files.writeString(
-                checkouts.resolve("porelo-project/issues/README.md"),
-                "| <a id=\"pj12\"></a>PJ12 | a requirement |\n");
-        return checkouts;
     }
 
     private void git(String... args) throws Exception {

@@ -13,20 +13,20 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Holds each commit of a range to the shared rules on commit messages.
  *
  * <p>A subject of one line of at most 72 characters, {@code [skip ci]} counted; below it only a
- * blank line and trailers; no requirement number, since the issue is deleted once it is done; and
- * nobody named as having asked for or made the change, as far as {@link Who} can tell. Once the
- * project keeps its issues in GitHub Issues, a {@code Porelo-Issue} trailer per issue, in GitHub's
- * reference form, is the one place a number may stand, and no closing keyword may precede an issue
- * reference anywhere in the message, so no push closes an issue. A commit Dependabot or GitHub's
- * Actions bot authored, or GitHub committed in its web interface, is exempt from these checks: told
- * by the author and committer the commit records, never by what its message says. No measurement is
- * read from a commit's tree: a task's measurements are fields of its item in the tracker.
+ * blank line and trailers; no requirement number, since the issue is closed in its tracker; and
+ * nobody named as having asked for or made the change, as far as {@link Who} can tell. An issue
+ * number is told by its shape or as a GitHub reference; a {@code Porelo-Issue} trailer per issue,
+ * in GitHub's reference form, is the one place a number may stand, and no closing keyword may
+ * precede an issue reference anywhere in the message, so no push closes an issue. A commit
+ * Dependabot or GitHub's Actions bot authored, or GitHub committed in its web interface, is exempt
+ * from these checks: told by the author and committer the commit records, never by what its message
+ * says. No measurement is read from a commit's tree: a task's measurements are fields of its item
+ * in the tracker.
  */
 final class CheckCommits {
 
@@ -54,10 +54,9 @@ final class CheckCommits {
                     Pattern.CASE_INSENSITIVE);
 
     /**
-     * The trailer that names the issue a commit was made for, once the project keeps its issues in
-     * GitHub Issues: its key in any case, the reference GitHub's {@code <owner>/<repository>#<n>},
-     * the owner and repository as GitHub names them, a repository never of dots alone, and the
-     * number from 1.
+     * The trailer that names the issue a commit was made for: its key in any case, the reference
+     * GitHub's {@code <owner>/<repository>#<n>}, the owner and repository as GitHub names them, a
+     * repository never of dots alone, and the number from 1.
      */
     private static final Pattern PORELO_ISSUE =
             Pattern.compile(
@@ -89,9 +88,6 @@ final class CheckCommits {
     private static final Pattern SIGN_OFF_KEY =
             Pattern.compile("Signed-off-by:", Pattern.CASE_INSENSITIVE);
 
-    /** A word of an issue number's shape, its prefix apart; whether it is one the prefixes say. */
-    private static final Pattern NUMBER = Pattern.compile("\\b([A-Z]{1,3})\\d+\\b");
-
     /**
      * A number GitHub links in a commit message to an issue of the same repository: {@code #<n>},
      * not part of a word, a path or a colour.
@@ -108,11 +104,6 @@ final class CheckCommits {
     private final PrintStream err;
 
     private final Git git;
-
-    private final Prefixes prefixes;
-
-    /** Whether the project keeps its issues in GitHub Issues, so nothing reads {@code issues/}. */
-    private final boolean tracked;
 
     /** Reads the log of a range. */
     @FunctionalInterface
@@ -261,19 +252,6 @@ final class CheckCommits {
         }
     }
 
-    /** Reads the issue prefixes a requirement number is made of. */
-    @FunctionalInterface
-    interface Prefixes {
-
-        /**
-         * Reads them.
-         *
-         * @return the prefixes, such as {@code BT}
-         * @throws IOException when the issues cannot be read
-         */
-        Set<String> read() throws IOException;
-    }
-
     /** One commit as git recorded it. */
     private record Commit(
             String hash,
@@ -294,29 +272,11 @@ final class CheckCommits {
      * @param out where the result goes
      * @param err where a refusal goes
      * @param git where the log is read
-     * @param prefixes where the issue prefixes are read, once a commit needs them
      */
-    CheckCommits(PrintStream out, PrintStream err, Git git, Prefixes prefixes) {
-        this(out, err, git, prefixes, false);
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param out where the result goes
-     * @param err where a refusal goes
-     * @param git where the log is read
-     * @param prefixes where the issue prefixes are read, once a commit needs them; never read when
-     *     tracked
-     * @param tracked true when the project keeps its issues in GitHub Issues: then an issue number
-     *     is told by its shape, an old id or a GitHub reference, every other rule unchanged
-     */
-    CheckCommits(PrintStream out, PrintStream err, Git git, Prefixes prefixes, boolean tracked) {
+    CheckCommits(PrintStream out, PrintStream err, Git git) {
         this.out = out;
         this.err = err;
         this.git = git;
-        this.prefixes = prefixes;
-        this.tracked = tracked;
     }
 
     /**
@@ -363,7 +323,7 @@ final class CheckCommits {
      * @param outside true for a pull request from outside, whose every commit that is not exempt
      *     carries its author's {@code Signed-off-by:}
      * @return 0 when no commit breaks the rule, an empty range among them; {@link Stop#REFUSED}
-     *     when one does; {@link Stop#UNANSWERED} when the log or the prefixes cannot be read
+     *     when one does; {@link Stop#UNANSWERED} when the log cannot be read
      */
     int check(String range, boolean outside) {
         if (range.isBlank() || range.startsWith("-")) {
@@ -389,12 +349,6 @@ final class CheckCommits {
             return Stop.UNANSWERED;
         }
         final List<String> faults = new ArrayList<>();
-        Set<String> known = null;
-        if (tracked) {
-            out.println(
-                    "NOTE  the issues are kept in GitHub Issues, as the project's tracker says: an"
-                            + " issue number is told by its shape");
-        }
         int exempt = 0;
         int breaking = 0;
         for (final Commit commit : commits) {
@@ -403,30 +357,7 @@ final class CheckCommits {
                 exempt++;
                 continue;
             }
-            if (tracked) {
-                final List<String> broken = faults(commit, null, outside);
-                if (!broken.isEmpty()) {
-                    breaking++;
-                }
-                broken.forEach(fault -> faults.add(commit.hash() + "  " + fault));
-                continue;
-            }
-            if (known == null) {
-                try {
-                    known = prefixes.read();
-                } catch (IOException ex) {
-                    err.println("could not read the issue prefixes: " + ex.getMessage());
-                    return Stop.UNANSWERED;
-                }
-                if (known.isEmpty()) {
-                    err.println(
-                            "no issue prefix found under issues/, so a requirement number"
-                                    + " cannot be told - is the working directory a repository's"
-                                    + " root?");
-                    return Stop.UNANSWERED;
-                }
-            }
-            final List<String> broken = faults(commit, known, outside);
+            final List<String> broken = faults(commit, outside);
             if (!broken.isEmpty()) {
                 breaking++;
             }
@@ -456,14 +387,8 @@ final class CheckCommits {
         return Stop.REFUSED;
     }
 
-    /**
-     * The faults of one commit's message.
-     *
-     * @param known the issue prefixes, or null when the issues are in the tracker and a number is
-     *     told by its shape
-     */
-    private static List<String> faults(
-            Commit commit, @Nullable Set<String> known, boolean outside) {
+    /** The faults of one commit's message. */
+    private static List<String> faults(Commit commit, boolean outside) {
         final List<String> faults = new ArrayList<>();
         final String[] lines = commit.message().split("\n", -1);
         final String subject = lines[0];
@@ -477,14 +402,13 @@ final class CheckCommits {
         final StringBuilder words = new StringBuilder(subject);
         final List<String> trailers = new ArrayList<>();
         final int first = lines.length > 1 && lines[1].isEmpty() ? 2 : 1;
-        final boolean tracked = known == null;
         for (int i = first; i < lines.length; i++) {
             if (TRAILER.matcher(lines[i]).matches()) {
                 trailers.add(lines[i]);
-            } else if (tracked && PORELO_ISSUE.matcher(lines[i]).matches()) {
+            } else if (PORELO_ISSUE.matcher(lines[i]).matches()) {
                 // The one place a number may stand, so the number rule reads it not.
                 continue;
-            } else if (tracked && PORELO_ISSUE_KEY.matcher(lines[i]).lookingAt()) {
+            } else if (PORELO_ISSUE_KEY.matcher(lines[i]).lookingAt()) {
                 faults.add(
                         "a Porelo-Issue trailer not of the form"
                                 + " 'Porelo-Issue: <owner>/<repository>#<number>': "
@@ -505,31 +429,19 @@ final class CheckCommits {
                 named.append('\n').append(trailer);
             }
         }
-        if (known != null) {
-            final Matcher number = NUMBER.matcher(words);
+        for (final Pattern shape :
+                List.of(CheckCitations.SHAPE, CheckCitations.GITHUB_REFERENCE, BARE_REFERENCE)) {
+            final Matcher number = shape.matcher(words);
             while (number.find()) {
-                if (known.contains(number.group(1))) {
+                if (!CheckCitations.NOT_CITATIONS.contains(number.group())) {
                     faults.add("names a requirement number: " + number.group());
                 }
             }
-        } else {
-            for (final Pattern shape :
-                    List.of(
-                            CheckCitations.SHAPE,
-                            CheckCitations.GITHUB_REFERENCE,
-                            BARE_REFERENCE)) {
-                final Matcher number = shape.matcher(words);
-                while (number.find()) {
-                    if (!CheckCitations.NOT_CITATIONS.contains(number.group())) {
-                        faults.add("names a requirement number: " + number.group());
-                    }
-                }
-            }
-            // Only the person sets Finished, never a push.
-            final Matcher closing = CLOSING.matcher(commit.message());
-            while (closing.find()) {
-                faults.add("closes an issue on push: " + closing.group());
-            }
+        }
+        // Only the person sets Finished, never a push.
+        final Matcher closing = CLOSING.matcher(commit.message());
+        while (closing.find()) {
+            faults.add("closes an issue on push: " + closing.group());
         }
         Who.named(named.toString(), List.of(commit.author(), commit.committer()))
                 .forEach(party -> faults.add("says who: " + party));

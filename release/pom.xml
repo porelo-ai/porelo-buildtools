@@ -24,11 +24,6 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.fuin.porelo</groupId>
-            <artifactId>porelo-stories</artifactId>
-        </dependency>
-
         <!-- Not porelo-machines: that brings an SSH stack, and these commands run in every
              package build, offline ones included. -->
 
@@ -91,7 +86,7 @@
         <!-- The shared .editorconfig check-shared compares a repository's copy with: the root's own, so this
              repository keeps it once, and a release carries the text it was built with. -->
         <resources>
-            <!-- The schemas of the heads the stories, and later the issues, carry. -->
+            <!-- The pinned license texts the third-party notices quote. -->
             <resource>
                 <directory>${project.basedir}/src/main/resources</directory>
             </resource>

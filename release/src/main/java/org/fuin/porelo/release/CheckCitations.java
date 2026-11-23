@@ -19,19 +19,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.fuin.porelo.stories.IssueHead;
 
 /**
- * Refuses the four ways a page or a file can cite an issue and go stale.
+ * Refuses an issue number in a committed file: told by its shape or as a GitHub reference.
  *
- * <p>A finished issue is deleted, file and index row together, so a link to its file breaks exactly
- * when it is done, a pointer to it points at nothing, and a number anywhere outside the issues
- * names something nobody can look up. The index is the one page that may name files, because naming
- * them is what an index is; issues may name each other's files and numbers, since they are deleted
- * together with every mention of their number - but a number of this repository's own there must
- * still name an issue that exists, or it is the mention a deletion missed, and neither the index
- * nor an issue may name the file of a settled issue, one whose row is left without its file: that
- * is the fault porelo-planner's board shows as a link to a deleted file.
+ * <p>Issues live in a tracker and are closed there, so a number in code, a page or anything that
+ * ships names something that goes stale; the constraint itself is written instead. A line that
+ * holds the shape on purpose says {@code not-a-citation}, and a whole such file is named in {@link
+ * #EXEMPT}. A directory named {@code issues} below the root holds a test's fixture, read by the
+ * test that holds it, and is skipped.
  *
  * <p>Every committed text file is read: in a git checkout what {@code git ls-files} names, in an
  * exported tree every file. A binary file is skipped and counted. Nothing outside the repository is
@@ -44,46 +40,6 @@ final class CheckCitations {
      * purpose.
      */
     static final String EXEMPT = "citations-exempt.txt";
-
-    /**
-     * A file under {@code issues/} that is deleted when its subject is settled: a numbered issue, a
-     * design, or a brief of the issue's sub-agents.
-     */
-    private static final Pattern DIES =
-            Pattern.compile("/[A-Z]+\\d{2,3}-[^/]*\\.md$|_design\\.md$|/[A-Z]{1,3}\\d{2,3}\\.sub/");
-
-    /**
-     * A name of an issue's file: the number, not part of a longer word, a dash, and a name ending
-     * in {@code .md} without a blank, a parenthesis or a slash, as porelo-planner's reader reads
-     * it.
-     */
-    private static final Pattern DELETED_FILE =
-            Pattern.compile("(?<![A-Za-z0-9_])([A-Z]{1,3}\\d{2,3})-[^\\s)/]*\\.md");
-
-    /** The directory of an issue's sub-agent briefs, beside its file: {@code <ID>.sub}. */
-    private static final Pattern BRIEFS =
-            Pattern.compile("^(.*/)?([A-Z]{1,3}\\d{2,3})\\.sub/(.+)$");
-
-    /** A brief's name: the sub-agent's role, or a numbered variant of it from two on. */
-    private static final Pattern BRIEF =
-            Pattern.compile("^(builder|tester|reader)(-[2-9]|-[1-9][0-9]+)?\\.md$");
-
-    /** A Markdown link's target, without the title some links carry. */
-    private static final Pattern LINK = Pattern.compile("\\]\\(([^)\\s]+)");
-
-    /**
-     * An issue cited as the rules ask: the number, then the index. Bold, code and a wrapped line
-     * may sit between them, since pages wrap and a citation is often emphasized.
-     */
-    private static final Pattern POINTER =
-            Pattern.compile("\\b([A-Z]{1,3}\\d{2,3})\\b[\\s*_`]{0,10}\\(?\\[index\\]\\(([^)\\s]+)");
-
-    /** An issue's own file, named by its number: its prefix, then its digits. */
-    private static final Pattern ISSUE_FILE =
-            Pattern.compile("^(([A-Z]{1,3})\\d{2,3}(?:\\.[1-9]\\d{0,2})?)-.*\\.md$");
-
-    /** A story's file in the root's own {@code stories/}, named by its number. */
-    private static final Pattern STORY_FILE = Pattern.compile("^stories/(ST\\d+)(-[^/]*)?\\.md$");
 
     /** The shape of an issue number. */
     static final Pattern SHAPE = Pattern.compile("\\b[A-Z]{1,2}\\d{2,3}\\b");
@@ -99,10 +55,6 @@ final class CheckCitations {
                     "(?<!\\w)(?:(?:https?://)?(?:www\\.)?github\\.com/porelo-ai/[\\w.-]+/issues/\\d+"
                             + "|porelo-ai/[\\w.-]+#\\d+|GH-\\d+)\\b",
                     Pattern.CASE_INSENSITIVE);
-
-    /** An issue number with its prefix apart, for the repository's own among the issues. */
-    private static final Pattern NUMBER_OF_ANY_PREFIX =
-            Pattern.compile("\\b([A-Z]{1,3})\\d{2,3}\\b");
 
     /** Names of an issue number's shape that are something else: PKCE's challenge method. */
     static final Set<String> NOT_CITATIONS = Set.of("S256");
@@ -162,53 +114,26 @@ final class CheckCitations {
      */
     int check(Path root) {
         final List<Path> files;
-        final List<Path> listed;
         final Set<String> exempt;
-        // porelo-project's stories, each a number of its own, cited as an issue is.
-        final Set<String> stories = new java.util.HashSet<>();
         int generatedFiles = 0;
         try {
-            final List<Path> handwritten = new ArrayList<>();
-            listed = entries(root);
-            for (final Path path : listed.stream().filter(Files::isRegularFile).toList()) {
-                if (generated(root, path)) continue;
-                if (generatedStory(root, path)) {
-                    generatedFiles++;
-                    final Matcher story = STORY_FILE.matcher(relative(root, path));
-                    if (story.matches()) stories.add(story.group(1));
-                } else handwritten.add(path);
-            }
-            files = handwritten.stream().sorted().toList();
+            files =
+                    committed(root).stream()
+                            .filter(path -> !generated(root, path))
+                            .sorted()
+                            .toList();
             exempt = exempt(root);
         } catch (IOException | UncheckedIOException ex) {
             err.println("could not list the files under " + root + ": " + Web.reason(ex));
             return Stop.UNANSWERED;
         }
-        final List<Path> pages =
-                files.stream().filter(path -> path.toString().endsWith(".md")).toList();
-        if (pages.isEmpty()) {
+        if (files.stream().noneMatch(path -> path.toString().endsWith(".md"))) {
             err.println(
                     root
                             + ": no Markdown page under it, so nothing is checked - is it a"
                             + " repository's root?");
             return Stop.REFUSED;
         }
-        // Only the root's own issues/ is this repository's; another one deeper down, a test's
-        // fixture, holds files of whatever number it was written with.
-        final Set<String> issues =
-                files.stream()
-                        .filter(path -> ownIssue(root, path))
-                        .map(path -> ISSUE_FILE.matcher(path.getFileName().toString()))
-                        .filter(Matcher::matches)
-                        .map(match -> match.group(1))
-                        .collect(Collectors.toSet());
-        final Set<String> prefixes =
-                files.stream()
-                        .filter(path -> ownIssue(root, path))
-                        .map(path -> ISSUE_FILE.matcher(path.getFileName().toString()))
-                        .filter(Matcher::matches)
-                        .map(match -> match.group(2))
-                        .collect(Collectors.toSet());
         final Set<String> names =
                 files.stream().map(path -> relative(root, path)).collect(Collectors.toSet());
         final List<String> stale =
@@ -216,44 +141,15 @@ final class CheckCitations {
                         .filter(name -> !names.contains(name))
                         .map(name -> EXEMPT + " names " + name + ", which is not a committed file")
                         .toList();
-        final List<String> links = new ArrayList<>();
-        final List<String> pointers = new ArrayList<>();
         final List<String> numbers = new ArrayList<>();
-        final List<String> gone = new ArrayList<>();
-        final List<String> deleted = new ArrayList<>();
-        final List<String> briefs = briefsOutOfPlace(root, files, listed);
-        final IssueLinks issueLinks = IssueLinks.ownOnly();
         int read = 0;
         int binary = 0;
+        int fixtures = 0;
         try {
-            issueLinks.read(
-                    root, pages.stream().filter(page -> ownIssue(root, page)).toList(), prefixes);
-            final Set<String> named = new java.util.HashSet<>(issues);
-            // A finished issue keeps its row when its file goes, so a row is as good as a file.
-            named.addAll(issueLinks.rows);
-            // A row without a file is a settled issue's, whose file was deleted when it settled.
-            final Set<String> settled = new java.util.TreeSet<>(issueLinks.rows);
-            settled.removeAll(issues);
-            for (final Path page : pages) {
-                final Optional<String> text = text(page);
-                if (text.isPresent()) {
-                    links.addAll(linksToFilesThatDie(root, page, text.get()));
-                    pointers.addAll(pointersToIssuesThatAreGone(root, page, text.get(), issues));
-                }
-            }
             for (final Path file : files) {
                 final String name = relative(root, file);
-                if (isIssue(root, file)) {
-                    // A fixture's issues are test data, read by the test that holds them.
-                    final Optional<String> text =
-                            ownIssue(root, file) ? text(file) : Optional.empty();
-                    if (text.isPresent()) {
-                        deleted.addAll(namesOfDeletedFiles(root, file, text.get(), settled));
-                        gone.addAll(referencesThatAreGone(root, file, text.get(), named));
-                        gone.addAll(
-                                ownNumbersThatAreGone(
-                                        root, file, withoutHead(text.get()), prefixes, named));
-                    }
+                if (fixture(name)) {
+                    fixtures++;
                     continue;
                 }
                 if (name.equals(EXEMPT) || exempt.contains(name)) {
@@ -269,47 +165,27 @@ final class CheckCitations {
                     continue;
                 }
                 read++;
-                numbers.addAll(numbersIn(root, file, text.get(), stories));
+                numbers.addAll(numbersIn(root, file, text.get()));
             }
-        } catch (IllegalArgumentException ex) {
-            err.println(ex.getMessage());
-            return Stop.REFUSED;
         } catch (IOException | UncheckedIOException ex) {
             err.println("could not read under " + root + ": " + Web.reason(ex));
             return Stop.UNANSWERED;
         }
-        out.println("NOTE  " + issueLinks.note());
-        final List<String> unanchored = issueLinks.unanchored;
-        final List<String> unlinked = issueLinks.unlinked;
-        final List<String> broken = issueLinks.broken;
-        final List<String> rowless = issueLinks.rowless;
-        if (stale.isEmpty()
-                && links.isEmpty()
-                && pointers.isEmpty()
-                && numbers.isEmpty()
-                && gone.isEmpty()
-                && deleted.isEmpty()
-                && briefs.isEmpty()
-                && unanchored.isEmpty()
-                && unlinked.isEmpty()
-                && broken.isEmpty()
-                && rowless.isEmpty()) {
+        if (stale.isEmpty() && numbers.isEmpty()) {
             out.println(
                     "OK    citations in "
                             + root
                             + ": "
-                            + pages.size()
-                            + " page(s), "
                             + read
                             + " text file(s), "
                             + binary
                             + " binary and "
                             + generatedFiles
                             + " generated file(s) skipped, "
+                            + fixtures
+                            + " fixture issue file(s), "
                             + exempt.size()
-                            + " exempt, "
-                            + issues.size()
-                            + " issue(s)");
+                            + " exempt");
             return 0;
         }
         report(
@@ -317,90 +193,13 @@ final class CheckCitations {
                 "an exemption for a file that is not there: remove the line, so the list says what"
                         + " is true");
         report(
-                links,
-                "a link to an issue's file, from a page that is not an issues index: link to the"
-                        + " index and name the number, because a finished issue takes its file with"
-                        + " it");
-        report(
-                pointers,
-                "a pointer to an issue that no longer exists: a number with the index beside it"
-                        + " sends somebody to an issue, and is worth nothing once it is gone");
-        report(
-                gone,
-                "a number of this repository's own issues, among the issues, that names no issue"
-                        + " file: the mention its deletion missed");
-        report(
-                deleted,
-                "the deleted file of a settled issue, named among the issues, the index too: link"
-                        + " its row, [<NUMBER>](<index>#<number>), since the file went when the issue"
-                        + " was settled");
-        report(
-                briefs,
-                "a sub-agent brief out of place: briefs lie in <ID>.sub/ beside the issue's own file,"
-                        + " named builder, tester or reader, or builder-2 and on, each a plain .md file;"
-                        + " they go with their issue");
-        report(
                 numbers,
-                "an issue number outside the issues: name the constraint, not the issue that"
-                        + " recorded it; a line holding the shape on purpose says not-a-citation, a"
-                        + " whole such file is named in "
+                "an issue number: name the constraint, not the issue that recorded it; a line"
+                        + " holding the shape on purpose says not-a-citation, a whole such file is"
+                        + " named in "
                         + EXEMPT);
-        report(
-                unanchored,
-                "an index row that does not open with the anchor of its number, <a id=\"<number in"
-                        + " lower case>\"></a>: a link to the row needs it");
-        report(
-                unlinked,
-                "an issue number under issues/ that is not a link to its row: write"
-                        + " [<NUMBER>](<index>#<number>), never a link to its file, since the row"
-                        + " outlives the file");
-        report(broken, "a link to an index row that is not there, or that names another number");
-        report(rowless, "a number no index has a row for: rewrite the text, it cannot be linked");
-        err.println(
-                (stale.size()
-                                + links.size()
-                                + pointers.size()
-                                + numbers.size()
-                                + gone.size()
-                                + deleted.size()
-                                + briefs.size()
-                                + unanchored.size()
-                                + unlinked.size()
-                                + broken.size()
-                                + rowless.size())
-                        + " fault(s) in "
-                        + root);
+        err.println((stale.size() + numbers.size()) + " fault(s) in " + root);
         return Stop.REFUSED;
-    }
-
-    /**
-     * Returns the prefixes an issue number is made of, as this check reads them: those of the
-     * repository's own issue files and index rows, never another repository's.
-     *
-     * @param root the repository's root
-     * @return the prefixes, such as {@code BT}
-     * @throws IOException when the issues cannot be listed or read
-     */
-    static Set<String> issuePrefixes(Path root) throws IOException {
-        final List<Path> pages =
-                committed(root).stream()
-                        .filter(path -> ownIssue(root, path) && path.toString().endsWith(".md"))
-                        .filter(path -> !generated(root, path))
-                        .sorted()
-                        .toList();
-        final Set<String> own =
-                pages.stream()
-                        .map(path -> ISSUE_FILE.matcher(path.getFileName().toString()))
-                        .filter(Matcher::matches)
-                        .map(match -> match.group(2))
-                        .collect(Collectors.toSet());
-        final IssueLinks issueLinks = IssueLinks.ownOnly();
-        try {
-            issueLinks.read(root, pages, own);
-        } catch (IllegalArgumentException ex) {
-            throw new IOException(ex.getMessage(), ex);
-        }
-        return Set.copyOf(issueLinks.prefixes);
     }
 
     private void report(List<String> faults, String why) {
@@ -493,73 +292,12 @@ final class CheckCitations {
         }
     }
 
-    private static List<String> linksToFilesThatDie(Path root, Path page, String text) {
-        // An index names files because that is what an index does; issues are deleted with every
-        // mention of theirs.
-        if (isIssue(root, page)) {
-            return List.of();
-        }
-        final List<String> faults = new ArrayList<>();
-        final Matcher link = LINK.matcher(text);
-        while (link.find()) {
-            final String target = link.group(1);
-            if (target.contains("issues/")
-                    && DIES.matcher(target.replaceFirst("#.*$", "")).find()) {
-                faults.add(
-                        relative(root, page) + ":" + lineOf(text, link.start()) + " -> " + target);
-            }
-        }
-        return faults;
-    }
-
-    /**
-     * The places among the issues, the index among them, that name the file of a settled issue: its
-     * number, a dash and a name ending in {@code .md}, as porelo-planner's reader finds them.
-     */
-    private static List<String> namesOfDeletedFiles(
-            Path root, Path file, String text, Set<String> settled) {
-        final List<String> faults = new ArrayList<>();
-        final Matcher name = DELETED_FILE.matcher(text);
-        while (name.find()) {
-            if (settled.contains(name.group(1))) {
-                faults.add(
-                        relative(root, file)
-                                + ":"
-                                + lineOf(text, name.start())
-                                + " -> "
-                                + name.group());
-            }
-        }
-        return faults;
-    }
-
-    private static List<String> pointersToIssuesThatAreGone(
-            Path root, Path page, String text, Set<String> issues) {
-        final List<String> faults = new ArrayList<>();
-        final Matcher pointer = POINTER.matcher(text);
-        while (pointer.find()) {
-            // An index elsewhere is another repository's, whose issues this one cannot see.
-            if (pointer.group(2).contains("://")) {
-                continue;
-            }
-            if (!issues.contains(pointer.group(1))) {
-                faults.add(
-                        relative(root, page)
-                                + ":"
-                                + lineOf(text, pointer.start())
-                                + " -> "
-                                + pointer.group(1));
-            }
-        }
-        return faults;
-    }
-
-    private static List<String> numbersIn(Path root, Path file, String text, Set<String> stories) {
+    private static List<String> numbersIn(Path root, Path file, String text) {
         final List<String> faults = new ArrayList<>();
         final String read = blank(MARKED, blank(LINT_CODES, text));
         final Matcher number = SHAPE.matcher(read);
         while (number.find()) {
-            if (!NOT_CITATIONS.contains(number.group()) && !stories.contains(number.group())) {
+            if (!NOT_CITATIONS.contains(number.group())) {
                 faults.add(
                         relative(root, file)
                                 + ":"
@@ -580,158 +318,13 @@ final class CheckCitations {
         return faults;
     }
 
-    private static List<String> ownNumbersThatAreGone(
-            Path root, Path file, String text, Set<String> prefixes, Set<String> issues) {
-        final List<String> faults = new ArrayList<>();
-        final Matcher number = NUMBER_OF_ANY_PREFIX.matcher(blank(MARKED, text));
-        while (number.find()) {
-            if (prefixes.contains(number.group(1)) && !issues.contains(number.group())) {
-                faults.add(
-                        relative(root, file)
-                                + ":"
-                                + lineOf(text, number.start())
-                                + " -> "
-                                + number.group());
-            }
-        }
-        return faults;
-    }
-
-    /**
-     * The ids an issue's head names as data, its waits and its parent, each of which must be an
-     * issue of this repository: a file or a row. They are data, so no link is asked of them.
-     */
-    private static List<String> referencesThatAreGone(
-            Path root, Path file, String text, Set<String> issues) {
-        final List<String> faults = new ArrayList<>();
-        final List<String> references;
-        try {
-            references = IssueHead.references(text);
-        } catch (final IllegalArgumentException e) {
-            // A head whose ids cannot be read is named on its fence, never passed as empty.
-            final int fence = text.indexOf("\n```");
-            faults.add(
-                    relative(root, file)
-                            + ":"
-                            + lineOf(text, fence < 0 ? 0 : fence + 1)
-                            + " -> "
-                            + e.getMessage());
-            return faults;
-        }
-        for (final String id : references) {
-            // Another repository's issue is data its own repository answers for.
-            if (id.contains("#")) continue;
-            if (!issues.contains(id)) {
-                final int at = text.indexOf("\"" + id + "\"");
-                faults.add(
-                        relative(root, file) + ":" + lineOf(text, Math.max(at, 0)) + " -> " + id);
-            }
-        }
-        return faults;
-    }
-
-    /** The text with the heading and the head blanked, its lines kept for their numbers. */
-    private static String withoutHead(String text) {
-        final int lines = IssueHead.lines(text);
-        if (lines == 0) return text;
-        int end = 0;
-        for (int i = 0; i < lines; i++) end = text.indexOf('\n', end) + 1;
-        if (end <= 0) end = text.length();
-        return text.substring(0, end).replaceAll("[^\n]", " ") + text.substring(end);
-    }
-
     private static String blank(Pattern pattern, String text) {
         return pattern.matcher(text).replaceAll(found -> " ".repeat(found.group().length()));
     }
 
-    /**
-     * Finds what lies in an issue's brief directory without being one of its briefs: a brief of an
-     * issue whose file is gone or was never there, a file of another name, a nested directory, or a
-     * link.
-     *
-     * @param root the repository's root
-     * @param files the committed files
-     * @param entries every committed entry, links among them
-     * @return each fault, naming the path
-     */
-    private static List<String> briefsOutOfPlace(Path root, List<Path> files, List<Path> entries) {
-        final Set<String> issueFiles =
-                files.stream()
-                        .filter(path -> ownIssue(root, path))
-                        .map(path -> relative(root, path))
-                        .map(
-                                name ->
-                                        name.replaceFirst(
-                                                "^(.*/)?(([A-Z]{1,3})\\d{2,3})-[^/]*\\.md$",
-                                                "$1$2"))
-                        .collect(Collectors.toSet());
-        final List<String> faults = new ArrayList<>();
-        for (final Path entry : entries) {
-            final String name = relative(root, entry);
-            if (ownIssue(root, entry)
-                    && !Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS)
-                    && (BRIEFS.matcher(name).matches()
-                            || name.matches("(.*/)?[A-Z]{1,3}\\d{2,3}\\.sub"))) {
-                faults.add(name + " -> a link, not a file");
-            }
-        }
-        for (final Path file : files) {
-            if (!ownIssue(root, file)) {
-                continue;
-            }
-            final String name = relative(root, file);
-            if (Files.isSymbolicLink(file)) {
-                continue;
-            }
-            final Matcher brief = BRIEFS.matcher(name);
-            if (!brief.matches()) {
-                continue;
-            }
-            final String issue = (brief.group(1) == null ? "" : brief.group(1)) + brief.group(2);
-            if (!issueFiles.contains(issue)) {
-                faults.add(name + " -> no issue file " + brief.group(2) + "-*.md beside it");
-            } else if (!BRIEF.matcher(brief.group(3)).matches()) {
-                faults.add(name + " -> not a brief's name");
-            }
-        }
-        return faults;
-    }
-
-    /** Whether a file is in the root's own {@code issues/}, not a fixture's deeper down. */
-    private static boolean ownIssue(Path root, Path path) {
-        return relative(root, path).startsWith("issues/");
-    }
-
-    private static boolean isIssue(Path root, Path path) {
-        final String name = relative(root, path);
-        return name.startsWith("issues/") || name.contains("/issues/");
-    }
-
-    /**
-     * Whether a file is one of the root's own stories as {@code porelo-release stories index}
-     * writes them: a story, whose head under {@code ## Data} lists its issues, or their index. A
-     * story is made of issues.
-     */
-    private static boolean generatedStory(Path root, Path path) throws IOException {
-        final String name = relative(root, path);
-        final boolean story = STORY_FILE.matcher(name).matches();
-        if (!story && !name.equals("stories/" + Stories.INDEX)) return false;
-        final List<String> lines;
-        try {
-            lines = Files.readAllLines(path, StandardCharsets.UTF_8);
-        } catch (CharacterCodingException ex) {
-            return false;
-        }
-        return story
-                ? lines.contains("## Data")
-                : !lines.isEmpty()
-                        && lines.getFirst().equals("# Stories")
-                        && lines.stream()
-                                .anyMatch(
-                                        line ->
-                                                line.startsWith(
-                                                        "Written by `porelo-release stories"
-                                                                + " index`"));
+    /** Whether a file lies in a directory named {@code issues} below the root: a test's fixture. */
+    private static boolean fixture(String name) {
+        return name.contains("/issues/");
     }
 
     private static boolean generated(Path root, Path path) {

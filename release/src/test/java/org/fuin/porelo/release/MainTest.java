@@ -53,56 +53,20 @@ class MainTest {
         assertThat(stderr())
                 .contains("unknown command 'plan'")
                 .doesNotContain(", plan,")
-                .contains("stories");
+                .contains("check-citations");
     }
 
-    // Prevents a workflow step that still checks the Markdown issues from failing after the
-    // cut-over, and from reading anything there.
+    // Prevents a workflow step that still calls the removed Markdown issue and story tools from
+    // passing as if it had checked something.
     @Test
-    void theIssueCommandsPassOnPurposeOnceTheProjectNamesTheTracker() throws IOException {
-        Files.writeString(
-                directory.resolve("project.yml"),
-                "project:\n  name: sample\ntracker:\n  kind: github\n",
-                StandardCharsets.UTF_8);
-        final Path issues = Files.createDirectories(directory.resolve("issues"));
-        Files.writeString(issues.resolve("HO12-Broken.md"), "no head at all\n"); // not-a-citation
-        final Path stories = Files.createDirectories(directory.resolve("stories"));
-
-        assertThat(run("issues", "check", issues.toString())).as(stderr()).isZero();
-        assertThat(run("stories", "check", stories.toString())).as(stderr()).isZero();
-        assertThat(stdout())
-                .as("one line each, naming the file that says so")
-                .contains("OK    issues check: the issues are kept in GitHub Issues")
-                .contains("OK    stories check: the issues are kept in GitHub Issues")
-                .contains(directory.resolve("project.yml").toString());
-        assertThat(asked).as("the project's own file, nothing over the network").isEmpty();
-    }
-
-    // Prevents a test's fixture from being checked against the project's live tracker.
-    @Test
-    void issuesCheckReadsAFixtureOutsideTheProjectAsMarkdownIssues() throws IOException {
-        final Path fixture = Files.createDirectories(directory.resolve("fixture/issues"));
-        final Web tracked =
-                (address, headers) -> {
-                    asked.add(address);
-                    return Optional.of(
-                            "project: {}\ntracker:\n  kind: github\n"
-                                    .getBytes(StandardCharsets.UTF_8));
-                };
-
-        Main.run(
-                new String[] {"issues", "check", fixture.toString()},
-                new PrintStream(out, true, StandardCharsets.UTF_8),
-                new PrintStream(err, true, StandardCharsets.UTF_8),
-                tracked,
-                at -> Optional.empty(),
-                java.util.Map.of(),
-                (tree, manifest, lockfile, work) -> lockfile);
-
-        assertThat(stdout() + stderr())
-                .as("the fixture's own Markdown issues checked")
-                .doesNotContain("GitHub Issues");
-        assertThat(asked).as("nothing read over the network").isEmpty();
+    void theRemovedIssueAndStoryCommandsAreUnknownOnes() {
+        assertThat(run("issues", "check", "issues")).isEqualTo(2);
+        assertThat(stderr()).contains("unknown command 'issues'");
+        assertThat(run("stories", "check", "stories")).isEqualTo(2);
+        assertThat(stderr())
+                .contains("unknown command 'stories'")
+                .doesNotContain(", issues,")
+                .doesNotContain(", stories,");
     }
 
     @Test

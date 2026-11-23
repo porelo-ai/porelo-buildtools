@@ -1,2 +1,2 @@
-title: "Once the project's `project.yml` names GitHub Issues as its tracker, `check-commits` takes one `Porelo-Issue: <owner>/<repository>#<number>` trailer per issue, refuses a `Porelo-Issue` line of another form, and refuses a closing keyword (`close`, `fix`, `resolve` in any form) followed by an issue reference anywhere in the message; the subject still names no number, and without a tracker nothing changes."
+title: "`check-commits` takes one `Porelo-Issue: <owner>/<repository>#<number>` trailer per issue, refuses a `Porelo-Issue` line of another form, and refuses a closing keyword (`close`, `fix`, `resolve` in any form) followed by an issue reference anywhere in the message; the subject still names no number."
 type: changed

@@ -124,7 +124,6 @@ class CheckProvidersTest {
                         "machines/src/test/java/org/fuin/porelo/machines/HostKeyPairTest.java",
                         "release/src/main/java/org/fuin/porelo/release/CheckProviders.java",
                         "release/src/test/java/org/fuin/porelo/release/CheckProvidersTest.java",
-                        "issues/Open.md",
                         "CHANGELOG.md",
                         "changelog/unreleased/change.yml")) {
             write(file, "hetzner cpx12\n");
@@ -132,6 +131,7 @@ class CheckProvidersTest {
         write("src/Api.java", "hetzner\n");
         write("doc/CHANGELOG.md", "hcloud\n");
         write("issues.txt", "cpx12\n");
+        write("issues/Open.md", "hetzner\n");
         write("changelog.txt", "ccx13\n");
         trackAll();
 
@@ -139,11 +139,12 @@ class CheckProvidersTest {
                 .as("exemptions do not cover namesakes elsewhere")
                 .isEqualTo(Stop.REFUSED);
         assertThat(stderr().lines().filter(line -> line.matches(".*:[0-9]+: .*")).toList())
-                .as("only exact paths and the two root directories are exempt")
+                .as("only exact paths and the changelog directory are exempt, never issues/")
                 .containsExactlyInAnyOrder(
                         "src/Api.java:1: hetzner",
                         "doc/CHANGELOG.md:1: hcloud",
                         "issues.txt:1: cpx12",
+                        "issues/Open.md:1: hetzner",
                         "changelog.txt:1: ccx13");
     }
 
@@ -198,7 +199,10 @@ class CheckProvidersTest {
     @Test
     @Tag("documents")
     void thisRepositoryNamesNoProviderOutsideItsImplementation() {
-        assertThat(check(Path.of(".."))).as(stderr()).isZero();
+        assertThat(checkOverGit(Path.of(".."))).as(stderr()).isZero();
+        assertThat(out.toString(StandardCharsets.UTF_8))
+                .as("what git tracks was read, not an empty list")
+                .doesNotContain(": 0 text file(s) read");
     }
 
     private int check() {

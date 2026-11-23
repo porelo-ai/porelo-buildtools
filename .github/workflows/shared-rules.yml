@@ -1,5 +1,5 @@
 # Checks the documents: AGENTS.md's shared block against its hash, no citation of an issue that goes stale, a
-# documentation chapter somebody can find their way through, every issue head against its schema, and on a pull request
+# documentation chapter somebody can find their way through, and on a pull request
 # its commit messages. Of its own because the build ignores a change to Markdown alone, which is exactly the change
 # this is for, and it leases no machine.
 name: Shared rules check

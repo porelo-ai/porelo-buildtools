@@ -15,9 +15,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests that every test reading a document of this repository carries the {@code documents} tag.
  *
- * <p>A change to documents or issues runs only the tests so tagged; one that reads a document
- * without the tag would be left out of that run, and the run would stay green while the document it
- * checks is broken. A test that writes its own pages into a temporary directory reads none of this
+ * <p>A change to documents runs only the tests so tagged; one that reads a document without the tag
+ * would be left out of that run, and the run would stay green while the document it checks is
+ * broken. A test that writes its own pages into a temporary directory reads none of this
  * repository's, and is not one of them.
  */
 @Tag("documents")
