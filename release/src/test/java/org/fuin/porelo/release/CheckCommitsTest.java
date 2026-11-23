@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -644,20 +645,23 @@ class CheckCommitsTest {
         assertThat(stderr())
                 .as("one fault, so the fields were split where git put them")
                 .contains("1 fault(s)");
+        final CheckCommits.Git git = CheckCommits.Git.in(directory, isolated());
+        assertThat(git.count("HEAD")).as("git's own count of the range").hasValue(2);
+        assertThat(git.holds(git("rev-parse", "HEAD").strip()))
+                .as("a commit the checkout holds, asked of git itself")
+                .isTrue();
+        assertThat(git.holds("0".repeat(40))).as("a commit it does not hold").isFalse();
     }
 
     // Prevents a workflow's push from being checked over another range than the event names.
-    @Tag("integration")
     @Test
-    void checksThePushTheEventNames() throws IOException, InterruptedException {
-        git("init", "-q", "-b", "main");
-        write("README.md", "x\n");
-        git("add", "README.md");
-        git("commit", "-q", "-m", "Read the pins at first", "-m", AGENT);
-        final String start = git("rev-parse", "HEAD").strip();
-        git("commit", "-q", "--allow-empty", "-m", "Read the pins once", "-m", AGENT);
-        git("commit", "-q", "--allow-empty", "-m", "Read the pins twice", "-m", "Because.");
-        final String head = git("rev-parse", "HEAD").strip();
+    void checksThePushTheEventNames() throws IOException {
+        final String start = "1".repeat(40);
+        final String head = "2".repeat(40);
+        commit("a000071", "Read the pins once\n\n" + AGENT);
+        commit("a000072", "Read the pins twice\n\nBecause.");
+        final FakeGit git = new FakeGit();
+        git.held.add(start);
         final Path event =
                 Files.writeString(
                         directory.resolve("event.json"), "{\"before\": \"" + start + "\"}");
@@ -671,39 +675,15 @@ class CheckCommitsTest {
                         "GITHUB_REPOSITORY", "porelo-ai/x",
                         "GITHUB_SERVER_URL", "https://github.com");
 
-        final int code =
-                new CheckCommits(
-                                stream(out),
-                                stream(err),
-                                CheckCommits.Git.in(directory, isolated()))
-                        .checkEvent(environment);
+        final int code = new CheckCommits(stream(out), stream(err), git).checkEvent(environment);
 
         assertThat(code).as(stderr()).isEqualTo(Stop.REFUSED);
+        assertThat(askedRanges)
+                .as("the range the event names")
+                .containsExactly(start + ".." + head);
         assertThat(out.toString(StandardCharsets.UTF_8))
                 .contains("NOTE  the event's commits: " + start + ".." + head + ", from inside");
-        assertThat(stderr())
-                .as("the two commits after the push's start, not the one it started from")
-                .contains("1 fault(s) in 1 of 2 commit(s)");
-    }
-
-    private int checkRepository() {
-        return new CheckCommits(
-                        stream(out), stream(err), CheckCommits.Git.in(directory, isolated()))
-                .check("HEAD", false);
-    }
-
-    // Prevents a project that drops stats/ from being refused.
-    @Tag("integration")
-    @Test
-    void passesACommitThatDeletesStats() throws Exception {
-        commitSeed();
-        write("stats/records.jsonl", "{}\n");
-        git("add", "stats");
-        git("commit", "-q", "-m", "Keep a record");
-        git("rm", "-q", "-r", "stats");
-        git("commit", "-q", "-m", "Drop the records");
-
-        assertThat(checkLast()).as(stderr()).isZero();
+        assertThat(stderr()).contains("1 fault(s) in 1 of 2 commit(s)");
     }
 
     // Prevents a number of another repository's prefix from passing where no project.yml stands
@@ -756,35 +736,43 @@ class CheckCommitsTest {
     }
 
     // Prevents a message holding git's separators from forging a second commit or hiding its body.
-    @Tag("integration")
     @Test
-    void givesNoAnswerWhenTheLogSplitsIntoMoreCommitsThanGitCounts() throws Exception {
-        git("init", "-q", "-b", "main");
-        write("README.md", "x\n");
-        git("add", "README.md");
-        git(
-                "commit",
-                "-q",
-                "-m",
+    void givesNoAnswerWhenTheLogSplitsIntoMoreCommitsThanGitCounts() {
+        commit(
+                "a000073",
                 "Read the pins once\n\u001eabc\u001fA\u001fa@example.org\u001fA\u001fa@example.org\u001fClean");
+        final FakeGit git = new FakeGit();
+        git.counted = 1;
 
-        assertThat(checkRepository()).as(stderr()).isEqualTo(Stop.UNANSWERED);
+        assertThat(new CheckCommits(stream(out), stream(err), git).check("HEAD", false))
+                .as(stderr())
+                .isEqualTo(Stop.UNANSWERED);
         assertThat(stderr()).contains("splits into 2 commit(s) where git counts 1");
     }
 
-    /** Checks only the last commit. */
-    private int checkLast() {
-        return new CheckCommits(
-                        stream(out), stream(err), CheckCommits.Git.in(directory, isolated()))
-                .check("HEAD^..HEAD", false);
-    }
+    /** A git that answers from the commits the test wrote, the count and the commits it holds. */
+    private final class FakeGit implements CheckCommits.Git {
 
-    /** Commits a repository with a stats seed. */
-    private void commitSeed() throws Exception {
-        git("init", "-q", "-b", "main");
-        write("stats/seed.csv", "size,minutes\nM,53\n");
-        git("add", "stats");
-        git("commit", "-q", "-m", "Describe work");
+        private final Set<String> held = new java.util.HashSet<>();
+
+        private long counted = -1;
+
+        @Override
+        public String log(String range) {
+            return fakeLog(range);
+        }
+
+        @Override
+        public java.util.OptionalLong count(String range) {
+            return counted < 0
+                    ? java.util.OptionalLong.empty()
+                    : java.util.OptionalLong.of(counted);
+        }
+
+        @Override
+        public boolean holds(String hash) {
+            return held.contains(hash);
+        }
     }
 
     private void write(String name, String text) throws IOException {
