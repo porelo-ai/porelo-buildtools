@@ -1,0 +1,2 @@
+title: "`check-commits` gives no answer when a commit's name, address or message holds git's field separator, as its fields would no longer line up; before, only the number of commits was compared."
+type: fixed

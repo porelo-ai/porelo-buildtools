@@ -469,16 +469,23 @@ final class CheckCommits {
 
     private static List<Commit> parse(String log) throws IOException {
         final List<Commit> commits = new ArrayList<>();
-        for (final String record : log.split(String.valueOf(RECORD), -1)) {
-            if (record.isBlank()) {
+        final String[] records = log.split(String.valueOf(RECORD), -1);
+        for (int index = 0; index < records.length; index++) {
+            final String record = records[index];
+            // Only the text before git's first separator may be empty; isBlank would also pass
+            // git's separators, which Java counts as white space.
+            if (index == 0 && record.strip().isEmpty() && record.indexOf(FIELD) < 0) {
                 continue;
             }
-            final String[] fields = record.split(String.valueOf(FIELD), 6);
+            // Every separator counts: one more in a name, an address or a message shifts the
+            // fields.
+            final String[] fields = record.split(String.valueOf(FIELD), -1);
             if (fields.length != 6) {
                 throw new IOException(
                         "git wrote a commit of "
                                 + fields.length
-                                + " field(s), not 6: "
+                                + " field(s), not 6; a name, address or message holds git's field"
+                                + " separator: "
                                 + abbreviated(record));
             }
             commits.add(

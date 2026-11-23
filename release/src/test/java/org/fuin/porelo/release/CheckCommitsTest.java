@@ -750,6 +750,63 @@ class CheckCommitsTest {
         assertThat(stderr()).contains("splits into 2 commit(s) where git counts 1");
     }
 
+    // Prevents a name holding git's field separator from shifting a commit's fields unseen.
+    @Test
+    void givesNoAnswerWhenAnAuthorsNameHoldsGitsFieldSeparator() {
+        commit(
+                "a000074",
+                "Alice\u001fA Forged Committer",
+                "alice@example.org",
+                "Alice Example",
+                "alice@example.org",
+                "Read the pins once\n\n" + AGENT);
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr())
+                .contains("git wrote a commit of 7 field(s), not 6")
+                .contains("a name, address or message holds git's field separator");
+    }
+
+    // Prevents a message holding git's field separator from being read as a commit like any other.
+    @Test
+    void givesNoAnswerWhenAMessageHoldsGitsFieldSeparator() {
+        commit("a000075", "Read the pins once\n\nBecause\u001fit was slow.\n\n" + AGENT);
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("git wrote a commit of 7 field(s), not 6");
+    }
+
+    // Prevents a message ending in git's separators alone from being skipped as an empty record.
+    @Test
+    void givesNoAnswerWhenAMessageEndsInARecordOfSeparatorsAlone() {
+        commit("a000077", "Read the pins once\n\n" + AGENT + "\n\u001e\u001f\u001f");
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.UNANSWERED);
+    }
+
+    // Prevents an address holding git's field separator from shifting the fields after it.
+    @Test
+    void givesNoAnswerWhenAnAddressHoldsGitsFieldSeparator() {
+        commit(
+                "a000078",
+                "Alice Example",
+                "alice@example.org",
+                "Alice Example",
+                "alice\u001f@example.org",
+                "Read the pins once\n\n" + AGENT);
+
+        assertThat(check()).as(stderr()).isEqualTo(Stop.UNANSWERED);
+        assertThat(stderr()).contains("git wrote a commit of 7 field(s), not 6");
+    }
+
+    // Prevents the refusal from catching a commit whose fields are all clean.
+    @Test
+    void readsACommitOfExactlySixFieldsAsBefore() {
+        commit("a000076", "Read the pins once\n\n" + AGENT);
+
+        assertThat(check()).as(stderr()).isZero();
+    }
+
     /** A git that answers from the commits the test wrote, the count and the commits it holds. */
     private final class FakeGit implements CheckCommits.Git {
 
