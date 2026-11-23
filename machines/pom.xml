@@ -35,7 +35,7 @@
         <!-- By digest, and tagged by name after the pull: a tag is rebuilt in place, so it has no
              age to wait for and names different bytes from one day to the next. -->
         <machines.image.ubuntu>docker.io/library/ubuntu:24.04</machines.image.ubuntu>
-        <machines.image.ubuntu.digest>sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852</machines.image.ubuntu.digest>
+        <machines.image.ubuntu.digest>sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289</machines.image.ubuntu.digest>
         <machines.image.alpine>docker.io/library/alpine:3.20</machines.image.alpine>
         <machines.image.alpine.digest>sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc</machines.image.alpine.digest>
         <!-- The machine's image cache: a registry as a pull-through mirror of docker.io, so every account on a
