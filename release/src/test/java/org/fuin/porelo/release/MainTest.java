@@ -40,6 +40,13 @@ class MainTest {
                 .contains("older than the caller");
     }
 
+    // Prevents a measurement from being recorded in Git once the tracker's items hold it.
+    @Test
+    void theRemovedStageCommandIsAnUnknownOne() {
+        assertThat(run("stage", "median", "M")).isEqualTo(2);
+        assertThat(stderr()).contains("unknown command 'stage'").doesNotContain(", stage,");
+    }
+
     @Test
     void theRemovedPlanCommandIsAnUnknownOne() {
         assertThat(run("plan", "check", "plan/0.6/plan.yml")).isEqualTo(2);
@@ -50,7 +57,7 @@ class MainTest {
     }
 
     // Prevents a workflow step that still checks the Markdown issues from failing after the
-    // cut-over, and from reading or writing anything there.
+    // cut-over, and from reading anything there.
     @Test
     void theIssueCommandsPassOnPurposeOnceTheProjectNamesTheTracker() throws IOException {
         Files.writeString(
@@ -69,35 +76,6 @@ class MainTest {
                 .contains("OK    stories check: the issues are kept in GitHub Issues")
                 .contains(directory.resolve("project.yml").toString());
         assertThat(asked).as("the project's own file, nothing over the network").isEmpty();
-    }
-
-    // Prevents a stage record from being written, or a missing issue refused, after the cut-over.
-    @Test
-    void stageWritesNothingOnceTheProjectsFileOnGitHubNamesTheTracker() {
-        final Web tracked =
-                (address, headers) -> {
-                    asked.add(address);
-                    return Optional.of(
-                            "project: {}\ntracker:\n  kind: github\n"
-                                    .getBytes(StandardCharsets.UTF_8));
-                };
-
-        final int code =
-                Main.run(
-                        new String[] {"stage", "begin", "EX12", "implement"}, // not-a-citation
-                        new PrintStream(out, true, StandardCharsets.UTF_8),
-                        new PrintStream(err, true, StandardCharsets.UTF_8),
-                        tracked,
-                        at -> Optional.of("https://github.com/porelo-ai/porelo-buildtools.git"),
-                        java.util.Map.of(),
-                        (tree, manifest, lockfile, work) -> lockfile);
-
-        assertThat(code).as(stderr()).isZero();
-        assertThat(stdout())
-                .as("one line, naming why nothing is written")
-                .contains("OK    stage: the issues are kept in GitHub Issues");
-        assertThat(asked).as("porelo-project's file").containsExactly(Tracker.PROJECT);
-        assertThat(Path.of("stats")).as("no record written where it ran").doesNotExist();
     }
 
     // Prevents a test's fixture from being checked against the project's live tracker.

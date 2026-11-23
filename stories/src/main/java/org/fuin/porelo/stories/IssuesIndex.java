@@ -334,7 +334,7 @@ public final class IssuesIndex {
         return faults;
     }
 
-    /** Whether work in a state is measured or done, and so has a size, as stage asks. */
+    /** Whether work in a state is measured or done, and so has a size. */
     private boolean needsSize(String state) {
         return workflow.measured(state) || (workflow.closed(state) && !workflow.rejected(state));
     }

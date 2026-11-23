@@ -2,9 +2,6 @@
 release/src/test/java/org/fuin/porelo/release/CheckCitationsTest.java
 release/src/test/java/org/fuin/porelo/release/CheckCommitsTest.java
 
-# The stage command's test records stages of a sample issue in a repository of its own.
-release/src/test/java/org/fuin/porelo/release/StageTest.java
-
 # The stories' test writes story heads naming issues in each shape the plans write them, to watch the schema take them.
 release/src/test/java/org/fuin/porelo/release/StoriesTest.java
 release/src/test/java/org/fuin/porelo/release/StoriesIndexTest.java

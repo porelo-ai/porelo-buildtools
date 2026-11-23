@@ -54,7 +54,7 @@ repository's state never decides this one's check.
   line. Issue files and rows of a sub-issue, `<parent>.<n>`, count.
 - **An issue's sub-agent briefs** lie beside its file in `issues/<group>/<ID>.sub/<name>.md`, `<name>` one of
   `builder`, `tester` and `reader`, or a numbered variant from `-2` on, such as `builder-2`. A brief is read as a page
-  under `issues/`, never as an issue: it has no row and no stats file, its own issue's number is a link to the row,
+  under `issues/`, never as an issue: it has no row, its own issue's number is a link to the row,
   and it dies with its issue, so no lasting page links to it. A brief beside no issue file, a file of another name,
   a nested directory or a link in `<ID>.sub/` is refused, naming the path.
 - **Left to a check across repositories:** a link into another repository's index is counted, not followed, and a
@@ -129,97 +129,9 @@ one does; 2 when git or the issues cannot be read, when the range starts with `-
 option, or when the log splits into another number of commits than `git rev-list --count` gives for the range, as a
 message holding git's record and field separators would make it.
 
-A commit whose first parent's tree holds `stats/seed.csv` or a `stats/<ISSUE>.jsonl` that its own tree lacks is
-refused, naming each file it deletes, so deleting them never switches the rule off. Stage records are checked in each
-nonexempt commit's tree. Every `stats/*.jsonl` file must be nonempty and
-contain complete, closed records: the same field, value, issue-to-filename and timestamp validation used by
-`stage` applies. A record whose `end` is null is refused with that commit's short hash. Generated stage JSONL
-files are exempt from `check-citations`; handwritten notes under `stats/` are still checked.
-
-When that tree contains `stats/seed.csv`, a commit that adds an issue in a state marked `measured: true` in that
-tree's `issues/workflow.yml`, or changes an issue's state or size while it ends in such a state, requires
-`stats/<ISSUE>.jsonl` in the tree. State and size are read as `stage` reads them, from the head where the file has
-one and from its `**Status:**` and `**Size:**` lines otherwise, in the commit and in its parent; an edit that keeps
-both, such as prose or moving the lines into a head, needs no stats. A parent version that cannot be read or has no
-valid state or size is refused with the reason, never taken as unchanged; the parent is read with the commit's own
-workflow, so a commit that renames a state refuses until each measured issue it touches has its stats. A file is
-followed by its path: a renamed or moved issue in a measured state counts as added and needs its stats. The workflow
-is read from the same commit as the
-issue and records; editing the working tree cannot change a historical check. Issue files are found directly under `issues/` and in
-its subgroups. Deleted issue files and index-only changes need no stats. Changes are compared with the first
-parent of a merge, and every issue of a root commit counts as added. Bot and web commits exempt from the message rules
-also skip the stats rules. A `NOTE` identifies nonexempt trees without the seed, where the issue-change rule is
-not yet enforced. A later commit closing a stage does not repair an earlier open stage in the checked range.
-
-## Recording issue stages
-
-Run these commands from the repository root:
-
-```
-porelo-release stage begin <issue> <stage> [--actor agent|subagent] [--model MODEL] [--effort EFFORT] [--session FILE] [--wait operator|build|agent|vm]
-porelo-release stage end <issue> <stage> [--actor agent|subagent] [--session FILE] [--result done|returned|refused|abandoned] [--status-after STATE]
-porelo-release stage median <size>
-porelo-release stage p80 <size>
-```
-
-The stages are `analyze`, `estimate`, `plan`, `implement`, `test`, `review`, `rework`, `handover`, and `wait`.
-A wait needs one reason: `operator`, `build`, `agent`, or `vm`. An issue identifier has one to three uppercase
-letters and two or three digits. Model and effort are single identifiers made of letters, digits, dots,
-underscores, or hyphens. An option value cannot start with a hyphen. Invalid input is refused with exit 2 and a
-reason; diagnostics do not echo session paths or filesystem exception details. `--result` and `--status-after`
-are supplied on end. Model, effort and wait reason are set on begin; repeating them on end must match begin.
-
-`begin` reads the current size and status from the issue file, including files in subgroups - from its head where it
-has one, a size of `-` read as none, else from its `**Size:**` and `**Status:**` lines - and appends an open
-record with `end: null` to `stats/<issue>.jsonl`. An open, unmeasured issue without a size can begin `analyze`
-or `estimate`, recording `size: null` and no estimate. Issue statuses and record statuses must belong to the required
-local `issues/workflow.yml`. Each later begin reads the size anew; end preserves the
-size captured by its begin. An estimate with a size uses that size's median for `estimate_min`.
-
-The session source, its Codex begin total and a reference to the public record stay under `porelo-stage/` in the
-directory returned by `git rev-parse --git-dir`, including in a linked worktree. Repository-owned storage paths
-must not be symlinks; a linked worktree's Git directory may be outside its tree. A second open own stage is
-refused. Subagent stages may run beside it, one per session file, and need both `--actor subagent` and `--model`
-on begin. Use the same `--actor subagent --session FILE` on end. A subagent session file may be absent at begin
-but must be a readable regular file at end. No public record contains its source path, account, or machine
-identity. The command serializes writers and refuses an invocation that cannot obtain the lock.
-
-`end` replaces exactly the matching open line with its closed record and removes the private state. Neighboring
-lines retain their content and order; the replacement is atomic. It refuses an end for a different issue or stage
-and cannot add a second copy when end is repeated. Commit the stats file with the issue's next change after all
-stages are closed. A record has these fields:
-
-| Fields | Meaning |
-|---|---|
-| `issue`, `stage`, `n`, `actor`, `model`, `effort` | Work identity, ordinal of this stage, and optional model settings. Repeated stages and concurrent subagents get separate ordinals. |
-| `size`, `status_before`, `status_after` | The size at this stage's begin, or null for unsized analysis or estimation, and the statuses before and after the stage. End defaults to the issue file's current status; `--status-after` supplies one explicitly and allows end after the finished issue's file is removed. |
-| `start`, `end`, `wall_min`, `vm_min` | UTC instants, elapsed minutes, and minutes of a `wait` whose reason is `vm`; other stages have zero `vm_min`. |
-| `estimate_min`, `result`, `wait_reason`, `note` | The current size median on a sized estimate stage, otherwise null; end result, default `done`; a wait reason or null; `no-session` when no session was supplied, `no-usage` for a refused or abandoned session without usage, otherwise null. |
-| `claude_input_tokens`, `claude_output_tokens`, `claude_cache_read_tokens`, `claude_cache_write_tokens`, `claude_messages` | Usage counted once per assistant `message.id`, using its last line. Own stages include last-line timestamps at or after start and before end; subagent stages use the entire session. |
-| `codex_input_tokens`, `codex_cached_tokens`, `codex_output_tokens`, `codex_reasoning_tokens` | The last cumulative `total_token_usage` at end minus the total read at begin, or zero at begin if the session did not exist or had no measured usage. Events with `info: null` are ignored; decreasing totals are refused. |
-| `agy_input_tokens`, `agy_cache_read_tokens`, `agy_output_tokens` | The JSON result's `usage` fields `input`, `cacheRead`, and `output`, or the complete alternative set `input_tokens`, `cache_read_input_tokens`, and `output_tokens`. Mixed or incomplete sets are refused. |
-
-The own session is supplied with `--session FILE` on begin or `PORELO_STAGE_CLAUDE_LOG`. A subagent's usage comes
-from its own supplied session, regardless of the stage's time window. Session format is detected from content.
-At end, missing session files, unknown formats, malformed usage, and negative counts fail closed. A refused or
-abandoned session containing no usage records closes with every token field zero and `note: "no-usage"`;
-malformed usage still refuses to close. No session means all token fields are null with `note: "no-session"`.
-Otherwise token fields belonging to other session formats remain null. Format detection is independent of actor.
-
-A person's move of an issue on the board is a line the planner writes, never one `stage begin` opens: `actor:
-person` with `stage: move`, the states before and after, `start` equal to `end`, `size` the issue's or null, and
-`wall_min` and `vm_min` null. No other actor may record a move, and a person no other stage.
-
-`stats/seed.csv` starts with `size,minutes` and one row per seeded size: XS 8, S 27, M 53, L 80. `stage median`
-combines that size's seed with one sum per finished issue of its own stages carrying that size: `plan`,
-`implement`, `test`, `review`, `rework`, and `handover`, including repetitions. Analysis, estimation, waits,
-subagents and moves are excluded. Work recorded under another size is excluded from that size's sum. An issue with work
-under several sizes contributes one sum to each applicable size. An issue is finished only when every record is
-closed and its last record's `status_after` is a closed workflow state other than Rejected.
-
-`stage median` prints the median in minutes, averaging the middle two values for an even sample. `stage p80`
-uses the same samples and prints the nearest-rank 80th percentile. Unfinished issues contribute nothing.
-A missing seed, empty stats file, malformed record or unreadable file is an error.
+No measurement is read from a commit's tree: a task's measurements are fields of its item in the tracker, and the
+starting value per repository and size is `velocity.seed` in the project's `project.yml`; the planner reads both, and
+`porelo-planner velocity median|p80 <size> --project <dir>` answers what a size took.
 
 ## What `check-pushes` reads
 
@@ -519,7 +431,7 @@ reads, a top-level `tracker:` mapping with `kind: github`; without `tracker` the
 a `tracker` of another shape, is refused, since these tools read no other.
 
 The file read is the nearest `project.yml` above the directory a command is given, or the working directory for
-`stage`, `check-commits` and `check-pushes`. Where none stands above it, a git checkout whose `origin`, as its own
+`check-commits` and `check-pushes`. Where none stands above it, a git checkout whose `origin`, as its own
 config holds it, is a repository of `porelo-ai` on any forge reads porelo-project's `project.yml` on GitHub's `main`,
 without a token. Where `PORELO_PROJECT_FILE` is set, the file at that https address answers instead of the
 `origin`: a host's forge keeps the project's repositories under the project's own name, so its jobs name the file. A
@@ -530,10 +442,9 @@ file or an origin that cannot be read stops the command, exit 2, as does a missi
 such as one of another owner without `safe.directory`. Once the tracker is named:
 
 - `issues check` and `stories check` pass, saying in one line that the issues are kept in GitHub Issues and which file
-  says so, and `stage` writes nothing and says the same; so a workflow step left over from the Markdown issues stays
-  green until its owner drops it.
-- `check-commits` and `check-pushes` read no stage record and no `issues/`, and tell an issue number by its shape;
-  every other rule on a message stays.
+  says so; so a workflow step left over from the Markdown issues stays green until its owner drops it.
+- `check-commits` and `check-pushes` read no `issues/`, and tell an issue number by its shape; every other rule on a
+  message stays.
 - `check-citations` reads as before: its rules among the issues hold for as long as `issues/` is there.
 
 ## Issues
@@ -611,9 +522,8 @@ each directory's `README.md` under `issues/`, is generated from the heads and ne
 
 Exit 0 when nothing is refused, 1 when something is, 2 when a file cannot be read or written or the call is mistyped.
 
-Readers of an issue take the head where a file has one and today's lines or row otherwise: `stage` its state and size,
-the stats rule of `check-commits` its state and size, the stories library's local issue source the whole row, and
-`check-citations` the waits and parent as data.
+Readers of an issue take the head where a file has one and today's lines or row otherwise: the stories library's local
+issue source the whole row, and `check-citations` the waits and parent as data.
 
 ## Stories
 

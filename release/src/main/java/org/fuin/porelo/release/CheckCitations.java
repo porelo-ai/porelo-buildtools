@@ -259,7 +259,7 @@ final class CheckCitations {
                 if (name.equals(EXEMPT) || exempt.contains(name)) {
                     continue;
                 }
-                if (NOT_WRITTEN.matcher(name).find() || name.matches("stats/[^/]+\\.jsonl")) {
+                if (NOT_WRITTEN.matcher(name).find()) {
                     generatedFiles++;
                     continue;
                 }

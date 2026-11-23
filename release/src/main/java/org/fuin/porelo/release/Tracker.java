@@ -336,6 +336,6 @@ record Tracker(boolean github, String where) {
                 + command
                 + ": the issues are kept in GitHub Issues, as the tracker in "
                 + where
-                + " says, so nothing here is checked or written";
+                + " says, so nothing here is checked";
     }
 }

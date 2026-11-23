@@ -99,18 +99,12 @@ class CheckCitationsTest {
         assertThat(stderr()).contains("Alien", "issues/README.md:1", "workflow.yml");
     }
 
+    // Prevents a file under stats/ from passing unread once no tool writes stage records there.
     @Test
-    void skipsGeneratedStageRecordsButStillChecksHandwrittenStatsNotes() throws IOException {
-        write("stats/B10.jsonl", StageFixtures.closed("B10"));
-        assertThat(check()).as(stderr()).isZero();
-        assertThat(stdout())
-                .as("generated records are counted")
-                .contains("1 generated file(s) skipped");
-        write("stats/notes.md", "B99\n");
-        assertThat(check()).as("stats prose still obeys citation rules").isEqualTo(Stop.REFUSED);
-        assertThat(stderr())
-                .as("the handwritten citation is identified")
-                .contains("stats/notes.md:1 -> B99");
+    void readsAStatsFileAsAnyOther() throws IOException {
+        write("stats/B10.jsonl", "{\"issue\": \"B99\"}\n");
+        assertThat(check()).as("no record is generated any more").isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).as("the citation is identified").contains("stats/B10.jsonl:1 -> B99");
     }
 
     @Test

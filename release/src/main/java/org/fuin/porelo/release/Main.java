@@ -39,7 +39,6 @@ public final class Main {
                     "stories",
                     "issues",
                     "check-commits",
-                    "stage",
                     "check-pushes",
                     "check-doc-site",
                     "check-releases",
@@ -458,23 +457,6 @@ public final class Main {
             case "stories" -> stories(rest, out, err, web, origin, env);
             case "issues" -> issues(rest, out, err, web, origin, env);
             case "check-commits" -> checkCommits(rest, out, err, web, origin, env);
-            case "stage" ->
-                    unlessTracked(
-                            Path.of("."),
-                            web,
-                            origin,
-                            env,
-                            out,
-                            err,
-                            "stage",
-                            () ->
-                                    new Stage(
-                                                    Path.of("."),
-                                                    java.time.Clock.systemUTC(),
-                                                    out,
-                                                    err,
-                                                    env)
-                                            .run(rest));
             case "check-pushes" -> checkPushes(rest, out, err, web, origin, env);
             case "check-doc-site" ->
                     rest.size() > 2

@@ -136,8 +136,7 @@ public final class Workflow {
     }
 
     /**
-     * Rejected is the one closed state that is not done work: it needs no tested date and
-     * contributes no completed-work sample to stage statistics.
+     * Rejected is the one closed state that is not done work: it needs no tested date.
      *
      * @param state a known state
      * @return whether the work was rejected
@@ -148,8 +147,10 @@ public final class Workflow {
     }
 
     /**
+     * Tells whether work in a state is measured, and so needs a size.
+     *
      * @param state a known state
-     * @return whether moving into it needs a stage record
+     * @return whether the state is marked measured
      */
     public boolean measured(String state) {
         return state(state).measured();

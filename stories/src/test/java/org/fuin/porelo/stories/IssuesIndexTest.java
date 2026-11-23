@@ -610,7 +610,7 @@ class IssuesIndexTest {
                 .containsExactly("README.md:34: a second section Finished; each state has one");
     }
 
-    // Prevents measured work without a size from passing the check that stage would refuse.
+    // Prevents measured work without a size from passing the index check.
     @Test
     void refusesADashForTheSizeOfAMeasuredState() throws IOException {
         IssuesIndex.convert(issues);

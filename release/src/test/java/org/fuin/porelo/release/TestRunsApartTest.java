@@ -109,7 +109,6 @@ class TestRunsApartTest {
         for (final String test :
                 new String[] {
                     "../release/src/test/java/org/fuin/porelo/release/WebTest.java",
-                    "../release/src/test/java/org/fuin/porelo/release/StageTest.java",
                     "../machines/src/test/java/org/fuin/porelo/machines/PinnedRetryTest.java"
                 }) {
             assertThat(Files.readString(Path.of(test))).as(test).contains("@Tag(\"integration\")");

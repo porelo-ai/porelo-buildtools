@@ -1,0 +1,2 @@
+title: "`porelo-release stage` and the stage records go: `check-commits` reads no `stats/`, needs no `stats/seed.csv` and refuses no commit that deletes them, and `check-citations` reads a file under `stats/` as any other. A task's measurements are fields of its item in the tracker, and a size's median comes from the planner (`porelo-planner velocity median|p80 <size> --project <dir>`)."
+type: removed
