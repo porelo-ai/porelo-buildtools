@@ -40,6 +40,12 @@ final class Api implements AutoCloseable {
     /** How many times to obey a rate limit before giving up on it. */
     private static final int RATE_LIMIT_ATTEMPTS = 5;
 
+    /** How long a read or a delete is tried again through an outage of the API. */
+    private static final Duration OUTAGE_PATIENCE = Duration.ofSeconds(60);
+
+    /** The pause before a read or a delete is tried again through an outage. */
+    private static final Duration OUTAGE_PAUSE = Duration.ofSeconds(5);
+
     private final HttpClient http;
 
     private final String token;
@@ -135,7 +141,13 @@ final class Api implements AutoCloseable {
 
     private Map<String, Object> send(String method, String path, @Nullable String body)
             throws IOException {
-        for (int attempt = 1; ; attempt++) {
+        // A read or a delete may be sent again; a create whose answer was lost may have made a
+        // machine, so it is sent once.
+        final boolean again = "GET".equals(method) || "DELETE".equals(method);
+        final java.time.Instant giveUp = waiting.now().plus(OUTAGE_PATIENCE);
+        int outageTries = 0;
+        int rateLimited = 0;
+        while (true) {
             final HttpRequest.BodyPublisher content =
                     body == null
                             ? HttpRequest.BodyPublishers.noBody()
@@ -153,8 +165,32 @@ final class Api implements AutoCloseable {
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IOException("interrupted calling " + method + " " + path, ex);
+            } catch (IOException ex) {
+                outageTries++;
+                if (again && waitedOut(giveUp)) {
+                    continue;
+                }
+                throw new IOException(
+                        method
+                                + " "
+                                + path
+                                + " failed, "
+                                + outageTries
+                                + " tries in "
+                                + OUTAGE_PATIENCE.toSeconds()
+                                + " s: "
+                                + ex.getClass().getSimpleName()
+                                + ": "
+                                + ex.getMessage(),
+                        ex);
             }
-            if (response.statusCode() == 429 && attempt < RATE_LIMIT_ATTEMPTS) {
+            if (again && OUTAGE.contains(response.statusCode())) {
+                outageTries++;
+                if (waitedOut(giveUp)) {
+                    continue;
+                }
+            }
+            if (response.statusCode() == 429 && ++rateLimited < RATE_LIMIT_ATTEMPTS) {
                 // The API says when it will answer again. Guessing shorter only spends the
                 // remaining budget faster.
                 pause(Values.retryAfter(response.headers().firstValue("Retry-After").orElse(null)));
@@ -167,6 +203,11 @@ final class Api implements AutoCloseable {
     private static Map<String, Object> answered(
             String method, String path, HttpResponse<String> response) throws IOException {
         final String body = response.body();
+        if (response.statusCode() >= 400 && (body == null || body.isBlank())) {
+            throw new ApiException(
+                    "",
+                    method + " " + path + " answered " + response.statusCode() + " with no body");
+        }
         if (response.statusCode() == 204 || body == null || body.isBlank()) {
             return Map.of();
         }
@@ -198,12 +239,24 @@ final class Api implements AutoCloseable {
         return parsed;
     }
 
+    /** What an API answers while it is down for a moment, rather than refusing the call. */
+    private static final java.util.Set<Integer> OUTAGE = java.util.Set.of(502, 503, 504);
+
+    /** Pauses before another try, unless that would outlast the patience. */
+    private boolean waitedOut(java.time.Instant giveUp) throws IOException {
+        if (waiting.now().plus(OUTAGE_PAUSE).isAfter(giveUp)) {
+            return false;
+        }
+        pause(OUTAGE_PAUSE);
+        return true;
+    }
+
     private void pause(Duration duration) throws IOException {
         try {
             waiting.sleep(duration);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IOException("interrupted while waiting out a rate limit", ex);
+            throw new IOException("interrupted while waiting out a rate limit or an outage", ex);
         }
     }
 

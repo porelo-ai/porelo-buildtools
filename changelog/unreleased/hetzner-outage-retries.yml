@@ -1,0 +1,2 @@
+title: "`porelo-machines` tries a Hetzner read or delete again through a 502, 503 or 504 or a failed connection, 5 seconds apart for up to 60 seconds, then fails with Hetzner's answer, so a sweep or a leg's cleanup outlasts a brief outage; a create is sent once, and an error status with no body now fails instead of reading as an empty answer."
+type: fixed
