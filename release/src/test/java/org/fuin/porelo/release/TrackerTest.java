@@ -91,7 +91,10 @@ class TrackerTest {
         Files.createSymbolicLink(dangling.resolve("project.yml"), directory.resolve("missing"));
 
         for (final Path below : List.of(folder.getParent(), dangling)) {
-            assertThatThrownBy(() -> Tracker.of(below, web(Optional.of(MARKDOWN)), NO_ORIGIN))
+            assertThatThrownBy(
+                            () ->
+                                    Tracker.of(
+                                            below, web(Optional.of(MARKDOWN)), NO_ORIGIN, Map.of()))
                     .as(below.toString())
                     .isInstanceOfSatisfying(
                             Stop.class,
@@ -112,10 +115,10 @@ class TrackerTest {
         Files.writeString(
                 directory.resolve("fixture/project.yml"), MARKDOWN, StandardCharsets.UTF_8);
 
-        assertThat(Tracker.of(fixture, web(Optional.of(TRACKED)), NO_ORIGIN).github())
+        assertThat(Tracker.of(fixture, web(Optional.of(TRACKED)), NO_ORIGIN, Map.of()).github())
                 .as("the fixture's own file, not the one above it")
                 .isFalse();
-        assertThat(Tracker.of(directory, web(Optional.of(MARKDOWN)), NO_ORIGIN).github())
+        assertThat(Tracker.of(directory, web(Optional.of(MARKDOWN)), NO_ORIGIN, Map.of()).github())
                 .as("the directory's own file")
                 .isTrue();
         assertThat(asked).as("nothing read over the network").isEmpty();
@@ -135,7 +138,11 @@ class TrackerTest {
         final Path repository = Files.createDirectories(directory.resolve("repository/issues"));
 
         assertThat(
-                        Tracker.of(repository, web(Optional.of(TRACKED)), at -> Optional.of(origin))
+                        Tracker.of(
+                                        repository,
+                                        web(Optional.of(TRACKED)),
+                                        at -> Optional.of(origin),
+                                        Map.of())
                                 .github())
                 .as("the tracker porelo-project's file names")
                 .isTrue();
@@ -163,7 +170,8 @@ class TrackerTest {
                                         at ->
                                                 origin.isEmpty()
                                                         ? Optional.empty()
-                                                        : Optional.of(origin))
+                                                        : Optional.of(origin),
+                                        Map.of())
                                 .github())
                 .as("Markdown issues under the fixture's issues/")
                 .isFalse();
@@ -181,7 +189,8 @@ class TrackerTest {
                                         web(Optional.of(TRACKED)),
                                         at -> {
                                             throw new IOException("detected dubious ownership");
-                                        }))
+                                        },
+                                        Map.of()))
                 .isInstanceOfSatisfying(
                         Stop.class,
                         stop -> assertThat(stop.code()).as("unanswered").isEqualTo(Stop.UNANSWERED))
@@ -243,7 +252,8 @@ class TrackerTest {
                                 Tracker.of(
                                         repository,
                                         web(Optional.empty()),
-                                        at -> Optional.of(PORELO_HOST)))
+                                        at -> Optional.of(PORELO_HOST),
+                                        Map.of()))
                 .as("a 404")
                 .isInstanceOfSatisfying(
                         Stop.class,
@@ -256,12 +266,107 @@ class TrackerTest {
                                         (address, headers) -> {
                                             throw new IOException("connection refused");
                                         },
-                                        at -> Optional.of(PORELO_HOST)))
+                                        at -> Optional.of(PORELO_HOST),
+                                        Map.of()))
                 .as("no connection")
                 .isInstanceOfSatisfying(
                         Stop.class,
                         stop -> assertThat(stop.code()).as("unanswered").isEqualTo(Stop.UNANSWERED))
                 .hasMessageContaining("connection refused");
+    }
+
+    // Prevents a host's forge, whose owner is the project's own name, from falling back to the
+    // Markdown issues the project no longer keeps.
+    @Test
+    void readsTheFileTheVariableNamesForACheckoutOnAnotherForge() throws IOException, Stop {
+        final Path repository = Files.createDirectories(directory.resolve("repository/issues"));
+        final URI named =
+                URI.create("https://forge.example/porelo/porelo-project/raw/main/project.yml");
+
+        assertThat(
+                        Tracker.of(
+                                        repository,
+                                        web(Optional.of(TRACKED)),
+                                        at ->
+                                                Optional.of(
+                                                        "http://localhost:3000/porelo/porelo-host.git"),
+                                        Map.of(Tracker.PROJECT_FILE, named.toString()))
+                                .github())
+                .as("the tracker the named file names")
+                .isTrue();
+        assertThat(asked).as("only the named file").containsExactly(named);
+    }
+
+    // Prevents the variable from overruling the project's own repository or a fixture's file.
+    @Test
+    void takesTheProjectFileAboveBeforeTheVariable() throws IOException, Stop {
+        Files.writeString(directory.resolve("project.yml"), MARKDOWN, StandardCharsets.UTF_8);
+
+        assertThat(
+                        Tracker.of(
+                                        directory,
+                                        web(Optional.of(TRACKED)),
+                                        NO_ORIGIN,
+                                        Map.of(
+                                                Tracker.PROJECT_FILE,
+                                                "https://forge.example/project.yml"))
+                                .github())
+                .as("the file above")
+                .isFalse();
+        assertThat(asked).as("nothing read over the network").isEmpty();
+    }
+
+    // Prevents a value from outside from reaching a file, a plain-text address or a credential.
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "",
+                "project.yml",
+                "/etc/porelo/project.yml",
+                "file:///etc/passwd",
+                "http://forge.example/project.yml",
+                "https://user:secret@forge.example/project.yml",
+                "https:///project.yml",
+                "https://forge.example/project.yml?ref=main",
+                "https://forge.example/project.yml#main"
+            })
+    void refusesAVariableThatIsNoPlainHttpsAddress(String value) {
+        assertThatThrownBy(
+                        () ->
+                                Tracker.of(
+                                        directory.resolve("repository"),
+                                        web(Optional.of(TRACKED)),
+                                        NO_ORIGIN,
+                                        Map.of(Tracker.PROJECT_FILE, value)))
+                .isInstanceOfSatisfying(
+                        Stop.class,
+                        stop -> assertThat(stop.code()).as("refused").isEqualTo(Stop.REFUSED))
+                .hasMessageContaining(Tracker.PROJECT_FILE)
+                .satisfies(
+                        stop ->
+                                assertThat(stop.getMessage())
+                                        .as("the value may hold a credential")
+                                        .doesNotContain("secret"));
+        assertThat(asked).as("nothing read over the network").isEmpty();
+    }
+
+    // Prevents an unreachable named file from being taken for either answer.
+    @Test
+    void cannotAnswerWhenTheNamedFileCannotBeRead() {
+        assertThatThrownBy(
+                        () ->
+                                Tracker.of(
+                                        directory.resolve("repository"),
+                                        web(Optional.empty()),
+                                        NO_ORIGIN,
+                                        Map.of(
+                                                Tracker.PROJECT_FILE,
+                                                "https://forge.example/project.yml")))
+                .isInstanceOfSatisfying(
+                        Stop.class,
+                        stop -> assertThat(stop.code()).as("unanswered").isEqualTo(Stop.UNANSWERED))
+                .hasMessageContaining("https://forge.example/project.yml")
+                .hasMessageContaining("404");
     }
 
     private Tracker.Origin git() {

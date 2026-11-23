@@ -62,7 +62,12 @@ public final class Main {
     }
 
     private static int stories(
-            List<String> rest, PrintStream out, PrintStream err, Web web, Tracker.Origin origin) {
+            List<String> rest,
+            PrintStream out,
+            PrintStream err,
+            Web web,
+            Tracker.Origin origin,
+            Map<String, String> env) {
         final String expected =
                 "stories index <dir> | stories check <dir>"
                         + " | stories cut <version> <dir> --after <yyyy-mm-dd>";
@@ -75,6 +80,7 @@ public final class Main {
                     Path.of(rest.get(1)),
                     web,
                     origin,
+                    env,
                     out,
                     err,
                     "stories check",
@@ -96,7 +102,12 @@ public final class Main {
     }
 
     private static int issues(
-            List<String> rest, PrintStream out, PrintStream err, Web web, Tracker.Origin origin) {
+            List<String> rest,
+            PrintStream out,
+            PrintStream err,
+            Web web,
+            Tracker.Origin origin,
+            Map<String, String> env) {
         final String expected = "issues index <dir> | issues check <dir> | issues convert <dir>";
         if (rest.size() != 2) return usage(err, expected);
         final Issues issues = new Issues(out, err);
@@ -105,7 +116,14 @@ public final class Main {
             case "index" -> issues.index(dir);
             case "check" ->
                     unlessTracked(
-                            dir, web, origin, out, err, "issues check", () -> issues.check(dir));
+                            dir,
+                            web,
+                            origin,
+                            env,
+                            out,
+                            err,
+                            "issues check",
+                            () -> issues.check(dir));
             case "convert" -> issues.convert(dir);
             default -> usage(err, expected);
         };
@@ -118,6 +136,7 @@ public final class Main {
      * @param directory the directory the command is given, whose project is read
      * @param web where porelo-project's file is read when none stands above the directory
      * @param origin where the origin of the directory's checkout is read
+     * @param env the command's variables, which may name the project's file
      * @param out where the line goes
      * @param err where a refusal goes
      * @param command the command, for the line
@@ -128,13 +147,14 @@ public final class Main {
             Path directory,
             Web web,
             Tracker.Origin origin,
+            Map<String, String> env,
             PrintStream out,
             PrintStream err,
             String command,
             java.util.function.IntSupplier markdown) {
         final Tracker tracker;
         try {
-            tracker = Tracker.of(directory, web, origin);
+            tracker = Tracker.of(directory, web, origin, env);
         } catch (Stop ex) {
             err.println(ex.getMessage());
             return ex.code();
@@ -165,7 +185,7 @@ public final class Main {
         final Path here = Path.of(".");
         final Tracker tracker;
         try {
-            tracker = Tracker.of(here, web, origin);
+            tracker = Tracker.of(here, web, origin, env);
         } catch (Stop ex) {
             err.println(ex.getMessage());
             return ex.code();
@@ -202,7 +222,7 @@ public final class Main {
         final Path here = Path.of(".");
         final Tracker tracker;
         try {
-            tracker = Tracker.of(here, web, origin);
+            tracker = Tracker.of(here, web, origin, env);
         } catch (Stop ex) {
             err.println(ex.getMessage());
             return ex.code();
@@ -435,14 +455,15 @@ public final class Main {
                             ? usage(err, "check-providers [REPOSITORY ROOT, default .]")
                             : new CheckProviders(out, err)
                                     .check(Path.of(rest.isEmpty() ? "." : rest.getFirst()));
-            case "stories" -> stories(rest, out, err, web, origin);
-            case "issues" -> issues(rest, out, err, web, origin);
+            case "stories" -> stories(rest, out, err, web, origin, env);
+            case "issues" -> issues(rest, out, err, web, origin, env);
             case "check-commits" -> checkCommits(rest, out, err, web, origin, env);
             case "stage" ->
                     unlessTracked(
                             Path.of("."),
                             web,
                             origin,
+                            env,
                             out,
                             err,
                             "stage",

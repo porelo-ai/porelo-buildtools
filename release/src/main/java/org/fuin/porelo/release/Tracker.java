@@ -27,8 +27,10 @@ import java.util.regex.Pattern;
  * <p>The {@code project.yml} read is the nearest one above the directory a command is given, so the
  * project's own repository and a test's fixture each answer for themselves. A git checkout of a
  * repository of {@value #OWNER}, by its {@code origin}, with none above it belongs to the project
- * whose {@code project.yml} stands on porelo-project's {@code main}, read without a token. Any
- * other directory with none above it, a test's fixture among them, is a project of its own with
+ * whose {@code project.yml} stands on porelo-project's {@code main}, read without a token. Where
+ * {@value #PROJECT_FILE} names an https address, the file there answers instead of the origin: a
+ * host's forge keeps the project's repositories under the project's own name, not {@value #OWNER}.
+ * Any other directory with none above it, a test's fixture among them, is a project of its own with
  * Markdown issues, and nothing is read over the network for it. What cannot be read stops the
  * command unanswered: taking the Markdown issues for granted would fail every Build after the
  * cut-over, and taking the tracker would pass a check that still has issues to read.
@@ -39,6 +41,12 @@ record Tracker(boolean github, String where) {
     static final URI PROJECT =
             URI.create(
                     "https://raw.githubusercontent.com/porelo-ai/porelo-project/main/project.yml");
+
+    /**
+     * The variable naming the https address of the project's file, for a checkout whose origin is
+     * not {@value #OWNER}'s.
+     */
+    static final String PROJECT_FILE = "PORELO_PROJECT_FILE";
 
     /** The owner of the project's repositories on every forge. */
     static final String OWNER = "porelo-ai";
@@ -116,11 +124,14 @@ record Tracker(boolean github, String where) {
      * @param web where porelo-project's file is read when none stands above a checkout of the
      *     project
      * @param origin where the origin of the directory's checkout is read
+     * @param environment the command's variables, {@value #PROJECT_FILE} among them
      * @return the answer, with the file it was read from
-     * @throws Stop refused when the file says something else than this reads, unanswered when it or
-     *     the origin cannot be read
+     * @throws Stop refused when the file says something else than this reads or {@value
+     *     #PROJECT_FILE} is no plain https address, unanswered when a file or the origin cannot be
+     *     read
      */
-    static Tracker of(Path directory, Web web, Origin origin) throws Stop {
+    static Tracker of(Path directory, Web web, Origin origin, Map<String, String> environment)
+            throws Stop {
         Path at = directory.toAbsolutePath().normalize();
         while (at != null && !Files.exists(at.resolve("project.yml"), LinkOption.NOFOLLOW_LINKS)) {
             at = at.getParent();
@@ -135,6 +146,10 @@ record Tracker(boolean github, String where) {
             } catch (IOException | UncheckedIOException ex) {
                 throw Stop.unanswered("could not read " + file + ": " + Web.reason(ex), ex);
             }
+        }
+        final String named = environment.get(PROJECT_FILE);
+        if (named != null) {
+            return named(named, web);
         }
         final Optional<String> remote;
         try {
@@ -162,6 +177,41 @@ record Tracker(boolean github, String where) {
                             + ", and the project's at "
                             + PROJECT
                             + " could not be read: "
+                            + Web.reason(ex),
+                    ex);
+        }
+    }
+
+    private static Tracker named(String value, Web web) throws Stop {
+        final URI address;
+        try {
+            address = new URI(value);
+        } catch (java.net.URISyntaxException ex) {
+            // Not passed on: the parser's words repeat the value, which may hold a credential.
+            throw Stop.refused(PROJECT_FILE + " is no address");
+        }
+        if (!"https".equals(address.getScheme())
+                || address.getHost() == null
+                || address.getRawUserInfo() != null
+                || address.getRawQuery() != null
+                || address.getRawFragment() != null) {
+            throw Stop.refused(
+                    PROJECT_FILE
+                            + " must be an https address of a project.yml, with no credential,"
+                            + " query or fragment");
+        }
+        try {
+            final String text =
+                    web.text(address)
+                            .orElseThrow(() -> new IOException("it answered 404 (not found)"));
+            return read(text, address.toString());
+        } catch (IOException | UncheckedIOException ex) {
+            throw Stop.unanswered(
+                    "the project's file at "
+                            + address
+                            + ", as "
+                            + PROJECT_FILE
+                            + " names it, could not be read: "
                             + Web.reason(ex),
                     ex);
         }
