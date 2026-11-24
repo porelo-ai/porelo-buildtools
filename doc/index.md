@@ -37,8 +37,8 @@ state never decides this one's check. Issues live in a tracker, so no file names
   often a colour, a stack frame or an anchor in a file, and neither is another project's issue address. A number is
   told by its shape alone, so `IPv4`, `x86_64` or `SHA256` is none, and an id of another form - one digit, four, or
   three capitals - passes.
-- **The root's `issues/` and `stories/`** are read like any other directory. A directory named `issues` below the
-  root holds a test's fixture of Markdown issues, read by the test that holds it, and is skipped and counted.
+- **Every `issues/` and `stories/` directory**, at the root or below it, is read like any other directory; a test's
+  fixture that holds issue numbers on purpose is named in `citations-exempt.txt`.
 - **A line that holds an issue number's shape on purpose**, as test data for something that reads such text, says
   `not-a-citation` in its own text. A linter's codes after `noqa:` are not read.
 - **A whole file of such text** is named in `citations-exempt.txt` at the repository's root, one path per line,

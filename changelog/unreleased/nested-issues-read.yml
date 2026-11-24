@@ -1,0 +1,2 @@
+title: "`check-citations` reads a nested `issues/` or `stories/` directory like any other, so a test fixture there that holds issue numbers is named in `citations-exempt.txt`; before, every directory named `issues` below the root was skipped."
+type: changed

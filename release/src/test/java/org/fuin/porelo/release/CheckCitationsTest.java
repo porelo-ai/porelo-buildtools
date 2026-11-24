@@ -60,14 +60,28 @@ class CheckCitationsTest {
         assertThat(stderr()).contains("doc/guide.md:1 -> B11");
     }
 
-    // Prevents another repository's test fixtures of issues, read by their own tests, from
-    // turning its check red.
+    // Prevents a file in a nested issues/ or stories/ directory from passing unread now that no
+    // repository keeps a fixture there that needs it; one that does names it in the exempt list.
     @Test
-    void skipsADirectoryNamedIssuesBelowTheRootAsAFixture() throws IOException {
+    void readsANestedIssuesOrStoriesDirectoryAsAnyOther() throws IOException {
         write("src/test/resources/sample/issues/B12-A-Fixture.md", "# B12 - A Fixture\n");
+        write("src/test/resources/sample/stories/S13.yml", "story: S13\n");
+
+        assertThat(check()).as("a nested issues directory is no exception").isEqualTo(Stop.REFUSED);
+        assertThat(stderr())
+                .as("each citation is identified")
+                .contains("src/test/resources/sample/issues/B12-A-Fixture.md:1 -> B12")
+                .contains("src/test/resources/sample/stories/S13.yml:1 -> S13");
+    }
+
+    // Prevents a fixture that holds issue numbers on purpose from turning the check red once it is
+    // named in the exempt list.
+    @Test
+    void takesANestedFixtureTheExemptListNames() throws IOException {
+        write("src/test/resources/sample/issues/B12-A-Fixture.md", "# B12 - A Fixture\n");
+        write(CheckCitations.EXEMPT, "src/test/resources/sample/issues/B12-A-Fixture.md\n");
 
         assertThat(check()).as(stderr()).isZero();
-        assertThat(stdout()).contains("1 fixture issue file(s)");
     }
 
     // Prevents another repository's state, a project file above or a checkout beside, from

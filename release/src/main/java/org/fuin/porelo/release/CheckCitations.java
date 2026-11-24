@@ -26,8 +26,7 @@ import java.util.stream.Stream;
  * <p>Issues live in a tracker and are closed there, so a number in code, a page or anything that
  * ships names something that goes stale; the constraint itself is written instead. A line that
  * holds the shape on purpose says {@code not-a-citation}, and a whole such file is named in {@link
- * #EXEMPT}. A directory named {@code issues} below the root holds a test's fixture, read by the
- * test that holds it, and is skipped.
+ * #EXEMPT}, a test's fixture in a nested {@code issues} or {@code stories} directory too.
  *
  * <p>Every committed text file is read: in a git checkout what {@code git ls-files} names, in an
  * exported tree every file. A binary file is skipped and counted. Nothing outside the repository is
@@ -144,14 +143,9 @@ final class CheckCitations {
         final List<String> numbers = new ArrayList<>();
         int read = 0;
         int binary = 0;
-        int fixtures = 0;
         try {
             for (final Path file : files) {
                 final String name = relative(root, file);
-                if (fixture(name)) {
-                    fixtures++;
-                    continue;
-                }
                 if (name.equals(EXEMPT) || exempt.contains(name)) {
                     continue;
                 }
@@ -182,8 +176,6 @@ final class CheckCitations {
                             + " binary and "
                             + generatedFiles
                             + " generated file(s) skipped, "
-                            + fixtures
-                            + " fixture issue file(s), "
                             + exempt.size()
                             + " exempt");
             return 0;
@@ -320,11 +312,6 @@ final class CheckCitations {
 
     private static String blank(Pattern pattern, String text) {
         return pattern.matcher(text).replaceAll(found -> " ".repeat(found.group().length()));
-    }
-
-    /** Whether a file lies in a directory named {@code issues} below the root: a test's fixture. */
-    private static boolean fixture(String name) {
-        return name.contains("/issues/");
     }
 
     private static boolean generated(Path root, Path path) {
