@@ -280,8 +280,8 @@ those.
 ## What `prune-snapshots` deletes
 
 Every push to `main` of a repository that ships a package adds a snapshot to Artifactory's `porelo-dist-deb` and
-`porelo-dist-rpm`, and nothing else removes one. The workflow *Prune snapshot packages* runs `prune-snapshots` by hand;
-left unticked, it lists what would go and deletes nothing. It reads `JF_URL`, the platform's address, and
+`porelo-dist-rpm`, and nothing else removes one. The workflow *Prune snapshot packages* runs `prune-snapshots` daily
+and deletes; started by hand and left unticked, it lists what would go and deletes nothing. It reads `JF_URL`, the platform's address, and
 `JF_ACCESS_TOKEN` from its environment; the address must be `https`, and the token goes to it alone, as a header.
 
 - **Which files:** `.deb` files for `amd64` or `all` under `pool/main/p/<name>/` whose `deb.distribution` is exactly
@@ -295,8 +295,10 @@ left unticked, it lists what would go and deletes nothing. It reads `JF_URL`, th
 - **First a probe:** a file put and deleted under `prune-probe/` of each repository, outside the pool and every
   channel's folder. A token that cannot put or delete stops the run before anything is read, naming the probe left.
 - **Then the indexes:** after deleting, the run reads the `snapshots` Debian index and the RPM primary metadata until
-  neither lists a deleted file, counting an index that is gone as one that has not followed, asks Artifactory to recalculate one that still does after two minutes, and fails naming
-  each file still listed two minutes after that.
+  neither lists a deleted file, counting an index that is gone as one that has not followed. Artifactory rewrites them
+  by itself, a few files at a time, so the run waits as long as each look finds fewer, and fails naming each file still
+  listed once an index has listed as many for two minutes. It never asks for a recalculation, so its token needs no
+  right beyond deleting.
 
 Exit 0 when done, 1 when a deletion failed or an index kept a deleted file, 2 when something could not be read, before
 any deletion.

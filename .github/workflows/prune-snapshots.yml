@@ -1,8 +1,11 @@
 # Deletes old snapshot packages from Artifactory's Debian and RPM repositories: every file older than four weeks,
 # except the newest three versions of each package name, however old. The releases channel is never touched.
+# The daily run deletes; a run started by hand only lists unless asked to delete.
 name: Prune snapshot packages
 
 on:
+    schedule:
+        - cron: '47 2 * * *'
     workflow_dispatch:
         inputs:
             delete:
@@ -51,7 +54,7 @@ jobs:
               env:
                   JF_URL: ${{ vars.JF_URL }}
                   JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
-                  DELETE: ${{ inputs.delete }}
+                  DELETE: ${{ github.event_name == 'schedule' || inputs.delete }}
               run: |
                   set -eu
                   [ -n "$JF_URL" ] || { echo "::error::variable JF_URL is not set"; exit 1; }

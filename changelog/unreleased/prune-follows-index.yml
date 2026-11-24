@@ -1,0 +1,2 @@
+title: "`prune-snapshots` waits for each index as long as Artifactory's own rewrites drop deleted files, and never asks for a recalculation, which its token may not do; *Prune snapshot packages* runs daily and deletes."
+type: changed

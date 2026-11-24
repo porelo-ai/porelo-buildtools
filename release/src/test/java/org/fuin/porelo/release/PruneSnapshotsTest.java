@@ -189,8 +189,9 @@ class PruneSnapshotsTest {
         assertThat(artifactory.files()).as("nothing is deleted").isEqualTo(before);
     }
 
+    // Prevents a run from waiting without end on an index that no longer drops anything.
     @Test
-    void anIndexThatKeepsListingADeletedFileIsAskedOnceAndThenFailsTheRun() {
+    void anIndexThatStopsDroppingDeletedFilesFailsTheRun() {
         for (int build = 1; build <= 4; build++) {
             artifactory.deb(
                     "porelo", "0.5.0~snapshot." + build, "snapshots", OLD.plusSeconds(build));
@@ -200,9 +201,9 @@ class PruneSnapshotsTest {
 
         assertThat(prune(true)).as(stdout()).isEqualTo(Stop.REFUSED);
 
-        assertThat(artifactory.recalculated)
-                .as("each index is asked once")
-                .containsExactly("deb", "rpm snapshots");
+        assertThat(slept)
+                .as("each index is given the wait once, as it never shrinks")
+                .isEqualTo(PruneSnapshots.INDEX_WAIT.multipliedBy(2));
         assertThat(stderr())
                 .as("what is still listed is named")
                 .contains(
@@ -213,17 +214,22 @@ class PruneSnapshotsTest {
                                 + rpm("porelo", "0.5.0~snapshot.1"));
     }
 
+    // Prevents a run from failing on an index that Artifactory rewrites by itself, a few files at
+    // a time, for longer than one wait: it needs no right to ask for a recalculation.
     @Test
-    void anIndexThatFollowsWhenAskedPassesTheRun() {
-        for (int build = 1; build <= 4; build++) {
+    void anIndexThatKeepsShrinkingIsFollowedUntilItListsNoDeletedFile() {
+        for (int build = 1; build <= 40; build++) {
             artifactory.rpm("porelo", "0.5.0~snapshot." + build, OLD.plusSeconds(build));
         }
         artifactory.indexesStale = true;
-        artifactory.recalculationHelps = true;
+        artifactory.droppedPerPoll = 1;
 
         assertThat(prune(true)).as(stderr()).isEqualTo(0);
 
-        assertThat(artifactory.recalculated).as("asked once").containsExactly("rpm snapshots");
+        assertThat(slept)
+                .as("followed past one wait, since each look found fewer")
+                .isGreaterThan(PruneSnapshots.INDEX_WAIT);
+        assertThat(stdout()).contains("index  porelo-dist-rpm followed");
     }
 
     @Test
@@ -438,12 +444,18 @@ class PruneSnapshotsTest {
                 .contains(young, deb("porelo", "0.5.0~snapshot.1"));
     }
 
+    /** How long the pruning waited for its indexes. */
+    private Duration slept = Duration.ZERO;
+
     private int prune(boolean delete) {
         return new PruneSnapshots(
                         artifactory,
                         new PrintStream(out, true, StandardCharsets.UTF_8),
                         new PrintStream(err, true, StandardCharsets.UTF_8),
-                        duration -> {})
+                        duration -> {
+                            slept = slept.plus(duration);
+                            artifactory.poll();
+                        })
                 .run(delete, NOW, "run-1");
     }
 
@@ -486,15 +498,14 @@ class PruneSnapshotsTest {
         /** What each index lists, as it was before any deletion while stale. */
         private final Set<String> staleListing = new TreeSet<>();
 
-        private final List<String> recalculated = new ArrayList<>();
-
         private boolean deleteRefused;
 
         private boolean releasesIndexMissing;
 
         private boolean indexesStale;
 
-        private boolean recalculationHelps;
+        /** How many deleted files a stale index drops between two looks. */
+        private int droppedPerPoll;
 
         private boolean releasesIndexEmpty;
 
@@ -676,23 +687,14 @@ class PruneSnapshotsTest {
             return Optional.of(primary.append("</metadata>\n").toString());
         }
 
-        @Override
-        public void recalculateDebian(String repository) {
-            recalculated.add("deb");
-            recalculate(repository);
-        }
-
-        @Override
-        public void recalculateRpm(String repository, String folder) {
-            recalculated.add("rpm " + folder);
-            recalculate(repository);
-        }
-
-        private void recalculate(String repository) {
-            if (recalculationHelps) {
-                staleListing.removeIf(
-                        key -> key.startsWith(repository + "/") && !stored.containsKey(key));
-            }
+        /** Artifactory rewriting its indexes by itself, as it does every half minute or so. */
+        void poll() {
+            final List<String> dropped =
+                    staleListing.stream()
+                            .filter(key -> !stored.containsKey(key))
+                            .limit(droppedPerPoll)
+                            .toList();
+            dropped.forEach(staleListing::remove);
         }
     }
 }

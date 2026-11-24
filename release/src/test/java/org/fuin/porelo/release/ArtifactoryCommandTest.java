@@ -105,16 +105,6 @@ class ArtifactoryCommandTest {
         public Optional<String> rpmPrimary(String repository, String folder) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void recalculateDebian(String repository) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void recalculateRpm(String repository, String folder) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     private static Artifactory.Unanswered unanswered(String status) {

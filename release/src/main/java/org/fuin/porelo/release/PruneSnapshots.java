@@ -47,7 +47,10 @@ public final class PruneSnapshots {
     /** Older than this is old. */
     static final Duration AGE = Duration.ofDays(28);
 
-    /** How long an index is given to follow a deletion, before and after it is asked to. */
+    /**
+     * How long an index may go on listing as many deleted files as before; Artifactory rewrites its
+     * indexes by itself, a few files at a time, so a wait lasts as long as each rewrite drops more.
+     */
     static final Duration INDEX_WAIT = Duration.ofMinutes(2);
 
     /** How often an index is read while waiting. */
@@ -468,8 +471,8 @@ public final class PruneSnapshots {
     }
 
     /**
-     * Waits for an index to drop the deleted files, asking for a recalculation once; returns what
-     * it still lists.
+     * Waits for an index to drop the deleted files for as long as each look finds fewer; returns
+     * what it still lists once it stops shrinking.
      */
     private Set<String> follow(String repository, List<Packaged> gone, boolean debian)
             throws IOException, InterruptedException {
@@ -478,40 +481,21 @@ public final class PruneSnapshots {
         if (mine.isEmpty()) {
             return Set.of();
         }
-        Set<String> listed = await(repository, mine, debian);
-        if (listed.isEmpty()) {
-            out.println("index  " + repository + " followed by itself");
-            return listed;
+        Set<String> listed = listed(repository, mine, debian);
+        Duration unchanged = Duration.ZERO;
+        while (!listed.isEmpty() && unchanged.compareTo(INDEX_WAIT) < 0) {
+            sleeper.sleep(INDEX_POLL);
+            final Set<String> now = listed(repository, mine, debian);
+            unchanged = now.size() < listed.size() ? Duration.ZERO : unchanged.plus(INDEX_POLL);
+            if (now.size() < listed.size()) {
+                out.println("index  " + repository + " still lists " + now.size() + " file(s)");
+            }
+            listed = now;
         }
-        out.println(
-                "index  "
-                        + repository
-                        + " still lists "
-                        + listed.size()
-                        + " file(s); asking it to recalculate");
-        if (debian) {
-            artifactory.recalculateDebian(repository);
-        } else {
-            artifactory.recalculateRpm(repository, SNAPSHOTS);
-        }
-        listed = await(repository, mine, debian);
         if (listed.isEmpty()) {
-            out.println("index  " + repository + " followed once asked");
+            out.println("index  " + repository + " followed");
         }
         return listed;
-    }
-
-    private Set<String> await(String repository, List<Packaged> mine, boolean debian)
-            throws IOException, InterruptedException {
-        Duration waited = Duration.ZERO;
-        while (true) {
-            final Set<String> listed = listed(repository, mine, debian);
-            if (listed.isEmpty() || waited.compareTo(INDEX_WAIT) >= 0) {
-                return listed;
-            }
-            sleeper.sleep(INDEX_POLL);
-            waited = waited.plus(INDEX_POLL);
-        }
     }
 
     private Set<String> listed(String repository, List<Packaged> mine, boolean debian)

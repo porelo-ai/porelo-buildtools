@@ -143,23 +143,6 @@ public interface Artifactory {
     Optional<String> rpmPrimary(String repository, String folder) throws IOException;
 
     /**
-     * Asks Artifactory to recalculate a Debian repository's indexes.
-     *
-     * @param repository the repository's key
-     * @throws IOException when it refused
-     */
-    void recalculateDebian(String repository) throws IOException;
-
-    /**
-     * Asks Artifactory to recalculate an RPM folder's metadata.
-     *
-     * @param repository the repository's key
-     * @param folder the folder holding {@code repodata/}
-     * @throws IOException when it refused
-     */
-    void recalculateRpm(String repository, String folder) throws IOException;
-
-    /**
      * Artifactory over its REST interface.
      *
      * <p>The token travels only as the {@code Authorization} header of calls to {@code base}; the
@@ -381,28 +364,6 @@ public interface Artifactory {
             try (GZIPInputStream unpacked = new GZIPInputStream(new ByteArrayInputStream(body))) {
                 return Optional.of(new String(unpacked.readAllBytes(), StandardCharsets.UTF_8));
             }
-        }
-
-        @Override
-        public void recalculateDebian(String repository) throws IOException {
-            required(
-                    "POST",
-                    URI.create(root + "/api/deb/reindex/" + repository + "?async=0"),
-                    new byte[0]);
-        }
-
-        @Override
-        public void recalculateRpm(String repository, String folder) throws IOException {
-            required(
-                    "POST",
-                    URI.create(
-                            root
-                                    + "/api/yum/"
-                                    + repository
-                                    + "?path="
-                                    + URLEncoder.encode(folder, StandardCharsets.UTF_8)
-                                    + "&async=0"),
-                    new byte[0]);
         }
 
         private URI storage(String repository, String path) {
