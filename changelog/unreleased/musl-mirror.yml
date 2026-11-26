@@ -1,0 +1,2 @@
+title: "The musl installer fetches the musl toolchain and its zlib by the rule for pinned downloads, which `porelo-machines` hands it, so a source that does not serve them, such as musl.cc with an expired certificate, gives way to the organization's mirror, and `porelo-release pinned-mirror` puts both into the mirror; `MUSL_URL` and `ZLIB_URL` no longer move the addresses, `PORELO_PINNED_MIRROR` names the mirror as for every pinned download."
+type: changed

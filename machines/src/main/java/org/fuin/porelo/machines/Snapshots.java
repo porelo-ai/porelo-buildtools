@@ -609,18 +609,38 @@ public final class Snapshots {
      */
     static final String MUSL_INSTALLER = "install-musl.sh";
 
+    /** The rule for pinned downloads, {@code .github/actions/pinned-jdk/pinned.sh}, as built in. */
+    static final String PINNED_RULE = "pinned.sh";
+
+    /** The installer's line that the rule takes the place of. */
+    static final String PINNED_RULE_LINE = "# @pinned.sh@";
+
     /**
      * Returns the script that installs the musl toolchain and a musl-built zlib, both pinned by
-     * digest.
+     * digest and fetched by the rule for pinned downloads, which it carries in place of its line
+     * {@value #PINNED_RULE_LINE}.
      *
      * @return The script.
-     * @throws IllegalStateException When it is not on the classpath - a build fault, never a
-     *     machine's.
+     * @throws IllegalStateException When the installer or the rule is not on the classpath, or the
+     *     installer has not exactly one place for the rule - a build fault, never a machine's.
      */
     public static String muslInstaller() {
-        try (java.io.InputStream in = Snapshots.class.getResourceAsStream(MUSL_INSTALLER)) {
+        final String installer = resource(MUSL_INSTALLER);
+        final String line = "\n" + PINNED_RULE_LINE + "\n";
+        final int at = installer.indexOf(line);
+        if (at < 0 || installer.indexOf(line, at + 1) >= 0) {
+            throw new IllegalStateException(
+                    MUSL_INSTALLER + " has not exactly one line " + PINNED_RULE_LINE);
+        }
+        return installer.substring(0, at + 1)
+                + resource(PINNED_RULE)
+                + installer.substring(at + line.length() - 1);
+    }
+
+    private static String resource(String name) {
+        try (java.io.InputStream in = Snapshots.class.getResourceAsStream(name)) {
             if (in == null) {
-                throw new IllegalStateException(MUSL_INSTALLER + " is not on the classpath");
+                throw new IllegalStateException(name + " is not on the classpath");
             }
             return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (IOException ex) {

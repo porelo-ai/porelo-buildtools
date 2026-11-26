@@ -1,7 +1,7 @@
 # Pinned downloads
 
-Every file a Build fetches by a pinned digest — the GraalVM, shfmt, the wrapper's Maven, and fd, ripgrep or Node in
-a script — follows the same two rules.
+Every file a Build fetches by a pinned digest — the GraalVM, shfmt, the wrapper's Maven, the musl toolchain and its
+zlib, and fd, ripgrep or Node in a script — follows the same two rules.
 
 ## Kept by its digest
 
@@ -99,15 +99,17 @@ to one rule holds both to the same base and the same 10 min, `PinnedRetry.FIRST_
 ### How the mirror is filled
 
 `porelo-release pinned-mirror [<root>]`, run in a porelo-buildtools checkout, reads every file the checkout pins: the
-GraalVM for Linux and Windows from `machines/pom.xml` and shfmt from `.github/actions/pinned-jdk/action.yml`. The
-musl installer is not among them: it fetches without the rule, and musl.cc does not answer GitHub's runners. For each:
+GraalVM for Linux and Windows from `machines/pom.xml`, shfmt from `.github/actions/pinned-jdk/action.yml`, and the
+musl toolchain and its zlib from the musl installer. For each:
 - a file already under `pinned/<sha256>/<name>` is left alone;
 - any other is fetched from its pinned address by the rule, checked against its digest, and uploaded by the code of
   `artifactory put`, which sends its SHA-1 and SHA-256, so Artifactory refuses bytes that do not match them.
 
 A pin that fails does not keep the others out. The command ends with 1 when a file did not match or a source answered
 404, 2 when a source or Artifactory did not answer. The Build's Publish job runs it on `main` on github.com, with
-`JF_URL` and `JF_ACCESS_TOKEN`, after the jars are deployed.
+`JF_URL` and `JF_ACCESS_TOKEN`, after the jars are deployed. musl.cc does not answer GitHub's runners, so the musl
+toolchain reaches the mirror only by a run of the command from a machine musl.cc answers; until then the Publish job
+ends with 2 on it, and the other files still go up.
 
 ## With the job's token
 

@@ -112,8 +112,8 @@ final class PinnedMirror {
 
     /**
      * Every file a porelo-buildtools checkout fetches by the pinned rule: the GraalVM for Linux and
-     * Windows from {@code machines/pom.xml} and shfmt from the {@code pinned-jdk} action. The musl
-     * installer fetches without the rule, and its host does not answer GitHub's runners.
+     * Windows from {@code machines/pom.xml}, shfmt from the {@code pinned-jdk} action, and the musl
+     * toolchain and zlib from the musl installer.
      *
      * @param root the checkout
      * @return the pins, in that order
@@ -151,6 +151,34 @@ final class PinnedMirror {
                         fetch.group(1).replace("${VERSION}", shfmt).replace("$VERSION", shfmt),
                         fetch.group(2),
                         action));
+        final Path installer =
+                root.resolve(
+                        Path.of(
+                                "machines",
+                                "src",
+                                "main",
+                                "resources",
+                                "org",
+                                "fuin",
+                                "porelo",
+                                "machines",
+                                "install-musl.sh"));
+        final String musl = read(installer);
+        final String zlib =
+                found(musl, "(?m)^ZLIB_VERSION=([0-9][0-9.]*)$", installer, "ZLIB_VERSION");
+        pins.add(
+                pin(
+                        "the musl toolchain",
+                        found(musl, "(?m)^MUSL_URL=(\\S+)$", installer, "MUSL_URL"),
+                        found(musl, "(?m)^MUSL_SHA256=(\\S+)$", installer, "MUSL_SHA256"),
+                        installer));
+        pins.add(
+                pin(
+                        "zlib for musl",
+                        found(musl, "(?m)^ZLIB_URL=(\\S+)$", installer, "ZLIB_URL")
+                                .replace("$ZLIB_VERSION", zlib),
+                        found(musl, "(?m)^ZLIB_SHA256=(\\S+)$", installer, "ZLIB_SHA256"),
+                        installer));
         return List.copyOf(pins);
     }
 

@@ -151,6 +151,15 @@
                     <exclude>**/*.properties</exclude>
                 </excludes>
             </resource>
+            <!-- The rule for pinned downloads, which the musl installer runs with where this repository is not. -->
+            <resource>
+                <directory>../.github/actions/pinned-jdk</directory>
+                <targetPath>org/fuin/porelo/machines</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>pinned.sh</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>

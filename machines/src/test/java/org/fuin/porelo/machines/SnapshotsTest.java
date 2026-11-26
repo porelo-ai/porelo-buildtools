@@ -195,11 +195,15 @@ class SnapshotsTest {
                 .startsWith("#!/usr/bin/env bash")
                 .containsPattern("(?m)^MUSL_SHA256=[0-9a-f]{64}$")
                 .containsPattern("(?m)^ZLIB_SHA256=[0-9a-f]{64}$")
-                // The digest is what is trusted, so the environment may move the URL to a mirror
-                // and never the digest.
+                // The digest is what is trusted, so nothing in the environment moves it.
                 .doesNotContain("${MUSL_SHA256")
                 .doesNotContain("${ZLIB_SHA256")
-                .contains("sha256sum -c -");
+                // Fetched by the rule for pinned downloads, which it carries, so a source that
+                // does not serve the file gives way to the mirror.
+                .contains("pinned_fetch \"$MUSL_URL\" \"$MUSL_SHA256\"")
+                .contains("pinned_fetch \"$ZLIB_URL\" \"$ZLIB_SHA256\"")
+                .containsOnlyOnce("\npinned_fetch() {")
+                .doesNotContain(Snapshots.PINNED_RULE_LINE);
     }
 
     @Test

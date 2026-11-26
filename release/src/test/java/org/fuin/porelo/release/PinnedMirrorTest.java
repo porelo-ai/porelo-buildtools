@@ -196,7 +196,12 @@ class PinnedMirrorTest {
         assertThat(pins)
                 .extracting(PinnedMirror.Pin::what)
                 .as("each pin by name")
-                .containsExactly("GraalVM for Linux", "GraalVM for Windows", "shfmt");
+                .containsExactly(
+                        "GraalVM for Linux",
+                        "GraalVM for Windows",
+                        "shfmt",
+                        "the musl toolchain",
+                        "zlib for musl");
         assertThat(pins.get(0).source())
                 .isEqualTo(URI.create(machines.required("machines.graalvm.url")));
         assertThat(pins.get(0).sha256()).isEqualTo(machines.required("machines.graalvm.sha256"));
@@ -213,6 +218,28 @@ class PinnedMirrorTest {
                 .as("the version filled in")
                 .startsWith("https://github.com/mvdan/sh/releases/download/v")
                 .doesNotContain("$");
+        final String installer =
+                Files.readString(
+                        Path.of(
+                                "..",
+                                "machines",
+                                "src",
+                                "main",
+                                "resources",
+                                "org",
+                                "fuin",
+                                "porelo",
+                                "machines",
+                                "install-musl.sh"));
+        assertThat(pins.get(3).source())
+                .isEqualTo(URI.create("https://musl.cc/x86_64-linux-musl-native.tgz"));
+        assertThat(installer)
+                .as("each musl download's digest as the installer pins it")
+                .contains("MUSL_SHA256=" + pins.get(3).sha256())
+                .contains("ZLIB_SHA256=" + pins.get(4).sha256());
+        assertThat(pins.get(4).source().toString())
+                .as("zlib's version filled in")
+                .matches("https://zlib\\.net/fossils/zlib-[0-9.]+\\.tar\\.gz");
     }
 
     // Prevents a pin left out because a file no longer names it the way it is read.
