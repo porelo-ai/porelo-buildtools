@@ -22,8 +22,10 @@ import java.util.Optional;
  * their pauses would have taken half an hour.
  *
  * <p>When a second source stands behind the first, such as the organization's Artifactory, the
- * first has the first ten minutes of the budget and the second the rest, counted from the same
- * start: an outage of the first still leaves the second time to answer within the fifteen minutes.
+ * first has {@value #FIRST_SOURCE_ATTEMPTS} attempts within the first ten minutes of the budget,
+ * and the second is asked at once after them with the rest, counted from the same start. A Build
+ * waited ten and a half minutes on a first source's connect timeouts while the second held the
+ * file.
  */
 public final class PinnedRetry {
 
@@ -43,6 +45,12 @@ public final class PinnedRetry {
      * attempt at the first source starts later, and the rest of the budget is the second's.
      */
     public static final Duration FIRST_SOURCE = Duration.ofMinutes(10);
+
+    /**
+     * How often a download's first source is tried at most when a second one stands behind it, the
+     * first time included.
+     */
+    public static final int FIRST_SOURCE_ATTEMPTS = 3;
 
     private PinnedRetry() {
         throw new UnsupportedOperationException("Utility class");

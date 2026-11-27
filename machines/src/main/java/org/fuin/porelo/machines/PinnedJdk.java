@@ -48,10 +48,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p><strong>From the mirror when the pinned address fails.</strong> The organization's Artifactory
  * keeps each pinned archive as {@code pinned/<sha256>/<file name>}, read without a token. When the
- * pinned address has not served the archive within the first ten minutes - a 5xx or no answer that
- * lasts, a 4xx - the mirror is asked by the same pauses until fifteen minutes from the first
- * attempt are spent, and its archive is taken only when its digest matches. A wrong digest from the
- * pinned address is a fault, not an outage, and fails at once.
+ * pinned address has not served the archive in three attempts within the first ten minutes - a 5xx
+ * or no answer that lasts, a 4xx, a wrong digest - the mirror is asked at once, by the same pauses
+ * until fifteen minutes from the first attempt are spent, and its archive is taken only when its
+ * digest matches.
  *
  * <p><strong>Kept in a cache by its digest.</strong> Given a cache directory, the archive that
  * matched is kept there as {@code <sha256>.tar.gz}, where a CI cache keyed by the same digest
@@ -462,8 +462,9 @@ final class PinnedJdk {
     }
 
     /**
-     * Fetches the archive from its pinned address until the first source's deadline, then from the
-     * mirror until the whole budget is spent; a wrong digest from the pinned address fails at once.
+     * Fetches the archive from its pinned address for the first source's attempts, then from the
+     * mirror until the whole budget is spent; a wrong digest from the pinned address asks the
+     * mirror too, whose archive is checked by the same digest.
      *
      * @return the address whose archive matched
      */
@@ -485,13 +486,20 @@ final class PinnedJdk {
             matches(
                     address,
                     fetchedDigest(
-                            address, archive, download, pause, say, start, PinnedRetry.BUDGET),
+                            address,
+                            archive,
+                            download,
+                            pause,
+                            say,
+                            start,
+                            PinnedRetry.BUDGET,
+                            PinnedRetry.attempts()),
                     pinned);
             return address.toString();
         }
-        final String got;
         try {
-            got =
+            matches(
+                    address,
                     fetchedDigest(
                             address,
                             archive,
@@ -499,7 +507,9 @@ final class PinnedJdk {
                             pause,
                             say,
                             start,
-                            PinnedRetry.FIRST_SOURCE);
+                            PinnedRetry.FIRST_SOURCE,
+                            PinnedRetry.FIRST_SOURCE_ATTEMPTS),
+                    pinned);
         } catch (IOException failed) {
             if (Thread.currentThread().isInterrupted()) {
                 throw failed;
@@ -515,7 +525,8 @@ final class PinnedJdk {
                                 pause,
                                 say,
                                 start,
-                                PinnedRetry.BUDGET);
+                                PinnedRetry.BUDGET,
+                                PinnedRetry.attempts());
             } catch (IOException alsoFailed) {
                 alsoFailed.addSuppressed(failed);
                 throw alsoFailed;
@@ -523,7 +534,6 @@ final class PinnedJdk {
             matches(second, again, pinned);
             return second.toString();
         }
-        matches(address, got, pinned);
         return address.toString();
     }
 
@@ -561,9 +571,9 @@ final class PinnedJdk {
             Pause pause,
             Consumer<String> say,
             Instant start,
-            Duration deadline)
+            Duration deadline,
+            int attempts)
             throws IOException {
-        final int attempts = PinnedRetry.attempts();
         for (int attempt = 1; ; attempt++) {
             final MessageDigest sha256 = sha256();
             try (OutputStream out =
@@ -573,7 +583,10 @@ final class PinnedJdk {
                 return HexFormat.of().formatHex(sha256.digest());
             } catch (Unavailable ex) {
                 final Duration elapsed = Duration.between(start, pause.now());
-                final Optional<Duration> after = PinnedRetry.pauseAfter(attempt, elapsed, deadline);
+                final Optional<Duration> after =
+                        attempt >= attempts
+                                ? Optional.empty()
+                                : PinnedRetry.pauseAfter(attempt, elapsed, deadline);
                 if (after.isEmpty()) {
                     throw new Unavailable(
                             ex.getMessage()

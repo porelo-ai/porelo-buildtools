@@ -18,6 +18,12 @@ on:
         # instead: it builds nothing and rents nothing.
         paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', '.github/**', 'porelo.yml']
     workflow_dispatch:
+        inputs:
+            # On main only: Publish alone, with no tests and no snapshot.
+            publish_only:
+                description: Publish from main without any tests
+                type: boolean
+                default: false
 
 # One run per branch. Runs queue rather than cancel each other, so a newer push cannot kill Publish
 # halfway through.
@@ -33,6 +39,7 @@ jobs:
     # Every push and every pull request, including from a fork.
     build:
         name: Build and unit tests
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.publish_only) }}
         runs-on: ubuntu-26.04
         env:
             MAVEN_SNAPSHOTS_URL: ${{ vars.MAVEN_SNAPSHOTS_URL }}
@@ -115,7 +122,7 @@ jobs:
     # Only this ref's entries go. Another forge ages its caches out by its own rule.
     prune:
         needs: build
-        if: ${{ !cancelled() && github.server_url == 'https://github.com' }}
+        if: ${{ !cancelled() && needs.build.result != 'skipped' && github.server_url == 'https://github.com' }}
         runs-on: ubuntu-26.04
         timeout-minutes: 5
         permissions:
@@ -184,7 +191,7 @@ jobs:
         # The step that rents the machine stops sooner, so the clean-up still runs inside this limit.
         timeout-minutes: 90
         if: >-
-            (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+            (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.publish_only))
             && github.ref == 'refs/heads/main'
             && vars.PORELO_PUBLISH != 'false'
         permissions:
@@ -258,9 +265,11 @@ jobs:
         # 15 more for the mirror's fetches, which may each wait out the pinned rule.
         timeout-minutes: 50
         needs: [build]
+        # Or a dispatch on main with publish_only, where the build is skipped; every step here builds with -DskipTests.
         if: >-
-            github.event_name == 'push'
-            && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+            !cancelled() && ((needs.build.result == 'success' && github.event_name == 'push'
+                && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
+            || (github.event_name == 'workflow_dispatch' && inputs.publish_only && github.ref == 'refs/heads/main'))
 
         steps:
             # A forge with no registry or no token for it would quietly read Sonatype's snapshots alone.
