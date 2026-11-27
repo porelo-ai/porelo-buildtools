@@ -577,12 +577,11 @@ class PinnedJdkTest {
     }
 
     // Prevents a Build that goes red while the organization's Artifactory holds the archive: the
-    // pinned address gives way after ten minutes, and the mirror's archive is taken once it
+    // pinned address gives way after three attempts, and the mirror's archive is taken once it
     // matches.
     @Tag("integration")
     @Test
-    void takesTheArchiveFromTheMirrorWhenThePinnedAddressAnswers503PastTenMinutes()
-            throws IOException {
+    void takesTheArchiveFromTheMirrorWhenThePinnedAddressAnswers503ThreeTimes() throws IOException {
         final byte[] archive = archive("java", "native-image");
         final Clock clock = new Clock();
         final List<Instant> started = new ArrayList<>();
@@ -611,13 +610,9 @@ class PinnedJdkTest {
 
         assertThat(installed.home().resolve("bin/java")).isExecutable();
         assertThat(started)
-                .as("no attempt at the pinned address after 600 s")
+                .as("three attempts at the pinned address, then the mirror")
                 .containsExactly(
-                        clock.first,
-                        clock.first.plusSeconds(135),
-                        clock.first.plusSeconds(285),
-                        clock.first.plusSeconds(465),
-                        clock.first.plusSeconds(600));
+                        clock.first, clock.first.plusSeconds(135), clock.first.plusSeconds(285));
         final URI expected =
                 URI.create(
                         MIRROR
@@ -666,34 +661,37 @@ class PinnedJdkTest {
         }
     }
 
-    // Prevents a wrong digest, which is a fault and not an outage, from being covered by the
-    // mirror.
+    // Prevents a Build that goes red while the mirror holds the archive when the pinned address
+    // serves another file; the mirror's archive is taken only by the pinned digest.
     @Test
-    void failsAtOnceOnAWrongDigestFromThePinnedAddressAndNeverAsksTheMirror() throws IOException {
+    void takesTheMirrorsArchiveAtOnceOnAWrongDigestFromThePinnedAddress() throws IOException {
+        final byte[] archive = archive("java", "native-image");
         final AtomicInteger attempts = new AtomicInteger();
+        final AtomicInteger mirrored = new AtomicInteger();
 
-        assertThatThrownBy(
-                        () ->
-                                PinnedJdk.install(
-                                        contents("0".repeat(64)),
-                                        PinnedJdk.Platform.LINUX_X64,
-                                        dir.resolve("jdk"),
-                                        (address, into) -> {
-                                            attempts.incrementAndGet();
-                                            into.write(1);
-                                        },
-                                        new PinnedJdk.Mirror(
-                                                MIRROR,
-                                                (address, into) -> {
-                                                    throw new AssertionError(
-                                                            "the mirror was asked: " + address);
-                                                }),
-                                        null,
-                                        new Clock(),
-                                        message -> {}))
-                .hasMessageContaining(URL + " has the digest")
-                .hasMessageContaining("not the pinned");
-        assertThat(attempts).as("one attempt").hasValue(1);
+        final PinnedJdk.Installed installed =
+                PinnedJdk.install(
+                        contents(sha256(archive)),
+                        PinnedJdk.Platform.LINUX_X64,
+                        dir.resolve("jdk"),
+                        (address, into) -> {
+                            attempts.incrementAndGet();
+                            into.write(1);
+                        },
+                        new PinnedJdk.Mirror(
+                                MIRROR,
+                                (address, into) -> {
+                                    mirrored.incrementAndGet();
+                                    into.write(archive);
+                                }),
+                        null,
+                        new Clock(),
+                        message -> {});
+
+        assertThat(installed.home().resolve("bin/java")).isExecutable();
+        assertThat(installed.source()).as("the mirror answered").startsWith(MIRROR.toString());
+        assertThat(attempts).as("one attempt at the pinned address").hasValue(1);
+        assertThat(mirrored).as("the mirror once").hasValue(1);
     }
 
     // Prevents a mirror set to anything but an https address from being asked, and one turned off

@@ -37,6 +37,7 @@ class PinnedRetryTest {
         expected.add("none");
         expected.add("attempts " + PinnedRetry.attempts());
         expected.add("first " + PinnedRetry.FIRST_SOURCE.toSeconds());
+        expected.add("first attempts " + PinnedRetry.FIRST_SOURCE_ATTEMPTS);
         expected.add("mirror " + PinnedJdk.MIRROR);
 
         final Ran ran =
@@ -44,6 +45,7 @@ class PinnedRetryTest {
                         "for n in 1 2 3 4 5 6 7 8; do pinned_pause \"$n\" || echo none; done;"
                                 + " echo \"attempts $pinned_attempts\";"
                                 + " echo \"first $pinned_first_deadline\";"
+                                + " echo \"first attempts $pinned_first_attempts\";"
                                 + " echo \"mirror $pinned_mirror\"",
                         "exit 99");
 
@@ -500,9 +502,9 @@ class PinnedRetryTest {
     private static final String MIRRORED = MIRROR + "/pinned/" + sha("pinned") + "/tool";
 
     // Prevents a Build that goes red while the organization's Artifactory holds the file: the first
-    // source gives way after ten minutes, and the mirror's file is taken once it matches.
+    // source gives way after three attempts, and the mirror's file is taken once it matches.
     @Test
-    void theShellTakesTheFileFromTheMirrorWhenTheFirstSourceAnswers503PastTenMinutes()
+    void theShellTakesTheFileFromTheMirrorWhenTheFirstSourceAnswers503ThreeTimes()
             throws IOException, InterruptedException {
         final Path clock = dir.resolve("clock");
         Files.writeString(clock, "0\n");
@@ -519,14 +521,12 @@ class PinnedRetryTest {
         assertThat(dir.resolve("tool")).as("the mirror's file, checked").hasContent("pinned");
         final List<String> calls = Files.readAllLines(dir.resolve("calls"));
         assertThat(calls)
-                .as("the first source until 600 s, then the mirror")
+                .as("the first source three times, then the mirror at once")
                 .containsExactly(
                         "0 https://example.invalid/tool",
                         "135 https://example.invalid/tool",
                         "285 https://example.invalid/tool",
-                        "465 https://example.invalid/tool",
-                        "600 https://example.invalid/tool",
-                        "720 " + MIRRORED);
+                        "405 " + MIRRORED);
         assertThat(ran.out())
                 .as("the source that answered is named")
                 .contains("taken from " + MIRRORED)
@@ -608,13 +608,14 @@ class PinnedRetryTest {
         assertThat(ran.exit()).as(ran.out()).isZero();
         assertThat(Files.readAllLines(limits))
                 .as("the first source's attempts end by 600 s, the mirror's by 900 s")
-                .containsExactly("0 600", "135 465", "285 315", "465 135", "600 30", "720 180");
+                .containsExactly("0 600", "135 465", "285 315", "405 495");
     }
 
-    // Prevents a wrong digest, which is a fault and not an outage, from being covered by the
-    // mirror.
+    // Prevents a Build that goes red while the mirror holds the file when the first source serves
+    // another one, as zlib.net did to GitHub's runner; the mirror's copy is taken only by the
+    // digest.
     @Test
-    void theShellFailsAtOnceOnAWrongDigestFromTheFirstSourceAndNeverAsksTheMirror()
+    void theShellTakesTheMirrorsFileAtOnceOnAWrongDigestFromTheFirstSource()
             throws IOException, InterruptedException {
         final Path clock = dir.resolve("clock");
         Files.writeString(clock, "0\n");
@@ -626,12 +627,14 @@ class PinnedRetryTest {
                         "printf planted > \"$out\"; printf 200",
                         "printf pinned > \"$out\"; printf 200");
 
-        assertThat(ran.exit()).as(ran.out()).isEqualTo(1);
+        assertThat(ran.exit()).as(ran.out()).isZero();
         assertThat(Files.readAllLines(dir.resolve("calls")))
-                .as("the mirror never asked")
-                .containsExactly("0 https://example.invalid/tool");
-        assertThat(ran.out()).contains("https://example.invalid/tool has the digest");
-        assertThat(dir.resolve("tool")).doesNotExist();
+                .as("the first source once, then the mirror")
+                .containsExactly("0 https://example.invalid/tool", "0 " + MIRRORED);
+        assertThat(ran.out())
+                .contains("https://example.invalid/tool has the digest")
+                .contains("taken from " + MIRRORED);
+        assertThat(dir.resolve("tool")).as("the mirror's file, checked").hasContent("pinned");
     }
 
     // Prevents the job's token from going to the mirror, which is no GitHub address.

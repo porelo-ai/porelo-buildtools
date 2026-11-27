@@ -1,0 +1,2 @@
+title: "A pinned download with the organization's mirror behind it tries its first source three times, then asks the mirror at once, and a wrong digest from the first source gives way to the mirror too, whose copy is checked by the same digest; `PinnedRetry.FIRST_SOURCE_ATTEMPTS` holds the three. A dispatch of the Build on main with `publish_only` publishes without running any test."
+type: changed

@@ -53,8 +53,8 @@ When a file must be fetched:
   one attempt then running, however long a failing attempt hangs. The time is a clock that only counts up, in whole
   seconds.
 - **Only an answer that may be better next time** is tried again: a 5xx, or a connection that could not be made,
-  timed out or broke off. A 4xx, a refused certificate and a full disk are not asked again at the same source, and a
-  wrong digest fails at once.
+  timed out or broke off. A 4xx, a refused certificate, a full disk and a wrong digest are not asked again at the same
+  source.
 - **A command whose failure does not say why**, such as the wrapper's Maven, is run again on any failure by the same
   pauses and deadline. It runs in a subshell under `set -e`, so a function given stops at its first failing command,
   as long as `pinned_retry` is a statement of its own and not a condition.
@@ -80,12 +80,13 @@ https://fuinorg.jfrog.io/artifactory/porelo-files/pinned/<sha256>/<file name>
 
 The file name is the last path segment of the pinned address. The repository `porelo-files` is read without a token,
 so no pin names the mirror and nothing is configured to use it:
-- **The budget split:** the pinned address is tried by the rule until 10 min after the first attempt started, and no
-  attempt there starts later. The mirror is then tried by the same pauses until the 15 min are spent, counted from
-  the same start. Without a mirror, the pinned address has the whole 15 min.
+- **The budget split:** the pinned address is tried by the rule three times at most, and no attempt there starts later
+  than 10 min after the first started. The mirror is then asked at once and tried by the same pauses until the 15 min
+  are spent, counted from the same start. A Build once waited 630 s on a source's connect timeouts while the mirror held
+  the file. Without a mirror, the pinned address has all eight attempts and the whole 15 min.
 - **What moves on to the mirror:** anything the pinned address did not serve, such as a 5xx or no answer that lasts, a
-  4xx from a release asset that moved, or a refused certificate. A wrong digest from the pinned address is a fault,
-  not an outage, and fails at once without asking the mirror.
+  4xx from a release asset that moved, a refused certificate, or a file with a wrong digest, as zlib.net once served
+  to GitHub's runner.
 - **Checked the same:** the mirror's file is taken only when its digest matches the pin, and is moved into place only
   then. What the two say names each address, and the line of a file taken names the source that served it.
 - **No token:** the job's GitHub token never goes to the mirror, whatever address it has.
@@ -94,7 +95,8 @@ so no pin names the mirror and nothing is configured to use it:
   fetched.
 
 `pinned.sh` keeps the base in `pinned_mirror`, porelo-machines in `PinnedJdk.MIRROR`, and the test that holds the two
-to one rule holds both to the same base and the same 10 min, `PinnedRetry.FIRST_SOURCE`.
+to one rule holds both to the same base, the same 10 min, `PinnedRetry.FIRST_SOURCE`, and the same three attempts,
+`PinnedRetry.FIRST_SOURCE_ATTEMPTS`.
 
 ### How the mirror is filled
 
