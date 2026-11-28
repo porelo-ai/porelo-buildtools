@@ -26,16 +26,16 @@
              Snapshots. Moved by the release tooling's update of a named pin, never by hand: the
              machines workflow asks upstream every day and opens one pull request, one commit per pin that has a
              release at least three days old, and a merged one rebuilds the snapshots. -->
-        <machines.graalvm.version>25.5.5.0.3</machines.graalvm.version>
-        <machines.graalvm.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.5.5.0.3/graalvm-community-jdk-25i5-25.0.5.0.3_linux-x64_bin.tar.gz</machines.graalvm.url>
-        <machines.graalvm.sha256>c6438dee6c3ade2220d40b7ccdcad24b512d30e233e61bb4fc70519522de34ef</machines.graalvm.sha256>
+        <machines.graalvm.version>25.6.5.1</machines.graalvm.version>
+        <machines.graalvm.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.6.5.1/graalvm-community-jdk-25i6-25.0.5.1_linux-x64_bin.tar.gz</machines.graalvm.url>
+        <machines.graalvm.sha256>d792848db26f1602f0a5cf2cd9279d9a652d32ab450d891ce616c9ca67e359d0</machines.graalvm.sha256>
         <!-- The same release for a Windows x64 runner, moved with the Linux archive as the pin's build 'windows'. -->
-        <machines.graalvm.windows.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.5.5.0.3/graalvm-community-jdk-25i5-25.0.5.0.3_windows-x64_bin.zip</machines.graalvm.windows.url>
-        <machines.graalvm.windows.sha256>b02c3b162129fa8cbfa7ebd0fcc1ae6eba2fc736bf3bef8e40e5ace3e9d9a0d6</machines.graalvm.windows.sha256>
+        <machines.graalvm.windows.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.6.5.1/graalvm-community-jdk-25i6-25.0.5.1_windows-x64_bin.zip</machines.graalvm.windows.url>
+        <machines.graalvm.windows.sha256>1f534c46337f838880553c47f973a3d769b4058036288afcec930e2abddf06a1</machines.graalvm.windows.sha256>
         <!-- By digest, and tagged by name after the pull: a tag is rebuilt in place, so it has no
              age to wait for and names different bytes from one day to the next. -->
         <machines.image.ubuntu>docker.io/library/ubuntu:24.04</machines.image.ubuntu>
-        <machines.image.ubuntu.digest>sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852</machines.image.ubuntu.digest>
+        <machines.image.ubuntu.digest>sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b</machines.image.ubuntu.digest>
         <machines.image.alpine>docker.io/library/alpine:3.20</machines.image.alpine>
         <machines.image.alpine.digest>sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc</machines.image.alpine.digest>
         <!-- The machine's image cache: a registry as a pull-through mirror of docker.io, so every account on a
