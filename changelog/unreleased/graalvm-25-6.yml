@@ -1,0 +1,2 @@
+title: "porelo-machines pins GraalVM CE 25.6.5.1 (JDK 25.0.5.1) for Linux and Windows, and this repository's task image installs the same archive: GraalVM 25.1 to 25.5 carry CVE-2026-114938, a Base64 decoder intrinsic that writes past its buffer."
+type: security

@@ -383,6 +383,132 @@ class PinTest {
     }
 
     @Test
+    void aGraalvmBelowTheFloorIsRefusedBeforeAnythingIsRead() {
+        // GraalVM 25.1 to 25.5 carry a Base64 decoder intrinsic that writes past its buffer.
+        machines(Map.of("porelo.release.pin.graalvm.floor", "25.6"));
+        final Map<String, String> before = files();
+
+        assertThat(move("graalvm", "25.5.5.0.3", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(files()).as("nothing is written").isEqualTo(before);
+        assertThat(stderr()).contains("25.5.5.0.3 is below porelo.release.pin.graalvm.floor, 25.6");
+    }
+
+    @Test
+    void aGraalvmAtOrAboveTheFloorIsTaken() {
+        machines(Map.of("porelo.release.pin.graalvm.floor", "25.6"));
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                GRAAL_RELEASE.replace("{version}", "25.6.5.1"),
+                                """
+                {"assets": [
+                  {"name": "graalvm-community-jdk-25i6-25.0.5.1_linux-x64_bin.tar.gz", "digest": "sha256:%s",
+                   "browser_download_url": "https://github.com/graalvm/x/linux.tar.gz"}
+                ]}"""
+                                        .formatted(NEW));
+
+        assertThat(move("graalvm", "25.6.5.1", web)).as(report()).isEqualTo(0);
+        assertThat(read("pom.xml"))
+                .contains("<machines.graalvm.version>25.6.5.1</machines.graalvm.version>");
+    }
+
+    @Test
+    void aGraalvmExactlyAtTheFloorIsTaken() {
+        machines(Map.of("porelo.release.pin.graalvm.floor", "25.6"));
+        final FakeWeb web =
+                new FakeWeb()
+                        .serve(
+                                GRAAL_RELEASE.replace("{version}", "25.6"),
+                                """
+                {"assets": [
+                  {"name": "graalvm-community-jdk-25i6_linux-x64_bin.tar.gz", "digest": "sha256:%s",
+                   "browser_download_url": "https://github.com/graalvm/x/linux.tar.gz"}
+                ]}"""
+                                        .formatted(NEW));
+
+        assertThat(move("graalvm", "25.6", web)).as(report()).isEqualTo(0);
+    }
+
+    @Test
+    void aPomAlreadyPinningBelowTheFloorIsRefusedRatherThanLeftAsItIs() {
+        machines(Map.of("porelo.release.pin.graalvm.floor", "25.6"));
+
+        assertThat(move("graalvm", "25.0.2", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stdout()).doesNotContain("nothing to do");
+        assertThat(stderr()).contains("25.0.2 is below");
+    }
+
+    @Test
+    void aBlankFloorIsRefusedRatherThanReadAsNone() {
+        machines(Map.of("porelo.release.pin.graalvm.floor", ""));
+
+        assertThat(move("graalvm", "25.5.5.0.3", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("floor is ''");
+    }
+
+    @Test
+    void theNewestReleaseBelowTheFloorIsNoUpdate() {
+        // The job waits for a release at or above the floor rather than going red on the move.
+        machines(Map.of("porelo.release.pin.graalvm.floor", "25.6"));
+        final FakeWeb web = new FakeWeb().serve(GRAAL_RELEASES, graalReleases());
+
+        assertThat(ask("graalvm", web, "3d")).as(report()).isEqualTo(0);
+        assertThat(stdout())
+                .contains("upstream=25.4.4.1.1")
+                .contains("update=no")
+                .contains("floor=25.6");
+    }
+
+    @Test
+    void aReleaseBelowTheFloorNamedByHandIsNoAnswer() {
+        machines(Map.of("porelo.release.pin.graalvm.floor", "25.6"));
+
+        assertThat(
+                        new UpstreamVersion(
+                                        stream(out),
+                                        stream(err),
+                                        FakeWeb.untouchable(),
+                                        Map.of(),
+                                        NOW)
+                                .answer(
+                                        directory.resolve("pom.xml"),
+                                        null,
+                                        "25.5.5.0.3",
+                                        "graalvm",
+                                        null))
+                .as(report())
+                .isEqualTo(Stop.UNANSWERED);
+        assertThat(stdout()).doesNotContain("update=yes");
+        assertThat(stderr()).contains("25.5.5.0.3 is below porelo.release.pin.graalvm.floor, 25.6");
+    }
+
+    @Test
+    void aFloorThatIsNotAVersionIsRefused() {
+        machines(Map.of("porelo.release.pin.graalvm.floor", "latest"));
+
+        assertThat(move("graalvm", "25.6.5.1", FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("floor is 'latest'");
+    }
+
+    @Test
+    void anImageFollowedByItsDigestTakesNoFloor() {
+        machines(Map.of("porelo.release.pin.ubuntu-image.floor", "24.04"));
+
+        assertThat(move("ubuntu-image", NEW_IMAGE, FakeWeb.untouchable()))
+                .as(report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("ubuntu-image.floor is '24.04'");
+    }
+
+    @Test
     void aFurtherBuildWithoutADigestOfItsOwnIsRefusedBeforeAnythingIsRead() {
         // Moved by its version alone, its download would be checked against nothing.
         final Map<String, String> windows = new LinkedHashMap<>();
@@ -488,7 +614,7 @@ class PinTest {
     }
 
     @Test
-    void theMachinesPinsInThisRepositoryAreReadAsTheToolReadsThem() throws Stop {
+    void theMachinesPinsInThisRepositoryAreReadAsTheToolReadsThem() throws Stop, IOException {
         // The pins the machines workflow moves: a pin the tool cannot read would leave the job red
         // every day.
         final Pom machines = Pom.read(Path.of("../machines/pom.xml"));
@@ -503,7 +629,18 @@ class PinTest {
                                 "windows",
                                 "machines.graalvm.windows.sha256",
                                 "machines.graalvm.windows.url"));
+        assertThat(Pin.of(machines, "graalvm").floor())
+                .as("no GraalVM open to the Base64 decoder overflow of 25.1 to 25.5 is pinned")
+                .isEqualTo("25.6");
+        assertThat(Versions.compare(Pin.of(machines, "graalvm").pinned(), "25.6"))
+                .isGreaterThanOrEqualTo(0);
         assertThat(Pin.of(machines, "ubuntu-image").pinned()).startsWith("sha256:");
+        final String url = machines.required("machines.graalvm.url");
+        assertThat(Files.readString(Path.of("../porelo.yml")))
+                .as("the task image installs the archive the pom pins, by the same digest")
+                .contains(url.substring(0, url.lastIndexOf('/')))
+                .contains(url.substring(url.lastIndexOf('/') + 1))
+                .contains(machines.required("machines.graalvm.sha256") + "  /tmp/graalvm.tar.gz");
         assertThat(Pin.of(machines, "alpine-image").pinned()).startsWith("sha256:");
         assertThat(Pin.of(machines, "registry-image").pinned()).startsWith("sha256:");
         assertThat(machines.optional(Release.PREFIX + "min-age")).isEqualTo("3d");

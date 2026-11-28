@@ -43,6 +43,14 @@ Both builds are one pin: `porelo.release.pin.graalvm.also` names `windows`, and 
 `.sha256` and `.url` say where its digest is read and which properties it is written to. The pin's update reads every
 build of the release before it writes anything, so a release without the Windows zip moves neither.
 
+The pin holds a floor, `porelo.release.pin.graalvm.floor`, at 25.6: GraalVM 25.1 to 25.5, built on a JDK below 25.0.5.1,
+carry CVE-2026-114938, a Base64 decoder intrinsic that writes past its buffer. `update --pin graalvm` refuses a version
+below the floor before it reads upstream, `upstream-version --pin graalvm` answers `update=no` with `floor=` for a
+release below it and refuses one named by hand, and the Build's tests fail when `machines/pom.xml` names a version below
+it or `porelo.yml` installs another archive or digest. Any pin followed by its version may hold a floor of its own; a pin
+followed by its digest takes none, and a floor declared blank is refused. For an agent's pin, `check-pin --pin <name>`
+fails a pom whose pinned version is below the pin's floor.
+
 ## Tried again by one rule
 
 When a file must be fetched:

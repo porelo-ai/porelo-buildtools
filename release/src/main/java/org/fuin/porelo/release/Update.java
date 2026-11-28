@@ -163,6 +163,7 @@ public final class Update {
                             + "' is not "
                             + (pin.upstream().byDigest() ? "an image digest" : "a version"));
         }
+        pin.atFloor(version);
         final Pom pom = pin.pom();
         final String was = pin.pinned();
         if (was.equals(version)) {

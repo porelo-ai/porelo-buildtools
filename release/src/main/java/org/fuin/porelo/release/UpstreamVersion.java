@@ -121,6 +121,9 @@ public final class UpstreamVersion {
                 throw Stop.unanswered(
                         "'" + named + "' is not a " + (byDigest ? "digest" : "version"));
             }
+            if (named != null && tracked instanceof Pin one) {
+                one.atFloor(named);
+            }
             final String there =
                     named != null ? named : tracked.upstream().version(web, followed, env);
             answer.put("pinned", have);
@@ -166,6 +169,15 @@ public final class UpstreamVersion {
                     answer.put("published", newestPublished.toString());
                     answer.put("waiting", newestPublished.plus(age).toString());
                 }
+            }
+            // A release below the floor is no update, however long it has stood: the job waits for
+            // one at or above it rather than going red on the move.
+            if (tracked instanceof Pin one
+                    && one.floor() != null
+                    && Versions.Verdict.YES.word().equals(answer.get("update"))
+                    && Versions.compare(answer.get("upstream"), one.floor()) < 0) {
+                answer.put("update", Versions.Verdict.NO.word());
+                answer.put("floor", one.floor());
             }
         } catch (Stop stop) {
             // Every stop is "could not tell" here: a pom that pins nothing is not "up to date".

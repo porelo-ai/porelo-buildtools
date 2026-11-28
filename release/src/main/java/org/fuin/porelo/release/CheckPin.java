@@ -297,6 +297,7 @@ public final class CheckPin {
                     List.of("", "v"));
         }
         final Pin pin = Pin.of(pom, pinName);
+        pin.atFloor(pin.pinned());
         final String digest = pin.heldDigest();
         final List<Pinned.Artifact> named = agent.withDigest(digest);
         if (named.size() != 1) {

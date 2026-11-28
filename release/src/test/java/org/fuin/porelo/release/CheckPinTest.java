@@ -134,6 +134,44 @@ class CheckPinTest {
     }
 
     @Test
+    void aPinBelowItsFloorDisagreesThoughEveryOtherFactAgrees() throws java.io.IOException {
+        // A floor raised after a release was found unsafe holds a pom that still names it.
+        final AgentRepository codex =
+                AgentRepository.codex(directory, "1.2.3", DIGEST, "e".repeat(64), false);
+        final Path definition = codex.filteredTwo("1.2.3", DIGEST, "e".repeat(64));
+        final String pom = java.nio.file.Files.readString(codex.pom());
+        java.nio.file.Files.writeString(
+                codex.pom(),
+                pom.replaceFirst(
+                        "</properties>",
+                        "<porelo.release.pin.helper.floor>1.2.4</porelo.release.pin.helper.floor>"
+                                + "</properties>"));
+
+        assertThat(check(codex, FakeWeb.untouchable(), definition, "helper"))
+                .as("refused before upstream is asked: " + report())
+                .isEqualTo(Stop.REFUSED);
+        assertThat(stdout()).contains("FAIL").contains("1.2.3 is below").contains("floor, 1.2.4");
+    }
+
+    @Test
+    void aPinExactlyAtItsFloorAgrees() throws java.io.IOException {
+        final AgentRepository codex =
+                AgentRepository.codex(directory, "1.2.3", DIGEST, "e".repeat(64), false);
+        final Path definition = codex.filteredTwo("1.2.3", DIGEST, "e".repeat(64));
+        final String pom = java.nio.file.Files.readString(codex.pom());
+        java.nio.file.Files.writeString(
+                codex.pom(),
+                pom.replaceFirst(
+                        "</properties>",
+                        "<porelo.release.pin.helper.floor>1.2.3</porelo.release.pin.helper.floor>"
+                                + "</properties>"));
+
+        assertThat(check(codex, codexSums(DIGEST, "e".repeat(64)), definition, "helper"))
+                .as(report())
+                .isEqualTo(0);
+    }
+
+    @Test
     void aPomDeclaringOnlyNamedPinsNeedsTheDefinitionNamed() {
         final AgentRepository codex =
                 AgentRepository.codex(directory, "1.2.3", DIGEST, "e".repeat(64), false);

@@ -44,6 +44,7 @@ import org.jspecify.annotations.Nullable;
  * @param imageProperty the property that image's digest is written to, or null
  * @param follows the properties that spell the pin out inside a longer value
  * @param also further builds of the same release, moved with it
+ * @param floor the oldest version this pin may name, or null for a pin without one
  */
 public record Pin(
         Pom pom,
@@ -58,7 +59,8 @@ public record Pin(
         @Nullable String image,
         @Nullable String imageProperty,
         List<String> follows,
-        List<Also> also)
+        List<Also> also,
+        @Nullable String floor)
         implements Tracked {
 
     /** Every pin's properties start here, then its name. */
@@ -81,6 +83,8 @@ public record Pin(
      * @param image the image tag address
      * @param imageProperty the image digest's property
      * @param follows the properties spelling it out
+     * @param also the further builds
+     * @param floor the oldest version it may name
      */
     public Pin {
         follows = List.copyOf(follows);
@@ -176,6 +180,17 @@ public record Pin(
             }
         }
         final List<Also> builds = also(pom, prefix, digests, upstream);
+        // Read as declared: a blank floor taken for none would let every version through.
+        final String floor = pom.properties().get(prefix + "floor");
+        if (floor != null && (upstream.byDigest() || !Versions.isRelease(floor))) {
+            throw Stop.refused(
+                    pom.file()
+                            + ": "
+                            + prefix
+                            + "floor is '"
+                            + floor
+                            + "', but a floor is a version, for a pin followed by its version");
+        }
         distinct(pom, prefix, property, sha256, url, imageProperty, followed, builds);
         return new Pin(
                 pom,
@@ -190,7 +205,30 @@ public record Pin(
                 image,
                 imageProperty,
                 followed,
-                builds);
+                builds,
+                floor);
+    }
+
+    /**
+     * Refuses a version below the pin's floor: a release known to be unsafe is never pinned, by an
+     * update or by a hand that edits the pom.
+     *
+     * @param version a version this pin would name
+     * @throws Stop refused when it is older than the floor
+     */
+    public void atFloor(String version) throws Stop {
+        if (floor != null && Versions.compare(version, floor) < 0) {
+            throw Stop.refused(
+                    label
+                            + " "
+                            + version
+                            + " is below "
+                            + PREFIX
+                            + name
+                            + ".floor, "
+                            + floor
+                            + ": no release older than that is pinned");
+        }
     }
 
     /**

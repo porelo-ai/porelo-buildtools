@@ -1,0 +1,2 @@
+title: "A pin may hold a floor, `porelo.release.pin.<name>.floor`: `update --pin` refuses a version below it, `upstream-version --pin` answers `update=no` with `floor=` for a release below it and refuses one named by hand, and `check-pin --pin` fails a pom that names one. The GraalVM pin's floor is 25.6, so no GraalVM open to CVE-2026-114938 is pinned again."
+type: security
